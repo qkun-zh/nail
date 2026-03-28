@@ -1,0 +1,59 @@
+2026/03/09 21:04:54 [emerg] 28076#18376: "server" directive is not allowed here in C:\Users\qkun\Desktop\nail\backend\nginx-1.29.5/conf/nail.conf:1
+2026/03/09 21:08:50 [emerg] 27896#5012: "http" directive is not allowed here in C:\Users\qkun\Desktop\nail\backend\nginx-1.29.5/conf/nail.conf:1
+2026/03/09 21:10:05 [warn] 28188#30508: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:10:13 [warn] 14008#7428: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:10:13 [warn] 28264#17392: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:11:03 [warn] 28812#22656: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:11:05 [warn] 13472#29844: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:11:05 [warn] 3480#30140: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:13:55 [warn] 20232#24980: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:13:55 [warn] 14792#19744: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:17:21 [warn] 13680#620: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:17:21 [warn] 28112#23412: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:20:06 [warn] 22144#11204: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:20:07 [warn] 9900#30656: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:20:07 [warn] 3248#3040: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:22:06 [warn] 9936#19364: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:22:06 [warn] 13736#6200: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:23:14 [warn] 25792#28556: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:23:14 [warn] 696#12932: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:24:07 [warn] 9064#19880: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:24:07 [warn] 22656#29608: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:29:48 [warn] 25440#7928: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:29:48 [warn] 29832#19980: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:32:55 [warn] 6708#29908: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:32:55 [warn] 30112#28100: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:34:36 [warn] 16776#23088: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:34:36 [warn] 21956#16508: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:35:57 [warn] 29948#7916: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/09 21:35:57 [warn] 7676#27600: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/16 14:38:00 [warn] 15984#3628: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/16 14:41:46 [warn] 14080#4440: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/16 14:41:52 [warn] 19428#632: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/16 14:41:52 [warn] 21220#9728: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/16 14:42:15 [error] 21220#21216: *6 connect() failed (10061: No connection could be made because the target machine actively refused it) while connecting to upstream, client: ::1, server: localhost, request: "GET /api/hello HTTP/2.0", upstream: "http://[::1]:35000", host: "localhost"
+2026/03/16 14:42:17 [error] 21220#21216: *6 connect() failed (10061: No connection could be made because the target machine actively refused it) while connecting to upstream, client: ::1, server: localhost, request: "GET /api/hello HTTP/2.0", upstream: "http://127.0.0.1:35000", host: "localhost"
+2026/03/16 14:47:30 [error] 21220#21216: *14 connect() failed (10061: No connection could be made because the target machine actively refused it) while connecting to upstream, client: ::1, server: localhost, request: "GET /api/hello HTTP/2.0", upstream: "http://[::1]:35000", host: "localhost"
+2026/03/16 15:13:48 [error] 21220#21216: *32 connect() failed (10061: No connection could be made because the target machine actively refused it) while connecting to upstream, client: ::1, server: localhost, request: "GET /api/hello HTTP/2.0", upstream: "http://[::1]:35000", host: "localhost"
+2026/03/16 15:31:49 [warn] 12976#15620: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/16 15:31:49 [warn] 11740#13508: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/16 15:36:13 [error] 11740#12600: *7 connect() failed (10061: No connection could be made because the target machine actively refused it) while connecting to upstream, client: ::1, server: localhost, request: "GET /api/hello HTTP/1.1", upstream: "http://[::1]:35000/hello", host: "localhost"
+2026/03/16 15:47:56 [error] 11740#12600: *17 connect() failed (10061: No connection could be made because the target machine actively refused it) while connecting to upstream, client: ::1, server: localhost, request: "GET /api/hello HTTP/1.1", upstream: "http://[::1]:35000/hello", host: "[::1]"
+2026/03/16 15:48:45 [error] 11740#12600: *24 connect() failed (10061: No connection could be made because the target machine actively refused it) while connecting to upstream, client: ::1, server: localhost, request: "GET /api/hello HTTP/1.1", upstream: "http://[::1]:35000/hello", host: "[::1]"
+2026/03/16 15:49:28 [error] 11740#12600: *31 connect() failed (10061: No connection could be made because the target machine actively refused it) while connecting to upstream, client: ::1, server: localhost, request: "GET /api/hello HTTP/1.1", upstream: "http://[::1]:35000/hello", host: "localhost"
+2026/03/16 15:50:13 [error] 11740#12600: *31 connect() failed (10061: No connection could be made because the target machine actively refused it) while connecting to upstream, client: ::1, server: localhost, request: "GET /api/hello HTTP/1.1", upstream: "http://[::1]:35000/hello", host: "localhost"
+2026/03/16 15:51:13 [warn] 24444#10012: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/16 15:51:15 [warn] 24096#18556: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/16 15:51:24 [warn] 2400#17904: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/16 15:51:24 [warn] 2340#23020: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/16 15:51:30 [error] 2340#3108: *3 connect() failed (10061: No connection could be made because the target machine actively refused it) while connecting to upstream, client: ::1, server: localhost, request: "GET /api/hello HTTP/1.1", upstream: "http://[::1]:35000/hello", host: "localhost"
+2026/03/16 15:59:31 [error] 2340#3108: *79 connect() failed (10061: No connection could be made because the target machine actively refused it) while connecting to upstream, client: ::1, server: localhost, request: "GET /api/hello HTTP/1.1", upstream: "http://[::1]:35000/hello", host: "localhost"
+2026/03/16 16:07:17 [warn] 13592#24124: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/16 16:07:19 [warn] 19488#21988: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/16 16:07:19 [warn] 18320#24556: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/16 16:51:48 [error] 18320#4244: *36 connect() failed (10061: No connection could be made because the target machine actively refused it) while connecting to upstream, client: ::1, server: localhost, request: "GET /api/hello HTTP/2.0", upstream: "http://[::1]:35000", host: "[::1]"
+2026/03/17 12:18:04 [warn] 18924#15320: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/17 12:18:16 [warn] 11980#15760: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/17 12:18:16 [warn] 12156#11780: conflicting server name "localhost" on 0.0.0.0:80, ignored
+2026/03/17 12:20:22 [error] 12156#7720: *6 connect() failed (10061: No connection could be made because the target machine actively refused it) while connecting to upstream, client: ::1, server: localhost, request: "GET /api/hello HTTP/2.0", upstream: "http://[::1]:35000", host: "localhost"
+2026/03/17 12:20:24 [error] 12156#7720: *6 connect() failed (10061: No connection could be made because the target machine actively refused it) while connecting to upstream, client: ::1, server: localhost, request: "GET /api/hello HTTP/2.0", upstream: "http://127.0.0.1:35000", host: "localhost"

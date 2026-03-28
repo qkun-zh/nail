@@ -1,6 +1,24 @@
 [package]
-name = "back"
+name = "backend"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+axum = "0.8"
+tokio = { version = "1.0", features = ["full"] }
+tower-http = { version = "0.6", features = ["fs", "trace"] }
+tracing = "0.1"
+serde = { version = "1.0", features = ["derive"] }
+toml = "1.0"
+clap = { version = "4.0", features = ["derive"] }
+hyper = "1.8.1"
+hyper-util = { version = "0.1.20", features = ["client", "client-legacy"] }
+axum-server = { version = "0.8.0", features = ["tls-rustls"] }
+
+surrealdb = { version = "2", features = ["allocator", "kv-surrealkv"] }
+serde_json = "1.0.149"
+anyhow = "1.0.102"
+
+[dependencies.tracing-subscriber]
+version = "0.3"
+features = ["env-filter"]
