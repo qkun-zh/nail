@@ -135,3 +135,71 @@ fn count_edges_sync(db: &agdb::DbAny, from: agdb::DbId, edge_type: &str) -> Resu
         .elements
         .len() as u64)
 }
+
+#[derive(Debug)]
+pub enum TargetTransferError {
+    TargetNotFound,
+    NoRecycler,
+    Db(DbError),
+}
+
+impl From<DbError> for TargetTransferError {
+    fn from(error: DbError) -> Self {
+        Self::Db(error)
+    }
+}
+
+pub async fn transfer_article_ownership(
+    db: &DbHandle,
+    article_id: &str,
+) -> Result<(), TargetTransferError> {
+    transfer_target_ownership(
+        db,
+        crate::repository::schema::ENTITY_TYPE_ARTICLE,
+        EDGE_USER_TO_ARTICLE,
+        article_id,
+    )
+    .await
+}
+
+async fn transfer_target_ownership(
+    db: &DbHandle,
+    target_kind: &str,
+    edge_type: &str,
+    target_id: &str,
+) -> Result<(), TargetTransferError> {
+    let target = pick_recycler_target(db, &[]).await?.ok_or(TargetTransferError::NoRecycler)?;
+    let mut guard = db.write().await;
+    guard.transaction_mut(|transaction| {
+        let recycler = resolve_node_id_in_txn(transaction, ENTITY_TYPE_USER, &target)?
+            .ok_or(TargetTransferError::NoRecycler)?;
+        let target_node = resolve_node_id_in_txn(transaction, target_kind, target_id)?
+            .ok_or(TargetTransferError::TargetNotFound)?;
+        let edges = transaction.exec(
+            QueryBuilder::search()
+                .to(target_node)
+                .where_()
+                .distance(agdb::CountComparison::Equal(1))
+                .and()
+                .edge()
+                .and()
+                .key(KEY_TYPE)
+                .value(edge_type)
+                .query(),
+        )?;
+        if edges.elements.is_empty() {
+            return Ok(());
+        }
+        let edge_ids: Vec<agdb::DbId> = edges.elements.iter().map(|edge| edge.id).collect();
+        transaction.exec_mut(QueryBuilder::remove().ids(edge_ids).query())?;
+        transaction.exec_mut(
+            QueryBuilder::insert()
+                .edges()
+                .from(recycler)
+                .to([target_node])
+                .values([[(KEY_TYPE, edge_type).into()]])
+                .query(),
+        )?;
+        Ok(())
+    })
+}

@@ -98,3 +98,12 @@ pub struct TagRow {
     pub id: String,
     pub tag_name: String,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, DbType, DbTypeMarker)]
+pub struct CommentRow {
+    pub db_id: Option<DbId>,
+    #[agdb(rename = "type")]
+    pub entity_type: String,
+    pub id: String,
+    pub content: String,
+}
