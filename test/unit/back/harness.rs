@@ -19,6 +19,8 @@ pub mod logic_email;
 pub mod logic_authenticate;
 #[path = "logic/session.rs"]
 pub mod logic_session;
+#[path = "logic/user.rs"]
+pub mod logic_user;
 
 #[path = "repository/cache.rs"]
 pub mod repository_cache;
