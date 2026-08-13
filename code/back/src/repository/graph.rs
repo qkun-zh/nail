@@ -76,6 +76,54 @@ pub(crate) fn find_by_index_sync(
     Ok(result.elements.iter().map(|element| element.id).collect())
 }
 
+pub(crate) fn find_by_index_in_txn(
+    transaction: &agdb::DbAnyTransactionMut,
+    index_key: &str,
+    value: &str,
+) -> Result<Vec<agdb::DbId>, DbError> {
+    let result = transaction.exec(
+        QueryBuilder::select()
+            .values([agdb::DbValue::String(index_key.to_string())])
+            .search()
+            .index(index_key)
+            .value(value)
+            .query(),
+    )?;
+    Ok(result.elements.iter().map(|element| element.id).collect())
+}
+
+pub(crate) fn read_rows_in_txn<T>(
+    transaction: &agdb::DbAnyTransactionMut,
+    ids: &[agdb::DbId],
+) -> Result<Vec<T>, DbError>
+where
+    T: DbType<ValueType = T> + DbTypeMarker,
+{
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let keys = T::db_keys();
+    let search_ids = QueryBuilder::search()
+        .elements()
+        .where_()
+        .ids(ids.to_vec())
+        .query();
+    let result = transaction.exec(QueryBuilder::select().values(keys).ids(search_ids).query())?;
+    Ok(result.try_into()?)
+}
+
+pub(crate) fn read_node_in_txn<T>(
+    transaction: &agdb::DbAnyTransactionMut,
+    id: agdb::DbId,
+) -> Result<Option<T>, DbError>
+where
+    T: DbType<ValueType = T> + DbTypeMarker,
+{
+    Ok(read_rows_in_txn::<T>(transaction, std::slice::from_ref(&id))?
+        .into_iter()
+        .next())
+}
+
 pub(crate) fn read_rows_sync<T>(db: &DbAny, ids: &[agdb::DbId]) -> Result<Vec<T>, DbError>
 where
     T: DbType<ValueType = T> + DbTypeMarker,

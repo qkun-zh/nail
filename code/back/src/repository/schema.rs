@@ -67,3 +67,34 @@ pub struct PermissionRow {
     pub entity_type: String,
     pub permission_name: String,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, DbType, DbTypeMarker)]
+pub struct ArticleRow {
+    pub db_id: Option<DbId>,
+    #[agdb(rename = "type")]
+    pub entity_type: String,
+    pub id: String,
+    pub title: String,
+    pub summary: String,
+    pub latest_version_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DbType, DbTypeMarker)]
+pub struct VersionRow {
+    pub db_id: Option<DbId>,
+    #[agdb(rename = "type")]
+    pub entity_type: String,
+    pub id: String,
+    pub version_number: String,
+    pub content_hash: String,
+    pub note: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DbType, DbTypeMarker)]
+pub struct TagRow {
+    pub db_id: Option<DbId>,
+    #[agdb(rename = "type")]
+    pub entity_type: String,
+    pub id: String,
+    pub tag_name: String,
+}

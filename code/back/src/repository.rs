@@ -1,8 +1,11 @@
+pub mod article;
 pub mod cache;
 pub mod delete;
 pub mod graph;
 pub mod role;
 pub mod schema;
 pub mod seed;
+pub mod tag;
 pub mod transfer;
 pub mod user;
+pub mod version;

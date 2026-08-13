@@ -36,6 +36,9 @@ pub mod repository_transfer;
 #[path = "repository/delete.rs"]
 pub mod repository_delete;
 
+#[path = "repository/article.rs"]
+pub mod repository_article;
+
 #[path = "http/authenticate.rs"]
 pub mod http_authenticate;
 #[path = "http/user.rs"]
