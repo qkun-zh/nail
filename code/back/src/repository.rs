@@ -4,6 +4,7 @@ pub mod delete;
 pub mod graph;
 pub mod role;
 pub mod schema;
+pub mod search;
 pub mod seed;
 pub mod tag;
 pub mod transfer;

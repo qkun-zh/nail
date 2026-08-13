@@ -39,6 +39,9 @@ pub mod repository_delete;
 #[path = "repository/article.rs"]
 pub mod repository_article;
 
+#[path = "repository/search.rs"]
+pub mod repository_search;
+
 #[path = "http/authenticate.rs"]
 pub mod http_authenticate;
 #[path = "http/user.rs"]

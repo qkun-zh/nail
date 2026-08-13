@@ -3,7 +3,7 @@ use agdb::{DbError, QueryBuilder};
 use crate::repository::graph::{DbHandle, read_node_in_txn, resolve_node_id_in_txn};
 use crate::repository::schema::{
     EDGE_ARTICLE_TO_VERSION, EDGE_COMMENT_TO_COMMENT, EDGE_COMMENT_TO_VERSION,
-    EDGE_USER_TO_ARTICLE, EDGE_USER_TO_COMMENT, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_COMMENT,
+    EDGE_USER_TO_ARTICLE, EDGE_USER_TO_COMMENT, ENTITY_TYPE_ARTICLE,
     ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, KEY_LATEST_VERSION_ID, KEY_TYPE, VersionRow,
 };
 
