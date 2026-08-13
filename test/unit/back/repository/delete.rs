@@ -1,12 +1,13 @@
 use super::context::{build_state, test_config};
 
 use agdb::QueryBuilder;
-use crate::repository::article::{create_article, read_article_versions};
+use crate::repository::article::create_article;
 use crate::repository::delete::{hard_delete_article, hard_delete_user, hard_delete_version};
 use crate::repository::schema::{
     CommentRow, EDGE_COMMENT_TO_VERSION, EDGE_USER_TO_COMMENT, ENTITY_TYPE_COMMENT,
     ENTITY_TYPE_USER, KEY_TYPE, alias_of,
 };
+use crate::repository::version::read_article_versions;
 
 fn pdf_hash(seed: u8) -> String {
     (0..32).map(|_| format!("{seed:x}")).collect()

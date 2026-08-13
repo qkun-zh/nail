@@ -1,10 +1,12 @@
 use super::context::{build_state, test_config};
 
 use crate::repository::article::{
-    CreateArticleError, UpdateArticleError, create_article, find_version_by_hash,
-    list_articles_page, read_article, read_article_versions, update_article,
+    CreateArticleError, UpdateArticleError, create_article, list_articles_page, read_article,
+    update_article,
 };
-use crate::repository::version::{CreateVersionError, create_version, read_version};
+use crate::repository::version::{
+    CreateVersionError, create_version, find_version_by_hash, read_article_versions, read_version,
+};
 
 async fn create_user(state: &crate::infrastructure::state::AppState, email: &str) -> String {
     crate::repository::user::find_or_create_user(&state.graph, &nail_common::hash::email(email))

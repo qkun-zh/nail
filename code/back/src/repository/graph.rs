@@ -162,3 +162,20 @@ pub(crate) fn existing_index_keys(db: &DbAny) -> Result<HashSet<String>, DbError
     }
     Ok(keys)
 }
+
+pub(crate) fn insert_edge(
+    transaction: &mut agdb::DbAnyTransactionMut,
+    edge_type: &str,
+    from: agdb::QueryId,
+    to: agdb::QueryId,
+) -> Result<(), DbError> {
+    transaction.exec_mut(
+        QueryBuilder::insert()
+            .edges()
+            .from(from)
+            .to([to])
+            .values([[(crate::repository::schema::KEY_TYPE, edge_type).into()]])
+            .query(),
+    )?;
+    Ok(())
+}

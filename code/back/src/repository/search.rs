@@ -4,7 +4,7 @@ use agdb::{DbError, QueryBuilder};
 use seekstorm::commit::Commit;
 use seekstorm::highlighter::{Highlight, highlighter};
 use seekstorm::index::{
-    AccessType, Clustering, DeleteDocuments, Document, DocumentCompression, FieldType, FileType,
+    AccessType, Clustering, DeleteDocuments, DocumentCompression, FieldType, FileType,
     FrequentwordType, IndexDocument, IndexDocuments, IndexMetaObject, LexicalSimilarity, NgramSet,
     SchemaField, StemmerType, StopwordType, TokenizerType, UpdateDocument, create_index,
     open_index,
@@ -17,10 +17,10 @@ use seekstorm::vector::Inference;
 
 use crate::repository::graph::DbHandle;
 use crate::repository::schema::{
-    ArticleRow, CommentRow, EDGE_ARTICLE_TO_TAG, EDGE_ARTICLE_TO_VERSION, EDGE_COMMENT_TO_VERSION,
-    EDGE_USER_TO_ARTICLE, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, IdRow,
-    KEY_TYPE, TagRow, UserRow, VersionRow,
+    EDGE_USER_TO_ARTICLE, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_USER, IdRow, KEY_TYPE,
 };
+
+pub mod document;
 
 pub type SearchIndexHandle = seekstorm::index::IndexArc;
 
@@ -198,7 +198,7 @@ pub async fn sync_article(
     db: &DbHandle,
     article_id: &str,
 ) -> anyhow::Result<()> {
-    let Some(document) = build_document(db, article_id).await? else {
+    let Some(document) = document::build_document(db, article_id).await? else {
         return Ok(());
     };
     match find_doc_id(index, article_id).await? {
@@ -275,7 +275,7 @@ pub async fn rebuild_index(index: &SearchIndexHandle, db: &DbHandle) -> anyhow::
     let mut documents = Vec::with_capacity(article_ids.len());
     let mut count = 0u64;
     for article_id in &article_ids {
-        let Some(document) = build_document(db, article_id).await? else {
+        let Some(document) = document::build_document(db, article_id).await? else {
             continue;
         };
         documents.push(document);
@@ -311,145 +311,6 @@ async fn find_doc_id(index: &SearchIndexHandle, article_id: &str) -> anyhow::Res
         )
         .await;
     Ok(result.results.first().map(|result| result.doc_id as u64))
-}
-
-async fn build_document(db: &DbHandle, article_id: &str) -> anyhow::Result<Option<Document>> {
-    let guard = db.read().await;
-    let Some(article) =
-        crate::repository::graph::resolve_node_id_sync(&guard, ENTITY_TYPE_ARTICLE, article_id)?
-    else {
-        return Ok(None);
-    };
-    let article_row = crate::repository::graph::read_rows_sync::<ArticleRow>(&guard, &[article])?
-        .into_iter()
-        .next();
-    let title = article_row.as_ref().map(|row| row.title.clone()).unwrap_or_default();
-    let summary = article_row
-        .as_ref()
-        .map(|row| row.summary.clone())
-        .unwrap_or_default();
-    let latest_version_id = article_row
-        .as_ref()
-        .and_then(|row| row.latest_version_id.clone())
-        .unwrap_or_default();
-
-    let author = {
-        let edges = guard.exec(
-            QueryBuilder::search()
-                .to(article)
-                .where_()
-                .distance(agdb::CountComparison::Equal(1))
-                .and()
-                .edge()
-                .and()
-                .key(KEY_TYPE)
-                .value(EDGE_USER_TO_ARTICLE)
-                .query(),
-        )?;
-        match edges.elements.first() {
-            Some(edge) => crate::repository::graph::read_rows_sync::<UserRow>(&guard, &[edge.from])?
-                .into_iter()
-                .next()
-                .map(|row| row.name)
-                .unwrap_or_default(),
-            None => String::new(),
-        }
-    };
-
-    let note = if latest_version_id.is_empty() {
-        String::new()
-    } else {
-        match crate::repository::graph::resolve_node_id_sync(
-            &guard,
-            ENTITY_TYPE_VERSION,
-            &latest_version_id,
-        )? {
-            Some(version) => {
-                crate::repository::graph::read_rows_sync::<VersionRow>(&guard, &[version])?
-                    .into_iter()
-                    .next()
-                    .map(|row| row.note)
-                    .unwrap_or_default()
-            }
-            None => String::new(),
-        }
-    };
-
-    let ts = nail_common::time::uuidv7_timestamp_ms(&latest_version_id)
-        .map(|millis| (millis / 1000) as i64)
-        .unwrap_or(0);
-
-    let tag_edges = guard.exec(
-        QueryBuilder::search()
-            .from(article)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_TO_TAG)
-            .query(),
-    )?;
-    let mut tags: Vec<String> = Vec::with_capacity(tag_edges.elements.len());
-    for edge in &tag_edges.elements {
-        if let Some(name) = crate::repository::graph::read_rows_sync::<TagRow>(&guard, &[edge.to])?
-            .into_iter()
-            .next()
-            .map(|row| row.tag_name)
-        {
-            tags.push(name);
-        }
-    }
-
-    let version_edges = guard.exec(
-        QueryBuilder::search()
-            .from(article)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_TO_VERSION)
-            .query(),
-    )?;
-    let mut comments: Vec<String> = Vec::new();
-    for version_edge in &version_edges.elements {
-        let comment_edges = guard.exec(
-            QueryBuilder::search()
-                .to(version_edge.to)
-                .where_()
-                .distance(agdb::CountComparison::Equal(1))
-                .and()
-                .edge()
-                .and()
-                .key(KEY_TYPE)
-                .value(EDGE_COMMENT_TO_VERSION)
-                .query(),
-        )?;
-        for comment_edge in &comment_edges.elements {
-            if let Some(content) =
-                crate::repository::graph::read_rows_sync::<CommentRow>(&guard, &[comment_edge.from])?
-                    .into_iter()
-                    .next()
-                    .map(|row| row.content)
-            {
-                comments.push(content);
-            }
-        }
-    }
-
-    let mut document = Document::new();
-    document.insert(FIELD_ID.to_string(), serde_json::json!(article_id));
-    document.insert(FIELD_TITLE.to_string(), serde_json::json!(title));
-    document.insert(FIELD_SUMMARY.to_string(), serde_json::json!(summary));
-    document.insert(FIELD_AUTHOR.to_string(), serde_json::json!(author));
-    document.insert(FIELD_NOTE.to_string(), serde_json::json!(note));
-    document.insert(FIELD_TAG.to_string(), serde_json::json!(tags));
-    document.insert(FIELD_COMMENT.to_string(), serde_json::json!(comments));
-    document.insert(FIELD_TS.to_string(), serde_json::json!(ts));
-    Ok(Some(document))
 }
 
 pub async fn article_ids_of_user(db: &DbHandle, user_id: &str) -> Result<Vec<String>, DbError> {
