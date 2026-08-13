@@ -13,9 +13,13 @@ the migrating agent implements per this document and the referenced artifacts.
   - skeleton per README §3 (three crates `nail_common`/`nail_back`/`nail_front`,
     edition 2024, empty layered modules, `configuration/`/`data/`/`log/`/`test/`
     with .gitkeep);
-  - `document/reference/` — comment-stripped snapshot of the original code (the
-    behavior ground truth; regenerable via `git -C nail archive HEAD` +
-    `comment-stripper-rs --strip-docs` + `cargo check`);
+  - `document/reference/` — comment-stripped snapshot of the original code.
+    WARNING: this is **untrusted legacy code** — it is full of bugs and
+    compromise designs (32 known defects already adjudicated in
+    `document/adjudication.md`). It is an inventory of what the old code
+    *does*, NOT ground truth and NOT the spec. Regenerable via
+    `git -C nail archive HEAD` + `comment-stripper-rs --strip-docs` +
+    `cargo check`.
   - `document/reconstruction/` — reconstruct@2.17.0 output (redesign/complex/
     describe/tdd), **fully enriched**: `--check` PASSES;
   - `document/adjudication.md` — all 32 source-inconsistency items decided
@@ -65,9 +69,28 @@ Read `nail_new/README.md` in full first. Highlights:
   relations, enums.
 - `nail_new/document/reconstruction/architecture/ARCHITECTURE.md` — observed →
   target layer mapping.
-- `nail_new/document/reference/code/` — the behavior ground truth (read this,
-  never the old docs).
+- `nail_new/document/reference/code/` — the legacy code (see the WARNING in
+  Current state: buggy, untrustworthy). Read it to understand what exists and
+  to extract behavior, but never assume any line is correct (README §8:
+  "Verify every line... do not assume any of it is correct"). When behavior is
+  ambiguous, write a probe test to observe it.
 - `nail` (frozen) — git archaeology if a detail is missing.
+
+## What the target is (and is not)
+
+- The target is **PRD requirements + adjudication verdicts + the README
+  architecture rules**. The migration implements the *corrected* behavior, not
+  a faithful copy of what the legacy code happens to do.
+- The reconstruction PRDs document observed behavior — including the bugs.
+  They are an inventory, not a spec. Every "[confirmed]" tag means "the old
+  code does this", never "this is desired".
+- 32 known defects/compromises are already adjudicated (fix/remove/keep). When
+  the legacy code contradicts a verdict, the verdict wins.
+- Anything new found during migration: probe it, then report to the owner —
+  never silently preserve a bug or a compromise design.
+- The principle (README §8): probes outrank source, source outranks guessing;
+  facts are constructed from probes and source together. Because the source is
+  buggy, probes are the decisive tool wherever behavior is in doubt.
 
 ## Remaining steps
 
