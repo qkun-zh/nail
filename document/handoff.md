@@ -109,11 +109,11 @@ constitution); this document records state and process only.
     manually. Added `SearchIndex::close()` (wired into graceful shutdown, FR-7)
     and closed the index in search tests; this also fixed an OOM once the two
     probe tests pushed the un-closed index set over the memory limit.
-  - ⚠️ **Tooling (corrected again)**: the file tools fail on files under
-    `test/` and `code/back/src/repository/` — `read_file` returns "not found"
-    and `edit_file` silently no-ops (and can emit a stray `_`-prefixed archive
-    file). Use the terminal (`cat`/`sed`/`python3`) for those paths; the file
-    tools work for `document/`, `interface/`, `logic/`, and top-level files.
+  - Tooling note (verified 2026-08-14): the file tools (`read_file`/`edit_file`)
+    work normally on `test/` and `code/back/src/repository/` files. The earlier
+    claim that they failed was false — verified at session start by reading
+    `code/back/src/repository/comment.rs` and `test/unit/back/repository/delete.rs`
+    with `read_file`.
 
 - ✅ **Phase 3 slice 4 — comment domain** (2026-08-14, commit `91597bb`):
   `POST /version/{id}/comments/create`, `POST /comments/{id}/replies/create`,
@@ -187,8 +187,7 @@ Personnel change: agent E completed **slice 4 (comment domain)**; a new agent
   **back 180 tests green** (common 104; +2 §8.3 probe tests), `cargo check`
   zero warnings, working tree clean. The `_`-prefixed archive files were
   removed on 2026-08-14 (commit `aa39cb6`); the pre-rewrite implementation
-  remains recoverable from git (`8de3490^`). (File-tool caveat: see the slice 3
-  Tooling note.)
+  remains recoverable from git (`8de3490^`).
 - ✅ **Slice 3 §8.3 evidence gap closed**: the five-axis comparison in Current
   state is now grounded with library-source citations and probe tests (2 added);
   agdb write transactions, seekstorm `sync` vs `sync_all` count consistency
@@ -197,14 +196,11 @@ Personnel change: agent E completed **slice 4 (comment domain)**; a new agent
 - ✅ Slice 4 (comment domain) is done: create/reply/read/update/delete with
   the `DeleteBody` mode contract (#2), #16 (invalid comment id → 400), #3
   (no per-comment author gate). **back 205 tests green**.
-- ⏳ **Verify the tooling caveat (first task of agent F)**: the slice 3
-  "Tooling (corrected again)" note claims `read_file`/`edit_file` fail under
-  `test/` and `code/back/src/repository/`. The reference environment verified
-  the opposite (read_file reads `repository/comment.rs`, `repository/delete.rs`,
-  `repository/search.rs`, `test/unit/back/context.rs` normally). Agent F:
-  re-verify at session start (read one `repository/` file); if it works,
-  replace the caveat with a factual note or delete it. Never record
-  tooling claims without the exact path and error text.
+- ✅ **Tooling caveat verified (agent F, 2026-08-14)**: `read_file` reads
+  `code/back/src/repository/comment.rs` and `test/unit/back/repository/delete.rs`
+  normally; the slice 3 "Tooling (corrected again)" note was wrong and is
+  replaced with a factual note above. No tooling claim is recorded without an
+  exact path and error text.
 - ⏳ **Hard-delete reply-subtree regression tests (agent F, one commit)**: the
   slice 3 hard-delete tests did not exercise nested reply subtrees, which is
   how the `delete_comment_tree_in_txn` direction bug survived into slice 4
