@@ -58,8 +58,13 @@ Personnel change after slice 1: the previous agent's work is committed
 - (a) Add `#![allow(dead_code)]` at the `nail_back`/`nail_front` crate roots —
   the confirmed §5.4 mechanism, **NOT yet applied**; deleted together with the
   dead code in the Phase 5 cleanup.
-- (b) ✅ Owner's `README.md` changes are committed; working tree is clean.
+- (b) ✅ Owner's `README.md` changes are committed.
 - (c) ✅ #5 owner-confirmed — proceed through slice 6 without stopping.
+- (d) Working tree contains the previous agent's uncommitted WIP:
+  `code/back/src/logic/email.rs` (+266/-22, not staged, not tested, not
+  reviewed) — likely an early start on slice 2's email flow. Kept by owner
+  decision (2026-08-13): review it first (it did not go through the TDD
+  cycle); adopt, rework, or discard as part of slice 2.
 
 ## Rules (non-negotiable; operational only)
 
