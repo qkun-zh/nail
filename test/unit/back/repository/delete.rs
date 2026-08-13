@@ -4,8 +4,8 @@ use agdb::QueryBuilder;
 use crate::repository::article::{ArticleDraft, create_article};
 use crate::repository::delete::{delete_article, delete_user, delete_version};
 use crate::repository::schema::{
-    CommentRow, EDGE_COMMENT_TO_VERSION, EDGE_USER_TO_COMMENT, ENTITY_TYPE_COMMENT,
-    ENTITY_TYPE_USER, KEY_TYPE, alias_of,
+    CommentRow, EDGE_COMMENT_TO_COMMENT, EDGE_COMMENT_TO_VERSION, EDGE_USER_TO_COMMENT,
+    ENTITY_TYPE_COMMENT, ENTITY_TYPE_USER, KEY_TYPE, alias_of,
 };
 use crate::repository::version::{VersionDraft, versions_of};
 
@@ -47,9 +47,8 @@ async fn create_article_fixture(
     (article_id, version_id)
 }
 
-async fn insert_comment(
+async fn insert_comment_node(
     state: &crate::infrastructure::state::AppState,
-    version_id: &str,
     author_id: &str,
 ) -> String {
     let comment_id = uuid::Uuid::now_v7().to_string();
@@ -78,6 +77,16 @@ async fn insert_comment(
                 .query(),
         )
         .expect("user comment edge");
+    comment_id
+}
+
+async fn insert_comment(
+    state: &crate::infrastructure::state::AppState,
+    version_id: &str,
+    author_id: &str,
+) -> String {
+    let comment_id = insert_comment_node(state, author_id).await;
+    let mut guard = state.graph.write().await;
     guard
         .exec_mut(
             QueryBuilder::insert()
@@ -89,6 +98,59 @@ async fn insert_comment(
         )
         .expect("version comment edge");
     comment_id
+}
+
+async fn insert_reply(
+    state: &crate::infrastructure::state::AppState,
+    parent_comment_id: &str,
+    author_id: &str,
+) -> String {
+    let comment_id = insert_comment_node(state, author_id).await;
+    let mut guard = state.graph.write().await;
+    guard
+        .exec_mut(
+            QueryBuilder::insert()
+                .edges()
+                .from(alias_of(ENTITY_TYPE_COMMENT, &comment_id))
+                .to([alias_of(ENTITY_TYPE_COMMENT, parent_comment_id)])
+                .values([[(KEY_TYPE, EDGE_COMMENT_TO_COMMENT).into()]])
+                .query(),
+        )
+        .expect("parent comment edge");
+    comment_id
+}
+
+async fn insert_comment_tree(
+    state: &crate::infrastructure::state::AppState,
+    version_id: &str,
+    author_id: &str,
+) {
+    let top = insert_comment(state, version_id, author_id).await;
+    let reply = insert_reply(state, &top, author_id).await;
+    insert_reply(state, &reply, author_id).await;
+}
+
+fn count_by_type(guard: &agdb::DbAny, type_value: &str) -> usize {
+    guard
+        .exec(
+            QueryBuilder::search()
+                .elements()
+                .where_()
+                .key(KEY_TYPE)
+                .value(type_value)
+                .query(),
+        )
+        .expect("count by type")
+        .elements
+        .len()
+}
+
+async fn assert_no_comment_subtree_remains(state: &crate::infrastructure::state::AppState) {
+    let guard = state.graph.read().await;
+    assert_eq!(count_by_type(&guard, ENTITY_TYPE_COMMENT), 0);
+    assert_eq!(count_by_type(&guard, EDGE_COMMENT_TO_COMMENT), 0);
+    assert_eq!(count_by_type(&guard, EDGE_COMMENT_TO_VERSION), 0);
+    assert_eq!(count_by_type(&guard, EDGE_USER_TO_COMMENT), 0);
 }
 
 #[tokio::test]
@@ -175,4 +237,49 @@ async fn delete_version_is_idempotent_for_a_missing_version() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let outcome = delete_version(&state.graph, "missing").await.expect("delete");
     assert!(outcome.removed_pdf_hashes.is_empty());
+}
+
+#[tokio::test]
+async fn delete_article_removes_a_nested_comment_subtree_and_collects_the_pdf_hash() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    insert_comment_tree(&state, &version_id, &author_id).await;
+
+    let outcome = delete_article(&state.graph, &article_id).await.expect("delete");
+    assert_eq!(outcome.removed_pdf_hashes, vec![pdf_hash(1)]);
+
+    assert_no_comment_subtree_remains(&state).await;
+}
+
+#[tokio::test]
+async fn delete_version_removes_a_nested_comment_subtree_and_collects_the_pdf_hash() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    insert_comment_tree(&state, &version_id, &author_id).await;
+
+    let outcome = delete_version(&state.graph, &version_id).await.expect("delete");
+    assert_eq!(outcome.removed_pdf_hashes, vec![pdf_hash(1)]);
+
+    assert_no_comment_subtree_remains(&state).await;
+}
+
+#[tokio::test]
+async fn delete_user_removes_a_nested_comment_subtree_and_collects_the_pdf_hash() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    insert_comment_tree(&state, &version_id, &author_id).await;
+
+    let outcome = delete_user(&state.graph, &author_id).await.expect("delete");
+    assert_eq!(outcome.removed_pdf_hashes, vec![pdf_hash(1)]);
+
+    assert_no_comment_subtree_remains(&state).await;
+    assert_eq!(
+        crate::repository::user::read_user(&state.graph, &author_id)
+            .await
+            .expect("read user"),
+        None
+    );
 }
