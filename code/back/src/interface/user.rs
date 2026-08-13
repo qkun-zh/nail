@@ -1,6 +1,6 @@
 use axum::Json;
 use axum::extract::{Path, Query, State};
-use nail_common::request::{UserDeleteRequest, UserUpdateRequest};
+use nail_common::request::{TokenRequest, UserDeleteRequest, UserUpdateRequest};
 use nail_common::response::ResponseEnvelope;
 use serde::Deserialize;
 
@@ -12,13 +12,26 @@ const DEFAULT_PAGE_SIZE: u64 = 8;
 const MAX_PAGE_SIZE: u64 = 200;
 const MAX_PAGE: u64 = 10_000;
 
+pub async fn create_user(
+    State(state): State<AppState>,
+    Json(payload): Json<TokenRequest>,
+) -> Result<Json<ResponseEnvelope<serde_json::Value>>, ApiError> {
+    let user_id = crate::logic::user::create_user(&state, &payload.pow).await?;
+    let session_token = crate::logic::session::create_session(&state, &user_id)?;
+    Ok(Json(ResponseEnvelope::ok(
+        200,
+        serde_json::json!({ "session_token": session_token }),
+        "ok",
+    )))
+}
+
 #[derive(Debug, Default, Deserialize)]
 pub struct UserReadParams {
     pub name: Option<bool>,
     pub email_hash: Option<bool>,
 }
 
-pub async fn read(
+pub async fn read_user(
     State(state): State<AppState>,
     principal: Principal,
     Path(user_id): Path<String>,
@@ -26,7 +39,7 @@ pub async fn read(
 ) -> Result<Json<ResponseEnvelope<serde_json::Value>>, ApiError> {
     let name_requested = params.name.unwrap_or(true);
     let email_hash_requested = params.email_hash.unwrap_or(false);
-    let data = crate::logic::user::read_user_profile(
+    let data = crate::logic::user::read_user(
         &state,
         &principal.user_id,
         &user_id,
@@ -38,23 +51,23 @@ pub async fn read(
 }
 
 #[derive(Debug, Default, Deserialize)]
-pub struct UserListParams {
+pub struct UsersReadParams {
     pub page: Option<u64>,
     pub limit: Option<u64>,
 }
 
-pub async fn list(
+pub async fn read_users(
     State(state): State<AppState>,
     principal: Principal,
-    Query(params): Query<UserListParams>,
+    Query(params): Query<UsersReadParams>,
 ) -> Result<Json<ResponseEnvelope<serde_json::Value>>, ApiError> {
     let limit = params.limit.unwrap_or(DEFAULT_PAGE_SIZE).clamp(1, MAX_PAGE_SIZE);
     let page = params.page.unwrap_or(1).clamp(1, MAX_PAGE);
-    let data = crate::logic::user::list_users(&state, &principal.user_id, page, limit).await?;
+    let data = crate::logic::user::read_users(&state, &principal.user_id, page, limit).await?;
     Ok(Json(ResponseEnvelope::ok(200, data, "ok")))
 }
 
-pub async fn update(
+pub async fn update_user(
     State(state): State<AppState>,
     principal: Principal,
     Path(user_id): Path<String>,
@@ -65,7 +78,7 @@ pub async fn update(
     Ok(Json(ResponseEnvelope::ok(200, data, "ok")))
 }
 
-pub async fn delete(
+pub async fn delete_user(
     State(state): State<AppState>,
     principal: Principal,
     Path(user_id): Path<String>,

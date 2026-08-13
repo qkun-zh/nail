@@ -14,7 +14,7 @@ pub struct EmailReadQuery {
     pub intent: Option<String>,
 }
 
-pub async fn read(
+pub async fn read_email(
     State(state): State<AppState>,
     headers: HeaderMap,
     Query(query): Query<EmailReadQuery>,
@@ -30,6 +30,6 @@ pub async fn read(
         .get(SESSION_TOKEN_HEADER)
         .and_then(|value| value.to_str().ok())
         .map(str::to_string);
-    let data = crate::logic::email::handle_email_read(&state, intent, payload, session_token).await?;
+    let data = crate::logic::email::read_email(&state, intent, payload, session_token).await?;
     Ok(Json(ResponseEnvelope::ok(200, data, "ok")))
 }

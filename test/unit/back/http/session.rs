@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use super::context::TestCtx;
 
-async fn issue_and_prove(context: &TestCtx, payload: &str) -> Pow {
+async fn create_challenge_and_prove(context: &TestCtx, payload: &str) -> Pow {
     let (status, body) = context.get("/challenge/read", None).await;
     assert_eq!(status, StatusCode::OK, "challenge body: {body}");
     let id = body["data"]["id"].as_str().expect("challenge id").to_string();
@@ -22,10 +22,10 @@ async fn issue_and_prove(context: &TestCtx, payload: &str) -> Pow {
 }
 
 #[tokio::test]
-async fn full_authentication_lifecycle() {
+async fn session_lifecycle_over_http() {
     let context = TestCtx::new().await.expect("test context");
 
-    let pow = issue_and_prove(&context, "alice@example.com").await;
+    let pow = create_challenge_and_prove(&context, "alice@example.com").await;
     let (status, body) = context
         .post(
             "/email/read?intent=authenticate",
@@ -42,7 +42,7 @@ async fn full_authentication_lifecycle() {
     assert_eq!(to, "alice@example.com");
     assert_eq!(message_subject, email_subject);
 
-    let token_pow = issue_and_prove(&context, token).await;
+    let token_pow = create_challenge_and_prove(&context, token).await;
     let (status, body) = context
         .post("/user/create", json!({ "pow": token_pow }), None)
         .await;
@@ -61,15 +61,15 @@ async fn full_authentication_lifecycle() {
     let (status, _) = context.get("/session/read?id=true", Some("not-a-uuid")).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 
-    let logout_pow = issue_and_prove(&context, "logout-nonce").await;
+    let delete_session_pow = create_challenge_and_prove(&context, "delete-session-nonce").await;
     let (status, body) = context
         .post(
             "/session/delete",
-            json!({ "pow": logout_pow }),
+            json!({ "pow": delete_session_pow }),
             Some(&session_token),
         )
         .await;
-    assert_eq!(status, StatusCode::OK, "logout body: {body}");
+    assert_eq!(status, StatusCode::OK, "delete-session body: {body}");
     assert_eq!(body["message"].as_str(), Some("deleted"));
 
     let (status, _) = context.get("/session/read?id=true", Some(&session_token)).await;
@@ -82,7 +82,7 @@ async fn email_read_with_missing_or_invalid_intent_is_rejected() {
     let (status, _) = context.post("/email/read", json!({}), None).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
-    let pow = issue_and_prove(&context, "alice@example.com").await;
+    let pow = create_challenge_and_prove(&context, "alice@example.com").await;
     let (status, _) = context
         .post("/email/read?intent=bogus", json!({ "pow": pow }), None)
         .await;
@@ -92,7 +92,7 @@ async fn email_read_with_missing_or_invalid_intent_is_rejected() {
 #[tokio::test]
 async fn email_read_rejects_a_disallowed_domain() {
     let context = TestCtx::new().await.expect("test context");
-    let pow = issue_and_prove(&context, "alice@other.org").await;
+    let pow = create_challenge_and_prove(&context, "alice@other.org").await;
     let (status, body) = context
         .post("/email/read?intent=authenticate", json!({ "pow": pow }), None)
         .await;

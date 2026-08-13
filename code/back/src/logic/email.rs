@@ -5,14 +5,14 @@ use uuid::Uuid;
 
 use crate::infrastructure::email::SendEmailError;
 use crate::infrastructure::state::AppState;
-use crate::logic::authenticate::{authenticate_session, normalize_token};
 use crate::logic::error::LogicError;
 use crate::logic::pow::verify_issued_pow;
+use crate::logic::session::{create_session, normalize_token, read_session};
 use crate::repository::cache::{
-    AuthenticateTokenEntry, DeregisterTokenEntry, EmailUpdateTokenEntry, SessionTokenEntry, token_key,
+    CreateUserTokenEntry, DeleteUserTokenEntry, EmailUpdateTokenEntry, token_key,
 };
 use crate::repository::user::{
-    UserWriteError, find_user_by_email_address_hash, read_user, update_user_email,
+    UserWriteError, find_user_by_email_address_hash, read_user, update_user_email as write_user_email,
 };
 
 pub fn normalize_email(raw: &str) -> String {
@@ -39,7 +39,7 @@ pub fn validate_email(email: &str, allowed_domains: &[String]) -> bool {
     allowed_domains.iter().any(|allowed| allowed == &domain)
 }
 
-pub async fn handle_email_read(
+pub async fn read_email(
     state: &AppState,
     intent: EmailReadIntent,
     request: EmailReadRequest,
@@ -50,11 +50,11 @@ pub async fn handle_email_read(
             let pow = request
                 .pow
                 .ok_or_else(|| LogicError::bad_request("pow is required"))?;
-            let email_subject = handle_email_auth_request(state, &pow).await?;
+            let email_subject = send_create_user_email(state, &pow).await?;
             Ok(serde_json::json!({ "email_subject": email_subject }))
         }
         EmailReadIntent::ChangeEmail => {
-            let user_id = require_session_user(state, session_token)?;
+            let user_id = read_session_user(state, session_token)?;
             let old_email_pow = request
                 .old_email_pow
                 .ok_or_else(|| LogicError::bad_request("old_email_pow is required"))?;
@@ -62,33 +62,33 @@ pub async fn handle_email_read(
                 .new_email_pow
                 .ok_or_else(|| LogicError::bad_request("new_email_pow is required"))?;
             let (old_email_subject, new_email_subject) =
-                handle_email_update_send(state, &user_id, &old_email_pow, &new_email_pow).await?;
+                send_update_user_email(state, &user_id, &old_email_pow, &new_email_pow).await?;
             Ok(serde_json::json!({
                 "old_email_subject": old_email_subject,
                 "new_email_subject": new_email_subject,
             }))
         }
         EmailReadIntent::Deregister => {
-            let user_id = require_session_user(state, session_token)?;
+            let user_id = read_session_user(state, session_token)?;
             let pow = request
                 .pow
                 .ok_or_else(|| LogicError::bad_request("pow is required"))?;
-            let email_subject = handle_deregister_request(state, &user_id, &pow).await?;
+            let email_subject = send_delete_user_email(state, &user_id, &pow).await?;
             Ok(serde_json::json!({ "email_subject": email_subject }))
         }
     }
 }
 
-fn require_session_user(
+fn read_session_user(
     state: &AppState,
     session_token: Option<String>,
 ) -> Result<String, LogicError> {
     let token =
         session_token.ok_or_else(|| LogicError::unauthorized("missing session-token header"))?;
-    authenticate_session(state, &token)
+    read_session(state, &token)
 }
 
-async fn handle_email_auth_request(state: &AppState, pow: &Pow) -> Result<String, LogicError> {
+async fn send_create_user_email(state: &AppState, pow: &Pow) -> Result<String, LogicError> {
     let email = normalize_email(&pow.payload);
     if !validate_email(&email, &state.config.email.allowed_domains) {
         return Err(LogicError::bad_request("email domain not allowed"));
@@ -101,19 +101,19 @@ async fn handle_email_auth_request(state: &AppState, pow: &Pow) -> Result<String
 
     let email_address_hash = nail_common::hash::email(&email);
     let key = token_key(&token)
-        .map_err(|error| LogicError::internal(format!("failed to hash auth token: {error}")))?;
-    state.caches.authenticate.insert(
+        .map_err(|error| LogicError::internal(format!("failed to hash create-user token: {error}")))?;
+    state.caches.create_user.insert(
         &key,
-        AuthenticateTokenEntry {
+        CreateUserTokenEntry {
             email_address_hash: email_address_hash.clone(),
             email_subject: email_subject.clone(),
         },
     );
-    tracing::info!(email_hash = %email_address_hash, "auth email sent");
+    tracing::info!(email_hash = %email_address_hash, "create-user email sent");
     Ok(email_subject)
 }
 
-pub async fn handle_email_update_send(
+pub async fn send_update_user_email(
     state: &AppState,
     user_id: &str,
     old_email_pow: &Pow,
@@ -183,12 +183,12 @@ pub async fn handle_email_update_send(
     tracing::info!(
         old_hash = %old_email_address_hash,
         new_hash = %new_email_address_hash,
-        "email update requested"
+        "user email update requested"
     );
     Ok((old_email_subject, new_email_subject))
 }
 
-pub async fn handle_email_update_confirm(
+pub async fn update_user_email(
     state: &AppState,
     user_id: &str,
     pow: &Pow,
@@ -244,7 +244,7 @@ pub async fn handle_email_update_confirm(
         ));
     }
 
-    update_user_email(
+    write_user_email(
         &state.graph,
         user_id,
         &old_email_address_hash,
@@ -267,25 +267,17 @@ pub async fn handle_email_update_confirm(
     state.caches.session.delete_by_reverse_key(user_id);
     state
         .caches
-        .authenticate
+        .create_user
         .delete_by_reverse_key(&old_email_address_hash);
-    state.caches.deregister.delete_by_reverse_key(user_id);
+    state.caches.delete_user.delete_by_reverse_key(user_id);
 
-    let new_session_token = Uuid::now_v7().to_string();
-    let session_key = token_key(&new_session_token)
-        .map_err(|error| LogicError::internal(format!("failed to hash session token: {error}")))?;
-    state.caches.session.insert(
-        &session_key,
-        SessionTokenEntry {
-            user_id: user_id.to_string(),
-        },
-    );
+    let new_session_token = create_session(state, user_id)?;
 
-    tracing::info!(user_id = %user_id, "email updated");
+    tracing::info!(user_id = %user_id, "user email updated");
     Ok(new_session_token)
 }
 
-pub async fn handle_deregister_request(
+pub async fn send_delete_user_email(
     state: &AppState,
     user_id: &str,
     pow: &Pow,
@@ -306,16 +298,16 @@ pub async fn handle_deregister_request(
     send_confirmation_email(state, &email, &email_subject, &token).await?;
 
     let key = token_key(&token)
-        .map_err(|error| LogicError::internal(format!("failed to hash deregister token: {error}")))?;
-    state.caches.deregister.insert(
+        .map_err(|error| LogicError::internal(format!("failed to hash delete token: {error}")))?;
+    state.caches.delete_user.insert(
         &key,
-        DeregisterTokenEntry {
+        DeleteUserTokenEntry {
             user_id: user_id.to_string(),
             email_address_hash: user_entry.email_address_hash,
         },
     );
 
-    tracing::info!(user_id = %user_id, "deregister confirmation email sent");
+    tracing::info!(user_id = %user_id, "delete-user confirmation email sent");
     Ok(email_subject)
 }
 

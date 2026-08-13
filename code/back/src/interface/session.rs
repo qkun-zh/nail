@@ -14,7 +14,7 @@ pub struct SessionReadParams {
     pub name: Option<bool>,
 }
 
-pub async fn read(
+pub async fn read_session(
     State(state): State<AppState>,
     principal: Principal,
     Query(params): Query<SessionReadParams>,
@@ -34,12 +34,12 @@ pub async fn read(
     )))
 }
 
-pub async fn delete(
+pub async fn delete_session(
     State(state): State<AppState>,
     principal: Principal,
     Json(payload): Json<LogoutRequest>,
 ) -> Result<Json<ResponseEnvelope<serde_json::Value>>, ApiError> {
-    crate::logic::session::handle_logout(&state, &payload.pow, &principal.token).await?;
+    crate::logic::session::delete_session(&state, &payload.pow, &principal.token).await?;
     Ok(Json(ResponseEnvelope::ok(
         200,
         serde_json::json!({}),

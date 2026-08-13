@@ -2,17 +2,55 @@ use nail_common::pow::Pow;
 use nail_common::request::{DeleteMode, UserDeleteRequest, UserUpdateRequest};
 
 use crate::infrastructure::state::AppState;
-use crate::logic::authenticate::normalize_token;
 use crate::logic::error::LogicError;
 use crate::logic::pow::verify_issued_pow;
+use crate::logic::session::normalize_token;
 use crate::repository::cache::token_key;
 use crate::repository::role::{
-    PERMISSION_USER_DELETE, PERMISSION_USER_READ, PERMISSION_USER_UPDATE, user_holds_permission,
+    PERMISSION_USER_DELETE, PERMISSION_USER_READ, PERMISSION_USER_UPDATE, ROLE_MEMBER,
+    user_holds_permission,
 };
 use crate::repository::transfer::TransferError;
-use crate::repository::user::{UserWriteError, read_user, update_user_name};
+use crate::repository::user::{UserWriteError, read_user as read_user_node, update_user_name};
 
-pub async fn read_user_profile(
+pub async fn create_user(state: &AppState, pow: &Pow) -> Result<String, LogicError> {
+    verify_issued_pow(state, pow)?;
+    let token = normalize_token(&pow.payload)
+        .ok_or_else(|| LogicError::bad_request("invalid or expired token"))?;
+
+    let key = token_key(&token)
+        .map_err(|error| LogicError::internal(format!("failed to hash email token: {error}")))?;
+    let entry = state
+        .caches
+        .create_user
+        .consume(&key)
+        .ok_or_else(|| {
+            tracing::warn!(token_hash = %key, "invalid or expired email token");
+            LogicError::bad_request("invalid or expired token")
+        })?;
+
+    let user_id = match crate::repository::user::find_or_create_user(
+        &state.graph,
+        &entry.email_address_hash,
+    )
+    .await
+    {
+        Ok(user_id) => user_id,
+        Err(error) => {
+            state.caches.create_user.insert(&key, entry);
+            return Err(LogicError::internal(format!("database query failed: {error}")));
+        }
+    };
+
+    crate::repository::role::hold_role(&state.graph, &user_id, ROLE_MEMBER)
+        .await
+        .map_err(|error| LogicError::internal(format!("failed to grant member role: {error}")))?;
+
+    tracing::info!(user_id = %user_id, "user created from email token");
+    Ok(user_id)
+}
+
+pub async fn read_user(
     state: &AppState,
     actor_id: &str,
     target_id: &str,
@@ -22,7 +60,7 @@ pub async fn read_user_profile(
     let mut data = serde_json::Map::new();
     if target_id == actor_id {
         if name_requested || email_hash_requested {
-            let entry = read_user(&state.graph, actor_id)
+            let entry = read_user_node(&state.graph, actor_id)
                 .await
                 .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
                 .ok_or_else(|| LogicError::unauthorized("user not found"))?;
@@ -40,7 +78,7 @@ pub async fn read_user_profile(
     }
 
     require_permission(state, actor_id, PERMISSION_USER_READ).await?;
-    let entry = read_user(&state.graph, target_id)
+    let entry = read_user_node(&state.graph, target_id)
         .await
         .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
         .ok_or_else(|| LogicError::not_found("user not found"))?;
@@ -68,7 +106,7 @@ pub async fn update_user(
             let pow = request
                 .pow
                 .ok_or_else(|| LogicError::bad_request("pow is required to confirm the email update"))?;
-            let new_session_token = crate::logic::email::handle_email_update_confirm(
+            let new_session_token = crate::logic::email::update_user_email(
                 state,
                 actor_id,
                 &pow,
@@ -106,11 +144,11 @@ pub async fn delete_user(
 ) -> Result<serde_json::Value, LogicError> {
     match request.mode {
         Some(DeleteMode::Transfer) => {
-            handle_deregister_confirm(state, actor_id, &request.pow).await?;
+            handle_delete_user_transfer(state, actor_id, &request.pow).await?;
             Ok(serde_json::json!({}))
         }
         Some(DeleteMode::Hard) => {
-            handle_hard_delete_user(state, actor_id, target_id).await?;
+            handle_delete_user_hard(state, actor_id, target_id).await?;
             Ok(serde_json::json!({ "user_id": target_id }))
         }
         None => Err(LogicError::bad_request(
@@ -119,7 +157,7 @@ pub async fn delete_user(
     }
 }
 
-pub async fn list_users(
+pub async fn read_users(
     state: &AppState,
     actor_id: &str,
     page: u64,
@@ -180,31 +218,31 @@ async fn handle_admin_update_name(
     Ok(name)
 }
 
-async fn handle_deregister_confirm(
+async fn handle_delete_user_transfer(
     state: &AppState,
     actor_id: &str,
     pow: &Pow,
 ) -> Result<(), LogicError> {
     verify_issued_pow(state, pow)?;
     let token = normalize_token(&pow.payload)
-        .ok_or_else(|| LogicError::bad_request("invalid deregister token"))?;
+        .ok_or_else(|| LogicError::bad_request("invalid delete token"))?;
     let token_hash = token_key(&token)
-        .map_err(|error| LogicError::internal(format!("failed to hash deregister token: {error}")))?;
+        .map_err(|error| LogicError::internal(format!("failed to hash delete token: {error}")))?;
 
-    let Some(entry) = state.caches.deregister.read(&token_hash) else {
-        let user_exists = read_user(&state.graph, actor_id)
+    let Some(entry) = state.caches.delete_user.read(&token_hash) else {
+        let user_exists = read_user_node(&state.graph, actor_id)
             .await
             .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
             .is_some();
         if user_exists {
-            return Err(LogicError::bad_request("invalid or expired deregister token"));
+            return Err(LogicError::bad_request("invalid or expired delete token"));
         }
         state.caches.session.delete_by_reverse_key(actor_id);
         return Ok(());
     };
     if entry.user_id != actor_id {
         return Err(LogicError::bad_request(
-            "deregister token does not match your account",
+            "delete token does not match your account",
         ));
     }
 
@@ -218,20 +256,20 @@ async fn handle_deregister_confirm(
         })?;
 
     let email_address_hash = entry.email_address_hash;
-    state.caches.deregister.consume(&token_hash);
+    state.caches.delete_user.consume(&token_hash);
     state.caches.session.delete_by_reverse_key(actor_id);
     state.caches.email_update.delete(actor_id);
-    state.caches.deregister.delete_by_reverse_key(actor_id);
+    state.caches.delete_user.delete_by_reverse_key(actor_id);
     state
         .caches
-        .authenticate
+        .create_user
         .delete_by_reverse_key(&email_address_hash);
 
-    tracing::info!(user_id = %actor_id, "account deregistered, assets transferred");
+    tracing::info!(user_id = %actor_id, "user deleted, assets transferred");
     Ok(())
 }
 
-async fn handle_hard_delete_user(
+async fn handle_delete_user_hard(
     state: &AppState,
     actor_id: &str,
     target_id: &str,

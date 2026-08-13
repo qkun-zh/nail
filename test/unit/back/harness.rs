@@ -18,8 +18,6 @@ pub mod logic_challenge;
 pub mod logic_pow;
 #[path = "logic/email.rs"]
 pub mod logic_email;
-#[path = "logic/authenticate.rs"]
-pub mod logic_authenticate;
 #[path = "logic/session.rs"]
 pub mod logic_session;
 #[path = "logic/user.rs"]
@@ -42,7 +40,7 @@ pub mod repository_article;
 #[path = "repository/search.rs"]
 pub mod repository_search;
 
-#[path = "http/authenticate.rs"]
-pub mod http_authenticate;
+#[path = "http/session.rs"]
+pub mod http_session;
 #[path = "http/user.rs"]
 pub mod http_user;

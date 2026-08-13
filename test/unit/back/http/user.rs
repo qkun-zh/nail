@@ -169,7 +169,7 @@ async fn user_delete_rejects_a_missing_mode() {
 }
 
 #[tokio::test]
-async fn user_delete_transfer_deregisters_after_email_confirmation() {
+async fn user_delete_transfer_after_email_confirmation() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = session_for(&context, "alice@example.com").await;
 

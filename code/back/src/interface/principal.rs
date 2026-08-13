@@ -3,7 +3,7 @@ use axum::http::request::Parts;
 
 use crate::infrastructure::state::AppState;
 use crate::interface::envelope::ApiError;
-use crate::logic::authenticate::authenticate_session;
+use crate::logic::session::read_session;
 
 pub const SESSION_TOKEN_HEADER: &str = "session-token";
 
@@ -23,7 +23,7 @@ impl FromRequestParts<AppState> for Principal {
             .and_then(|value| value.to_str().ok())
             .map(str::to_string)
             .ok_or_else(|| ApiError::unauthorized("missing session-token header"))?;
-        let user_id = authenticate_session(state, &token)?;
+        let user_id = read_session(state, &token)?;
         Ok(Self { user_id, token })
     }
 }

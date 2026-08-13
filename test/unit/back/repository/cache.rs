@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::repository::cache::{
-    AuthenticateTokenEntry, CacheEntry, ChallengeEntry, DeregisterTokenEntry,
+    CreateUserTokenEntry, CacheEntry, ChallengeEntry, DeleteUserTokenEntry,
     EmailUpdateTokenEntry, SessionTokenEntry, TokenCache, token_key,
 };
 
@@ -86,8 +86,8 @@ fn capacity_eviction_removes_the_reverse_member() {
 }
 
 #[test]
-fn authenticate_entry_indexes_by_email_hash() {
-    let entry = AuthenticateTokenEntry {
+fn create_user_entry_indexes_by_email_hash() {
+    let entry = CreateUserTokenEntry {
         email_address_hash: "hash-a".to_string(),
         email_subject: "subject".to_string(),
     };
@@ -130,8 +130,8 @@ fn email_update_entry_is_not_reverse_indexed() {
 }
 
 #[test]
-fn deregister_entry_is_reverse_indexed_by_user_id() {
-    let entry = DeregisterTokenEntry {
+fn delete_user_entry_is_reverse_indexed_by_user_id() {
+    let entry = DeleteUserTokenEntry {
         user_id: "user-1".to_string(),
         email_address_hash: "hash".to_string(),
     };
@@ -139,12 +139,12 @@ fn deregister_entry_is_reverse_indexed_by_user_id() {
 }
 
 #[test]
-fn deregister_cache_supports_reverse_deletion_by_user() {
-    let cache: TokenCache<DeregisterTokenEntry> = cache(true);
-    let key = token_key("deregister-token").expect("token key");
+fn delete_user_cache_supports_reverse_deletion_by_user() {
+    let cache: TokenCache<DeleteUserTokenEntry> = cache(true);
+    let key = token_key("delete-user-token").expect("token key");
     cache.insert(
         &key,
-        DeregisterTokenEntry {
+        DeleteUserTokenEntry {
             user_id: "user-1".to_string(),
             email_address_hash: "hash".to_string(),
         },

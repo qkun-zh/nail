@@ -142,12 +142,12 @@ impl<E: CacheEntry> TokenCache<E> {
 }
 
 #[derive(Debug, Clone)]
-pub struct AuthenticateTokenEntry {
+pub struct CreateUserTokenEntry {
     pub email_address_hash: String,
     pub email_subject: String,
 }
 
-impl CacheEntry for AuthenticateTokenEntry {
+impl CacheEntry for CreateUserTokenEntry {
     fn reverse_key(&self) -> Option<&str> {
         Some(&self.email_address_hash)
     }
@@ -180,12 +180,12 @@ pub struct EmailUpdateTokenEntry {
 impl CacheEntry for EmailUpdateTokenEntry {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DeregisterTokenEntry {
+pub struct DeleteUserTokenEntry {
     pub user_id: String,
     pub email_address_hash: String,
 }
 
-impl CacheEntry for DeregisterTokenEntry {
+impl CacheEntry for DeleteUserTokenEntry {
     fn reverse_key(&self) -> Option<&str> {
         Some(&self.user_id)
     }
@@ -193,10 +193,10 @@ impl CacheEntry for DeregisterTokenEntry {
 
 #[derive(Clone)]
 pub struct TokenCaches {
-    pub authenticate: TokenCache<AuthenticateTokenEntry>,
+    pub create_user: TokenCache<CreateUserTokenEntry>,
     pub session: TokenCache<SessionTokenEntry>,
     pub email_update: TokenCache<EmailUpdateTokenEntry>,
-    pub deregister: TokenCache<DeregisterTokenEntry>,
+    pub delete_user: TokenCache<DeleteUserTokenEntry>,
     pub challenge: TokenCache<ChallengeEntry>,
 }
 
@@ -208,10 +208,10 @@ impl TokenCaches {
         capacity: u64,
     ) -> Self {
         Self {
-            authenticate: TokenCache::new(token_ttl, capacity, true),
+            create_user: TokenCache::new(token_ttl, capacity, true),
             session: TokenCache::new(session_ttl, capacity, true),
             email_update: TokenCache::new(token_ttl, capacity, false),
-            deregister: TokenCache::new(token_ttl, capacity, true),
+            delete_user: TokenCache::new(token_ttl, capacity, true),
             challenge: TokenCache::new(challenge_ttl, capacity, false),
         }
     }

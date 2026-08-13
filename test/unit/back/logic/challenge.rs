@@ -1,9 +1,9 @@
 use super::context::TestCtx;
 
 #[tokio::test]
-async fn issue_challenge_returns_the_configured_difficulty_and_stores_the_challenge() {
+async fn create_challenge_returns_the_configured_difficulty_and_stores_the_challenge() {
     let context = TestCtx::new().await.expect("test context");
-    let challenge = crate::logic::challenge::issue_challenge(
+    let challenge = crate::logic::challenge::create_challenge(
         &context.state.config.server,
         &context.state.caches,
     );
@@ -12,9 +12,9 @@ async fn issue_challenge_returns_the_configured_difficulty_and_stores_the_challe
 }
 
 #[tokio::test]
-async fn issue_challenge_is_single_use() {
+async fn create_challenge_is_single_use() {
     let context = TestCtx::new().await.expect("test context");
-    let challenge = crate::logic::challenge::issue_challenge(
+    let challenge = crate::logic::challenge::create_challenge(
         &context.state.config.server,
         &context.state.caches,
     );
