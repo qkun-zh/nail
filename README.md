@@ -15,6 +15,30 @@ following rules must be observed throughout the refactoring.
 - Backend: axum, embedding SeekStorm (search engine), agdb (database), and
   moka (cache).
 
+### 2.1 Library sources (trusted, on disk)
+
+Every library's source code is available locally for reading — this is the
+TRUSTED source mandated by §8. Base path:
+`~/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/` (abbreviated
+`<base>` below). Versions follow each crate's `Cargo.lock`
+(`code/common/Cargo.lock`, `code/back/Cargo.lock`, `code/front/Cargo.lock`
+once it exists); re-check the lock after every `cargo add`. The registry may
+hold several versions of each crate; the lock files pin the ones in use.
+
+| Library | Version (as of 2026-08-13) | Source directory |
+| --- | --- | --- |
+| agdb | 0.13.2 | `<base>/agdb-0.13.2/` |
+| axum | 0.8.9 | `<base>/axum-0.8.9/` |
+| moka | 0.12.16 | `<base>/moka-0.12.16/` |
+| ascon-xof128 | 0.2.1 | `<base>/ascon-xof128-0.2.1/` |
+| pso-vdf | 0.2.3 | `<base>/pso-vdf-0.2.3/` |
+| uuid | 1.24.0 | `<base>/uuid-1.24.0/` |
+| time | 0.3.55 | `<base>/time-0.3.55/` |
+| serde | 1.0.229 | `<base>/serde-1.0.229/` |
+| seekstorm | 3.3.5 (Phase 3, not yet added) | `<base>/seekstorm-3.3.5/` |
+| cedar-policy | 4.12.0 (Phase 3, not yet added) | `<base>/cedar-policy-4.12.0/` |
+| leptos | 0.8.20 (Phase 4, not yet added) | `<base>/leptos-0.8.20/` |
+
 ## 3. Project Skeleton (fixed, must not be changed)
 
 ```text
@@ -37,12 +61,24 @@ nail_new/
 |   |   |-- Cargo.toml
 |   |   `-- src/
 |   |       |-- lib.rs
-|   |       |-- zzz.rs
-|   |       |-- zzz/
-|   |       |-- yyy.rs
-|   |       |-- yyy/
-|   |       |-- xxx.rs
-|   |       `-- xxx/
+|   |       |-- text.rs
+|   |       |-- text/
+|   |       |-- name.rs
+|   |       |-- name/
+|   |       |-- tag.rs
+|   |       |-- tag/
+|   |       |-- response.rs
+|   |       |-- response/
+|   |       |-- hash.rs
+|   |       |-- hash/
+|   |       |-- time.rs
+|   |       |-- time/
+|   |       |-- pow.rs
+|   |       |-- pow/
+|   |       |-- request.rs
+|   |       |-- request/
+|   |       |-- search.rs
+|   |       `-- search/
 |   `-- front/
 |       |-- Cargo.toml
 |       `-- src/
@@ -62,13 +98,12 @@ nail_new/
 `-- test/
 ```
 
-> Note: `zzz`, `yyy`, and `xxx` are placeholders for the `common` crate's
-> submodules (shared data structures and methods). They may be renamed and
-> their count may change; every other entry in the skeleton is fixed.
-> The skeleton fixes only the top-level entry files per layer; the module
-> trees beneath the backend layers are not prescribed here and must be
-> designed fresh — never copied from the legacy `nail` backend layout
-> (§4.1).
+> Note: the `common` crate's module list was settled in Phase 2 — `text`,
+> `name`, `tag`, `response`, `hash`, `time`, `pow`, `request`, `search`,
+> each a same-named `.rs` + folder pair (§4.4). The skeleton fixes only the
+> top-level entry files per layer; the module trees beneath the backend and
+> frontend layers are not prescribed here and must be designed fresh — never
+> copied from the legacy `nail` layouts (§4.1, §4.2).
 
 ## 4. Architecture
 
@@ -157,15 +192,15 @@ justification.
 
 ### 5.4 General principles
 
-- Do not chase dead or unused code during the migration; interim code may
-  still be consumed by later slices or rewritten. Batch-remove all dead code
-  in one dedicated pass after the entire refactoring is complete (the final
-  task of Phase 5), then the zero-warning gate is enforced.
 - Keep code concise, clear, and correct. Any code written longer than necessary
   must have a strong justification.
 - Prefer pure (or near-pure) functions over others: they are easy to test and
   form the foundation of business logic.
 - No hardcoding. Anything configurable must live in toml configuration files.
+- Do not chase dead or unused code during the migration; interim code may
+  still be consumed by later slices or rewritten. Batch-remove all dead code
+  in one dedicated pass after the entire refactoring is complete (the final
+  task of Phase 5), then the zero-warning gate is enforced.
 
 ### 5.5 Comments
 
@@ -197,28 +232,25 @@ justification.
 
 ## 8. Engineering Practices
 
+### 8.1 Evidence discipline
+
 - Establish facts from source and probes: never guess. Read the source first;
   when the source is ambiguous or untrustworthy, write a probe test to observe
   actual behavior. Probes outrank source, and source outranks guessing; facts
   are constructed from probes and source together.
 - Do not patch alleged library defects with hand-written workarounds. Explore
-  the library's source code and look for the official solution first; an
-  apparent defect is usually a lack of familiarity with the source.
+  the library's source code (on disk — see §2.1) and look for the official
+  solution first; an apparent defect is usually a lack of familiarity with the
+  source.
+
+### 8.2 Treating the legacy code
+
+- Verify every line of the original `nail` code individually; do not assume any
+  of it is correct.
 - Do not copy how the original `nail` code was written. Proceed carefully, step
   by step: read the library source, then confirm the best approach with probe
   tests — aiming for more elegant, simpler, higher-performance, and clearer
   code.
-- After completing a large module (a domain slice or a phase), compare the
-  new code against the corresponding legacy code on readability, correctness,
-  elegance, conciseness, and performance. Ground the comparison in facts, not
-  impressions: wherever behavior or performance is in doubt, read the trusted
-  library source and write probe tests to verify before judging. If the new
-  code is inferior in any respect, weigh the cost of fixing it; when
-  worthwhile, correct the code and re-run the full test suite, then report
-  the comparison and the fixes to the owner. This is a quality gate, not a
-  license to copy — the legacy code remains untrusted.
-- Verify every line of the original `nail` code individually; do not assume any
-  of it is correct.
 - The `nail` database design, cache design, and email-sending business logic,
   and its backend API design (semantically consistent), are strong references:
   they were produced through extensive argumentation and repeated study of
@@ -228,9 +260,19 @@ justification.
   `nail` database design, cache design, email-sending business logic, or
   backend API design), read and study the legacy implementation carefully
   first — understand its reasoning before writing new code. This is the
-  pre-implementation counterpart of the post-completion comparison above.
-- Logging: `tracing` with `tracing-subscriber`, writing to the `log/`
-  directory.
+  pre-implementation counterpart of the post-completion comparison (§8.3).
+
+### 8.3 Quality gate
+
+- After completing a large module (a domain slice or a phase), compare the
+  new code against the corresponding legacy code on readability, correctness,
+  elegance, conciseness, and performance. Ground the comparison in facts, not
+  impressions: wherever behavior or performance is in doubt, read the trusted
+  library source and write probe tests to verify before judging. If the new
+  code is inferior in any respect, weigh the cost of fixing it; when
+  worthwhile, correct the code and re-run the full test suite, then report
+  the comparison and the fixes to the owner. This is a quality gate, not a
+  license to copy — the legacy code remains untrusted.
 
 ## 9. Build and Dependencies
 
@@ -244,9 +286,9 @@ justification.
 - Frontend pages must not use any CSS or style.
 - Deployment parameters (e.g. `api_base_url`) are embedded at compile time
   from toml and fail fast. All other configuration is fetched at runtime from
-  the backend config endpoint (nail: `GET /api/config/read`), with
-  compile-time defaults as fallback until the first fetch completes — the
-  backend stays authoritative.
+  the backend config endpoint (`GET /config/read`), with compile-time defaults
+  as fallback until the first fetch completes — the backend stays
+  authoritative.
 
 ## 11. Backend Rules
 
@@ -256,8 +298,10 @@ justification.
   - `data`: the data the frontend needs.
 - Configuration is read from toml at startup, so editing `configuration/`
   needs no rebuild; secrets stay out of version control.
-- Provide a config-read endpoint (`/api/config/read`) serving the runtime
+- Provide a config-read endpoint (`/config/read`) serving the runtime
   configuration the frontend fetches.
+- Logging: `tracing` with `tracing-subscriber`, writing to the `log/`
+  directory.
 
 ## 12. Testing
 
@@ -276,4 +320,3 @@ justification.
 - Update `document/handoff.md` at the end of every completed slice and every
   completed phase, before reporting to the owner: record the current state,
   what was done, and what comes next. The handoff must never go stale.
-
