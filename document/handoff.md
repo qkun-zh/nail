@@ -107,34 +107,35 @@ constitution); this document records state and process only.
   `None` for non-v7 ids, `format_rfc3339_with_offset(utc_ms, offset_seconds)`
   accepts whole-minute offsets only (extremes ±23:59; `Z` for UTC).
 
-## Handover (2026-08-13) — current agent
+## Handover (2026-08-14) — current agent
 
-Personnel change after slice 2: agent C completed the user domain (commits
-`635a53e`..`acca62a`, handoff `811e3dd`); a new agent (D) takes over from
-**slice 3 (article + version)**.
+Personnel change: the agent that completed slice 3 (agent D) has been
+replaced; a new agent (E) takes over from **slice 4 (comment domain)**.
 
-- ✅ Slice 3 done (archive `8de3490` + TDD rewrite `6747cad`; see Current state
-  for the detail). Next: **slice 4 (comment domain)** — create/reply/read/
-  update/delete with the `DeleteBody` mode contract (#2), then slice 5
-  (download/PDF, #1/#28/#29), slice 6 (role/authorization, #5/#7/#8/#9),
-  slice 7 (config/email/infrastructure, #13/#19/#22/#26/#32).
-
-- All prior handover items (a)-(d) are ✅ done — nothing pending from the
-  previous transition.
-- `thermo-nuclear-code-quality-review` IS available to this session (it was
-  installed after the previous session started, which is why agent C had to
-  run the §8.3 gate manually). Invoke it together with the §8.3 gate at the
-  end of slice 3; its 1k-line default bar is superseded by README §5.3
-  (512 lines).
-- Slice 2 deferred items to pick up in slice 3: search-index re-sync after
-  name update / deregister (#20/#21); article/version/comment cascade + PDF
-  cleanup on hard delete; recycler least-loaded selection (now exercisable,
-  since articles exist).
-- Slice 3 is the largest slice (multipart upload, PDF validation, agdb
-  transactions, seekstorm incremental indexing, content-hash dedupe).
-  Remember §8.2: the database design and backend API design are
-  strong-reference areas — read and study the legacy implementation before
-  writing new code.
+- ✅ Slice 3 (article + version) is done: TDD rewrite of slices 1-3 under the
+  CRUD-only vocabulary (commits `8de3490` archive + `6747cad` rewrite),
+  **back 178 tests green** (common 104), `cargo check` zero warnings, working
+  tree clean. The `_`-prefixed archive files were removed on 2026-08-14
+  (commit `aa39cb6`); the pre-rewrite implementation remains recoverable from
+  git (`8de3490^`). The file tools operate on real paths (the old "mapping"
+  warning was false and has been removed from this file).
+- ⏳ **Pending quality item for slice 3**: the §8.3 five-axis comparison table
+  in Current state is assertion-only — it lacks the library-source citations
+  and probe evidence that §8.1/§8.3 require. Before starting slice 4, ground
+  it with evidence for: agdb write transactions (concurrent content-hash
+  dedupe semantics), seekstorm incremental `sync` vs full `sync_all` count
+  consistency (#21), PDF stream validation boundaries, `PdfUpload` RAII
+  cleanup paths.
+- Next: **slice 4 (comment domain)** — create/reply/read/update/delete with
+  the `DeleteBody` mode contract (#2), then slice 5 (download/PDF,
+  #1/#28/#29), slice 6 (role/authorization, #5/#7/#8/#9), slice 7
+  (config/email/infrastructure, #13/#19/#22/#26/#32).
+- All prior handover items (a)-(d) and the slice 2 deferred items (search
+  re-sync, hard-delete cascade + PDF cleanup, recycler least-loaded selection)
+  are ✅ done.
+- `thermo-nuclear-code-quality-review` is available to this session; invoke it
+  together with the §8.3 gate at the end of each slice; its 1k-line default
+  bar is superseded by README §5.3 (512 lines).
 
 ## Rules (non-negotiable; operational only)
 
