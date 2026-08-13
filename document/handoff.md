@@ -30,6 +30,20 @@ the migrating agent implements per this document and the referenced artifacts.
   ARCHITECTURE.md (old→new layer mapping), 00-overview/PRD.md.
 - Tooling present: node v22; `/home/qkun/reconstruct-tool` (v2.17.0);
   `comment-stripper-rs` in `~/.cargo/bin`; wasm32-unknown-unknown target.
+- **Phase 2 (common crate) is COMPLETE** (2026-08-13): `nail_common` has the
+  confirmed 9-module tree (`text, name, tag, response, hash, time, pow,
+  request, search`), all implemented TDD red→green with 101 unit tests green
+  at `test/unit/common/<module>/tests.rs` (wired via `#[path]`). Dependencies:
+  anyhow, ascon-xof128, hex, pso-vdf, serde (derive), time (formatting), uuid
+  (serde, v7); dev: serde_json. Owner refinements landed in
+  `document/adjudication.md` (Phase 2 confirmations section): typed
+  lowercase `DeleteMode`, unified `DeleteBody`, generic `err()`, panic-free
+  `token() -> anyhow::Result`, both-or-neither check on `EmailReadRequest`,
+  no tracing in common, RFC3339 formatter with configurable offset (item
+  #19), `SearchHit` single-sourced with `SearchRange`-typed field.
+  Engineering skills setup ran once: `AGENTS.md`, `docs/agents/*`, issue
+  tracker = adjudication + handoff, domain docs at `document/context.md` +
+  `document/adr/`.
 
 ## Rules for the migrating agent (non-negotiable)
 
@@ -102,19 +116,21 @@ Read `nail_new/README.md` in full first. Highlights:
 
 ## Remaining steps
 
-### Phase 2 — common crate (contract layer, TDD)
+### Phase 2 — common crate (contract layer, TDD) ✅ DONE
 
-1. Rename the `xxx`/`yyy`/`zzz` placeholder modules into the real shared
-   modules (README §7: data structures first). Candidate split from
-   DATA-MODEL.md: response envelope, request payloads, pow, hash (ascon),
-   time, name/tag/text validation, search shapes. Confirm the module list with
-   the owner before implementing.
-2. Implement per DATA-MODEL.md + adjudication: unified `DeleteBody` (drop the
-   empty `DeleteArticleRequest`/`DeleteCommentRequest`, item #2/#11); single
-   `SearchHit` source of truth (item #10); English-only (item #14); no dead
-   structs (items #10/#11).
-3. TDD per module (tdd skill; agree seams first). Gate: `cargo test`
-   on `nail_common` all green.
+1. ✅ Placeholder modules renamed into the confirmed 9-module split
+   (`text, name, tag, response, hash, time, pow, request, search`); module
+   list confirmed by the owner before implementation (2026-08-13).
+2. ✅ Implemented per DATA-MODEL.md + adjudication: unified `DeleteBody` with
+   typed `DeleteMode` (drop the empty delete structs, #2/#11); single
+   `SearchHit` in `common::search` with `SearchRange`-typed field (#10);
+   English-only labels and messages (#14); dead request structs removed
+   (`CheckEmailRequest`, `EmailUpdateSendRequest`, `EmailUpdateConfirmRequest`,
+   `VerifySessionRequest`, `AuthorCheckRequest` — see #11). `EmailReadRequest`
+   keeps `{pow?, old_email_pow?, new_email_pow?}` + a pure both-or-neither
+   consistency check; #26 `intent` is a query parameter (confirmed, closed).
+3. ✅ TDD per module, one slice one commit; seams agreed in the Phase 2
+   proposal. Gate met: `cargo test` on `nail_common` all green (101 tests).
 
 ### Phase 3 — backend migration, one domain per slice
 
