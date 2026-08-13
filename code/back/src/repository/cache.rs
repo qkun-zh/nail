@@ -84,6 +84,28 @@ impl<E: CacheEntry> TokenCache<E> {
         Some(entry)
     }
 
+    pub fn consume_if(&self, key: &str, matches: impl FnOnce(&E) -> bool) -> Option<E> {
+        let key = key.to_string();
+        let result = self
+            .main
+            .entry(key.clone())
+            .and_compute_with(|maybe_entry| match maybe_entry {
+                Some(entry) if matches(entry.value()) => moka::ops::compute::Op::Remove,
+                Some(_) => moka::ops::compute::Op::Nop,
+                None => moka::ops::compute::Op::Nop,
+            });
+        let moka::ops::compute::CompResult::Removed(entry) = result else {
+            return None;
+        };
+        let entry = entry.into_value();
+        if let Some(reverse) = &self.reverse
+            && let Some(reverse_key) = entry.reverse_key()
+        {
+            reverse_remove(reverse, reverse_key, &key);
+        }
+        Some(entry)
+    }
+
     pub fn read(&self, key: &str) -> Option<E> {
         self.main.get(key)
     }
@@ -147,10 +169,34 @@ pub struct ChallengeEntry;
 
 impl CacheEntry for ChallengeEntry {}
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EmailUpdateTokenEntry {
+    pub old_email_address_hash: String,
+    pub new_email_address_hash: String,
+    pub token_from_old_email_hash: String,
+    pub token_from_new_email_hash: String,
+}
+
+impl CacheEntry for EmailUpdateTokenEntry {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeregisterTokenEntry {
+    pub user_id: String,
+    pub email_address_hash: String,
+}
+
+impl CacheEntry for DeregisterTokenEntry {
+    fn reverse_key(&self) -> Option<&str> {
+        Some(&self.user_id)
+    }
+}
+
 #[derive(Clone)]
 pub struct TokenCaches {
     pub authenticate: TokenCache<AuthenticateTokenEntry>,
     pub session: TokenCache<SessionTokenEntry>,
+    pub email_update: TokenCache<EmailUpdateTokenEntry>,
+    pub deregister: TokenCache<DeregisterTokenEntry>,
     pub challenge: TokenCache<ChallengeEntry>,
 }
 
@@ -164,6 +210,8 @@ impl TokenCaches {
         Self {
             authenticate: TokenCache::new(token_ttl, capacity, true),
             session: TokenCache::new(session_ttl, capacity, true),
+            email_update: TokenCache::new(token_ttl, capacity, false),
+            deregister: TokenCache::new(token_ttl, capacity, true),
             challenge: TokenCache::new(challenge_ttl, capacity, false),
         }
     }

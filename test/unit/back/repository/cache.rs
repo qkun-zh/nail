@@ -1,7 +1,8 @@
 use std::time::Duration;
 
 use crate::repository::cache::{
-    AuthenticateTokenEntry, CacheEntry, ChallengeEntry, SessionTokenEntry, TokenCache, token_key,
+    AuthenticateTokenEntry, CacheEntry, ChallengeEntry, DeregisterTokenEntry,
+    EmailUpdateTokenEntry, SessionTokenEntry, TokenCache, token_key,
 };
 
 #[derive(Debug, Clone)]
@@ -91,6 +92,66 @@ fn authenticate_entry_indexes_by_email_hash() {
         email_subject: "subject".to_string(),
     };
     assert_eq!(entry.reverse_key(), Some("hash-a"));
+}
+
+#[test]
+fn consume_if_removes_the_entry_only_when_the_predicate_matches() {
+    let cache: TokenCache<EmailUpdateTokenEntry> = cache(false);
+    let entry = EmailUpdateTokenEntry {
+        old_email_address_hash: "old-hash".to_string(),
+        new_email_address_hash: "new-hash".to_string(),
+        token_from_old_email_hash: "old-token-hash".to_string(),
+        token_from_new_email_hash: "new-token-hash".to_string(),
+    };
+    cache.insert("user-1", entry.clone());
+
+    let mismatched = cache.consume_if("user-1", |current| {
+        current.token_from_old_email_hash == "wrong"
+    });
+    assert!(mismatched.is_none());
+    assert_eq!(cache.read("user-1"), Some(entry.clone()));
+
+    let matched = cache.consume_if("user-1", |current| {
+        current.token_from_old_email_hash == "old-token-hash"
+    });
+    assert_eq!(matched, Some(entry));
+    assert!(cache.read("user-1").is_none());
+}
+
+#[test]
+fn email_update_entry_is_not_reverse_indexed() {
+    let entry = EmailUpdateTokenEntry {
+        old_email_address_hash: "old-hash".to_string(),
+        new_email_address_hash: "new-hash".to_string(),
+        token_from_old_email_hash: "old-token-hash".to_string(),
+        token_from_new_email_hash: "new-token-hash".to_string(),
+    };
+    assert_eq!(entry.reverse_key(), None);
+}
+
+#[test]
+fn deregister_entry_is_reverse_indexed_by_user_id() {
+    let entry = DeregisterTokenEntry {
+        user_id: "user-1".to_string(),
+        email_address_hash: "hash".to_string(),
+    };
+    assert_eq!(entry.reverse_key(), Some("user-1"));
+}
+
+#[test]
+fn deregister_cache_supports_reverse_deletion_by_user() {
+    let cache: TokenCache<DeregisterTokenEntry> = cache(true);
+    let key = token_key("deregister-token").expect("token key");
+    cache.insert(
+        &key,
+        DeregisterTokenEntry {
+            user_id: "user-1".to_string(),
+            email_address_hash: "hash".to_string(),
+        },
+    );
+    assert_eq!(cache.read(&key).expect("entry").user_id, "user-1");
+    assert_eq!(cache.delete_by_reverse_key("user-1"), 1);
+    assert!(cache.read(&key).is_none());
 }
 
 #[test]
