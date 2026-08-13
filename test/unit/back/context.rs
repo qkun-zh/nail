@@ -150,6 +150,9 @@ pub async fn build_state(
 ) -> anyhow::Result<(AppState, RecordingSender)> {
     let graph = repository::graph::open("memory").await?;
     repository::seed::init_graph(&graph, &config.server.user_zero_email).await?;
+    let search_dir = std::env::temp_dir().join(format!("nail_state_search_{}", uuid::Uuid::now_v7()));
+    let search = repository::search::open_or_create_index(search_dir.to_str().expect("temp path"))
+        .await?;
     let caches = repository::cache::TokenCaches::new(
         Duration::from_secs(config.server.token_ttl_seconds),
         Duration::from_secs(config.server.session_ttl_seconds),
@@ -160,6 +163,7 @@ pub async fn build_state(
     let email = RateLimitedSender::new(Arc::new(recorder.clone()), cooldown_seconds);
     let state = AppState {
         graph,
+        search,
         caches,
         email,
         config: Arc::new(config.clone()),
@@ -172,6 +176,8 @@ pub fn test_config() -> AppConfig {
         server: ServerConfig {
             listen_addr: "127.0.0.1:0".to_string(),
             db_path: "memory".to_string(),
+            search_index_path: "memory-search".to_string(),
+            pdf_storage_path: "/tmp/nail_test_pdf".to_string(),
             pow_difficulty_iterations: 1,
             token_ttl_seconds: 8000,
             session_ttl_seconds: 8000,
@@ -180,6 +186,13 @@ pub fn test_config() -> AppConfig {
             email_cooldown_seconds: 60,
             timezone_offset_seconds: 0,
             user_zero_email: "user-zero@example.com".to_string(),
+            max_pdf_size_bytes: 32 * 1024 * 1024,
+            max_tags_per_article: 8,
+            max_title_chars: 200,
+            max_summary_chars: 2000,
+            max_version_note_chars: 1024,
+            max_text_field_bytes: 1024 * 1024,
+            max_search_query_chars: 512,
             log_dir: "log/back".to_string(),
             log_retention_days: 7,
             log_max_file_count: 100,

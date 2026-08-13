@@ -52,6 +52,31 @@ fn server_config_rejects_an_invalid_timezone_offset() {
 }
 
 #[test]
+fn server_config_rejects_empty_search_and_pdf_paths() {
+    assert_invalid_server(|server| server.search_index_path.clear());
+    assert_invalid_server(|server| server.pdf_storage_path.clear());
+}
+
+#[test]
+fn server_config_rejects_zero_content_limits() {
+    assert_invalid_server(|server| server.max_pdf_size_bytes = 0);
+    assert_invalid_server(|server| server.max_tags_per_article = 0);
+    assert_invalid_server(|server| server.max_title_chars = 0);
+    assert_invalid_server(|server| server.max_summary_chars = 0);
+    assert_invalid_server(|server| server.max_version_note_chars = 0);
+    assert_invalid_server(|server| server.max_text_field_bytes = 0);
+    assert_invalid_server(|server| server.max_search_query_chars = 0);
+}
+
+#[test]
+fn server_config_rejects_text_field_bytes_exceeding_pdf_size() {
+    assert_invalid_server(|server| {
+        server.max_pdf_size_bytes = 100;
+        server.max_text_field_bytes = 101;
+    });
+}
+
+#[test]
 fn server_config_rejects_an_invalid_user_zero_email() {
     assert_invalid_server(|server| server.user_zero_email.clear());
     assert_invalid_server(|server| server.user_zero_email = "no-at-sign".to_string());
@@ -109,6 +134,8 @@ fn write_configs(directory: &PathBuf) {
     let server = r#"
 listen_addr = "127.0.0.1:3000"
 db_path = "memory"
+search_index_path = "/tmp/search"
+pdf_storage_path = "/tmp/pdf"
 pow_difficulty_iterations = 8192
 token_ttl_seconds = 8000
 session_ttl_seconds = 8000
@@ -117,6 +144,13 @@ token_cache_capacity = 100000
 email_cooldown_seconds = 60
 timezone_offset_seconds = 28800
 user_zero_email = "admin@example.com"
+max_pdf_size_bytes = 33554432
+max_tags_per_article = 8
+max_title_chars = 200
+max_summary_chars = 2000
+max_version_note_chars = 1024
+max_text_field_bytes = 1048576
+max_search_query_chars = 512
 log_dir = "log/back"
 log_retention_days = 7
 log_max_file_count = 10080

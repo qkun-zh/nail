@@ -10,6 +10,8 @@ use crate::repository;
 pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
     let graph = repository::graph::open(&config.server.db_path).await?;
     repository::seed::init_graph(&graph, &config.server.user_zero_email).await?;
+    let search = repository::search::open_or_create_index(&config.server.search_index_path).await?;
+    crate::infrastructure::pdf::prepare_pdf_storage(&config.server.pdf_storage_path).await?;
 
     let caches = repository::cache::TokenCaches::new(
         Duration::from_secs(config.server.token_ttl_seconds),
@@ -22,6 +24,7 @@ pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
 
     let state = AppState {
         graph,
+        search,
         caches,
         email,
         config: Arc::new(config),

@@ -4,6 +4,8 @@ use anyhow::bail;
 pub struct ServerConfig {
     pub listen_addr: String,
     pub db_path: String,
+    pub search_index_path: String,
+    pub pdf_storage_path: String,
     pub pow_difficulty_iterations: u64,
     pub token_ttl_seconds: u64,
     pub session_ttl_seconds: u64,
@@ -12,6 +14,13 @@ pub struct ServerConfig {
     pub email_cooldown_seconds: u64,
     pub timezone_offset_seconds: i32,
     pub user_zero_email: String,
+    pub max_pdf_size_bytes: u64,
+    pub max_tags_per_article: usize,
+    pub max_title_chars: u64,
+    pub max_summary_chars: u64,
+    pub max_version_note_chars: u64,
+    pub max_text_field_bytes: u64,
+    pub max_search_query_chars: u64,
     pub log_dir: String,
     pub log_retention_days: u64,
     pub log_max_file_count: usize,
@@ -31,6 +40,12 @@ impl ServerConfig {
         }
         if self.db_path.is_empty() || self.log_dir.is_empty() {
             bail!("config: db_path / log_dir must not be empty");
+        }
+        if self.search_index_path.is_empty() || self.pdf_storage_path.is_empty() {
+            bail!("config: search_index_path / pdf_storage_path must not be empty");
+        }
+        if self.max_text_field_bytes > self.max_pdf_size_bytes {
+            bail!("config: max_text_field_bytes must not exceed max_pdf_size_bytes");
         }
         if self.log_filter.trim().is_empty() {
             bail!("config: log_filter must not be empty");
@@ -53,6 +68,19 @@ impl ServerConfig {
             ("token_cache_capacity", self.token_cache_capacity),
             ("email_cooldown_seconds", self.email_cooldown_seconds),
             ("log_prune_interval_secs", self.log_prune_interval_secs),
+        ] {
+            if value == 0 {
+                bail!("config: {name} must be > 0");
+            }
+        }
+        for (name, value) in [
+            ("max_pdf_size_bytes", self.max_pdf_size_bytes),
+            ("max_tags_per_article", self.max_tags_per_article as u64),
+            ("max_title_chars", self.max_title_chars),
+            ("max_summary_chars", self.max_summary_chars),
+            ("max_version_note_chars", self.max_version_note_chars),
+            ("max_text_field_bytes", self.max_text_field_bytes),
+            ("max_search_query_chars", self.max_search_query_chars),
         ] {
             if value == 0 {
                 bail!("config: {name} must be > 0");

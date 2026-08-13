@@ -106,6 +106,17 @@ pub fn content_hash_rel_path(hash: &str) -> Option<String> {
     Some(format!("{}/{}/{}.pdf", &hash[0..2], &hash[2..4], hash))
 }
 
+pub async fn prepare_pdf_storage(storage_path: &str) -> anyhow::Result<()> {
+    let storage = std::path::Path::new(storage_path);
+    let temp = storage.join(".tmp");
+    tokio::fs::create_dir_all(&temp).await?;
+    let mut entries = tokio::fs::read_dir(&temp).await?;
+    while let Some(entry) = entries.next_entry().await? {
+        let _ = tokio::fs::remove_file(entry.path()).await;
+    }
+    Ok(())
+}
+
 pub struct TempPdf {
     path: PathBuf,
 }
