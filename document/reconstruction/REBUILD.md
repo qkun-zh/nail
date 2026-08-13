@@ -23,7 +23,6 @@ Ordered by dependency tier — foundations (types, data, shared UI, i18n, cross-
 
 1. [ ] **Project Setup & Tooling** → `features/01-project-setup/PRD.md`
 2. [ ] **Code** → `features/02-code/PRD.md`
-3. [ ] **Test** → `features/03-test/PRD.md`
 
 ## Procedure
 
