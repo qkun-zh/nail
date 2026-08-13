@@ -182,6 +182,22 @@ justification.
   directory names. Names must be detailed, complete, and self-explanatory.
 - Universally accepted loop variables (e.g. `i`, `j`, `k`) are the only
   exception.
+- **CRUD-only verbs for resource operations.** Every backend resource (user,
+  article, version, comment, tag, role, permission, session, challenge) is
+  operated on with exactly four verbs: `create`, `read`, `update`, `delete`.
+  Collection reads are still `read` (never `list`), paginated through query
+  parameters (`read_users(page, limit)`).
+- **Node operations, not frontend flow vocabulary.** Flow terms the frontend
+  exposes on the wire (e.g. the `intent=authenticate|change_email|deregister`
+  selector) must never appear as a backend identifier. The backend names the
+  underlying node operation instead (`create_user`, `update_user_email`,
+  `delete_user`, `read_session`, `delete_session`).
+- **Enforcement depth.** The `interface` layer is the strictest: one
+  `<verb>_<resource>` handler per route (`create_user`, `read_user`,
+  `read_users`, `update_user`, `delete_user`, ...). The `logic` layer's
+  top-level entry points use the same verbs. Below them, `repository` and
+  `infrastructure` helpers may use their own precise terminology (`sync`,
+  `transfer`, `owner_of`, ...).
 
 ### 5.3 Size limits
 

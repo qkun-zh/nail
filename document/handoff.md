@@ -69,6 +69,15 @@ constitution); this document records state and process only.
 - **#26 closed**: `intent` is a query parameter, not a body field.
 - **#5 confirmed**: read-open semantics — any authenticated principal may
   read article/version/comment; writes stay owner/role/admin-gated.
+- **CRUD-only resource vocabulary (new)**. Backend resources are operated on
+  with exactly `create`/`read`/`update`/`delete`; batch reads are `read` with
+  pagination params (no `list`). Frontend/wire flow terms (`intent=
+  authenticate|change_email|deregister`) must not appear as backend
+  identifiers — the backend names the node op (`create_user`,
+  `update_user_email`, `delete_user`, `read_session`, `delete_session`).
+  Interface = strictest (`<verb>_<resource>` handlers); logic top-level = same
+  verbs; below them repository/infrastructure use their own terms. Enforced
+  across slice 3 (sweep commit `43e3bff`).
 - Common API contracts at Phase 3 call sites: `now_ms() -> Result<u64,
   SystemTimeError>` (propagate with `?`), `uuidv7_timestamp_ms` returns
   `None` for non-v7 ids, `format_rfc3339_with_offset(utc_ms, offset_seconds)`
@@ -79,6 +88,15 @@ constitution); this document records state and process only.
 Personnel change after slice 2: agent C completed the user domain (commits
 `635a53e`..`acca62a`, handoff `811e3dd`); a new agent (D) takes over from
 **slice 3 (article + version)**.
+
+- Slice 3 progress so far (agent D): PDF validation (`infrastructure/pdf.rs`),
+  article/version/tag/search repository layer, hard-delete cascade + article
+  transfer, seekstorm `SearchIndex`, config fields + `AppState.search` wiring.
+  The owner added the **CRUD-only vocabulary** rule (README §5.2, sweep commit
+  `43e3bff` renamed slice 1-2 flows `authenticate`/`deregister`/`list`/`issue`/
+  `logout` to node CRUD). Next: reshape the slice-3 repository interfaces fresh
+  per §4.1 (typed draft inputs, `SearchIndex` struct), then logic + interface
+  with CRUD handlers (TDD red→green).
 
 - All prior handover items (a)-(d) are ✅ done — nothing pending from the
   previous transition.
