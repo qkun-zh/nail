@@ -171,9 +171,11 @@ constitution); this document records state and process only.
 
 ## Handover (2026-08-14) — current agent
 
-Personnel change: the agent that completed slice 3 (agent D) has been
-replaced; a new agent (E) completed **slice 4 (comment domain)** and hands
-off to **slice 5 (download/PDF)**.
+Personnel change: agent E completed **slice 4 (comment domain)**; a new agent
+(F) takes over from **slice 5 (download/PDF)**.
+
+- ✅ Slices 1-4 are done. **back 205 tests green** (common 104), `cargo check`
+  zero warnings, working tree clean at `f5bbee6`.
 
 - ✅ Slice 3 (article + version) is done: TDD rewrite of slices 1-3 under the
   CRUD-only vocabulary (commits `8de3490` archive + `6747cad` rewrite),
@@ -190,6 +192,14 @@ off to **slice 5 (download/PDF)**.
 - ✅ Slice 4 (comment domain) is done: create/reply/read/update/delete with
   the `DeleteBody` mode contract (#2), #16 (invalid comment id → 400), #3
   (no per-comment author gate). **back 205 tests green**.
+- ⏳ **Verify the tooling caveat (first task of agent F)**: the slice 3
+  "Tooling (corrected again)" note claims `read_file`/`edit_file` fail under
+  `test/` and `code/back/src/repository/`. The reference environment verified
+  the opposite (read_file reads `repository/comment.rs`, `repository/delete.rs`,
+  `repository/search.rs`, `test/unit/back/context.rs` normally). Agent F:
+  re-verify at session start (read one `repository/` file); if it works,
+  replace the caveat with a factual note or delete it. Never record
+  tooling claims without the exact path and error text.
 - Next: **slice 5 (download/PDF)** — #1 (mint → `.../content/read?token={token}`,
   single-use 60s, user-bound), #28 (hash-based filenames only), #29 (mint-JSON
   contract documented), then slice 6 (role/authorization, #5/#7/#8/#9), slice 7
