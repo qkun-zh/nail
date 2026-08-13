@@ -5,6 +5,10 @@ mod interface;
 mod logic;
 mod repository;
 
+#[cfg(test)]
+#[path = "../../../test/unit/back/harness.rs"]
+mod back_tests;
+
 #[tokio::main]
 async fn main() {
     let code = match run().await {

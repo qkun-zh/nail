@@ -1,0 +1,77 @@
+#[path = "context.rs"]
+pub mod context;
+
+#[path = "configuration/validation.rs"]
+pub mod configuration_validation;
+
+#[path = "infrastructure/email.rs"]
+pub mod infrastructure_email;
+
+#[path = "infrastructure/pdf.rs"]
+pub mod infrastructure_pdf;
+
+#[path = "repository/cache.rs"]
+pub mod repository_cache;
+
+#[path = "repository/user.rs"]
+pub mod repository_user;
+
+#[path = "repository/role.rs"]
+pub mod repository_role;
+
+#[path = "repository/article.rs"]
+pub mod repository_article;
+
+#[path = "repository/version.rs"]
+pub mod repository_version;
+
+#[path = "repository/delete.rs"]
+pub mod repository_delete;
+
+#[path = "repository/transfer.rs"]
+pub mod repository_transfer;
+
+#[path = "repository/search.rs"]
+pub mod repository_search;
+
+#[path = "logic/error.rs"]
+pub mod logic_error;
+
+#[path = "logic/pow.rs"]
+pub mod logic_pow;
+
+#[path = "logic/challenge.rs"]
+pub mod logic_challenge;
+
+#[path = "logic/session.rs"]
+pub mod logic_session;
+
+#[path = "logic/email.rs"]
+pub mod logic_email;
+
+#[path = "logic/user.rs"]
+pub mod logic_user;
+
+#[path = "logic/authorize.rs"]
+pub mod logic_authorize;
+
+#[path = "logic/article.rs"]
+pub mod logic_article;
+
+#[path = "logic/version.rs"]
+pub mod logic_version;
+
+#[path = "logic/search.rs"]
+pub mod logic_search;
+
+#[path = "http/session.rs"]
+pub mod http_session;
+
+#[path = "http/user.rs"]
+pub mod http_user;
+
+#[path = "http/article.rs"]
+pub mod http_article;
+
+#[path = "http/version.rs"]
+pub mod http_version;
