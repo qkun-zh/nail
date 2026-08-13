@@ -7,6 +7,9 @@ pub mod configuration_validation;
 #[path = "infrastructure/email.rs"]
 pub mod infrastructure_email;
 
+#[path = "infrastructure/pdf.rs"]
+pub mod infrastructure_pdf;
+
 #[path = "logic/error.rs"]
 pub mod logic_error;
 #[path = "logic/challenge.rs"]
