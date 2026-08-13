@@ -9,6 +9,7 @@ ascon-xof128 = "0.2.1"
 hex = "0.4.3"
 pso-vdf = "0.2.3"
 serde = { version = "1.0.229", features = ["derive"] }
+time = { version = "0.3.55", features = ["formatting"] }
 uuid = { version = "1.24.0", features = ["serde", "v7"] }
 
 [dev-dependencies]
