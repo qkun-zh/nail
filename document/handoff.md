@@ -165,4 +165,5 @@ grill routine work.
 | handoff | end of every slice, phase, and session | update `document/handoff.md`; keep adjudication current |
 | to-spec | when the owner wants a formal spec | optional — PRDs + adjudication already act as specs |
 | improve-codebase-architecture | periodic architecture health check | not needed during the build |
+| thermo-nuclear-code-quality-review | code-quality review of each completed slice/phase (with the §8.3 gate) or on owner request | aggressive on structure, abstractions, spaghetti, file size; project file bar is 512 lines (README §5.3), stricter than the skill's 1k default |
 | create-skill | only if the owner asks | — |
