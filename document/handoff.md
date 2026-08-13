@@ -82,6 +82,16 @@ the migrating agent implements per this document and the referenced artifacts.
     `run_pending_tasks()`/housekeeper, so the token reverse-index cleanup on
     eviction is eventually consistent — same as legacy. Verified deterministically
     via a capacity-eviction test that calls `run_pending_tasks()`.
+- **HANDOVER (2026-08-13)**: personnel change — the previous agent
+  implemented slice 1 (commit `6c063b0`); a new agent takes over from slice 2
+  (user domain). Pending items for the new agent: (a) add
+  `#![allow(dead_code)]` at the `nail_back`/`nail_front` crate roots — the
+  confirmed §5.4 mechanism, NOT yet applied; builds must stay warning-free,
+  and the attribute is removed together with dead code in the Phase 5
+  cleanup. (b) ✅ the owner's `README.md` changes (all new constraints) were
+  committed by the owner (2026-08-13) — working tree is clean. (c) #5 is
+  owner-confirmed (read-open semantics) — proceed through slice 6 without
+  stopping.
 
 ## Rules for the migrating agent (non-negotiable)
 
