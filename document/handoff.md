@@ -89,8 +89,16 @@ Read `nail_new/README.md` in full first. Highlights:
 - Anything new found during migration: probe it, then report to the owner —
   never silently preserve a bug or a compromise design.
 - The principle (README §8): probes outrank source, source outranks guessing;
-  facts are constructed from probes and source together. Because the source is
-  buggy, probes are the decisive tool wherever behavior is in doubt.
+  facts are constructed from probes and source together. Two kinds of source,
+  two stances:
+  - **Library / dependency source is TRUSTED** (agdb, seekstorm, axum, moka,
+    cedar-policy, leptos, pso-vdf, ascon, ...): read it to learn the real API;
+    when a library misbehaves, look for the official solution in its source
+    first — an apparent defect is usually a lack of familiarity with it
+    (README §8). Probe tests confirm.
+  - **The legacy `reference` code is DANGEROUS**: verify every line, never
+    assume any of it is correct (README §8). Probes are the decisive tool
+    wherever its behavior is in doubt.
 
 ## Remaining steps
 
