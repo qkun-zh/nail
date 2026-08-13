@@ -240,20 +240,13 @@ via the `skill` tool BEFORE the task it covers, and follow its instructions.
   transfer / hard / intent must mean the same thing across code, tests,
   PRDs, and docs.
 
-### grilling — stress-test a plan/decision with the owner
-
-- **When**: before implementing an open or risky decision (#5 read-open
-  semantics, #26 intent contract), or when the agent is unsure of a design
-  direction. Do not grill routine work.
-- **What**: relentless one-question-at-a-time interview (recommend an answer
-  each round) until the decision is sharp.
-- **Here**: use for the two owner-confirm items in Phase 3.
-
 ### grill-with-docs — grilling that also writes docs
 
-- **When**: same triggers as grilling, when the outcome should land as ADRs +
-  glossary.
-- **What**: grilling interview + writes CONTEXT.md glossary + ADRs as it goes.
+- **When**: before implementing the two owner-confirm items (#5 read-open
+  semantics, #26 intent contract), when the outcome should land as ADRs +
+  glossary. Do not grill routine work.
+- **What**: one-question-at-a-time interview (recommend an answer each round)
+  + writes CONTEXT.md glossary + ADRs as it goes.
 - **Here**: produce the ADR for #26 (new `/email/read?intent=` contract) and
   #5 (visibility removal + policy 2 rewrite).
 
@@ -264,25 +257,3 @@ via the `skill` tool BEFORE the task it covers, and follow its instructions.
   by path; do not duplicate content already captured elsewhere.
 - **Here**: update/extend `document/handoff.md` (or write a session-specific
   handoff); keep `document/adjudication.md` current.
-
-### to-spec — formalize discussed decisions
-
-- **When**: after a grilling/decision round, if the owner wants a formal spec
-  in the issue tracker.
-- **What**: synthesize the conversation into a spec and publish it to the
-  issue tracker (`.scratch/` once setup ran).
-- **Here**: optional — the PRDs + adjudication already act as specs; use only
-  for new contracts worth formalizing (#26, #5).
-
-### improve-codebase-architecture — NOT for this project
-
-- **When**: scanning an existing codebase for deepening opportunities — not
-  applicable here: nail_new is built fresh and its architecture is fixed by
-  the README.
-- **Here**: skip. If ever run against `nail`, do not migrate its proposals
-  without owner review.
-
-### create-skill — authoring new skills
-
-- **When**: only if the owner asks to create or patch an agent skill.
-- **Here**: skip.
