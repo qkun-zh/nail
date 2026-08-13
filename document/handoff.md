@@ -168,6 +168,11 @@ constitution); this document records state and process only.
   SystemTimeError>` (propagate with `?`), `uuidv7_timestamp_ms` returns
   `None` for non-v7 ids, `format_rfc3339_with_offset(utc_ms, offset_seconds)`
   accepts whole-minute offsets only (extremes ±23:59; `Z` for UTC).
+- **`create_reply` accepted (owner, 2026-08-14)**: the replies route handler
+  keeps the name `create_reply` — a reply is a comment subtype and the name
+  matches the wire route (`POST /comments/{id}/replies/create`); it is the
+  only interface-layer name beyond the strict `create/read/update/delete`
+  resource set and is sanctioned.
 
 ## Handover (2026-08-14) — current agent
 
@@ -200,6 +205,13 @@ Personnel change: agent E completed **slice 4 (comment domain)**; a new agent
   re-verify at session start (read one `repository/` file); if it works,
   replace the caveat with a factual note or delete it. Never record
   tooling claims without the exact path and error text.
+- ⏳ **Hard-delete reply-subtree regression tests (agent F, one commit)**: the
+  slice 3 hard-delete tests did not exercise nested reply subtrees, which is
+  how the `delete_comment_tree_in_txn` direction bug survived into slice 4
+  (fixed in `91597bb`). Add regression tests to
+  `test/unit/back/repository/delete.rs` covering article / version / user hard
+  delete with a depth ≥ 2 comment tree (top-level + replies), asserting every
+  node and edge is removed.
 - Next: **slice 5 (download/PDF)** — #1 (mint → `.../content/read?token={token}`,
   single-use 60s, user-bound), #28 (hash-based filenames only), #29 (mint-JSON
   contract documented), then slice 6 (role/authorization, #5/#7/#8/#9), slice 7
