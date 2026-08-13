@@ -1,4 +1,4 @@
-use crate::request::DeleteMode;
+use crate::request::{DeleteMode, EmailReadIntent};
 
 #[test]
 fn delete_mode_serializes_as_lowercase_strings() -> anyhow::Result<()> {
@@ -18,6 +18,48 @@ fn delete_mode_deserializes_from_lowercase_strings() -> anyhow::Result<()> {
 fn delete_mode_rejects_unknown_values() {
     for value in [r#""soft""#, r#""Transfer""#, r#""HARD""#, r#""""#] {
         let result = serde_json::from_str::<DeleteMode>(value);
+        assert!(result.is_err(), "value {value} must be rejected");
+    }
+}
+
+#[test]
+fn email_read_intent_serializes_as_snake_case_strings() -> anyhow::Result<()> {
+    assert_eq!(
+        serde_json::to_string(&EmailReadIntent::Authenticate)?,
+        r#""authenticate""#
+    );
+    assert_eq!(
+        serde_json::to_string(&EmailReadIntent::ChangeEmail)?,
+        r#""change_email""#
+    );
+    assert_eq!(
+        serde_json::to_string(&EmailReadIntent::Deregister)?,
+        r#""deregister""#
+    );
+    Ok(())
+}
+
+#[test]
+fn email_read_intent_deserializes_from_snake_case_strings() -> anyhow::Result<()> {
+    assert_eq!(
+        serde_json::from_str::<EmailReadIntent>(r#""authenticate""#)?,
+        EmailReadIntent::Authenticate
+    );
+    assert_eq!(
+        serde_json::from_str::<EmailReadIntent>(r#""change_email""#)?,
+        EmailReadIntent::ChangeEmail
+    );
+    assert_eq!(
+        serde_json::from_str::<EmailReadIntent>(r#""deregister""#)?,
+        EmailReadIntent::Deregister
+    );
+    Ok(())
+}
+
+#[test]
+fn email_read_intent_rejects_unknown_values() {
+    for value in [r#""change-email""#, r#""authenticate ""#, r#""Deregister""#, r#""""#] {
+        let result = serde_json::from_str::<EmailReadIntent>(value);
         assert!(result.is_err(), "value {value} must be rejected");
     }
 }

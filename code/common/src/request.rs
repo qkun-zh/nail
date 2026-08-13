@@ -8,6 +8,14 @@ pub enum DeleteMode {
     Hard,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EmailReadIntent {
+    Authenticate,
+    ChangeEmail,
+    Deregister,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeleteBody {
     #[serde(default)]

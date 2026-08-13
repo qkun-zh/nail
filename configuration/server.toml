@@ -1,0 +1,15 @@
+listen_addr = "127.0.0.1:3000"
+db_path = "/home/qkun/nail_new/data/agdb"
+pow_difficulty_iterations = 8192
+token_ttl_seconds = 8000
+session_ttl_seconds = 8000
+challenge_ttl_seconds = 300
+token_cache_capacity = 100000
+email_cooldown_seconds = 60
+timezone_offset_seconds = 28800
+user_zero_email = "qkun-zh@qq.com"
+log_dir = "/home/qkun/nail_new/log/back"
+log_retention_days = 7
+log_max_file_count = 10080
+log_prune_interval_secs = 1800
+log_filter = "warn,nail_back=info,common=info"

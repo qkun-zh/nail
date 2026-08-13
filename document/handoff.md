@@ -41,9 +41,46 @@ the migrating agent implements per this document and the referenced artifacts.
   `token() -> anyhow::Result`, both-or-neither check on `EmailReadRequest`,
   no tracing in common, RFC3339 formatter with configurable offset (item
   #19), `SearchHit` single-sourced with `SearchRange`-typed field.
-  Engineering skills setup ran once: `AGENTS.md`, `docs/agents/*`, issue
+  -  Engineering skills setup ran once: `AGENTS.md`, `docs/agents/*`, issue
   tracker = adjudication + handoff, domain docs at `document/context.md` +
   `document/adr/`.
+- **HANDOVER (2026-08-13)**: implementation transfers from the Phase 2 agent
+  to a new agent. Phase 2 commits: scaffold `1c8d543`, nine module slices
+  `d40a9ac`..`9038b72`, handoff `22a4f3c`. `README.md` was amended by the
+  owner AFTER the Phase 2 session — re-read it in full before Phase 3.
+- **Phase 3 kickoff APPROVED (2026-08-13)**: `domain-modeling` (pin the
+  vocabulary in `document/context.md`) → `codebase-design` for the back
+  module tree (every boundary justified by the new layers' responsibilities
+  and callers — no legacy-mirroring, README §4.1) → authentication/session
+  slice with `tdd`. #26 is closed (query parameter). #5 remains an
+  owner-confirm item at its slice.
+- Common API contracts to honor at Phase 3 call sites: `now_ms() ->
+  Result<u64, SystemTimeError>` (propagate with `?`), `uuidv7_timestamp_ms`
+  returns `None` for non-v7 ids, `format_rfc3339_with_offset(utc_ms,
+  offset_seconds)` accepts whole-minute offsets only (extremes ±23:59; `Z`
+  for UTC).
+- **Phase 3 slice 1 (authentication/session) COMPLETE (2026-08-13)**: the
+  auth lifecycle is implemented fresh across the four layers and TDD-verified.
+  Routes live: `GET /challenge/read`, `POST /email/read?intent=...`,
+  `POST /user/create`, `GET /session/read`, `POST /session/delete`. Back module
+  tree is ADR-0001; the `intent` contract is ADR-0002 (item #26, closed).
+  Glossary at `document/context.md`. Back tests: 59 green; common tests: 104
+  green (+3 for `EmailReadIntent`). `change_email`/`deregister` branches are
+  stubbed to 400 "email intent is not supported yet" until slice 2.
+  - Legacy comparison (README §8 gate, see below): new code is equal-or-better
+    on all five axes; the gains are (a) a generic `TokenCache<E>` replacing
+    the legacy `repo/token/*` six-file near-duplication, (b) an `EmailSender`
+    trait + `RateLimitedSender`/`SmtpSender` seam so the email flow is testable
+    in-process, (c) explicit `intent` removing the session-validity inference,
+    (d) corrected error semantics where the PRD contradicted the legacy
+    (garbage session token → 401 "invalid session" per AC5, not 400; email
+    token redeem → one 400 "invalid or expired token" per AC4). No performance
+    regression identified; the PoW/cache hot paths use the same moka/minroot
+    building blocks.
+  - Probe finding (recorded): moka's eviction listener runs via
+    `run_pending_tasks()`/housekeeper, so the token reverse-index cleanup on
+    eviction is eventually consistent — same as legacy. Verified deterministically
+    via a capacity-eviction test that calls `run_pending_tasks()`.
 
 ## Rules for the migrating agent (non-negotiable)
 
@@ -67,8 +104,48 @@ Read `nail_new/README.md` in full first. Highlights:
   randomized regular cases (README §12); TDD red→green (PRDs carry `--tdd`).
 - Agent workflow (README §13): grep only via terminal; never the diagnostics
   tool; terminal `cd` must be `qkun/...`-prefixed or absolute under `/home/qkun`.
+- Fresh module design (README §3 note + §4.1 + §4.2, added by owner): the
+  module trees beneath the backend layers and the frontend layers must be
+  designed fresh for `nail_new`; copying the legacy module division is
+  absolutely forbidden; "the legacy code did it this way" is never an
+  acceptable justification.
+- Dead code (README §5.4, updated by owner 2026-08-13): do NOT chase dead or
+  unused code during the migration — interim code may be consumed by later
+  slices. Batch-remove all dead code as the FINAL task of Phase 5, then the
+  zero-warning gate is enforced. "Never used" warnings are expected and fine
+  until then.
+- Legacy comparison + pre-study (README §8, updated by owner 2026-08-13):
+  before implementing a strong-reference area (db / cache / email / API
+  design) study the legacy implementation first; after each slice/phase,
+  compare the new code vs the legacy on readability, correctness, elegance,
+  conciseness, and performance, and report the comparison + any fixes to the
+  owner.
+- Comments (README §5.5, added by owner): code must be self-explanatory —
+  zero or very few comments; comments only for non-obvious intent,
+  constraints, or tradeoffs; never restate the code.
+- Quality gate (README §8, added by owner): after each large module (a domain
+  slice or a phase), compare the new code against the corresponding legacy
+  code on readability, correctness, elegance, conciseness, and performance;
+  ground the comparison in library source reading and probe tests wherever
+  behavior or performance is in doubt; if inferior, weigh the fix cost,
+  correct when worthwhile, re-run the full test suite, and report to the
+  owner. Comparison only — the legacy code remains untrusted.
+- Strong-reference areas (README §8, added by owner): before implementing the
+  legacy's database design, cache design, email-sending business logic, or
+  backend API design, read and study the legacy implementation carefully
+  first — understand its reasoning before writing new code.
+- Dead code (README §5.4, added by owner): do not chase dead or unused code
+  during the migration; `#![allow(dead_code)]` at each crate root during the
+  migration; batch-remove all dead code in one pass after the entire
+  refactoring is complete (the final task of Phase 5), deleting the allow
+  attributes with it.
+- Handoff (README §13): update `document/handoff.md` at the end of every
+  completed slice and phase, before reporting to the owner.
 - Principle (README §8, added): facts from source and probes — probes outrank
   source, source outranks guessing; never guess.
+- Skills (MANDATORY): before every covered task, invoke the matching skill via
+  the `skill` tool and follow it — skipping a skill is a process violation
+  (see the Skills — mandatory usage section).
 
 ## Reference materials
 
@@ -137,9 +214,10 @@ Read `nail_new/README.md` in full first. Highlights:
 Per domain: read the domain slice of the 02-code PRD → write failing tests
 first (red) → implement (green) → commit. Suggested order:
 
-1. Authentication/session — challenge, emailed-token flow with the NEW
+1. ✅ Authentication/session — challenge, emailed-token flow with the NEW
    `POST /email/read?intent=authenticate|change_email|deregister` contract
-   (item #26), session create/verify/delete.
+   (item #26; `intent` dispatch + `authenticate` branch live; `change_email`/
+   `deregister` branches stub 400 until slice 2), session create/verify/delete.
 2. User domain — item #15 (symmetric email_hash defaults, no swallowed
    errors), item #27 (idempotent deregister confirm).
 3. Article + version — item #6 (gate version list), #16 (invalid id → 400),
@@ -190,21 +268,37 @@ tracing, Cedar engine.
   owner choice).
 - Gate: full `cargo test` suites; e2e serial (`--test-threads=1`) if ports are
   shared.
+- Final batch dead-code cleanup (README §5.4): after the four phases, remove
+  every dead/unused item in one dedicated pass, then re-run the full
+  `cargo test` and `cargo check` with zero warnings. Mechanism: during the
+  migration, `#![allow(dead_code)]` sits at each crate root (`nail_common` /
+  `nail_back` / `nail_front`) so interim code compiles warning-free; the
+  cleanup pass deletes the attributes together with the dead code and
+  re-enforces the zero-warning gate.
 
 ## Ongoing discipline
 
 - One task = one commit (`git add .` + commit + push) with an English message
   reflecting the actual change; archive before and after each task.
 - Kill leftover backend/proxy processes after e2e (they lock the agdb file).
+- Update `document/handoff.md` at the end of every completed slice and phase:
+  current state, what was done, what is next, open items. Never finish a
+  slice, a phase, or a session with a stale handoff.
 - Keep `document/adjudication.md` current as decisions refine; record new
   contracts (item #26 intent param, item #5 policy change) as ADRs under
   `document/`.
+- Dead-code removal is the FINAL task of Phase 5 (README §5.4), a single
+  batch pass after the whole refactoring — not per-slice.
 
-## Skill usage guide
+## Skills — mandatory usage
 
-The migrating agent has the same skill set as the orchestrator. Invoke a skill
-via the `skill` tool BEFORE the task it covers, and follow its instructions.
-`nail_new/README.md` is the constitution and outranks any skill.
+Skills are MANDATORY, not optional guidance: before every task covered by a
+skill below, invoke it via the `skill` tool and follow its instructions.
+Working without the matching skill is a process violation. The list below is
+a checklist — every task type has a required skill, and each entry marks
+when it MUST be invoked. The migrating agent has the same skill set as the
+orchestrator. `nail_new/README.md` is the constitution and outranks any
+skill.
 
 ### setup-matt-pocock-skills — run ONCE, before any engineering skill use
 
@@ -275,9 +369,10 @@ via the `skill` tool BEFORE the task it covers, and follow its instructions.
 - **Here**: produce the ADR for #26 (new `/email/read?intent=` contract) and
   #5 (visibility removal + policy 2 rewrite).
 
-### handoff — end of every session
+### handoff — end of every slice, phase, and session
 
-- **When**: session end, before another agent takes over.
+- **When**: at the end of every completed slice, phase, and session (before
+  another agent takes over).
 - **What**: compact the session into a handoff document; reference artifacts
   by path; do not duplicate content already captured elsewhere.
 - **Here**: update/extend `document/handoff.md` (or write a session-specific

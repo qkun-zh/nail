@@ -1,0 +1,72 @@
+use std::sync::Arc;
+use std::time::Duration;
+
+use crate::infrastructure::config::AppConfig;
+use crate::infrastructure::email::RateLimitedSender;
+use crate::infrastructure::state::AppState;
+use crate::interface;
+use crate::repository;
+
+pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
+    let graph = repository::graph::open(&config.server.db_path).await?;
+    repository::seed::init_graph(&graph, &config.server.user_zero_email).await?;
+
+    let caches = repository::cache::TokenCaches::new(
+        Duration::from_secs(config.server.token_ttl_seconds),
+        Duration::from_secs(config.server.session_ttl_seconds),
+        Duration::from_secs(config.server.challenge_ttl_seconds),
+        config.server.token_cache_capacity,
+    );
+
+    let email = RateLimitedSender::smtp(&config.smtp, config.server.email_cooldown_seconds);
+
+    let state = AppState {
+        graph,
+        caches,
+        email,
+        config: Arc::new(config),
+    };
+
+    let listener = tokio::net::TcpListener::bind(&state.config.server.listen_addr).await?;
+    tracing::info!(address = %state.config.server.listen_addr, "listening");
+    let router = interface::router::build_router(state.clone());
+
+    axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await?;
+    Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        if let Err(error) = tokio::signal::ctrl_c().await {
+            tracing::warn!(error = %error, "failed to install Ctrl-C handler");
+            std::future::pending::<()>().await;
+        }
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut signal) => {
+                signal.recv().await;
+            }
+            Err(error) => {
+                tracing::warn!(error = %error, "failed to install SIGTERM handler");
+                std::future::pending::<()>().await;
+            }
+        }
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+    tracing::info!("shutdown signal received, draining in-flight requests");
+}

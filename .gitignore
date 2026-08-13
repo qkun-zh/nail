@@ -12,6 +12,7 @@ log/*
 
 # --- secrets: never commit ---
 .env
+configuration/smtp.toml
 
 # --- editor / misc ---
 .vscode/
