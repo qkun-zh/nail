@@ -212,8 +212,9 @@ pub async fn build_state(
     let graph = repository::graph::open("memory").await?;
     repository::seed::init_graph(&graph, &config.server.user_zero_email).await?;
     let search_dir = std::env::temp_dir().join(format!("nail_state_search_{}", uuid::Uuid::now_v7()));
-    let search = repository::search::SearchIndex::open_or_create(
+    let search = repository::search::SearchIndex::open_or_create_with_segments(
         search_dir.to_str().expect("temp path"),
+        2,
     )
     .await?;
     crate::infrastructure::pdf::prepare_pdf_storage(&config.server.pdf_storage_path).await?;

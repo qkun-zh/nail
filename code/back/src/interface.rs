@@ -1,5 +1,6 @@
 pub mod article;
 pub mod challenge;
+pub mod comment;
 pub mod email;
 pub mod envelope;
 pub mod pow;

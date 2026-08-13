@@ -1,5 +1,6 @@
 pub mod article;
 pub mod cache;
+pub mod comment;
 pub mod delete;
 pub mod graph;
 pub mod role;

@@ -78,6 +78,13 @@ pub struct SearchIndex {
 
 impl SearchIndex {
     pub async fn open_or_create(path: &str) -> anyhow::Result<Self> {
+        Self::open_or_create_with_segments(path, 11).await
+    }
+
+    pub async fn open_or_create_with_segments(
+        path: &str,
+        segment_number_bits: usize,
+    ) -> anyhow::Result<Self> {
         let directory = Path::new(path);
         let index = if directory.exists() {
             open_index(directory)
@@ -90,7 +97,7 @@ impl SearchIndex {
                 index_meta(),
                 &schema_fields(),
                 &Vec::new(),
-                11,
+                segment_number_bits,
                 true,
                 None,
             )

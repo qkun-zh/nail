@@ -58,6 +58,24 @@ pub async fn require_owner_or_permission_for_version(
     require_permission(state, actor_id, permission).await
 }
 
+pub async fn require_owner_or_permission_for_comment(
+    state: &AppState,
+    actor_id: &str,
+    comment_id: &str,
+    permission: &str,
+) -> Result<(), LogicError> {
+    let owner = crate::repository::comment::owner_of_comment(&state.graph, comment_id)
+        .await
+        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
+    let Some(owner) = owner else {
+        return Err(LogicError::not_found("comment not found"));
+    };
+    if owner == actor_id {
+        return Ok(());
+    }
+    require_permission(state, actor_id, permission).await
+}
+
 pub async fn is_article_author(
     state: &AppState,
     actor_id: &str,

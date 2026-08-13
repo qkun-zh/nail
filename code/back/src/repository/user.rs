@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use agdb::{DbError, QueryBuilder};
 
 use crate::repository::graph::{DbHandle, find_by_index_sync, read_rows_sync, resolve_node_id_sync};
@@ -91,6 +93,26 @@ pub async fn read_user(db: &DbHandle, user_id: &str) -> Result<Option<UserEntry>
         email_address_hash: row.email_address_hash,
         name: row.name,
     }))
+}
+
+pub async fn read_user_names(
+    db: &DbHandle,
+    user_ids: &[String],
+) -> Result<HashMap<String, String>, DbError> {
+    let guard = db.read().await;
+    let mut names = HashMap::new();
+    for user_id in user_ids {
+        let Some(node) = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)? else {
+            continue;
+        };
+        if let Some(row) = read_rows_sync::<UserRow>(&guard, &[node])?
+            .into_iter()
+            .next()
+        {
+            names.insert(user_id.clone(), row.name);
+        }
+    }
+    Ok(names)
 }
 
 pub async fn read_users(

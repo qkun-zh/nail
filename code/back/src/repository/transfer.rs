@@ -5,7 +5,8 @@ use crate::repository::graph::{
 };
 use crate::repository::role::{ROLE_RECYCLER, users_holding_role};
 use crate::repository::schema::{
-    EDGE_USER_TO_ARTICLE, EDGE_USER_TO_COMMENT, ENTITY_TYPE_USER, IdRow, KEY_TYPE,
+    EDGE_USER_TO_ARTICLE, EDGE_USER_TO_COMMENT, ENTITY_TYPE_COMMENT, ENTITY_TYPE_USER,
+    IdRow, KEY_TYPE,
 };
 
 pub struct AccountTransferOutcome {
@@ -90,6 +91,19 @@ pub async fn transfer_article(db: &DbHandle, article_id: &str) -> Result<(), Tra
         crate::repository::schema::ENTITY_TYPE_ARTICLE,
         EDGE_USER_TO_ARTICLE,
         article_id,
+    )
+    .await
+}
+
+pub async fn transfer_comment(
+    db: &DbHandle,
+    comment_id: &str,
+) -> Result<(), TransferTargetError> {
+    transfer_target_ownership(
+        db,
+        ENTITY_TYPE_COMMENT,
+        EDGE_USER_TO_COMMENT,
+        comment_id,
     )
     .await
 }

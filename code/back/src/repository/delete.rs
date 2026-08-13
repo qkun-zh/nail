@@ -3,8 +3,8 @@ use agdb::{DbError, QueryBuilder};
 use crate::repository::graph::{DbHandle, read_node_in_txn, resolve_node_id_in_txn};
 use crate::repository::schema::{
     EDGE_ARTICLE_TO_VERSION, EDGE_COMMENT_TO_COMMENT, EDGE_COMMENT_TO_VERSION,
-    EDGE_USER_TO_ARTICLE, EDGE_USER_TO_COMMENT, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_USER,
-    ENTITY_TYPE_VERSION, KEY_LATEST_VERSION_ID, KEY_TYPE, VersionRow,
+    EDGE_USER_TO_ARTICLE, EDGE_USER_TO_COMMENT, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_COMMENT,
+    ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, KEY_LATEST_VERSION_ID, KEY_TYPE, VersionRow,
 };
 
 #[derive(Debug, Default)]
@@ -63,6 +63,20 @@ pub async fn delete_article(db: &DbHandle, article_id: &str) -> Result<DeleteOut
             return Ok(outcome);
         };
         delete_article_in_txn(transaction, article, &mut outcome)?;
+        Ok(outcome)
+    })
+}
+
+pub async fn delete_comment(db: &DbHandle, comment_id: &str) -> Result<DeleteOutcome, DbError> {
+    let mut guard = db.write().await;
+    guard.transaction_mut(|transaction| {
+        let outcome = DeleteOutcome::default();
+        let Some(comment) =
+            resolve_node_id_in_txn(transaction, ENTITY_TYPE_COMMENT, comment_id)?
+        else {
+            return Ok(outcome);
+        };
+        delete_comment_tree_in_txn(transaction, comment)?;
         Ok(outcome)
     })
 }
@@ -156,7 +170,7 @@ fn delete_comment_tree_in_txn(
 ) -> Result<(), DbError> {
     let reply_edges = transaction.exec(
         QueryBuilder::search()
-            .from(comment)
+            .to(comment)
             .where_()
             .distance(agdb::CountComparison::Equal(1))
             .and()
@@ -167,7 +181,7 @@ fn delete_comment_tree_in_txn(
             .query(),
     )?;
     for edge in &reply_edges.elements {
-        delete_comment_tree_in_txn(transaction, edge.to)?;
+        delete_comment_tree_in_txn(transaction, edge.from)?;
     }
     transaction.exec_mut(QueryBuilder::remove().ids([comment]).query())?;
     Ok(())
