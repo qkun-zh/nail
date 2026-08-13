@@ -63,6 +63,29 @@ constitution); this document records state and process only.
     `actor_id` is passed directly (no redundant re-authentication);
     `EmailMismatch` replaces the legacy opaque `bool`; one
     `send_confirmation_email` helper replaces three near-identical blocks.
+- ✅ **Phase 3 slice 3 — article + version** (2026-08-13, commits `8de3490`
+  archive + `6747cad` rewrite): the owner ordered a clean rewrite of slices 1-3
+  under the new CRUD-only vocabulary. All slice 1-3 code was archived to
+  `_`-prefixed reference files (kept for behavior reference only) and the
+  backend was rebuilt from the empty skeleton via TDD (sub-agents).
+  **back 178 tests green** (common 104), `cargo check` zero warnings.
+  - Covers all 19 slice 1-3 routes (challenge/session, user, article/version)
+    across the four layers. Adjudication: #6 (version list read-open), #15, #17
+    (distinct `ContentHashTaken`), #18 (`latest_version_id` in the article
+    list), #20 (no unconditional startup rebuild), #21 (seekstorm count), #23
+    (no redundant author lookup), #25, #26, #27. Slice-2 deferred items done:
+    search re-sync after rename/deregister (`sync`/`sync_user`/`sync_all`,
+    best-effort), article/version/comment cascade + PDF cleanup on hard delete,
+    recycler least-loaded selection.
+  - Repository interfaces designed fresh per §4.1: typed `ArticleDraft`/
+    `ArticleUpdate`/`VersionDraft` inputs, a `SearchIndex` struct
+    (`open_or_create`/`sync`/`sync_user`/`sync_all`/`read`), and fresh query
+    names (`owner_of`/`content_hash_owner`/`parent_article_of`/`versions_of`)
+    instead of legacy-verbatim names.
+  - ⚠️ **Tooling**: the file tools (`read_file`/`write_file`/`edit_file`)
+    transparently map `X.rs` onto the archived `_X.rs` reference file when the
+    latter exists. Use the terminal for all edits under `code/back/src` and
+    `test/unit/back` until the `_*.rs` references are removed (Phase 5).
 
 ### Owner decisions (2026-08-13)
 
@@ -89,14 +112,11 @@ Personnel change after slice 2: agent C completed the user domain (commits
 `635a53e`..`acca62a`, handoff `811e3dd`); a new agent (D) takes over from
 **slice 3 (article + version)**.
 
-- Slice 3 progress so far (agent D): PDF validation (`infrastructure/pdf.rs`),
-  article/version/tag/search repository layer, hard-delete cascade + article
-  transfer, seekstorm `SearchIndex`, config fields + `AppState.search` wiring.
-  The owner added the **CRUD-only vocabulary** rule (README §5.2, sweep commit
-  `43e3bff` renamed slice 1-2 flows `authenticate`/`deregister`/`list`/`issue`/
-  `logout` to node CRUD). Next: reshape the slice-3 repository interfaces fresh
-  per §4.1 (typed draft inputs, `SearchIndex` struct), then logic + interface
-  with CRUD handlers (TDD red→green).
+- ✅ Slice 3 done (archive `8de3490` + TDD rewrite `6747cad`; see Current state
+  for the detail). Next: **slice 4 (comment domain)** — create/reply/read/
+  update/delete with the `DeleteBody` mode contract (#2), then slice 5
+  (download/PDF, #1/#28/#29), slice 6 (role/authorization, #5/#7/#8/#9),
+  slice 7 (config/email/infrastructure, #13/#19/#22/#26/#32).
 
 - All prior handover items (a)-(d) are ✅ done — nothing pending from the
   previous transition.
@@ -160,7 +180,8 @@ Per domain: read the PRD slice → write failing tests first (red) → implement
 1. ✅ Authentication/session — done (see Current state).
 2. ✅ User domain — #15 (symmetric email_hash defaults, no swallowed errors),
    #27 (idempotent deregister confirm) — done (see Current state).
-3. Article + version — #6, #16, #17, #18, #20, #21, #23.
+3. ✅ Article + version — #6, #16, #17, #18, #20, #21, #23 — done (see Current
+   state; rewritten via TDD under the CRUD vocabulary).
 4. Comment domain — create/reply/list/update/delete with the `DeleteBody`
    mode contract (#2).
 5. Download/PDF — #1 (mint → `.../content/read?token={token}`, single-use
