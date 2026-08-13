@@ -65,10 +65,11 @@ constitution); this document records state and process only.
     `send_confirmation_email` helper replaces three near-identical blocks.
 - ✅ **Phase 3 slice 3 — article + version** (2026-08-13, commits `8de3490`
   archive + `6747cad` rewrite): the owner ordered a clean rewrite of slices 1-3
-  under the new CRUD-only vocabulary. All slice 1-3 code was archived to
-  `_`-prefixed reference files (kept for behavior reference only) and the
-  backend was rebuilt from the empty skeleton via TDD (sub-agents).
-  **back 178 tests green** (common 104), `cargo check` zero warnings.
+  under the new CRUD-only vocabulary. The backend was rebuilt from the empty
+  skeleton via TDD (sub-agents). **back 178 tests green** (common 104),
+  `cargo check` zero warnings. The `_`-prefixed archive files were removed on
+  2026-08-14 (`commit` below) — the old implementation remains recoverable from
+  git (`8de3490^`); it was never referenced by the active tree.
   - Covers all 19 slice 1-3 routes (challenge/session, user, article/version)
     across the four layers. Adjudication: #6 (version list read-open), #15, #17
     (distinct `ContentHashTaken`), #18 (`latest_version_id` in the article
@@ -82,10 +83,10 @@ constitution); this document records state and process only.
     (`open_or_create`/`sync`/`sync_user`/`sync_all`/`read`), and fresh query
     names (`owner_of`/`content_hash_owner`/`parent_article_of`/`versions_of`)
     instead of legacy-verbatim names.
-  - ⚠️ **Tooling**: the file tools (`read_file`/`write_file`/`edit_file`)
-    transparently map `X.rs` onto the archived `_X.rs` reference file when the
-    latter exists. Use the terminal for all edits under `code/back/src` and
-    `test/unit/back` until the `_*.rs` references are removed (Phase 5).
+  - ⚠️ **Tooling (corrected)**: the file tools (`read_file`/`write_file`/
+    `edit_file`) operate on real paths — verified with a sentinel write while
+    `_X.rs` existed (the write landed in `X.rs`). The earlier "transparent
+    mapping" warning in this file was wrong and is removed.
 
 ### Owner decisions (2026-08-13)
 
