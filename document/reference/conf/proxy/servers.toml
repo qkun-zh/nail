@@ -1,0 +1,10 @@
+[servers.nail]
+addr = "localhost:8080"
+locations = [
+    "back_api",
+    "front",
+]
+# 访问日志（原后端 TraceLayer 迁来）：按天滚动写入
+# log/proxy/access.log，行内含时间/真实客户端 IP/方法/URI/状态码/耗时。
+# 格式 = pingap access_log 指令的 `<文件路径> <格式串>` 语法。
+access_log = "/home/qkun/nail/log/proxy/access.log?rolling=daily {when} {client_ip} {method} {uri} {proto} {status} {latency_human}"

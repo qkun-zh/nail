@@ -1,0 +1,67 @@
+listen_addr = "127.0.0.1:3000"
+db_path = "/home/qkun/nail/data/agdb"
+db_namespace = "prod_ns"
+db_database = "prod_db"
+# 搜索索引目录（seekstorm；派生数据，可删目录重建）
+search_index_path = "/home/qkun/nail/data/search_index"
+# PoW 难度 = MinRoot VDF 顺序迭代次数（数值本身即单位说明）
+pow_difficulty_iterations = 8192
+token_ttl_seconds = 8000
+session_ttl_seconds = 8000
+# 限流已迁至 pingap 反代（conf/proxy/plugins.toml 的 rateLimit 插件）
+pdf_storage_path = "/home/qkun/nail/data/pdf"
+# 2026-08-12：10MiB → 32MiB（流式上传后内存与文件大小解耦，上限可安全调大；
+# 同步改 conf/proxy/locations.toml 的 client_max_body_size = 32MiB）
+max_pdf_size_bytes = 33554432
+download_token_ttl_seconds = 60
+max_tags_per_article = 8
+# title 必填，最长 200 字符（单行输入框）
+max_title_chars = 200
+# summary 编辑空间加大（前端已改用多行 textarea）
+max_summary_chars = 2000
+search_page_size = 8
+max_search_page_size = 200
+# 搜索文本查询串（title/summary/author）长度上限（字符）：fuzzy 是
+# 全表扫子串匹配，超长查询串是无意义的资源面
+max_search_query_chars = 512
+
+# 认证/邮箱变更/注销三处共用的反邮件轰炸冷却窗口（秒）
+email_cooldown_seconds = 60
+# 列表端点（文章/版本）page 参数上限：防巨大 OFFSET 深扫 DoS
+max_page = 10000
+# 搜索结果最多展示的页数（与 search_page_size 区分：后者是每页条数）
+max_search_pages = 1024
+# 搜索 id 过滤器条数上限（每条在 SQL 里展开成 3 个 OR 子句）
+max_id_filter_count = 64
+# 评论/版本更新说明的文本长度上限（字符）
+max_comment_body_chars = 1024
+max_version_note_chars = 1024
+# 评论树回复层数上限（写侧检查 + 读侧护栏共用）
+max_comment_tree_depth = 64
+# multipart 单文本字段读取上限（字节；须 ≤ max_pdf_size_bytes）
+max_text_field_bytes = 1048576
+# PoW challenge TTL（秒）：只服务“客户端当场计算”，与 token TTL 独立
+challenge_ttl_seconds = 300
+# 六个 token 缓存 + 反向索引的每缓存容量上限
+token_cache_capacity = 100000
+# per-邮箱在途发送锁的 TTL 与容量
+# 日志过期/裁剪后台循环周期（秒）
+log_prune_interval_secs = 1800
+# 日志过滤（EnvFilter 语法；未设置 RUST_LOG 环境变量时生效）。
+# 默认全局 warn、只放行应用(nail_back/common)的 info（访问日志已迁至 pingap
+# 反代，tower_http trace 不再存在），压掉依赖启动/解析噪音。排查时可临时设
+# RUST_LOG=debug。
+log_filter = "warn,nail_back=info,common=info"
+
+# 初始化用户（user zero）：启动时按此邮箱创建用户节点，并挂载全部必需角色
+# （admin / recycler）。必需角色的持有者永不空缺，资产回收默认落到该用户。
+# 该邮箱的主人可用正常认证流程登录，即成为系统管理员与默认回收者。
+user_zero_email = "qkun-zh@qq.com"
+
+# 文件日志：每分钟一个文件，按「天/时」分目录（log/back/<日>/<时>/<日>_<时-分>.log）
+log_dir = "/home/qkun/nail/log/back"
+# 过期删除：超过该天数（按文件修改时间）的文件被删除
+log_retention_days = 7
+# 最多保留的文件数（0 = 不限制，只按天数过期）。
+# 每分钟一个文件时 1 天 ≈ 1440 个，7 天 ≈ 10080
+log_max_file_count = 10080

@@ -1,0 +1,21 @@
+# --- build artifacts ---
+target/
+**/target/
+dist/
+**/dist/
+
+# --- runtime data and logs ---
+data/*
+!data/.gitkeep
+log/*
+!log/.gitkeep
+
+# --- secrets: never commit ---
+.env
+
+# --- editor / misc ---
+.vscode/
+.idea/
+.DS_Store
+__pycache__/
+*.rs.bk

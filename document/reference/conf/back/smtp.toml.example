@@ -1,0 +1,13 @@
+host = "smtp.qq.com"
+port = 587
+username = "your-account@example.com"
+password = "PASTE_SMTP_AUTHORIZATION_CODE_HERE"
+from_email = "your-account@example.com"
+from_name = "nail"
+# SMTP 命令超时（秒）：慢/挂起的服务器不能无限占住调用方（LOW L26）。
+timeout_secs = 10
+# 单次发信整体墙钟超时（秒）：多命令累计可超过命令级超时，这里封顶整次调用。
+wall_clock_timeout_secs = 30
+# 是否走 STARTTLS（默认 true = 生产用 starttls_relay + 凭据）。设为 false 走
+# 明文本地中继（仅测试场景指向 SMTP sink 用）；生产保持 true。
+starttls = true

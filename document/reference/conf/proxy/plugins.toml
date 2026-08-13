@@ -1,0 +1,17 @@
+[plugins.for_front]
+category = "directory"
+index = "index.html"
+path = "/home/qkun/nail/code/front/dist"
+step = "request"
+
+# 全局限流（原后端 GovernorLayer 迁来）：按真实客户端 IP 滑窗限流。
+# pingap limit 插件：max 除以 interval 秒数 = 每秒预算，滑窗近似同值：
+# max=32、interval=1s → 32/s 平均（2026-08-11 放宽：e2e 浏览器测试的快速
+# 页面加载 + verify 请求流在 4/s 下会被 429 卡死；32/s 仍能挡住滥用）。
+# 仅挂在 back_api location（front 静态文件不参与；原后端限流也只覆盖 /api）。
+[plugins.rateLimit]
+category = "limit"
+type = "rate"
+tag = "ip"
+max = 32
+interval = "1s"

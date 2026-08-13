@@ -1,0 +1,3 @@
+# URL 基址：空串 = 同源部署（/api 相对路径）；跨源部署填 http://host:port。
+# 注意：本文件经 include_str! 编译期加载，改动需重新构建 WASM。
+api_base_url = ""

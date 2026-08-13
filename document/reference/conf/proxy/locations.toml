@@ -1,0 +1,13 @@
+[locations.back_api]
+path = "/api"
+rewrite = "^/api/(.*) /$1"
+upstream = "back"
+plugins = ["rateLimit"]
+# 与后端 max_pdf_size_bytes(33554432) 精确一致：bytesize 中 MB=10^6、MiB=2^20，
+# 用 MiB 否则 32.0M~33.5M 的合法 PDF 会被代理误拒（业务限在后端 logic 层保留）。
+client_max_body_size = "32MiB"
+
+[locations.front]
+path = "/"
+plugins = ["for_front"]
+rewrite = "^/[a-zA-Z0-9/.-]+$ /index.html"
