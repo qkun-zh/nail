@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod hash;
 pub mod name;
 pub mod pow;

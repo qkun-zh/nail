@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod infrastructure;
 mod page;
 mod request;

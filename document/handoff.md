@@ -52,8 +52,9 @@ the migrating agent implements per this document and the referenced artifacts.
   vocabulary in `document/context.md`) → `codebase-design` for the back
   module tree (every boundary justified by the new layers' responsibilities
   and callers — no legacy-mirroring, README §4.1) → authentication/session
-  slice with `tdd`. #26 is closed (query parameter). #5 remains an
-  owner-confirm item at its slice.
+  slice with `tdd`. #26 is closed (query parameter). #5 owner-CONFIRMED
+  (2026-08-13): read-open semantics accepted (any authenticated principal
+  may read article/version/comment; writes stay owner/role/admin-gated).
 - Common API contracts to honor at Phase 3 call sites: `now_ms() ->
   Result<u64, SystemTimeError>` (propagate with `?`), `uuidv7_timestamp_ms`
   returns `None` for non-v7 ids, `format_rfc3339_with_offset(utc_ms,
@@ -109,17 +110,6 @@ Read `nail_new/README.md` in full first. Highlights:
   designed fresh for `nail_new`; copying the legacy module division is
   absolutely forbidden; "the legacy code did it this way" is never an
   acceptable justification.
-- Dead code (README §5.4, updated by owner 2026-08-13): do NOT chase dead or
-  unused code during the migration — interim code may be consumed by later
-  slices. Batch-remove all dead code as the FINAL task of Phase 5, then the
-  zero-warning gate is enforced. "Never used" warnings are expected and fine
-  until then.
-- Legacy comparison + pre-study (README §8, updated by owner 2026-08-13):
-  before implementing a strong-reference area (db / cache / email / API
-  design) study the legacy implementation first; after each slice/phase,
-  compare the new code vs the legacy on readability, correctness, elegance,
-  conciseness, and performance, and report the comparison + any fixes to the
-  owner.
 - Comments (README §5.5, added by owner): code must be self-explanatory —
   zero or very few comments; comments only for non-obvious intent,
   constraints, or tradeoffs; never restate the code.
@@ -234,8 +224,8 @@ first (red) → implement (green) → commit. Suggested order:
 6. Role/authorization — item #5 (DELETE visibility from agdb schema, Cedar
    schema/entities, and policy.cedar policy 2; **rewrite policy 2 to keep the
    de-facto read-open behavior: any authenticated principal may read
-   article/version/comment — CONFIRM this semantics with the owner at this
-   slice**), #7 (member_count computed or dropped), #8 (all REQUIRED_ROLES
+   article/version/comment — CONFIRMED by the owner 2026-08-13 (read-open
+   semantics accepted)**), #7 (member_count computed or dropped), #8 (all REQUIRED_ROLES
    protected from delete), #9 (duplicate role → 400).
 7. Config/email/infrastructure — item #13 (remove dead config fields),
    #19 (timezone from toml, served via `/config/read`), #22 (keep multipart
@@ -287,8 +277,6 @@ tracing, Cedar engine.
 - Keep `document/adjudication.md` current as decisions refine; record new
   contracts (item #26 intent param, item #5 policy change) as ADRs under
   `document/`.
-- Dead-code removal is the FINAL task of Phase 5 (README §5.4), a single
-  batch pass after the whole refactoring — not per-slice.
 
 ## Skills — mandatory usage
 

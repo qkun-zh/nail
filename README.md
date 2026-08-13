@@ -157,7 +157,10 @@ justification.
 
 ### 5.4 General principles
 
-- No dead code or unused code.
+- Do not chase dead or unused code during the migration; interim code may
+  still be consumed by later slices or rewritten. Batch-remove all dead code
+  in one dedicated pass after the entire refactoring is complete (the final
+  task of Phase 5), then the zero-warning gate is enforced.
 - Keep code concise, clear, and correct. Any code written longer than necessary
   must have a strong justification.
 - Prefer pure (or near-pure) functions over others: they are easy to test and
@@ -205,6 +208,15 @@ justification.
   by step: read the library source, then confirm the best approach with probe
   tests — aiming for more elegant, simpler, higher-performance, and clearer
   code.
+- After completing a large module (a domain slice or a phase), compare the
+  new code against the corresponding legacy code on readability, correctness,
+  elegance, conciseness, and performance. Ground the comparison in facts, not
+  impressions: wherever behavior or performance is in doubt, read the trusted
+  library source and write probe tests to verify before judging. If the new
+  code is inferior in any respect, weigh the cost of fixing it; when
+  worthwhile, correct the code and re-run the full test suite, then report
+  the comparison and the fixes to the owner. This is a quality gate, not a
+  license to copy — the legacy code remains untrusted.
 - Verify every line of the original `nail` code individually; do not assume any
   of it is correct.
 - The `nail` database design, cache design, and email-sending business logic,
@@ -212,6 +224,11 @@ justification.
   they were produced through extensive argumentation and repeated study of
   library source code and are close to best practice. Build on them rather
   than re-deriving them.
+- Before implementing any of the designated strong-reference areas (the
+  `nail` database design, cache design, email-sending business logic, or
+  backend API design), read and study the legacy implementation carefully
+  first — understand its reasoning before writing new code. This is the
+  pre-implementation counterpart of the post-completion comparison above.
 - Logging: `tracing` with `tracing-subscriber`, writing to the `log/`
   directory.
 
@@ -256,4 +273,7 @@ justification.
   the absolute path `/home/qkun/nail_new`.
 - Do not use the diagnostics tool. Diagnose only by reading code, running cargo
   commands, and running tests. This rule applies universally.
+- Update `document/handoff.md` at the end of every completed slice and every
+  completed phase, before reporting to the owner: record the current state,
+  what was done, and what comes next. The handoff must never go stale.
 
