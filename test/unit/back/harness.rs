@@ -26,6 +26,10 @@ pub mod repository_cache;
 pub mod repository_user;
 #[path = "repository/role.rs"]
 pub mod repository_role;
+#[path = "repository/transfer.rs"]
+pub mod repository_transfer;
+#[path = "repository/delete.rs"]
+pub mod repository_delete;
 
 #[path = "http/authenticate.rs"]
 pub mod http_authenticate;

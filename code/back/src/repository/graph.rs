@@ -47,6 +47,19 @@ pub(crate) fn resolve_node_id_sync(
     }
 }
 
+pub(crate) fn resolve_node_id_in_txn(
+    transaction: &agdb::DbAnyTransactionMut,
+    kind: &str,
+    business_id: &str,
+) -> Result<Option<agdb::DbId>, DbError> {
+    let alias = alias_of(kind, business_id);
+    match transaction.exec(QueryBuilder::select().ids([alias]).query()) {
+        Ok(result) => Ok(result.elements.first().map(|element| element.id)),
+        Err(error) if is_not_found(&error) => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
 pub(crate) fn find_by_index_sync(
     db: &DbAny,
     index_key: &str,

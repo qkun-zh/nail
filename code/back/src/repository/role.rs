@@ -1,10 +1,12 @@
 use agdb::{DbError, DbErrorType, QueryBuilder};
 
-use crate::repository::graph::{DbHandle, find_by_index_sync, resolve_node_id_sync};
+use crate::repository::graph::{
+    DbHandle, find_by_index_sync, read_node_sync, resolve_node_id_sync,
+};
 use crate::repository::schema::{
     ENTITY_TYPE_PERMISSION, ENTITY_TYPE_ROLE, ENTITY_TYPE_USER, EDGE_ROLE_GRANT_PERMISSION,
-    EDGE_USER_HOLD_ROLE, KEY_PERMISSION_NAME, KEY_ROLE_NAME, KEY_TYPE, PermissionRow, RoleRow,
-    alias_of,
+    EDGE_USER_HOLD_ROLE, KEY_PERMISSION_NAME, KEY_ROLE_NAME, KEY_TYPE, IdRow, PermissionRow,
+    RoleRow, alias_of,
 };
 
 pub const PERMISSION_ARTICLE_CREATE: &str = "Article::Create";
@@ -174,6 +176,78 @@ pub async fn user_holds_role(db: &DbHandle, user_id: &str, role_name: &str) -> R
             .query(),
     )?;
     Ok(edges.elements.iter().any(|edge| edge.to == role_db_id))
+}
+
+pub async fn users_holding_role(db: &DbHandle, role_name: &str) -> Result<Vec<String>, DbError> {
+    let guard = db.read().await;
+    let Some(role_db_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_ROLE, role_name)? else {
+        return Ok(Vec::new());
+    };
+    let edges = guard.exec(
+        QueryBuilder::search()
+            .to(role_db_id)
+            .where_()
+            .distance(agdb::CountComparison::Equal(1))
+            .and()
+            .edge()
+            .and()
+            .key(KEY_TYPE)
+            .value(EDGE_USER_HOLD_ROLE)
+            .query(),
+    )?;
+    let mut users = Vec::new();
+    for edge in &edges.elements {
+        if let Some(row) = read_node_sync::<IdRow>(&guard, edge.from)? {
+            users.push(row.id);
+        }
+    }
+    Ok(users)
+}
+
+pub async fn user_holds_permission(
+    db: &DbHandle,
+    user_id: &str,
+    permission_name: &str,
+) -> Result<bool, DbError> {
+    let guard = db.read().await;
+    let Some(user_db_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)? else {
+        return Ok(false);
+    };
+    let Some(permission_db_id) =
+        resolve_node_id_sync(&guard, ENTITY_TYPE_PERMISSION, permission_name)?
+    else {
+        return Ok(false);
+    };
+    let held_roles = guard.exec(
+        QueryBuilder::search()
+            .from(user_db_id)
+            .where_()
+            .distance(agdb::CountComparison::Equal(1))
+            .and()
+            .edge()
+            .and()
+            .key(KEY_TYPE)
+            .value(EDGE_USER_HOLD_ROLE)
+            .query(),
+    )?;
+    for role_edge in &held_roles.elements {
+        let grants = guard.exec(
+            QueryBuilder::search()
+                .from(role_edge.to)
+                .where_()
+                .distance(agdb::CountComparison::Equal(1))
+                .and()
+                .edge()
+                .and()
+                .key(KEY_TYPE)
+                .value(EDGE_ROLE_GRANT_PERMISSION)
+                .query(),
+        )?;
+        if grants.elements.iter().any(|grant| grant.to == permission_db_id) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn not_found(kind: &str, name: &str) -> DbError {

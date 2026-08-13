@@ -2,7 +2,7 @@ use agdb::{DbError, QueryBuilder};
 
 use crate::repository::graph::{DbHandle, find_by_index_sync, read_rows_sync, resolve_node_id_sync};
 use crate::repository::schema::{
-    ENTITY_TYPE_USER, KEY_EMAIL_ADDRESS_HASH, IdRow, UserRow, alias_of,
+    ENTITY_TYPE_USER, KEY_EMAIL_ADDRESS_HASH, KEY_USER_NAME, IdRow, UserRow, alias_of,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -66,4 +66,131 @@ pub async fn read_user(db: &DbHandle, user_id: &str) -> Result<Option<UserEntry>
         email_address_hash: row.email_address_hash,
         name: row.name,
     }))
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserListItem {
+    pub id: String,
+    pub name: String,
+    pub email_address_hash: String,
+}
+
+pub async fn list_users(
+    db: &DbHandle,
+    limit: u64,
+    offset: u64,
+) -> Result<(Vec<UserListItem>, u64), DbError> {
+    let guard = db.read().await;
+    let result = guard.exec(
+        QueryBuilder::search()
+            .elements()
+            .where_()
+            .key(crate::repository::schema::KEY_TYPE)
+            .value(ENTITY_TYPE_USER)
+            .query(),
+    )?;
+    let ids: Vec<agdb::DbId> = result.elements.iter().map(|element| element.id).collect();
+    let mut users: Vec<UserListItem> = read_rows_sync::<UserRow>(&guard, &ids)?
+        .into_iter()
+        .map(|row| UserListItem {
+            id: row.id,
+            name: row.name,
+            email_address_hash: row.email_address_hash,
+        })
+        .collect();
+    users.sort_by(|left, right| right.id.cmp(&left.id));
+    let total = users.len() as u64;
+    let page = users
+        .into_iter()
+        .skip(offset as usize)
+        .take(limit as usize)
+        .collect();
+    Ok((page, total))
+}
+
+#[derive(Debug)]
+pub enum UserWriteError {
+    UserMissing,
+    AlreadyTaken,
+    EmailMismatch,
+    Db(DbError),
+}
+
+impl std::fmt::Display for UserWriteError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UserMissing => formatter.write_str("user not found"),
+            Self::AlreadyTaken => formatter.write_str("value already taken"),
+            Self::EmailMismatch => formatter.write_str("email hash does not match"),
+            Self::Db(error) => write!(formatter, "database query failed: {error}"),
+        }
+    }
+}
+
+impl std::error::Error for UserWriteError {}
+
+pub async fn update_user_name(
+    db: &DbHandle,
+    user_id: &str,
+    name: &str,
+) -> Result<(), UserWriteError> {
+    let mut guard = db.write().await;
+    let id = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)
+        .map_err(UserWriteError::Db)?
+        .ok_or(UserWriteError::UserMissing)?;
+    let taken = find_by_index_sync(&guard, KEY_USER_NAME, name)
+        .map_err(UserWriteError::Db)?
+        .into_iter()
+        .any(|other_id| other_id != id);
+    if taken {
+        return Err(UserWriteError::AlreadyTaken);
+    }
+    guard
+        .exec_mut(
+            QueryBuilder::insert()
+                .nodes()
+                .ids([id])
+                .values([[(KEY_USER_NAME, name).into()]])
+                .query(),
+        )
+        .map_err(UserWriteError::Db)?;
+    Ok(())
+}
+
+pub async fn update_user_email(
+    db: &DbHandle,
+    user_id: &str,
+    old_email_address_hash: &str,
+    new_email_address_hash: &str,
+) -> Result<(), UserWriteError> {
+    let mut guard = db.write().await;
+    let id = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)
+        .map_err(UserWriteError::Db)?
+        .ok_or(UserWriteError::UserMissing)?;
+    let current_hash = read_rows_sync::<UserRow>(&guard, &[id])
+        .map_err(UserWriteError::Db)?
+        .into_iter()
+        .next()
+        .map(|row| row.email_address_hash)
+        .unwrap_or_default();
+    if current_hash != old_email_address_hash {
+        return Err(UserWriteError::EmailMismatch);
+    }
+    let taken = find_by_index_sync(&guard, KEY_EMAIL_ADDRESS_HASH, new_email_address_hash)
+        .map_err(UserWriteError::Db)?
+        .into_iter()
+        .any(|other_id| other_id != id);
+    if taken {
+        return Err(UserWriteError::AlreadyTaken);
+    }
+    guard
+        .exec_mut(
+            QueryBuilder::insert()
+                .nodes()
+                .ids([id])
+                .values([[(KEY_EMAIL_ADDRESS_HASH, new_email_address_hash).into()]])
+                .query(),
+        )
+        .map_err(UserWriteError::Db)?;
+    Ok(())
 }
