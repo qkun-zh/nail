@@ -233,3 +233,28 @@ async fn owner_of_returns_the_author() {
     assert_eq!(owner_of(&state.graph, &article_id).await.expect("owner"), Some(author_id));
     assert_eq!(owner_of(&state.graph, "missing").await.expect("owner"), None);
 }
+
+#[tokio::test]
+async fn concurrent_identical_content_hashes_are_serialized_by_the_write_lock() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let shared_hash = pdf_hash(7);
+
+    let first_draft = article_draft(&author_id, "Concurrent A", &shared_hash, vec!["#a".to_string()]);
+    let second_draft = article_draft(&author_id, "Concurrent B", &shared_hash, vec!["#b".to_string()]);
+    let first = create_article(&state.graph, &first_draft);
+    let second = create_article(&state.graph, &second_draft);
+
+    let (left, right) = tokio::join!(first, second);
+    let mut accepted = 0;
+    let mut deduplicated = 0;
+    for result in [left, right] {
+        match result {
+            Ok(()) => accepted += 1,
+            Err(CreateArticleError::ContentHashTaken) => deduplicated += 1,
+            Err(other) => panic!("unexpected create result: {other}"),
+        }
+    }
+    assert_eq!(accepted, 1, "exactly one identical content hash must be accepted");
+    assert_eq!(deduplicated, 1, "the racing duplicate must be rejected as ContentHashTaken");
+}

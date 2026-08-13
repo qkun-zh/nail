@@ -41,6 +41,7 @@ pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
     )
     .with_graceful_shutdown(shutdown_signal())
     .await?;
+    state.search.close().await;
     Ok(())
 }
 

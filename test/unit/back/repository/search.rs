@@ -70,6 +70,7 @@ async fn sync_and_read_round_trips_an_article() {
     assert_eq!(outcome.articles[0].id, article_id);
     assert_eq!(outcome.articles[0].title, "A Unique Title");
 
+    index.close().await;
     let _ = std::fs::remove_dir_all(&directory);
 }
 
@@ -106,6 +107,7 @@ async fn keyword_read_returns_highlighted_hits() {
                 && hit.snippet.contains("<mark>"))
     );
 
+    index.close().await;
     let _ = std::fs::remove_dir_all(&directory);
 }
 
@@ -135,6 +137,7 @@ async fn sync_user_refreshes_the_author_name() {
     let outcome = index.read(empty_request(10)).await.expect("read");
     assert_eq!(outcome.articles[0].author, "renamed-author");
 
+    index.close().await;
     let _ = std::fs::remove_dir_all(&directory);
 }
 
@@ -162,5 +165,66 @@ async fn sync_removes_a_document_for_a_deleted_article() {
     let outcome = index.read(empty_request(10)).await.expect("read");
     assert_eq!(outcome.total, 0);
 
+    index.close().await;
     let _ = std::fs::remove_dir_all(&directory);
+}
+
+#[tokio::test]
+async fn sync_all_and_incremental_sync_agree_on_document_count() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = crate::repository::user::create_user(
+        &state.graph,
+        &nail_common::hash::email("alice@example.com"),
+    )
+    .await
+    .expect("user");
+    let index = state.search.clone();
+
+    let first = create_fixture_with_hash(&state, &author_id, "First Article", &pdf_hash(2)).await;
+    let second = create_fixture_with_hash(&state, &author_id, "Second Article", &pdf_hash(3)).await;
+    index.sync(&state.graph, &first).await.expect("sync first");
+    index.sync(&state.graph, &second).await.expect("sync second");
+    let incremental_total = index.read(empty_request(10)).await.expect("read").total;
+    assert_eq!(incremental_total, 2);
+
+    let rebuilt = index.sync_all(&state.graph).await.expect("sync all");
+    assert_eq!(rebuilt, 2);
+    let after_rebuild_total = index.read(empty_request(10)).await.expect("read").total;
+    assert_eq!(after_rebuild_total, 2, "full rebuild must agree with incremental sync");
+
+    crate::repository::delete::delete_article(&state.graph, &first)
+        .await
+        .expect("delete");
+    index.sync(&state.graph, &first).await.expect("sync after delete");
+    let after_delete_total = index.read(empty_request(10)).await.expect("read").total;
+    assert_eq!(after_delete_total, 1, "incremental delete must agree with the seekstorm count");
+    index.close().await;
+}
+
+async fn create_fixture_with_hash(
+    state: &crate::infrastructure::state::AppState,
+    author_id: &str,
+    title: &str,
+    hash: &str,
+) -> String {
+    let article_id = uuid::Uuid::now_v7().to_string();
+    create_article(
+        &state.graph,
+        &ArticleDraft {
+            article_id: article_id.clone(),
+            author_id: author_id.to_string(),
+            title: title.to_string(),
+            summary: "a searchable summary".to_string(),
+            tags: vec!["#rust".to_string()],
+            first_version: VersionDraft {
+                version_id: uuid::Uuid::now_v7().to_string(),
+                version_number: "1.0.0".to_string(),
+                content_hash: hash.to_string(),
+                note: "note".to_string(),
+            },
+        },
+    )
+    .await
+    .expect("create");
+    article_id
 }

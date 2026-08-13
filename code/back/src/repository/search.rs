@@ -6,7 +6,7 @@ use nail_common::search::{SearchRange, SearchSortDirection, SearchSortField};
 use seekstorm::commit::Commit;
 use seekstorm::highlighter::{Highlight, highlighter};
 use seekstorm::index::{
-    AccessType, Clustering, DeleteDocuments, DocumentCompression, FieldType, FileType,
+    AccessType, Close, Clustering, DeleteDocuments, DocumentCompression, FieldType, FileType,
     FrequentwordType, IndexArc, IndexDocument, IndexDocuments, IndexMetaObject,
     LexicalSimilarity, NgramSet, SchemaField, StemmerType, StopwordType, TokenizerType,
     UpdateDocument, create_index, open_index,
@@ -98,6 +98,10 @@ impl SearchIndex {
             .map_err(|error| anyhow::anyhow!("create search index {path}: {error}"))?
         };
         Ok(Self { index })
+    }
+
+    pub async fn close(&self) {
+        self.index.close().await;
     }
 
     pub async fn sync(&self, db: &DbHandle, article_id: &str) -> anyhow::Result<()> {

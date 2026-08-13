@@ -66,7 +66,8 @@ constitution); this document records state and process only.
 - ✅ **Phase 3 slice 3 — article + version** (2026-08-13, commits `8de3490`
   archive + `6747cad` rewrite): the owner ordered a clean rewrite of slices 1-3
   under the new CRUD-only vocabulary. The backend was rebuilt from the empty
-  skeleton via TDD (sub-agents). **back 178 tests green** (common 104),
+  skeleton via TDD (sub-agents). **back 180 tests green** (common 104; +2 §8.3
+  probe tests),
   `cargo check` zero warnings. The `_`-prefixed archive files were removed on
   2026-08-14 (`commit` below) — the old implementation remains recoverable from
   git (`8de3490^`); it was never referenced by the active tree.
@@ -80,9 +81,34 @@ constitution); this document records state and process only.
     recycler least-loaded selection.
   - Repository interfaces designed fresh per §4.1: typed `ArticleDraft`/
     `ArticleUpdate`/`VersionDraft` inputs, a `SearchIndex` struct
-    (`open_or_create`/`sync`/`sync_user`/`sync_all`/`read`), and fresh query
+    (`open_or_create`/`sync`/`sync_user`/`sync_all`/`read`/`close`), and fresh query
     names (`owner_of`/`content_hash_owner`/`parent_article_of`/`versions_of`)
     instead of legacy-verbatim names.
+  - §8.3 gate: equal-or-better on all five axes, grounded in on-disk library
+    source + probe tests (2 added). Correctness: (a) agdb serializes writes —
+    `agdb-0.13.2/src/db.rs` documents "only single write operation at any one
+    time" and `transaction_mut` commits on `Ok`/rolls back on `Err`; the
+    content-hash uniqueness is checked inside the txn (`find_by_index_in_txn`),
+    probed by `concurrent_identical_content_hashes_are_serialized_by_the_write_lock`
+    (exactly one of two racing identical hashes wins). (b) seekstorm count
+    (#21) is single-sourced — `seekstorm-3.3.5/src/index.rs` defines
+    `current_doc_count` = "indexed - deleted" and `update_document` = "delete +
+    index"; `read` uses `result_count_total`; probed by
+    `sync_all_and_incremental_sync_agree_on_document_count` (incremental and full
+    rebuild both report 2, then 1 after a delete). (c) PDF boundaries — `%PDF-`
+    header + `1.x`/`2.x` version + `%%EOF` footer within the last 1024 bytes,
+    ≥10 bytes, ≤`max_pdf_size_bytes` — probed by the `infrastructure/pdf.rs`
+    accept/reject matrix. (d) `PdfUpload` RAII — `Received` drops the temp file,
+    `Placed` drops the final file unless `keep_final()`, `Kept` persists — probed
+    by `upload_places_the_pdf_and_drops_an_unkept_placed_file`. Elegance/
+    conciseness: one `infrastructure/pdf.rs` for stream validation + placement +
+    RAII; a 6-method `SearchIndex` replaces the legacy search duplication.
+    Performance: incremental `sync` reuses `update_document`/`index_document` (no
+    full rebuild). New probe finding: seekstorm 3.3.5 does not release RAM on
+    `IndexArc` drop — `index.rs` `Close` ("Remove index from RAM") must be called
+    manually. Added `SearchIndex::close()` (wired into graceful shutdown, FR-7)
+    and closed the index in search tests; this also fixed an OOM once the two
+    probe tests pushed the un-closed index set over the memory limit.
   - ⚠️ **Tooling (corrected)**: the file tools (`read_file`/`write_file`/
     `edit_file`) operate on real paths — verified with a sentinel write while
     `_X.rs` existed (the write landed in `X.rs`). The earlier "transparent
@@ -114,18 +140,17 @@ replaced; a new agent (E) takes over from **slice 4 (comment domain)**.
 
 - ✅ Slice 3 (article + version) is done: TDD rewrite of slices 1-3 under the
   CRUD-only vocabulary (commits `8de3490` archive + `6747cad` rewrite),
-  **back 178 tests green** (common 104), `cargo check` zero warnings, working
-  tree clean. The `_`-prefixed archive files were removed on 2026-08-14
+  **back 180 tests green** (common 104; +2 §8.3 probe tests), `cargo check`
+  zero warnings, working tree clean. The `_`-prefixed archive files were
+  removed on 2026-08-14
   (commit `aa39cb6`); the pre-rewrite implementation remains recoverable from
   git (`8de3490^`). The file tools operate on real paths (the old "mapping"
   warning was false and has been removed from this file).
-- ⏳ **Pending quality item for slice 3**: the §8.3 five-axis comparison table
-  in Current state is assertion-only — it lacks the library-source citations
-  and probe evidence that §8.1/§8.3 require. Before starting slice 4, ground
-  it with evidence for: agdb write transactions (concurrent content-hash
-  dedupe semantics), seekstorm incremental `sync` vs full `sync_all` count
-  consistency (#21), PDF stream validation boundaries, `PdfUpload` RAII
-  cleanup paths.
+- ✅ **Slice 3 §8.3 evidence gap closed**: the five-axis comparison in Current
+  state is now grounded with library-source citations and probe tests (2 added);
+  agdb write transactions, seekstorm `sync` vs `sync_all` count consistency
+  (#21), PDF stream validation boundaries, and `PdfUpload` RAII cleanup paths
+  are all evidence-backed.
 - Next: **slice 4 (comment domain)** — create/reply/read/update/delete with
   the `DeleteBody` mode contract (#2), then slice 5 (download/PDF,
   #1/#28/#29), slice 6 (role/authorization, #5/#7/#8/#9), slice 7
