@@ -39,6 +39,30 @@ constitution); this document records state and process only.
     legacy six-file token duplication, `EmailSender` seam, explicit `intent`,
     corrected error semantics (AC4/AC5). Probe finding: moka's eviction
     listener is housekeeper-driven (eventually consistent), same as legacy.
+- ✅ **Phase 3 slice 2 — user domain** (2026-08-13, commits `635a53e`..`acca62a`):
+  `GET /user/{id}/read`, `GET /user/read`, `POST /user/{id}/update`,
+  `POST /user/{id}/delete`, and the `change_email`/`deregister` branches of
+  `POST /email/read` (stubs removed). **back 117 tests green** (common 104).
+  - #15: symmetric `email_hash` defaults (false everywhere); self-read errors
+    surfaced, not swallowed. #27: idempotent deregister confirm (200 when the
+    token is missing and the user is already gone). #25: `has_next = page <
+    total_pages`.
+  - New repository modules `transfer.rs` (recycler selection + account-asset
+    transfer) and `delete.rs` (hard delete); `role.rs` gained
+    `user_holds_permission` (interim admin-console gate until Cedar lands in
+    slice 6); `cache.rs` gained `EmailUpdateTokenEntry`/`DeregisterTokenEntry`
+    and an atomic `consume_if` (moka `and_compute_with`, key-serialized).
+  - Deferred to later slices (no stubs): search-index re-sync after name
+    update / deregister (slice 3), article/version/comment cascade + PDF
+    cleanup on hard delete (slices 3/4/5), recycler least-loaded selection is
+    only exercised once articles exist (slice 3), pagination constants move
+    to toml at slice 7.
+  - §8.3 gate: equal-or-better. Library facts read on disk: agdb `remove`
+    cascades node edges (`remove_query.rs`); moka `and_compute_with` is
+    key-serialized (`entry_selector.rs`) and `Entry::value()` returns a clone.
+    `actor_id` is passed directly (no redundant re-authentication);
+    `EmailMismatch` replaces the legacy opaque `bool`; one
+    `send_confirmation_email` helper replaces three near-identical blocks.
 
 ### Owner decisions (2026-08-13)
 
@@ -53,18 +77,16 @@ constitution); this document records state and process only.
 ## Handover (2026-08-13) — current agent
 
 Personnel change after slice 1: the previous agent's work is committed
-(`6c063b0`, `52464e2`); a new agent takes over from **slice 2 (user domain)**.
+(`6c063b0`, `52464e2`); a new agent took over from **slice 2 (user domain)**
+and completed it (see Current state).
 
-- (a) Add `#![allow(dead_code)]` at the `nail_back`/`nail_front` crate roots —
-  the confirmed §5.4 mechanism, **NOT yet applied**; deleted together with the
-  dead code in the Phase 5 cleanup.
+- (a) ✅ `#![allow(dead_code)]` was already applied at all three crate roots
+  (commit `52464e2`); removed together with the dead code in Phase 5.
 - (b) ✅ Owner's `README.md` changes are committed.
 - (c) ✅ #5 owner-confirmed — proceed through slice 6 without stopping.
-- (d) Working tree contains the previous agent's uncommitted WIP:
-  `code/back/src/logic/email.rs` (+266/-22, not staged, not tested, not
-  reviewed) — likely an early start on slice 2's email flow. Kept by owner
-  decision (2026-08-13): review it first (it did not go through the TDD
-  cycle); adopt, rework, or discard as part of slice 2.
+- (d) ✅ The uncommitted `code/back/src/logic/email.rs` WIP was reviewed,
+  reworked, and put through the TDD cycle; committed as part of slice 2
+  (`e5619b6`).
 
 ## Rules (non-negotiable; operational only)
 
@@ -109,8 +131,8 @@ Per domain: read the PRD slice → write failing tests first (red) → implement
 (green) → commit. Order:
 
 1. ✅ Authentication/session — done (see Current state).
-2. User domain — #15 (symmetric email_hash defaults, no swallowed errors),
-   #27 (idempotent deregister confirm).
+2. ✅ User domain — #15 (symmetric email_hash defaults, no swallowed errors),
+   #27 (idempotent deregister confirm) — done (see Current state).
 3. Article + version — #6, #16, #17, #18, #20, #21, #23.
 4. Comment domain — create/reply/list/update/delete with the `DeleteBody`
    mode contract (#2).
