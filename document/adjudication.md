@@ -20,7 +20,7 @@ Verdict legend: **F** = fix/implement in nail_new · **R** = remove dead code ·
 | 8 | Role delete guards only admin/recycler; `member` role deletable | **F** | Protect all REQUIRED_ROLES (admin/recycler/member) from delete, aligning with the update-side protection. |
 | 9 | Role create idempotent; duplicate create reports 201 | **F** | Duplicate role name → 400 "role already exists". |
 | 10 | Unused common response structs / duplicated SearchHit | **R** | Remove the unused typed response structs; make SearchHit single-sourced in common. |
-| 11 | Unused common request structs | **R** | Remove them (includes the two empty delete structs from #2). |
+| 11 | Unused common request structs | **R** | Remove them: the two empty delete structs from #2, plus `CheckEmailRequest` (no route uses it — the frontend link is removed by #12), `EmailUpdateSendRequest` (superseded by `EmailReadRequest`), `EmailUpdateConfirmRequest` (superseded by the `UserUpdateRequest` token pair), `VerifySessionRequest` (route is GET + query), `AuthorCheckRequest` (route uses the `check_if_is_author?` query param). |
 | 12 | Dead frontend link `/private/email/check` | **R** | Remove the link (no route, no page, no API). |
 | 13 | Dead config: `db_namespace`/`db_database`/`max_id_filter_count` | **R** | Remove from `server.toml` and `conf.rs` parsing. |
 | 14 | Hardcoded Chinese search-range labels (and generally non-English UI strings) | **F** | No Chinese anywhere (code, docs, UI strings, comments). Rewrite all user-facing strings in English. |
@@ -35,10 +35,25 @@ Verdict legend: **F** = fix/implement in nail_new · **R** = remove dead code ·
 | 23 | `update_article` requires author node existence despite gate | **R** | Drop the redundant author lookup (authorization already proved identity). |
 | 24 | Frontend hardcoded page-size divisor 8 | **F** | Use the limit from `/config/read`. |
 | 25 | `has_next` computed from total + returned page length | **F** | Compute uniformly as `page < total_pages`. |
-| 26 | `/email/read` three-way semantics decided by session validity | **F** | Disambiguate with an explicit query parameter: `POST /email/read?intent=authenticate\|change_email\|deregister`. Session-validity inference removed. |
+| 26 | `/email/read` three-way semantics decided by session validity | **F** | Disambiguate with an explicit query parameter: `POST /email/read?intent=authenticate\|change_email\|deregister`. Session-validity inference removed. CONFIRMED by owner (2026-08-13): `intent` is a **query parameter**, not a body field — `EmailReadRequest` keeps `{pow?, old_email_pow?, new_email_pow?}`; a shared `EmailReadIntent` enum may live in common for frontend URL building / backend query parsing. Closed — no Phase 3 revisit needed. |
 | 27 | Deregister confirm 200 when token missing + user gone | **K** | Idempotent delete semantics; treat as already-deregistered. |
 | 28 | Served filename always `hash.pdf` | **K** | Hash-based naming is the desired contract; do NOT store the original filename. Simplify `sanitize_attachment_filename` accordingly. |
 | 29 | Mint branch returns JSON from a binary-stream route | **K** | Contract settled with #1: `content/read?download=1` returns `{url}`; document it. |
 | 30 | No frontend UI for admin/role management endpoints | **K** | Admin UI deferred (out of the migration scope); backend endpoints stay. |
 | 31 | Admin list returns cleartext email hashes | **K** | Deliberate admin capability (matches auth-cache hashes); document it. |
 | 32 | e2e scaffolding referenced but absent | **K** | The nail_new test tree is rebuilt from scratch (README §12 + TDD); e2e strategy decided at Phase 5. |
+
+## Owner confirmations (2026-08-13) — Phase 2 (common crate)
+
+Decisions approved for the `nail_common` build; the migrating agent implements them:
+
+- Envelope `ResponseEnvelope<T> {code: u16, data: Option<T>, message: String}`, camelCase, `data: null` on errors; `ok()`/`err()` constructors, with **`err()` generic over `T`** (not restricted to `serde_json::Value`).
+- `DeleteMode` serializes **lowercase** (`#[serde(rename_all = "lowercase")]`): wire values `"transfer"`/`"hard"`; round-trip test asserts the wire spelling.
+- Common module list (9, replacing `xxx`/`yyy`/`zzz`): `text`, `name`, `tag`, `response`, `hash`, `time`, `pow`, `request`, `search`. Module list confirmed; build order dependency-topological, pure modules first.
+- `hash::token()` is **panic-free**: returns a `Result` (the customized-CXOF init error is propagated), no `expect`.
+- `EmailReadRequest` both-or-neither invariant for `old_email_pow`/`new_email_pow`: enforced via a pure check in `common::request` (back maps false → 400); tested in the request slice.
+- `tracing` is **not** a common dependency; `pow` verification failures are silent at the common level and logged by the back interface layer.
+- `uuid` features: `serde` + `v7` (the `time` module needs `get_timestamp()`). `serde_json` is a dev-dependency only (round-trip tests).
+- Phase 2 tests live at `test/unit/common/<module>/tests.rs`, wired via `#[path]` from each module (matches the legacy convention and the skeleton's top-level `test/`).
+- `UpdateVersionNoteRequest` is backend-only → lives in `back::interface`, not common (frontend never sends it).
+- `hash` stays in common (single source of the ascon scheme); `TagRef` stays in `common::tag`; `pow::verify -> bool`; `pow::prove -> anyhow::Result`; difficulty = server config `pow_difficulty_iterations`, no constant in common; `bin/prove.rs` CLI helper skipped (revisit at Phase 5 if needed).
