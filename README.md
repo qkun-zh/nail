@@ -114,6 +114,13 @@ graph TD
     RQ --> IN
 ```
 
+The module trees beneath `router`, `page`, `request`, and `infrastructure`
+must be designed fresh for `nail_new`; it is absolutely forbidden to copy
+the legacy `nail` frontend's module division into these layers. A module
+boundary is valid only when justified by the new layer's responsibilities
+and its callers — "the legacy code did it this way" is never an acceptable
+justification.
+
 ### 4.3 Shared crate (`common`)
 
 `common` holds data structures and methods shared by front and back. Both
@@ -156,6 +163,14 @@ graph TD
 - Prefer pure (or near-pure) functions over others: they are easy to test and
   form the foundation of business logic.
 - No hardcoding. Anything configurable must live in toml configuration files.
+
+### 5.5 Comments
+
+- Code must be self-explanatory: names and structure carry the meaning, so
+  the logic reads clearly with no comments or very few.
+- Comments are allowed only where they explain non-obvious intent,
+  constraints, or tradeoffs that the code itself cannot express. Never
+  restate the code; a comment that merely repeats the code is a defect.
 
 ## 6. Robustness and Security
 
