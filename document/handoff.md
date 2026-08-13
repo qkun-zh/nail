@@ -184,14 +184,105 @@ tracing, Cedar engine.
   contracts (item #26 intent param, item #5 policy change) as ADRs under
   `document/`.
 
-## Suggested skills for the migrating agent
+## Skill usage guide
 
-- `tdd` — every vertical slice (red → green), seams agreed before writing.
-- `codebase-design` — module depth and seams for the four backend layers.
-- `diagnosing-bugs` — when PRD behavior contradicts the reference source.
-- `domain-modeling` — pin article/version/comment/session vocabulary.
-- `setup-matt-pocock-skills` — configure nail_new's engineering-skills
-  baseline (issue tracker, CONTEXT.md, ADRs) — not yet done.
-- `handoff` — compact each session for the next agent.
-- `grilling` / `to-spec` — optional, for the two open design confirmations
-  (item #5 read-open semantics, item #26 intent contract).
+The migrating agent has the same skill set as the orchestrator. Invoke a skill
+via the `skill` tool BEFORE the task it covers, and follow its instructions.
+`nail_new/README.md` is the constitution and outranks any skill.
+
+### setup-matt-pocock-skills — run ONCE, before any engineering skill use
+
+- **When**: first session in nail_new, before tdd / codebase-design / etc.
+- **What**: configures the repo for the engineering skills: issue tracker
+  (local markdown under `.scratch/` — no remote exists), `AGENTS.md`,
+  `CONTEXT.md` + `docs/adr/` layout, triage labels.
+- **Here**: gives tdd / to-spec / domain-modeling their landing spots
+  (CONTEXT.md, ADRs, issue tracker).
+
+### tdd — every implementation slice
+
+- **When**: Phase 2 (each common module), Phase 3 (each domain slice), Phase 4
+  (pure logic parts), Phase 5 (test rebuild). Every red → green cycle.
+- **What**: agree the seams with the owner first; one failing test → minimal
+  implementation → repeat. No horizontal slicing (all tests first). Tests
+  verify behavior through public interfaces, not internals.
+- **Here**: the PRDs carry `--tdd` build order; write the failing acceptance
+  tests first per slice; the PRD requirements + adjudication log are the
+  expected-behavior source, not the legacy code.
+
+### codebase-design — every module boundary decision
+
+- **When**: before designing each layer's module tree (common modules; back
+  interface / logic / repository / infrastructure; front layers).
+- **What**: deep-module vocabulary (interface, depth, seam, adapter, leverage,
+  locality) to decide where seams go and how deep modules should be.
+- **Here**: README §4 fixes dependency direction only; this skill decides
+  module depth/shape and the test seams at each boundary.
+
+### diagnosing-bugs — whenever behavior contradicts expectations
+
+- **When**: PRD behavior contradicts the reference source; a library misbehaves
+  (check its trusted source first, README §8); a test fails for unknown
+  reasons; one of the 32 adjudication items surfaces during implementation.
+- **What**: reproduce → isolate → root cause → fix. Evidence and logging
+  first; no speculative edits.
+- **Here**: the reference code is dangerous (bugs + compromise designs); treat
+  every contradiction as a candidate bug — probe it, then report to the
+  owner; never silently copy legacy behavior.
+
+### domain-modeling — pin the vocabulary
+
+- **When**: once at the start of Phase 3 (or Phase 2), then whenever a new
+  term appears (e.g. the #26 `intent` values).
+- **What**: define the ubiquitous language; record it in CONTEXT.md; add ADRs
+  for decisions.
+- **Here**: article / version / comment / session / role / recycler /
+  transfer / hard / intent must mean the same thing across code, tests,
+  PRDs, and docs.
+
+### grilling — stress-test a plan/decision with the owner
+
+- **When**: before implementing an open or risky decision (#5 read-open
+  semantics, #26 intent contract), or when the agent is unsure of a design
+  direction. Do not grill routine work.
+- **What**: relentless one-question-at-a-time interview (recommend an answer
+  each round) until the decision is sharp.
+- **Here**: use for the two owner-confirm items in Phase 3.
+
+### grill-with-docs — grilling that also writes docs
+
+- **When**: same triggers as grilling, when the outcome should land as ADRs +
+  glossary.
+- **What**: grilling interview + writes CONTEXT.md glossary + ADRs as it goes.
+- **Here**: produce the ADR for #26 (new `/email/read?intent=` contract) and
+  #5 (visibility removal + policy 2 rewrite).
+
+### handoff — end of every session
+
+- **When**: session end, before another agent takes over.
+- **What**: compact the session into a handoff document; reference artifacts
+  by path; do not duplicate content already captured elsewhere.
+- **Here**: update/extend `document/handoff.md` (or write a session-specific
+  handoff); keep `document/adjudication.md` current.
+
+### to-spec — formalize discussed decisions
+
+- **When**: after a grilling/decision round, if the owner wants a formal spec
+  in the issue tracker.
+- **What**: synthesize the conversation into a spec and publish it to the
+  issue tracker (`.scratch/` once setup ran).
+- **Here**: optional — the PRDs + adjudication already act as specs; use only
+  for new contracts worth formalizing (#26, #5).
+
+### improve-codebase-architecture — NOT for this project
+
+- **When**: scanning an existing codebase for deepening opportunities — not
+  applicable here: nail_new is built fresh and its architecture is fixed by
+  the README.
+- **Here**: skip. If ever run against `nail`, do not migrate its proposals
+  without owner review.
+
+### create-skill — authoring new skills
+
+- **When**: only if the owner asks to create or patch an agent skill.
+- **Here**: skip.
