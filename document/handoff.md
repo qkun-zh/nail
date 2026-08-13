@@ -76,17 +76,26 @@ constitution); this document records state and process only.
 
 ## Handover (2026-08-13) — current agent
 
-Personnel change after slice 1: the previous agent's work is committed
-(`6c063b0`, `52464e2`); a new agent took over from **slice 2 (user domain)**
-and completed it (see Current state).
+Personnel change after slice 2: agent C completed the user domain (commits
+`635a53e`..`acca62a`, handoff `811e3dd`); a new agent (D) takes over from
+**slice 3 (article + version)**.
 
-- (a) ✅ `#![allow(dead_code)]` was already applied at all three crate roots
-  (commit `52464e2`); removed together with the dead code in Phase 5.
-- (b) ✅ Owner's `README.md` changes are committed.
-- (c) ✅ #5 owner-confirmed — proceed through slice 6 without stopping.
-- (d) ✅ The uncommitted `code/back/src/logic/email.rs` WIP was reviewed,
-  reworked, and put through the TDD cycle; committed as part of slice 2
-  (`e5619b6`).
+- All prior handover items (a)-(d) are ✅ done — nothing pending from the
+  previous transition.
+- `thermo-nuclear-code-quality-review` IS available to this session (it was
+  installed after the previous session started, which is why agent C had to
+  run the §8.3 gate manually). Invoke it together with the §8.3 gate at the
+  end of slice 3; its 1k-line default bar is superseded by README §5.3
+  (512 lines).
+- Slice 2 deferred items to pick up in slice 3: search-index re-sync after
+  name update / deregister (#20/#21); article/version/comment cascade + PDF
+  cleanup on hard delete; recycler least-loaded selection (now exercisable,
+  since articles exist).
+- Slice 3 is the largest slice (multipart upload, PDF validation, agdb
+  transactions, seekstorm incremental indexing, content-hash dedupe).
+  Remember §8.2: the database design and backend API design are
+  strong-reference areas — read and study the legacy implementation before
+  writing new code.
 
 ## Rules (non-negotiable; operational only)
 
