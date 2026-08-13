@@ -6,3 +6,4 @@ pub mod principal;
 pub mod registration;
 pub mod router;
 pub mod session;
+pub mod user;

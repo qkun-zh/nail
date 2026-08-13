@@ -35,3 +35,5 @@ pub mod repository_delete;
 
 #[path = "http/authenticate.rs"]
 pub mod http_authenticate;
+#[path = "http/user.rs"]
+pub mod http_user;
