@@ -65,6 +65,10 @@ nail_new/
 > Note: `zzz`, `yyy`, and `xxx` are placeholders for the `common` crate's
 > submodules (shared data structures and methods). They may be renamed and
 > their count may change; every other entry in the skeleton is fixed.
+> The skeleton fixes only the top-level entry files per layer; the module
+> trees beneath the backend layers are not prescribed here and must be
+> designed fresh — never copied from the legacy `nail` backend layout
+> (§4.1).
 
 ## 4. Architecture
 
@@ -78,6 +82,14 @@ graph TD
     L --> IN
     R --> IN
 ```
+
+The module trees beneath `interface`, `logic`, `repository`, and
+`infrastructure` must be designed fresh for `nail_new`; it is absolutely
+forbidden to copy the legacy `nail` backend's module division into these
+layers (its `api.rs`-style route surface, `repo/`, `authorization/`, or
+any other legacy arrangement). A module boundary is valid only when
+justified by the new layer's responsibilities and its callers — "the
+legacy code did it this way" is never an acceptable justification.
 
 ### 4.2 Frontend layering and dependency direction (mandatory)
 
