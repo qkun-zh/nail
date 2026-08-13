@@ -240,6 +240,15 @@ via the `skill` tool BEFORE the task it covers, and follow its instructions.
   transfer / hard / intent must mean the same thing across code, tests,
   PRDs, and docs.
 
+### grilling — stress-test a plan/decision with the owner
+
+- **When**: before implementing an open or risky decision (#5 read-open
+  semantics, #26 intent contract), or when the agent is unsure of a design
+  direction. Do not grill routine work.
+- **What**: one-question-at-a-time interview (recommend an answer each round)
+  until the decision is sharp.
+- **Here**: use for the two owner-confirm items in Phase 3.
+
 ### grill-with-docs — grilling that also writes docs
 
 - **When**: before implementing the two owner-confirm items (#5 read-open
@@ -257,3 +266,28 @@ via the `skill` tool BEFORE the task it covers, and follow its instructions.
   by path; do not duplicate content already captured elsewhere.
 - **Here**: update/extend `document/handoff.md` (or write a session-specific
   handoff); keep `document/adjudication.md` current.
+
+### to-spec — formalize discussed decisions
+
+- **When**: after a grilling/decision round, if the owner wants a formal spec
+  in the issue tracker.
+- **What**: synthesize the conversation into a spec and publish it to the
+  issue tracker (`.scratch/` once setup ran).
+- **Here**: optional — the PRDs + adjudication already act as specs; use only
+  for new contracts worth formalizing (#26, #5).
+
+### improve-codebase-architecture — scan for deepening opportunities
+
+- **When**: when a migration slice feels tangled despite codebase-design, or
+  when the owner asks for an architecture health check on the new code.
+- **What**: scans a codebase for deepening opportunities and presents them as
+  a visual report, then grills through whichever one is picked.
+- **Here**: not needed during the build (the architecture is fixed by the
+  README); useful later as a periodic health check on nail_new. If ever run
+  against `nail`, do not migrate its proposals without owner review.
+
+### create-skill — authoring new skills
+
+- **When**: only if the owner asks to create or patch an agent skill.
+- **What**: guides the creation of a new SKILL.md with instructions.
+- **Here**: skip unless the owner requests it.
