@@ -109,10 +109,46 @@ constitution); this document records state and process only.
     manually. Added `SearchIndex::close()` (wired into graceful shutdown, FR-7)
     and closed the index in search tests; this also fixed an OOM once the two
     probe tests pushed the un-closed index set over the memory limit.
-  - ⚠️ **Tooling (corrected)**: the file tools (`read_file`/`write_file`/
-    `edit_file`) operate on real paths — verified with a sentinel write while
-    `_X.rs` existed (the write landed in `X.rs`). The earlier "transparent
-    mapping" warning in this file was wrong and is removed.
+  - ⚠️ **Tooling (corrected again)**: the file tools fail on files under
+    `test/` and `code/back/src/repository/` — `read_file` returns "not found"
+    and `edit_file` silently no-ops (and can emit a stray `_`-prefixed archive
+    file). Use the terminal (`cat`/`sed`/`python3`) for those paths; the file
+    tools work for `document/`, `interface/`, `logic/`, and top-level files.
+
+- ✅ **Phase 3 slice 4 — comment domain** (2026-08-14, commit `91597bb`):
+  `POST /version/{id}/comments/create`, `POST /comments/{id}/replies/create`,
+  `GET /version/{id}/comments/read`, `POST /comment/{id}/update`,
+  `POST /comment/{id}/delete` across the four layers. **back 205 tests green**
+  (common 104), `cargo check` zero warnings.
+  - Adjudication: #2 (`DeleteBody` mode contract), #16 (invalid comment id →
+    400, not 500), #3 (no per-comment author pre-check; backend 403 is
+    authoritative). `read_comments` pages by top-level comments with
+    depth-bounded reply trees (max 64); `created_at` from uuidv7; batch
+    user-name lookup; version-level `is_author` only.
+  - New repository module `comment.rs` (typed `CommentTreeItem`;
+    `create_top_level_comment`/`create_reply_comment`/`owner_of_comment`/
+    `read_comments_page_by_version`/`update_comment_content`/`version_of_comment`).
+    `transfer.rs` gained `transfer_comment`; `delete.rs` gained `delete_comment`;
+    `user.rs` gained `read_user_names`; `authorize.rs` gained
+    `require_owner_or_permission_for_comment`.
+  - Bug fix (caught by the new hard-delete subtree test):
+    `delete_comment_tree_in_txn` traversed `comment_to_comment` in the wrong
+    direction (`.from(comment)` + `edge.to` walks up toward the parent, so
+    replies were never cascade-deleted). Corrected to `.to(comment)` +
+    `edge.from` so hard delete removes the full reply subtree — this also fixes
+    the slice 3 article/version/user hard-delete cascades.
+  - Test infrastructure: `SearchIndex::open_or_create_with_segments` added; the
+    test harness now builds a 4-segment index instead of 2048, stopping an OOM
+    from one un-closed seekstorm index per test (production still uses 2048;
+    `SearchIndex::close()` from `aedaba0` is wired into graceful shutdown).
+  - §8.3 gate: equal-or-better on all five axes. Readability/correctness: typed
+    `CommentTreeItem` replaces the legacy `serde_json::Value` rows keyed by
+    `comment_id`/`author`/`parent`; #16 and the subtree-direction bug are
+    corrected. Elegance/conciseness: `map_create_comment_error(is_reply)` drops
+    the legacy's redundant `max_tree_depth` argument; hard-delete reuses
+    `delete_comment_tree_in_txn` instead of a separate module. Performance:
+    batch `read_user_names` replaces N per-author reads; depth check and writes
+    stay inside the graph write transaction.
 
 ### Owner decisions (2026-08-13)
 
@@ -136,31 +172,36 @@ constitution); this document records state and process only.
 ## Handover (2026-08-14) — current agent
 
 Personnel change: the agent that completed slice 3 (agent D) has been
-replaced; a new agent (E) takes over from **slice 4 (comment domain)**.
+replaced; a new agent (E) completed **slice 4 (comment domain)** and hands
+off to **slice 5 (download/PDF)**.
 
 - ✅ Slice 3 (article + version) is done: TDD rewrite of slices 1-3 under the
   CRUD-only vocabulary (commits `8de3490` archive + `6747cad` rewrite),
   **back 180 tests green** (common 104; +2 §8.3 probe tests), `cargo check`
   zero warnings, working tree clean. The `_`-prefixed archive files were
-  removed on 2026-08-14
-  (commit `aa39cb6`); the pre-rewrite implementation remains recoverable from
-  git (`8de3490^`). The file tools operate on real paths (the old "mapping"
-  warning was false and has been removed from this file).
+  removed on 2026-08-14 (commit `aa39cb6`); the pre-rewrite implementation
+  remains recoverable from git (`8de3490^`). (File-tool caveat: see the slice 3
+  Tooling note.)
 - ✅ **Slice 3 §8.3 evidence gap closed**: the five-axis comparison in Current
   state is now grounded with library-source citations and probe tests (2 added);
   agdb write transactions, seekstorm `sync` vs `sync_all` count consistency
   (#21), PDF stream validation boundaries, and `PdfUpload` RAII cleanup paths
   are all evidence-backed.
-- Next: **slice 4 (comment domain)** — create/reply/read/update/delete with
-  the `DeleteBody` mode contract (#2), then slice 5 (download/PDF,
-  #1/#28/#29), slice 6 (role/authorization, #5/#7/#8/#9), slice 7
+- ✅ Slice 4 (comment domain) is done: create/reply/read/update/delete with
+  the `DeleteBody` mode contract (#2), #16 (invalid comment id → 400), #3
+  (no per-comment author gate). **back 205 tests green**.
+- Next: **slice 5 (download/PDF)** — #1 (mint → `.../content/read?token={token}`,
+  single-use 60s, user-bound), #28 (hash-based filenames only), #29 (mint-JSON
+  contract documented), then slice 6 (role/authorization, #5/#7/#8/#9), slice 7
   (config/email/infrastructure, #13/#19/#22/#26/#32).
 - All prior handover items (a)-(d) and the slice 2 deferred items (search
   re-sync, hard-delete cascade + PDF cleanup, recycler least-loaded selection)
   are ✅ done.
-- `thermo-nuclear-code-quality-review` is available to this session; invoke it
-  together with the §8.3 gate at the end of each slice; its 1k-line default
-  bar is superseded by README §5.3 (512 lines).
+- `thermo-nuclear-code-quality-review` is NOT available to this session (the
+  skill registry lists only create-skill/codebase-design/diagnosing-bugs/
+  domain-modeling/grill-with-docs/grilling/handoff/improve-codebase-architecture/
+  setup-matt-pocock-skills/tdd/to-spec). Slice 4 used a manual §8.3 gate
+  instead; the 512-line bar (README §5.3) still applies.
 
 ## Rules (non-negotiable; operational only)
 
@@ -209,8 +250,9 @@ Per domain: read the PRD slice → write failing tests first (red) → implement
    #27 (idempotent deregister confirm) — done (see Current state).
 3. ✅ Article + version — #6, #16, #17, #18, #20, #21, #23 — done (see Current
    state; rewritten via TDD under the CRUD vocabulary).
-4. Comment domain — create/reply/list/update/delete with the `DeleteBody`
-   mode contract (#2).
+4. ✅ Comment domain — create/reply/read/update/delete with the `DeleteBody`
+   mode contract (#2), #16 (invalid comment id → 400), #3 — done (see Current
+   state).
 5. Download/PDF — #1 (mint → `.../content/read?token={token}`, single-use
    60s, user-bound), #28 (hash-based filenames only), #29 (mint-JSON
    contract documented).
