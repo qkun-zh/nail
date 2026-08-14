@@ -1,5 +1,7 @@
 use nail_common::request::{DeleteBody, DeleteMode, UpdateArticleRequest};
-use nail_common::response::article::{ArticleIdView, ArticleListPage, ArticleView, CreateArticleView};
+use nail_common::response::article::{
+    ArticleIdView, ArticleListPage, ArticleView, CreateArticleView,
+};
 use nail_common::response::search::SearchPage;
 
 use crate::request::error::RequestResult;

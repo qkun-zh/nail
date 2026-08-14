@@ -9,7 +9,10 @@ use crate::repository::cache::{SessionTokenEntry, token_key};
 async fn create_challenge_and_prove(context: &TestCtx, payload: &str) -> Pow {
     let (status, body) = context.get("/challenge/read", None).await;
     assert_eq!(status, StatusCode::OK, "challenge body: {body}");
-    let id = body["data"]["id"].as_str().expect("challenge id").to_string();
+    let id = body["data"]["id"]
+        .as_str()
+        .expect("challenge id")
+        .to_string();
     let difficulty = body["data"]["difficulty"].as_u64().expect("difficulty");
     let challenge = Challenge {
         id: Uuid::parse_str(&id).expect("uuid challenge id"),
@@ -59,7 +62,9 @@ async fn session_lifecycle_over_http() {
     assert_eq!(status, StatusCode::OK, "session body: {body}");
     assert!(!body["data"]["id"].as_str().unwrap_or("").is_empty());
 
-    let (status, _) = context.get("/session/read?id=true", Some("not-a-uuid")).await;
+    let (status, _) = context
+        .get("/session/read?id=true", Some("not-a-uuid"))
+        .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 
     let delete_session_pow = create_challenge_and_prove(&context, "delete-session-nonce").await;
@@ -73,7 +78,9 @@ async fn session_lifecycle_over_http() {
     assert_eq!(status, StatusCode::OK, "delete-session body: {body}");
     assert_eq!(body["message"].as_str(), Some("deleted"));
 
-    let (status, _) = context.get("/session/read?id=true", Some(&session_token)).await;
+    let (status, _) = context
+        .get("/session/read?id=true", Some(&session_token))
+        .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
@@ -95,7 +102,11 @@ async fn email_read_rejects_a_disallowed_domain() {
     let context = TestCtx::new().await.expect("test context");
     let pow = create_challenge_and_prove(&context, "alice@other.org").await;
     let (status, body) = context
-        .post("/email/read?intent=authenticate", json!({ "pow": pow }), None)
+        .post(
+            "/email/read?intent=authenticate",
+            json!({ "pow": pow }),
+            None,
+        )
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("email domain not allowed"));
@@ -107,7 +118,10 @@ async fn session_read_requires_a_session() {
     let context = TestCtx::new().await.expect("test context");
     let (status, body) = context.get("/session/read", None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED, "body: {body}");
-    assert_eq!(body["message"].as_str(), Some("missing session-token header"));
+    assert_eq!(
+        body["message"].as_str(),
+        Some("missing session-token header")
+    );
 }
 
 #[tokio::test]
@@ -148,7 +162,9 @@ async fn session_delete_with_malformed_json_returns_envelope() {
     let context = TestCtx::new().await.expect("test context");
     let token = insert_session(&context).await;
 
-    let (status, body) = context.post("/session/delete", json!({}), Some(&token)).await;
+    let (status, body) = context
+        .post("/session/delete", json!({}), Some(&token))
+        .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     assert_eq!(body["code"].as_u64(), Some(400));
     assert!(body["data"].is_null());
@@ -168,4 +184,3 @@ async fn session_read_with_malformed_query_returns_envelope() {
     assert!(body["data"].is_null());
     assert_eq!(body["message"].as_str(), Some("invalid query parameters"));
 }
-

@@ -50,7 +50,9 @@ impl std::fmt::Display for AssemblyError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::ResourceNotFound => formatter.write_str("resource not found"),
-            Self::Internal(message) => write!(formatter, "authorization assembly failed: {message}"),
+            Self::Internal(message) => {
+                write!(formatter, "authorization assembly failed: {message}")
+            }
         }
     }
 }
@@ -79,8 +81,7 @@ pub async fn read_user_authorization(
     )?;
     let mut authorization = UserAuthorization::default();
     for edge in &role_edges.elements {
-        let Some(role_name) = read_node_sync::<RoleRow>(&guard, edge.to)?
-            .map(|row| row.role_name)
+        let Some(role_name) = read_node_sync::<RoleRow>(&guard, edge.to)?.map(|row| row.role_name)
         else {
             continue;
         };
@@ -318,11 +319,7 @@ async fn assemble_version_chain(
     Ok((version_uid, vec![article_entity, version_entity]))
 }
 
-fn read_edges<T>(
-    guard: &agdb::DbAny,
-    from: agdb::DbId,
-    edge_type: &str,
-) -> Result<Vec<T>, DbError>
+fn read_edges<T>(guard: &agdb::DbAny, from: agdb::DbId, edge_type: &str) -> Result<Vec<T>, DbError>
 where
     T: agdb::DbType<ValueType = T> + agdb::DbTypeMarker,
 {
@@ -342,7 +339,7 @@ where
     if ids.is_empty() {
         return Ok(Vec::new());
     }
-    Ok(read_rows_sync::<T>(guard, &ids)?)
+    read_rows_sync::<T>(guard, &ids)
 }
 
 fn parse_uid(text: &str) -> Result<EntityUid, AssemblyError> {
@@ -412,6 +409,9 @@ fn resource_attrs(
     };
     Ok(HashMap::from([
         ("owner".to_string(), owner),
-        ("required_scopes".to_string(), set_expression(tag_names, tag_uid)?),
+        (
+            "required_scopes".to_string(),
+            set_expression(tag_names, tag_uid)?,
+        ),
     ]))
 }

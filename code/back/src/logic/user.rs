@@ -2,9 +2,7 @@ use nail_common::pow::Pow;
 use nail_common::request::{DeleteMode, UserDeleteRequest, UserUpdateRequest};
 use nail_common::response::EmptyView;
 use nail_common::response::session::SessionTokenView;
-use nail_common::response::user::{
-    UserIdView, UserListItem, UserListPage, UserNameView, UserView,
-};
+use nail_common::response::user::{UserIdView, UserListItem, UserListPage, UserNameView, UserView};
 
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::authorize;
@@ -12,9 +10,11 @@ use crate::logic::error::{LogicError, database_error};
 use crate::logic::pow::verify_issued_pow;
 use crate::logic::search::{sync_all_best_effort, sync_article_best_effort, sync_user_best_effort};
 use crate::logic::session::normalize_token;
-use crate::repository::cache::token_key;
-use crate::repository::role::{PERMISSION_USER_DELETE, PERMISSION_USER_READ, PERMISSION_USER_UPDATE, ROLE_MEMBER};
 use crate::repository::authorization::Resource;
+use crate::repository::cache::token_key;
+use crate::repository::role::{
+    PERMISSION_USER_DELETE, PERMISSION_USER_READ, PERMISSION_USER_UPDATE, ROLE_MEMBER,
+};
 use crate::repository::transfer::TransferError;
 use crate::repository::user::{UserWriteError, read_user as read_user_node, update_user_name};
 
@@ -45,15 +45,14 @@ pub async fn create_user(state: &AppState, pow: &Pow) -> Result<String, LogicErr
         .consume(&key)
         .ok_or_else(|| LogicError::bad_request("invalid or expired token"))?;
 
-    let user_id = match crate::repository::user::create_user(&state.graph, &entry.email_address_hash)
-        .await
-    {
-        Ok(user_id) => user_id,
-        Err(error) => {
-            state.caches.create_user.insert(&key, entry);
-            return Err(database_error(error));
-        }
-    };
+    let user_id =
+        match crate::repository::user::create_user(&state.graph, &entry.email_address_hash).await {
+            Ok(user_id) => user_id,
+            Err(error) => {
+                state.caches.create_user.insert(&key, entry);
+                return Err(database_error(error));
+            }
+        };
 
     crate::repository::role::hold_role(&state.graph, &user_id, ROLE_MEMBER)
         .await
@@ -75,7 +74,7 @@ pub async fn read_user(
         if name_requested || email_hash_requested {
             let entry = read_user_node(&state.graph, actor_id)
                 .await
-                .map_err(|error| database_error(error))?
+                .map_err(database_error)?
                 .ok_or_else(|| LogicError::unauthorized("user not found"))?;
             if name_requested {
                 view.name = Some(entry.name);
@@ -90,7 +89,7 @@ pub async fn read_user(
     authorize(state, actor_id, PERMISSION_USER_READ, &admin_console()).await?;
     let entry = read_user_node(&state.graph, target_id)
         .await
-        .map_err(|error| database_error(error))?
+        .map_err(database_error)?
         .ok_or_else(|| LogicError::not_found("user not found"))?;
     view.id = Some(target_id.to_string());
     if name_requested {
@@ -113,9 +112,10 @@ pub async fn update_user(
             let pow = request.pow.ok_or_else(|| {
                 LogicError::bad_request("pow is required to confirm the email update")
             })?;
-            let new_session_token =
-                crate::logic::email::update_user_email(state, actor_id, &pow, &old_token, &new_token)
-                    .await?;
+            let new_session_token = crate::logic::email::update_user_email(
+                state, actor_id, &pow, &old_token, &new_token,
+            )
+            .await?;
             return Ok(UserUpdateView::SessionToken(SessionTokenView {
                 session_token: new_session_token,
             }));
@@ -175,7 +175,7 @@ pub async fn read_users(
     let offset = page.saturating_sub(1).saturating_mul(limit);
     let (items, total) = crate::repository::user::read_users(&state.graph, limit, offset)
         .await
-        .map_err(|error| database_error(error))?;
+        .map_err(database_error)?;
     let user_list: Vec<UserListItem> = items
         .into_iter()
         .map(|item| UserListItem {
@@ -238,7 +238,7 @@ async fn handle_delete_user_transfer(
     let Some(entry) = state.caches.delete_user.read(&token_hash) else {
         let user_exists = read_user_node(&state.graph, actor_id)
             .await
-            .map_err(|error| database_error(error))?
+            .map_err(database_error)?
             .is_some();
         if user_exists {
             return Err(LogicError::bad_request("invalid or expired delete token"));
@@ -297,7 +297,9 @@ fn name_update_error(error: UserWriteError) -> LogicError {
         UserWriteError::AlreadyTaken => LogicError::bad_request("name already taken"),
         UserWriteError::UserMissing => LogicError::unauthorized("user not found"),
         UserWriteError::EmailMismatch => LogicError::internal("unexpected email mismatch"),
-        UserWriteError::Db(error) => LogicError::internal(format!("failed to update name: {error}")),
+        UserWriteError::Db(error) => {
+            LogicError::internal(format!("failed to update name: {error}"))
+        }
     }
 }
 

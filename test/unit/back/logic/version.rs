@@ -5,9 +5,12 @@ use crate::repository::role::{ROLE_MEMBER, hold_role};
 use crate::repository::version::VersionDraft;
 
 async fn member(context: &TestCtx, email: &str) -> String {
-    let user_id = crate::repository::user::create_user(&context.state.graph, &nail_common::hash::email(email))
-        .await
-        .expect("user");
+    let user_id = crate::repository::user::create_user(
+        &context.state.graph,
+        &nail_common::hash::email(email),
+    )
+    .await
+    .expect("user");
     hold_role(&context.state.graph, &user_id, ROLE_MEMBER)
         .await
         .expect("member role");
@@ -146,10 +149,12 @@ async fn delete_version_hard_removes_the_version() {
     .await
     .expect("delete");
     assert_eq!(data.version_id, version_id);
-    assert!(crate::repository::version::read_version(&context.state.graph, &version_id)
-        .await
-        .expect("read")
-        .is_none());
+    assert!(
+        crate::repository::version::read_version(&context.state.graph, &version_id)
+            .await
+            .expect("read")
+            .is_none()
+    );
     let _ = article_id;
 }
 

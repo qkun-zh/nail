@@ -94,8 +94,8 @@ pub async fn create_version(
         )?;
         let mut max_existing: Option<Version> = None;
         for edge in &edges.elements {
-            let Some(stored) = read_node_in_txn::<VersionRow>(transaction, edge.to)?
-                .map(|row| row.version_number)
+            let Some(stored) =
+                read_node_in_txn::<VersionRow>(transaction, edge.to)?.map(|row| row.version_number)
             else {
                 continue;
             };
@@ -143,7 +143,10 @@ pub async fn create_version(
     })
 }
 
-pub async fn read_version(db: &DbHandle, version_id: &str) -> Result<Option<VersionEntry>, DbError> {
+pub async fn read_version(
+    db: &DbHandle,
+    version_id: &str,
+) -> Result<Option<VersionEntry>, DbError> {
     let guard = db.read().await;
     let Some(id) = resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, version_id)? else {
         return Ok(None);
@@ -159,11 +162,7 @@ pub async fn read_version(db: &DbHandle, version_id: &str) -> Result<Option<Vers
     }))
 }
 
-pub async fn update_version(
-    db: &DbHandle,
-    version_id: &str,
-    note: &str,
-) -> Result<(), DbError> {
+pub async fn update_version(db: &DbHandle, version_id: &str, note: &str) -> Result<(), DbError> {
     let mut guard = db.write().await;
     let Some(id) = resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, version_id)? else {
         return Ok(());
@@ -259,10 +258,7 @@ pub async fn content_hash_owner(
     }))
 }
 
-pub async fn parent_article_of(
-    db: &DbHandle,
-    version_id: &str,
-) -> Result<Option<String>, DbError> {
+pub async fn parent_article_of(db: &DbHandle, version_id: &str) -> Result<Option<String>, DbError> {
     let guard = db.read().await;
     let Some(version) = resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, version_id)? else {
         return Ok(None);

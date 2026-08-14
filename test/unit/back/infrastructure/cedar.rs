@@ -13,7 +13,12 @@ fn expression(text: &str) -> RestrictedExpression {
     RestrictedExpression::from_str(text).expect("expression")
 }
 
-fn user_entity(id: &str, parents: HashSet<EntityUid>, global_role: bool, scopes: &[&str]) -> Entity {
+fn user_entity(
+    id: &str,
+    parents: HashSet<EntityUid>,
+    global_role: bool,
+    scopes: &[&str],
+) -> Entity {
     let scopes_expr = if scopes.is_empty() {
         "[]".to_string()
     } else {
@@ -90,13 +95,15 @@ fn read_open_policy_allows_any_authenticated_principal() {
     let principal = user_entity("alice", HashSet::new(), false, &[]);
     let resource = article_entity("article-1", "bob", &[]);
 
-    assert!(decide(
-        &uid("User::\"alice\""),
-        "Article::Read",
-        &uid("Article::\"article-1\""),
-        vec![principal, resource],
-    )
-    .expect("decide"));
+    assert!(
+        decide(
+            &uid("User::\"alice\""),
+            "Article::Read",
+            &uid("Article::\"article-1\""),
+            vec![principal, resource],
+        )
+        .expect("decide")
+    );
 }
 
 #[test]
@@ -104,22 +111,26 @@ fn owner_bypass_allows_update_but_not_for_a_non_owner() {
     let principal = user_entity("alice", HashSet::new(), false, &[]);
     let resource = article_entity("article-1", "alice", &[]);
 
-    assert!(decide(
-        &uid("User::\"alice\""),
-        "Article::Update",
-        &uid("Article::\"article-1\""),
-        vec![principal.clone(), resource.clone()],
-    )
-    .expect("owner update"));
+    assert!(
+        decide(
+            &uid("User::\"alice\""),
+            "Article::Update",
+            &uid("Article::\"article-1\""),
+            vec![principal.clone(), resource.clone()],
+        )
+        .expect("owner update")
+    );
 
     let outsider = user_entity("bob", HashSet::new(), false, &[]);
-    assert!(!decide(
-        &uid("User::\"bob\""),
-        "Article::Update",
-        &uid("Article::\"article-1\""),
-        vec![outsider, resource],
-    )
-    .expect("outsider update"));
+    assert!(
+        !decide(
+            &uid("User::\"bob\""),
+            "Article::Update",
+            &uid("Article::\"article-1\""),
+            vec![outsider, resource],
+        )
+        .expect("outsider update")
+    );
 }
 
 #[test]
@@ -137,22 +148,26 @@ fn role_permission_grants_only_when_the_scope_intersects() {
     );
 
     let matching = article_entity("article-1", "bob", &["#rust"]);
-    assert!(decide(
-        &uid("User::\"alice\""),
-        "Article::Update",
-        &uid("Article::\"article-1\""),
-        vec![principal.clone(), editor.clone(), action.clone(), matching],
-    )
-    .expect("matching scope"));
+    assert!(
+        decide(
+            &uid("User::\"alice\""),
+            "Article::Update",
+            &uid("Article::\"article-1\""),
+            vec![principal.clone(), editor.clone(), action.clone(), matching],
+        )
+        .expect("matching scope")
+    );
 
     let non_matching = article_entity("article-2", "bob", &["#other"]);
-    assert!(!decide(
-        &uid("User::\"alice\""),
-        "Article::Update",
-        &uid("Article::\"article-2\""),
-        vec![principal, editor, action, non_matching],
-    )
-    .expect("non-matching scope"));
+    assert!(
+        !decide(
+            &uid("User::\"alice\""),
+            "Article::Update",
+            &uid("Article::\"article-2\""),
+            vec![principal, editor, action, non_matching],
+        )
+        .expect("non-matching scope")
+    );
 }
 
 #[test]
@@ -161,19 +176,23 @@ fn admin_role_allows_everything() {
     let principal = user_entity("alice", HashSet::from([uid("Role::\"admin\"")]), false, &[]);
     let resource = article_entity("article-1", "bob", &[]);
 
-    assert!(decide(
-        &uid("User::\"alice\""),
-        "User::Delete",
-        &uid("System::\"admin-console\""),
-        vec![principal.clone(), admin.clone(), resource.clone()],
-    )
-    .expect("admin all"));
+    assert!(
+        decide(
+            &uid("User::\"alice\""),
+            "User::Delete",
+            &uid("System::\"admin-console\""),
+            vec![principal.clone(), admin.clone(), resource.clone()],
+        )
+        .expect("admin all")
+    );
 
-    assert!(decide(
-        &uid("User::\"alice\""),
-        "Role::Manage",
-        &uid("System::\"admin-console\""),
-        vec![principal, admin, resource],
-    )
-    .expect("admin role manage"));
+    assert!(
+        decide(
+            &uid("User::\"alice\""),
+            "Role::Manage",
+            &uid("System::\"admin-console\""),
+            vec![principal, admin, resource],
+        )
+        .expect("admin role manage")
+    );
 }

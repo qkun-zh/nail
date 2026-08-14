@@ -14,14 +14,14 @@ pub async fn resolve_version_pdf_path(
 ) -> Result<PathBuf, LogicError> {
     let parent = parent_article_of(&state.graph, version_id)
         .await
-        .map_err(|error| database_error(error))?
+        .map_err(database_error)?
         .ok_or_else(|| LogicError::not_found("article version not found"))?;
     if parent != article_id {
         return Err(LogicError::not_found("article version not found"));
     }
     let entry = read_version(&state.graph, version_id)
         .await
-        .map_err(|error| database_error(error))?
+        .map_err(database_error)?
         .ok_or_else(|| LogicError::not_found("article version not found"))?;
     pdf_final_path(&state.config.server.pdf_storage_path, &entry.content_hash)
         .ok_or_else(|| LogicError::internal("invalid content hash"))
@@ -36,9 +36,8 @@ pub async fn mint_download_token(
     resolve_version_pdf_path(state, article_id, version_id).await?;
 
     let token = uuid::Uuid::now_v7().to_string();
-    let key = token_key(&token).map_err(|error| {
-        LogicError::internal(format!("failed to hash download token: {error}"))
-    })?;
+    let key = token_key(&token)
+        .map_err(|error| LogicError::internal(format!("failed to hash download token: {error}")))?;
     state.caches.download.insert(
         &key,
         DownloadTokenEntry {
@@ -60,9 +59,8 @@ pub async fn consume_download_token(
 ) -> Result<PathBuf, LogicError> {
     let token = normalize_token(raw_token)
         .ok_or_else(|| LogicError::bad_request("invalid or expired download token"))?;
-    let key = token_key(&token).map_err(|error| {
-        LogicError::internal(format!("failed to hash download token: {error}"))
-    })?;
+    let key = token_key(&token)
+        .map_err(|error| LogicError::internal(format!("failed to hash download token: {error}")))?;
     let entry = state
         .caches
         .download

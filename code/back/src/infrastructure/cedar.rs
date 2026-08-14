@@ -34,7 +34,10 @@ pub fn decide(
 ) -> anyhow::Result<bool> {
     let policies = policies()?;
     let action_uid = action_uid(action)?;
-    if !entities.iter().any(|entity| entity.uid() == action_uid.clone()) {
+    if !entities
+        .iter()
+        .any(|entity| entity.uid() == action_uid.clone())
+    {
         entities.push(Entity::new_no_attrs(action_uid.clone(), Default::default()));
     }
     let entities = Entities::from_entities(entities, None)

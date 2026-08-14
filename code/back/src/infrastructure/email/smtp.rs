@@ -32,9 +32,8 @@ impl EmailSender for SmtpSender {
             let subject = subject.to_string();
             let body = body.to_string();
             let wall_clock = Duration::from_secs(config.wall_clock_timeout_secs);
-            let task = tokio::task::spawn_blocking(move || {
-                send_blocking(&config, &to, &subject, &body)
-            });
+            let task =
+                tokio::task::spawn_blocking(move || send_blocking(&config, &to, &subject, &body));
             match tokio::time::timeout(wall_clock, task).await {
                 Ok(Ok(result)) => result.map_err(SendEmailError::Transport),
                 Ok(Err(join_error)) => Err(SendEmailError::Transport(anyhow::anyhow!(
@@ -52,10 +51,7 @@ fn send_blocking(config: &SmtpConfig, to: &str, subject: &str, body: &str) -> Re
     let from: Mailbox = if config.from_name.is_empty() {
         config.from_email.parse().context("invalid from address")?
     } else {
-        let address: Mailbox = config
-            .from_email
-            .parse()
-            .context("invalid from address")?;
+        let address: Mailbox = config.from_email.parse().context("invalid from address")?;
         Mailbox::new(Some(config.from_name.clone()), address.email)
     };
     let to_mailbox: Mailbox = to.parse().context("invalid to address")?;

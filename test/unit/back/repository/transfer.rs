@@ -2,9 +2,7 @@ use super::context::{build_state, test_config};
 
 use crate::repository::article::{ArticleDraft, create_article, owner_of};
 use crate::repository::role::{ROLE_RECYCLER, hold_role, unhold_role};
-use crate::repository::transfer::{
-    TransferTargetError, transfer_account_assets, transfer_article,
-};
+use crate::repository::transfer::{TransferTargetError, transfer_account_assets, transfer_article};
 use crate::repository::version::VersionDraft;
 
 fn pdf_hash(seed: u8) -> String {
@@ -67,11 +65,19 @@ async fn transfer_article_repoints_the_owner_edge_to_the_recycler() {
     .await
     .expect("create");
 
-    assert_eq!(owner_of(&state.graph, &article_id).await.expect("owner"), Some(author_id.clone()));
+    assert_eq!(
+        owner_of(&state.graph, &article_id).await.expect("owner"),
+        Some(author_id.clone())
+    );
 
-    transfer_article(&state.graph, &article_id).await.expect("transfer");
+    transfer_article(&state.graph, &article_id)
+        .await
+        .expect("transfer");
 
-    assert_eq!(owner_of(&state.graph, &article_id).await.expect("owner"), Some(recycler_id));
+    assert_eq!(
+        owner_of(&state.graph, &article_id).await.expect("owner"),
+        Some(recycler_id)
+    );
 }
 
 #[tokio::test]
@@ -131,8 +137,12 @@ async fn recycler_selection_chooses_the_least_loaded_holder() {
 
     let busy = create_user(&state, "busy@example.com").await;
     let free = create_user(&state, "free@example.com").await;
-    hold_role(&state.graph, &busy, ROLE_RECYCLER).await.expect("hold busy");
-    hold_role(&state.graph, &free, ROLE_RECYCLER).await.expect("hold free");
+    hold_role(&state.graph, &busy, ROLE_RECYCLER)
+        .await
+        .expect("hold busy");
+    hold_role(&state.graph, &free, ROLE_RECYCLER)
+        .await
+        .expect("hold free");
 
     let (busy_article, busy_version) =
         create_article_for(&state, &busy, "Busy One", &pdf_hash(21)).await;
@@ -149,14 +159,20 @@ async fn recycler_selection_chooses_the_least_loaded_holder() {
     .expect("comment");
 
     let author = create_user(&state, "carol@example.com").await;
-    let (transferred, _) = create_article_for(&state, &author, "Carol Article", &pdf_hash(23)).await;
-    transfer_article(&state.graph, &transferred).await.expect("transfer");
+    let (transferred, _) =
+        create_article_for(&state, &author, "Carol Article", &pdf_hash(23)).await;
+    transfer_article(&state.graph, &transferred)
+        .await
+        .expect("transfer");
 
     assert_eq!(
         owner_of(&state.graph, &transferred).await.expect("owner"),
         Some(free.clone())
     );
-    assert_eq!(owner_of(&state.graph, &busy_article).await.expect("owner"), Some(busy));
+    assert_eq!(
+        owner_of(&state.graph, &busy_article).await.expect("owner"),
+        Some(busy)
+    );
 }
 
 #[tokio::test]
@@ -168,14 +184,21 @@ async fn recycler_selection_breaks_ties_by_larger_user_id() {
 
     let first = create_user(&state, "first@example.com").await;
     let second = create_user(&state, "second@example.com").await;
-    hold_role(&state.graph, &first, ROLE_RECYCLER).await.expect("hold first");
-    hold_role(&state.graph, &second, ROLE_RECYCLER).await.expect("hold second");
+    hold_role(&state.graph, &first, ROLE_RECYCLER)
+        .await
+        .expect("hold first");
+    hold_role(&state.graph, &second, ROLE_RECYCLER)
+        .await
+        .expect("hold second");
     create_article_for(&state, &first, "First Article", &pdf_hash(31)).await;
     create_article_for(&state, &second, "Second Article", &pdf_hash(32)).await;
 
     let author = create_user(&state, "carol@example.com").await;
-    let (transferred, _) = create_article_for(&state, &author, "Carol Article", &pdf_hash(33)).await;
-    transfer_article(&state.graph, &transferred).await.expect("transfer");
+    let (transferred, _) =
+        create_article_for(&state, &author, "Carol Article", &pdf_hash(33)).await;
+    transfer_article(&state.graph, &transferred)
+        .await
+        .expect("transfer");
 
     let expected = if first > second { first } else { second };
     assert_eq!(
@@ -192,7 +215,9 @@ async fn account_transfer_excludes_the_transferring_author() {
     create_article_for(&state, &user_zero, "Zero Two", &pdf_hash(42)).await;
 
     let author = create_user(&state, "alice@example.com").await;
-    hold_role(&state.graph, &author, ROLE_RECYCLER).await.expect("hold recycler");
+    hold_role(&state.graph, &author, ROLE_RECYCLER)
+        .await
+        .expect("hold recycler");
     let (article_id, version_id) = create_article_for(&state, &author, "Mine", &pdf_hash(43)).await;
     let comment_id = uuid::Uuid::now_v7().to_string();
     crate::repository::comment::create_top_level_comment(
@@ -240,4 +265,3 @@ async fn transfer_article_reports_no_recycler() {
         .expect_err("no recycler");
     assert!(matches!(error, TransferTargetError::NoRecycler));
 }
-

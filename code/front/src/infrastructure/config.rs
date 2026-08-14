@@ -31,9 +31,7 @@ fn load() -> &'static FrontendConfig {
         let base = validate_api_base_url(&parsed.api_base_url).unwrap_or_else(|reason| {
             panic!("frontend config: {reason}");
         });
-        FrontendConfig {
-            api_base_url: base,
-        }
+        FrontendConfig { api_base_url: base }
     })
 }
 

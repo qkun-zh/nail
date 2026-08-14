@@ -19,8 +19,9 @@ pub async fn open(address: &str) -> anyhow::Result<DbHandle> {
             if let Some(parent) = Path::new(path).parent()
                 && !parent.as_os_str().is_empty()
             {
-                std::fs::create_dir_all(parent)
-                    .map_err(|error| anyhow::anyhow!("create db_path parent {parent:?}: {error}"))?;
+                std::fs::create_dir_all(parent).map_err(|error| {
+                    anyhow::anyhow!("create db_path parent {parent:?}: {error}")
+                })?;
             }
             DbAny::new_mapped(path)?
         }
@@ -107,7 +108,7 @@ where
         .ids(ids.to_vec())
         .query();
     let result = transaction.exec(QueryBuilder::select().values(keys).ids(search_ids).query())?;
-    Ok(result.try_into()?)
+    result.try_into()
 }
 
 pub(crate) fn read_node_in_txn<T>(
@@ -117,9 +118,11 @@ pub(crate) fn read_node_in_txn<T>(
 where
     T: DbType<ValueType = T> + DbTypeMarker,
 {
-    Ok(read_rows_in_txn::<T>(transaction, std::slice::from_ref(&id))?
-        .into_iter()
-        .next())
+    Ok(
+        read_rows_in_txn::<T>(transaction, std::slice::from_ref(&id))?
+            .into_iter()
+            .next(),
+    )
 }
 
 pub(crate) fn read_rows_sync<T>(database: &DbAny, ids: &[agdb::DbId]) -> Result<Vec<T>, DbError>
@@ -136,7 +139,7 @@ where
         .ids(ids.to_vec())
         .query();
     let result = database.exec(QueryBuilder::select().values(keys).ids(search_ids).query())?;
-    Ok(result.try_into()?)
+    result.try_into()
 }
 
 pub(crate) fn read_node_sync<T>(database: &DbAny, id: agdb::DbId) -> Result<Option<T>, DbError>

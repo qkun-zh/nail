@@ -15,7 +15,10 @@ fn mirrors_the_name_rules() {
 #[test]
 fn title_rejects_newlines_and_overlong_input() {
     assert!(validate_title("", 200).is_err());
-    assert_eq!(validate_title("A fine title", 200), Ok("A fine title".to_string()));
+    assert_eq!(
+        validate_title("A fine title", 200),
+        Ok("A fine title".to_string())
+    );
     assert!(validate_title("line\nbreak", 200).is_err());
     assert!(validate_title("x".repeat(201).as_str(), 200).is_err());
 }
@@ -45,12 +48,18 @@ fn comment_content_obeys_its_ascii_limit() {
 
 #[test]
 fn tags_mirror_the_backend_parser() {
-    assert_eq!(validate_tags("#a #b", 8), Ok(vec!["#a".to_string(), "#b".to_string()]));
+    assert_eq!(
+        validate_tags("#a #b", 8),
+        Ok(vec!["#a".to_string(), "#b".to_string()])
+    );
     assert!(validate_tags("no-hash", 8).is_err());
     assert!(validate_tags("", 8).is_err());
     let nine = "#1 #2 #3 #4 #5 #6 #7 #8 #9";
     assert!(validate_tags(nine, 8).is_err());
-    assert_eq!(validate_tags("#a#b", 8), Ok(vec!["#a".to_string(), "#b".to_string()]));
+    assert_eq!(
+        validate_tags("#a#b", 8),
+        Ok(vec!["#a".to_string(), "#b".to_string()])
+    );
 }
 
 #[test]

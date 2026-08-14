@@ -21,6 +21,12 @@ pub struct PdfHasher {
     xof: AsconXof128,
 }
 
+impl Default for PdfHasher {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PdfHasher {
     pub fn new() -> Self {
         Self {

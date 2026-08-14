@@ -1,7 +1,7 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
-use leptos_router::components::A;
 use leptos_router::NavigateOptions;
+use leptos_router::components::A;
 use leptos_router::hooks::use_navigate;
 
 use crate::page::notify::{notify_error, notify_success, use_notifications};
@@ -36,8 +36,11 @@ pub fn Authenticate() -> impl IntoView {
                 Err(error) => Err(error),
             };
             match result {
-                Ok(view) => notify_success(&notifications, &format!("email sent: {}", view.email_subject)),
-                Err(error) => notify_error(&notifications, &error.to_string()),
+                Ok(view) => notify_success(
+                    &notifications,
+                    format!("email sent: {}", view.email_subject),
+                ),
+                Err(error) => notify_error(&notifications, error.to_string()),
             }
             working.set(false);
         });
@@ -75,7 +78,7 @@ pub fn Authenticate() -> impl IntoView {
                         },
                     );
                 }
-                Err(error) => notify_error(&notifications, &error.to_string()),
+                Err(error) => notify_error(&notifications, error.to_string()),
             }
             working.set(false);
         });

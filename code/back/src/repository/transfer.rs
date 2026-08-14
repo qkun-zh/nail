@@ -5,8 +5,8 @@ use crate::repository::graph::{
 };
 use crate::repository::role::{ROLE_RECYCLER, users_holding_role};
 use crate::repository::schema::{
-    EDGE_USER_TO_ARTICLE, EDGE_USER_TO_COMMENT, ENTITY_TYPE_COMMENT, ENTITY_TYPE_USER,
-    IdRow, KEY_TYPE,
+    EDGE_USER_TO_ARTICLE, EDGE_USER_TO_COMMENT, ENTITY_TYPE_COMMENT, ENTITY_TYPE_USER, IdRow,
+    KEY_TYPE,
 };
 
 pub struct AccountTransferOutcome {
@@ -72,7 +72,8 @@ pub async fn transfer_account_assets(
     guard.transaction_mut(|transaction| {
         let recycler = resolve_node_id_in_txn(transaction, ENTITY_TYPE_USER, &target)?
             .ok_or(TransferError::NoRecycler)?;
-        let article_ids = repoint_from_user(transaction, recycler, author_id, EDGE_USER_TO_ARTICLE)?;
+        let article_ids =
+            repoint_from_user(transaction, recycler, author_id, EDGE_USER_TO_ARTICLE)?;
         repoint_from_user(transaction, recycler, author_id, EDGE_USER_TO_COMMENT)?;
         if let Some(user_node) = resolve_node_id_in_txn(transaction, ENTITY_TYPE_USER, author_id)? {
             transaction.exec_mut(QueryBuilder::remove().ids([user_node]).query())?;
@@ -93,17 +94,8 @@ pub async fn transfer_article(db: &DbHandle, article_id: &str) -> Result<(), Tra
     .await
 }
 
-pub async fn transfer_comment(
-    db: &DbHandle,
-    comment_id: &str,
-) -> Result<(), TransferTargetError> {
-    transfer_target_ownership(
-        db,
-        ENTITY_TYPE_COMMENT,
-        EDGE_USER_TO_COMMENT,
-        comment_id,
-    )
-    .await
+pub async fn transfer_comment(db: &DbHandle, comment_id: &str) -> Result<(), TransferTargetError> {
+    transfer_target_ownership(db, ENTITY_TYPE_COMMENT, EDGE_USER_TO_COMMENT, comment_id).await
 }
 
 async fn transfer_target_ownership(
@@ -112,7 +104,9 @@ async fn transfer_target_ownership(
     edge_type: &str,
     target_id: &str,
 ) -> Result<(), TransferTargetError> {
-    let target = pick_recycler_target(db, &[]).await?.ok_or(TransferTargetError::NoRecycler)?;
+    let target = pick_recycler_target(db, &[])
+        .await?
+        .ok_or(TransferTargetError::NoRecycler)?;
     let mut guard = db.write().await;
     guard.transaction_mut(|transaction| {
         let recycler = resolve_node_id_in_txn(transaction, ENTITY_TYPE_USER, &target)?
@@ -192,10 +186,7 @@ fn repoint_from_user(
     Ok(target_ids)
 }
 
-async fn pick_recycler_target(
-    db: &DbHandle,
-    exclude: &[&str],
-) -> Result<Option<String>, DbError> {
+async fn pick_recycler_target(db: &DbHandle, exclude: &[&str]) -> Result<Option<String>, DbError> {
     let recyclers = users_holding_role(db, ROLE_RECYCLER).await?;
     let guard = db.read().await;
     let mut best: Option<(String, u64)> = None;

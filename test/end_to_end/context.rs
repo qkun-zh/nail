@@ -426,6 +426,10 @@ pub fn session_token_from_storage(storage: &serde_json::Value) -> Option<String>
     storage
         .get("session_token")
         .and_then(|value| value.as_str())
-        .and_then(|raw| serde_json::from_str::<String>(raw).ok().or_else(|| Some(raw.to_string())))
+        .and_then(|raw| {
+            serde_json::from_str::<String>(raw)
+                .ok()
+                .or_else(|| Some(raw.to_string()))
+        })
         .filter(|token| !token.is_empty())
 }

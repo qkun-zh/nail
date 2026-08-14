@@ -34,9 +34,7 @@ pub fn mark_session_invalid() {
 }
 
 pub fn authenticated_user_id() -> Option<String> {
-    let Some(status) = SESSION_STATUS.get() else {
-        return None;
-    };
+    let status = SESSION_STATUS.get()?;
     match status.get_untracked() {
         SessionStatus::Authenticated(view) => view.id.clone(),
         _ => None,

@@ -88,7 +88,9 @@ async fn read_roles_reports_real_member_counts() {
         .await
         .expect("hold editor");
 
-    let (status, body) = context.get("/role/read?page=1&limit=200", Some(&token)).await;
+    let (status, body) = context
+        .get("/role/read?page=1&limit=200", Some(&token))
+        .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     let roles = body["data"]["role_list"].as_array().expect("role list");
     let editor = roles
@@ -107,8 +109,20 @@ async fn read_role_returns_members_and_permissions() {
     let (status, body) = context.get("/role/admin/read", Some(&token)).await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["data"]["name"].as_str(), Some("admin"));
-    assert!(body["data"]["members"].as_array().map(Vec::len).unwrap_or(0) >= 1);
-    assert!(body["data"]["permissions"].as_array().map(Vec::len).unwrap_or(0) > 0);
+    assert!(
+        body["data"]["members"]
+            .as_array()
+            .map(Vec::len)
+            .unwrap_or(0)
+            >= 1
+    );
+    assert!(
+        body["data"]["permissions"]
+            .as_array()
+            .map(Vec::len)
+            .unwrap_or(0)
+            > 0
+    );
 }
 
 #[tokio::test]
@@ -130,8 +144,14 @@ async fn update_role_over_http() {
     assert_eq!(body["data"]["name"].as_str(), Some("editor"));
 
     let (_, detail) = context.get("/role/editor/read", Some(&token)).await;
-    let permissions = detail["data"]["permissions"].as_array().expect("permissions");
-    assert!(permissions.iter().any(|p| p.as_str() == Some("Article::Update")));
+    let permissions = detail["data"]["permissions"]
+        .as_array()
+        .expect("permissions");
+    assert!(
+        permissions
+            .iter()
+            .any(|p| p.as_str() == Some("Article::Update"))
+    );
 }
 
 #[tokio::test]
@@ -140,7 +160,11 @@ async fn delete_required_role_returns_400() {
     let (_, token) = admin_session(&context).await;
 
     let (status, body) = context
-        .post("/role/member/delete", json!({ "mode": "hard" }), Some(&token))
+        .post(
+            "/role/member/delete",
+            json!({ "mode": "hard" }),
+            Some(&token),
+        )
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     assert_eq!(
@@ -158,7 +182,11 @@ async fn delete_role_requires_hard_mode() {
         .expect("create role");
 
     let (status, body) = context
-        .post("/role/editor/delete", json!({ "mode": "transfer" }), Some(&token))
+        .post(
+            "/role/editor/delete",
+            json!({ "mode": "transfer" }),
+            Some(&token),
+        )
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     assert_eq!(
@@ -176,7 +204,11 @@ async fn delete_role_over_http() {
         .expect("create role");
 
     let (status, body) = context
-        .post("/role/editor/delete", json!({ "mode": "hard" }), Some(&token))
+        .post(
+            "/role/editor/delete",
+            json!({ "mode": "hard" }),
+            Some(&token),
+        )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["data"]["name"].as_str(), Some("editor"));
@@ -262,7 +294,11 @@ async fn update_role_holds_and_unholds_users() {
 
     let (_, detail) = context.get("/role/editor/read", Some(&token)).await;
     let members = detail["data"]["members"].as_array().expect("members");
-    assert!(members.iter().any(|m| m.as_str() == Some(plain_user.as_str())));
+    assert!(
+        members
+            .iter()
+            .any(|m| m.as_str() == Some(plain_user.as_str()))
+    );
 
     let (status, body) = context
         .post(
@@ -275,7 +311,11 @@ async fn update_role_holds_and_unholds_users() {
 
     let (_, detail) = context.get("/role/editor/read", Some(&token)).await;
     let members = detail["data"]["members"].as_array().expect("members");
-    assert!(!members.iter().any(|m| m.as_str() == Some(plain_user.as_str())));
+    assert!(
+        !members
+            .iter()
+            .any(|m| m.as_str() == Some(plain_user.as_str()))
+    );
 }
 
 #[tokio::test]

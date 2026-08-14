@@ -47,7 +47,10 @@ fn prune_enforces_the_ring_size_by_removing_the_oldest_kept_files() {
 
     prune(&dir, 0, 2).expect("prune");
 
-    assert!(!oldest.exists(), "oldest of three must be removed by the ring");
+    assert!(
+        !oldest.exists(),
+        "oldest of three must be removed by the ring"
+    );
     assert!(middle.exists(), "middle log must be kept within the ring");
     assert!(newest.exists(), "newest log must be kept within the ring");
 

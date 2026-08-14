@@ -32,8 +32,10 @@ pub fn validate_tags(raw: &str, max_count: usize) -> Result<Vec<String>, String>
 }
 
 pub fn looks_like_pdf(mime_type: &str, file_name: &str) -> bool {
-    matches!(mime_type, "" | "application/pdf" | "application/octet-stream")
-        || file_name.to_lowercase().ends_with(".pdf")
+    matches!(
+        mime_type,
+        "" | "application/pdf" | "application/octet-stream"
+    ) || file_name.to_lowercase().ends_with(".pdf")
 }
 
 pub fn validate_pdf_selection(

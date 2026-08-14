@@ -71,8 +71,7 @@ pub async fn delete_comment(db: &DbHandle, comment_id: &str) -> Result<DeleteOut
     let mut guard = db.write().await;
     guard.transaction_mut(|transaction| {
         let outcome = DeleteOutcome::default();
-        let Some(comment) =
-            resolve_node_id_in_txn(transaction, ENTITY_TYPE_COMMENT, comment_id)?
+        let Some(comment) = resolve_node_id_in_txn(transaction, ENTITY_TYPE_COMMENT, comment_id)?
         else {
             return Ok(outcome);
         };

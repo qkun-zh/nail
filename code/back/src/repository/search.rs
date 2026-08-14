@@ -7,9 +7,9 @@ use seekstorm::commit::Commit;
 use seekstorm::highlighter::{Highlight, highlighter};
 use seekstorm::index::{
     AccessType, Close, Clustering, DeleteDocuments, DocumentCompression, FieldType, FileType,
-    FrequentwordType, IndexArc, IndexDocument, IndexDocuments, IndexMetaObject,
-    LexicalSimilarity, NgramSet, SchemaField, StemmerType, StopwordType, TokenizerType,
-    UpdateDocument, create_index, open_index,
+    FrequentwordType, IndexArc, IndexDocument, IndexDocuments, IndexMetaObject, LexicalSimilarity,
+    NgramSet, SchemaField, StemmerType, StopwordType, TokenizerType, UpdateDocument, create_index,
+    open_index,
 };
 use seekstorm::search::{
     FacetFilter, FacetValue, QueryRewriting, QueryType, ResultSort, ResultType, Search, SearchMode,
@@ -160,7 +160,11 @@ impl SearchIndex {
                     QueryRewriting::SearchOnly,
                 )
                 .await;
-            let ids: Vec<u64> = all.results.iter().map(|result| result.doc_id as u64).collect();
+            let ids: Vec<u64> = all
+                .results
+                .iter()
+                .map(|result| result.doc_id as u64)
+                .collect();
             if !ids.is_empty() {
                 self.index.delete_documents(ids).await;
             }
@@ -419,14 +423,102 @@ async fn all_article_ids(db: &DbHandle) -> Result<Vec<String>, DbError> {
 
 fn schema_fields() -> Vec<SchemaField> {
     vec![
-        SchemaField::new(FIELD_ID.to_string(), true, false, false, FieldType::String16, true, false, 1.0, false, false),
-        SchemaField::new(FIELD_TITLE.to_string(), true, true, false, FieldType::String16, true, false, 3.0, false, false),
-        SchemaField::new(FIELD_SUMMARY.to_string(), true, true, false, FieldType::Text, false, true, 1.0, false, false),
-        SchemaField::new(FIELD_AUTHOR.to_string(), true, true, false, FieldType::String16, true, false, 2.0, false, false),
-        SchemaField::new(FIELD_NOTE.to_string(), true, true, false, FieldType::Text, false, false, 1.0, false, false),
-        SchemaField::new(FIELD_TAG.to_string(), true, true, false, FieldType::Json, false, false, 1.0, false, false),
-        SchemaField::new(FIELD_COMMENT.to_string(), true, true, false, FieldType::Json, false, false, 1.0, false, false),
-        SchemaField::new(FIELD_TS.to_string(), true, false, false, FieldType::Timestamp, true, false, 1.0, false, false),
+        SchemaField::new(
+            FIELD_ID.to_string(),
+            true,
+            false,
+            false,
+            FieldType::String16,
+            true,
+            false,
+            1.0,
+            false,
+            false,
+        ),
+        SchemaField::new(
+            FIELD_TITLE.to_string(),
+            true,
+            true,
+            false,
+            FieldType::String16,
+            true,
+            false,
+            3.0,
+            false,
+            false,
+        ),
+        SchemaField::new(
+            FIELD_SUMMARY.to_string(),
+            true,
+            true,
+            false,
+            FieldType::Text,
+            false,
+            true,
+            1.0,
+            false,
+            false,
+        ),
+        SchemaField::new(
+            FIELD_AUTHOR.to_string(),
+            true,
+            true,
+            false,
+            FieldType::String16,
+            true,
+            false,
+            2.0,
+            false,
+            false,
+        ),
+        SchemaField::new(
+            FIELD_NOTE.to_string(),
+            true,
+            true,
+            false,
+            FieldType::Text,
+            false,
+            false,
+            1.0,
+            false,
+            false,
+        ),
+        SchemaField::new(
+            FIELD_TAG.to_string(),
+            true,
+            true,
+            false,
+            FieldType::Json,
+            false,
+            false,
+            1.0,
+            false,
+            false,
+        ),
+        SchemaField::new(
+            FIELD_COMMENT.to_string(),
+            true,
+            true,
+            false,
+            FieldType::Json,
+            false,
+            false,
+            1.0,
+            false,
+            false,
+        ),
+        SchemaField::new(
+            FIELD_TS.to_string(),
+            true,
+            false,
+            false,
+            FieldType::Timestamp,
+            true,
+            false,
+            1.0,
+            false,
+            false,
+        ),
     ]
 }
 

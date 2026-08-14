@@ -15,7 +15,9 @@ async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
     )
     .await
     .expect("user");
-    hold_role(&context.state.graph, &user_id, ROLE_MEMBER).await.expect("member role");
+    hold_role(&context.state.graph, &user_id, ROLE_MEMBER)
+        .await
+        .expect("member role");
     let token = Uuid::now_v7().to_string();
     let key = token_key(&token).expect("token key");
     context.state.caches.session.insert(
@@ -117,7 +119,7 @@ async fn read_comments_over_http() {
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["data"]["total"].as_u64(), Some(1));
     assert_eq!(body["data"]["comments"].as_array().map(Vec::len), Some(1));
-    assert_eq!(body["data"]["comments"][0]["user_name"].as_str().is_some(), true);
+    assert!(body["data"]["comments"][0]["user_name"].as_str().is_some());
 }
 
 #[tokio::test]
@@ -271,7 +273,10 @@ async fn create_reply_reports_a_thread_too_deep() {
             Some(&token),
         )
         .await;
-    let mut parent_id = created["data"]["comment_id"].as_str().expect("root id").to_string();
+    let mut parent_id = created["data"]["comment_id"]
+        .as_str()
+        .expect("root id")
+        .to_string();
 
     for _ in 0..64 {
         let (status, body) = context
@@ -282,7 +287,10 @@ async fn create_reply_reports_a_thread_too_deep() {
             )
             .await;
         assert_eq!(status, StatusCode::CREATED, "body: {body}");
-        parent_id = body["data"]["comment_id"].as_str().expect("reply id").to_string();
+        parent_id = body["data"]["comment_id"]
+            .as_str()
+            .expect("reply id")
+            .to_string();
     }
 
     let (status, body) = context

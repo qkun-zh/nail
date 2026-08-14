@@ -1,8 +1,8 @@
-use std::path::PathBuf;
+use std::path::Path;
 
+use crate::infrastructure::config::AppConfig;
 use crate::infrastructure::config::server::ServerConfig;
 use crate::infrastructure::config::smtp::SmtpConfig;
-use crate::infrastructure::config::AppConfig;
 
 use super::context::test_config;
 
@@ -110,19 +110,21 @@ fn smtp_config_rejects_invalid_shapes() {
     bad_wall_clock.wall_clock_timeout_secs = 10;
     assert!(bad_wall_clock.validate().is_err());
 
-    assert!(SmtpConfig {
-        host: "localhost".to_string(),
-        port: 25,
-        username: String::new(),
-        password: String::new(),
-        from_email: "noreply@example.com".to_string(),
-        from_name: "nail".to_string(),
-        timeout_secs: 10,
-        wall_clock_timeout_secs: 30,
-        starttls: false,
-    }
-    .validate()
-    .is_ok());
+    assert!(
+        SmtpConfig {
+            host: "localhost".to_string(),
+            port: 25,
+            username: String::new(),
+            password: String::new(),
+            from_email: "noreply@example.com".to_string(),
+            from_name: "nail".to_string(),
+            timeout_secs: 10,
+            wall_clock_timeout_secs: 30,
+            starttls: false,
+        }
+        .validate()
+        .is_ok()
+    );
 }
 
 #[test]
@@ -138,7 +140,7 @@ fn load_from_parses_tomls_and_normalizes_domains() {
     let _ = std::fs::remove_dir_all(&directory);
 }
 
-fn write_configs(directory: &PathBuf) {
+fn write_configs(directory: &Path) {
     let server = r#"
 listen_addr = "127.0.0.1:3000"
 db_path = "memory"

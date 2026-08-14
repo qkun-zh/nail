@@ -78,7 +78,9 @@ async fn serve_pdf_file(path: &std::path::Path) -> Result<Response, ApiError> {
         }
         Err(error) => {
             tracing::error!(path = %path.display(), error = %error, "failed to open pdf file");
-            Err(ApiError::from(LogicError::internal("failed to open PDF file")))
+            Err(ApiError::from(LogicError::internal(
+                "failed to open PDF file",
+            )))
         }
     }
 }

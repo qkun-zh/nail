@@ -49,7 +49,10 @@ impl IntoResponse for ApiError {
         let code = self.status.as_u16();
         (
             self.status,
-            Json(ResponseEnvelope::<serde_json::Value>::err(code, self.message)),
+            Json(ResponseEnvelope::<serde_json::Value>::err(
+                code,
+                self.message,
+            )),
         )
             .into_response()
     }

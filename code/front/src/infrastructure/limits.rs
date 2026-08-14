@@ -24,7 +24,10 @@ pub fn compile_time_defaults() -> RuntimeLimits {
 pub fn apply_fallbacks(server: RuntimeLimits) -> RuntimeLimits {
     let defaults = compile_time_defaults();
     RuntimeLimits {
-        max_tags_per_article: nonzero_or(server.max_tags_per_article, defaults.max_tags_per_article),
+        max_tags_per_article: nonzero_or(
+            server.max_tags_per_article,
+            defaults.max_tags_per_article,
+        ),
         max_comment_body_chars: nonzero_or(
             server.max_comment_body_chars,
             defaults.max_comment_body_chars,
@@ -36,7 +39,10 @@ pub fn apply_fallbacks(server: RuntimeLimits) -> RuntimeLimits {
         max_title_chars: nonzero_or(server.max_title_chars, defaults.max_title_chars),
         max_summary_chars: nonzero_or(server.max_summary_chars, defaults.max_summary_chars),
         max_pdf_size_bytes: nonzero_or(server.max_pdf_size_bytes, defaults.max_pdf_size_bytes),
-        max_text_field_bytes: nonzero_or(server.max_text_field_bytes, defaults.max_text_field_bytes),
+        max_text_field_bytes: nonzero_or(
+            server.max_text_field_bytes,
+            defaults.max_text_field_bytes,
+        ),
         download_token_ttl_seconds: nonzero_or(
             server.download_token_ttl_seconds,
             defaults.download_token_ttl_seconds,
@@ -64,7 +70,8 @@ pub fn provide_limits() -> RwSignal<RuntimeLimits> {
 }
 
 pub fn use_limits() -> RwSignal<RuntimeLimits> {
-    use_context::<RwSignal<RuntimeLimits>>().unwrap_or_else(|| RwSignal::new(compile_time_defaults()))
+    use_context::<RwSignal<RuntimeLimits>>()
+        .unwrap_or_else(|| RwSignal::new(compile_time_defaults()))
 }
 
 async fn fetch_runtime_limits(base: &str) -> Result<RuntimeLimits, String> {
@@ -92,8 +99,8 @@ async fn fetch_runtime_limits(base: &str) -> Result<RuntimeLimits, String> {
         .text()
         .await
         .map_err(|error| format!("failed to read runtime limits body: {error}"))?;
-    let envelope: ResponseEnvelope<RuntimeLimits> =
-        serde_json::from_str(&text).map_err(|error| format!("invalid runtime limits envelope: {error}"))?;
+    let envelope: ResponseEnvelope<RuntimeLimits> = serde_json::from_str(&text)
+        .map_err(|error| format!("invalid runtime limits envelope: {error}"))?;
     if !(200..300).contains(&envelope.code) {
         return Err(envelope.message);
     }

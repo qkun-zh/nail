@@ -19,7 +19,9 @@ async fn create_user(state: &AppState, email: &str) -> String {
 
 async fn member(state: &AppState, email: &str) -> String {
     let user_id = create_user(state, email).await;
-    hold_role(&state.graph, &user_id, ROLE_MEMBER).await.expect("member");
+    hold_role(&state.graph, &user_id, ROLE_MEMBER)
+        .await
+        .expect("member");
     user_id
 }
 
@@ -88,9 +90,13 @@ async fn create_reply_reports_a_thread_too_deep() {
     let author_id = member(&state, "alice@example.com").await;
     let version_id = create_version_fixture(&state, &author_id).await;
 
-    let mut parent = create_comment(&state, &author_id, &version_id, "top").await.expect("top");
+    let mut parent = create_comment(&state, &author_id, &version_id, "top")
+        .await
+        .expect("top");
     for _ in 0..64 {
-        parent = create_reply(&state, &author_id, &parent, "reply").await.expect("reply");
+        parent = create_reply(&state, &author_id, &parent, "reply")
+            .await
+            .expect("reply");
     }
 
     let error = create_reply(&state, &author_id, &parent, "too deep")
@@ -104,8 +110,12 @@ async fn read_comments_returns_a_tree_with_user_names_and_is_author() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = member(&state, "alice@example.com").await;
     let version_id = create_version_fixture(&state, &author_id).await;
-    let top = create_comment(&state, &author_id, &version_id, "top").await.expect("top");
-    let reply = create_reply(&state, &author_id, &top, "reply").await.expect("reply");
+    let top = create_comment(&state, &author_id, &version_id, "top")
+        .await
+        .expect("top");
+    let reply = create_reply(&state, &author_id, &top, "reply")
+        .await
+        .expect("reply");
 
     let data = read_comments(&state, &author_id, &version_id, 1, 8, true)
         .await
@@ -158,7 +168,9 @@ async fn update_comment_allows_the_comment_author_and_rejects_a_non_owner() {
     let author_id = member(&state, "alice@example.com").await;
     let stranger = member(&state, "bob@example.com").await;
     let version_id = create_version_fixture(&state, &author_id).await;
-    let comment_id = create_comment(&state, &author_id, &version_id, "hello").await.expect("create");
+    let comment_id = create_comment(&state, &author_id, &version_id, "hello")
+        .await
+        .expect("create");
 
     let error = update_comment(&state, &stranger, &comment_id, "stolen")
         .await
@@ -180,7 +192,9 @@ async fn delete_comment_requires_a_mode() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = member(&state, "alice@example.com").await;
     let version_id = create_version_fixture(&state, &author_id).await;
-    let comment_id = create_comment(&state, &author_id, &version_id, "hello").await.expect("create");
+    let comment_id = create_comment(&state, &author_id, &version_id, "hello")
+        .await
+        .expect("create");
 
     let error = delete_comment(&state, &author_id, &comment_id, None)
         .await
@@ -193,7 +207,9 @@ async fn delete_comment_transfer_repoints_the_owner() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = member(&state, "alice@example.com").await;
     let version_id = create_version_fixture(&state, &author_id).await;
-    let comment_id = create_comment(&state, &author_id, &version_id, "hello").await.expect("create");
+    let comment_id = create_comment(&state, &author_id, &version_id, "hello")
+        .await
+        .expect("create");
 
     delete_comment(&state, &author_id, &comment_id, Some(DeleteMode::Transfer))
         .await
@@ -211,19 +227,27 @@ async fn delete_comment_hard_removes_the_subtree() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = member(&state, "alice@example.com").await;
     let version_id = create_version_fixture(&state, &author_id).await;
-    let top = create_comment(&state, &author_id, &version_id, "top").await.expect("top");
-    let reply = create_reply(&state, &author_id, &top, "reply").await.expect("reply");
+    let top = create_comment(&state, &author_id, &version_id, "top")
+        .await
+        .expect("top");
+    let reply = create_reply(&state, &author_id, &top, "reply")
+        .await
+        .expect("reply");
 
     delete_comment(&state, &author_id, &top, Some(DeleteMode::Hard))
         .await
         .expect("hard delete");
 
     assert_eq!(
-        crate::repository::comment::owner_of_comment(&state.graph, &top).await.expect("owner"),
+        crate::repository::comment::owner_of_comment(&state.graph, &top)
+            .await
+            .expect("owner"),
         None
     );
     assert_eq!(
-        crate::repository::comment::owner_of_comment(&state.graph, &reply).await.expect("owner"),
+        crate::repository::comment::owner_of_comment(&state.graph, &reply)
+            .await
+            .expect("owner"),
         None
     );
 }

@@ -47,15 +47,18 @@ async fn create_article_over_http(context: &TestCtx, token: &str) -> (String, St
         )
         .await;
     assert_eq!(status, StatusCode::CREATED, "body: {body}");
-    let article_id = body["data"]["article_id"].as_str().expect("article id").to_string();
-    let version_id = body["data"]["version_id"].as_str().expect("version id").to_string();
+    let article_id = body["data"]["article_id"]
+        .as_str()
+        .expect("article id")
+        .to_string();
+    let version_id = body["data"]["version_id"]
+        .as_str()
+        .expect("version id")
+        .to_string();
     (article_id, version_id)
 }
 
-async fn article_without_pdf_file(
-    context: &TestCtx,
-    author_id: &str,
-) -> (String, String) {
+async fn article_without_pdf_file(context: &TestCtx, author_id: &str) -> (String, String) {
     let article_id = Uuid::now_v7().to_string();
     let version_id = Uuid::now_v7().to_string();
     create_article(
@@ -148,7 +151,9 @@ async fn read_content_consumes_a_minted_token_once() {
 
     let (status, _, bytes) = context
         .get_bytes(
-            &format!("/article/{article_id}/version/{version_id}/content/read?token={download_token}"),
+            &format!(
+                "/article/{article_id}/version/{version_id}/content/read?token={download_token}"
+            ),
             Some(&token),
         )
         .await;
@@ -157,12 +162,17 @@ async fn read_content_consumes_a_minted_token_once() {
 
     let (status, body) = context
         .get(
-            &format!("/article/{article_id}/version/{version_id}/content/read?token={download_token}"),
+            &format!(
+                "/article/{article_id}/version/{version_id}/content/read?token={download_token}"
+            ),
             Some(&token),
         )
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
-    assert_eq!(body["message"].as_str(), Some("invalid or expired download token"));
+    assert_eq!(
+        body["message"].as_str(),
+        Some("invalid or expired download token")
+    );
 }
 
 #[tokio::test]
@@ -182,7 +192,9 @@ async fn read_content_rejects_a_token_bound_to_another_account() {
 
     let (status, body) = context
         .get(
-            &format!("/article/{article_id}/version/{version_id}/content/read?token={download_token}"),
+            &format!(
+                "/article/{article_id}/version/{version_id}/content/read?token={download_token}"
+            ),
             Some(&other_token),
         )
         .await;
@@ -232,7 +244,10 @@ async fn read_content_reports_a_missing_version() {
 
     let (status, body) = context
         .get(
-            &format!("/article/{article_id}/version/{}/content/read", Uuid::now_v7()),
+            &format!(
+                "/article/{article_id}/version/{}/content/read",
+                Uuid::now_v7()
+            ),
             Some(&token),
         )
         .await;

@@ -1,9 +1,9 @@
-use crate::tag::parse_hashtag_tags;
-use crate::tag::validate_tag_name;
+use crate::tag::MAX_TAG_NAME_CHAR_COUNT;
 use crate::tag::TagNameError;
 use crate::tag::TagNamesError;
 use crate::tag::TagRef;
-use crate::tag::MAX_TAG_NAME_CHAR_COUNT;
+use crate::tag::parse_hashtag_tags;
+use crate::tag::validate_tag_name;
 
 #[test]
 fn accepts_hash_prefixed_tag_name() {
@@ -31,14 +31,20 @@ fn rejects_bare_hash_as_empty() {
 fn rejects_tag_name_with_forbidden_characters() {
     for raw in ["#a!b", "#a b", "#a$c", "#名"] {
         let result = validate_tag_name(raw);
-        assert!(matches!(result, Err(TagNameError::ContainsForbiddenChar(_))));
+        assert!(matches!(
+            result,
+            Err(TagNameError::ContainsForbiddenChar(_))
+        ));
     }
 }
 
 #[test]
 fn rejects_interior_hash_in_tag_name() {
     let result = validate_tag_name("#a#b");
-    assert!(matches!(result, Err(TagNameError::ContainsForbiddenChar('#'))));
+    assert!(matches!(
+        result,
+        Err(TagNameError::ContainsForbiddenChar('#'))
+    ));
 }
 
 #[test]
@@ -46,7 +52,10 @@ fn rejects_tag_name_longer_than_maximum_at_boundary() {
     let accepted = "#".to_string() + &"a".repeat(MAX_TAG_NAME_CHAR_COUNT - 1);
     assert_eq!(validate_tag_name(&accepted), Ok(accepted.clone()));
     let rejected = "#".to_string() + &"a".repeat(MAX_TAG_NAME_CHAR_COUNT);
-    assert!(matches!(validate_tag_name(&rejected), Err(TagNameError::TooLong)));
+    assert!(matches!(
+        validate_tag_name(&rejected),
+        Err(TagNameError::TooLong)
+    ));
 }
 
 #[test]
@@ -58,7 +67,14 @@ fn parses_empty_input_as_no_tags() {
 #[test]
 fn parses_whitespace_separated_tags() {
     let result = parse_hashtag_tags("#rust  #web\n#api", 8);
-    assert_eq!(result, Ok(vec!["#rust".to_string(), "#web".to_string(), "#api".to_string()]));
+    assert_eq!(
+        result,
+        Ok(vec![
+            "#rust".to_string(),
+            "#web".to_string(),
+            "#api".to_string()
+        ])
+    );
 }
 
 #[test]
@@ -76,7 +92,10 @@ fn deduplicates_repeated_tag_names() {
 #[test]
 fn rejects_token_without_hash_prefix() {
     let result = parse_hashtag_tags("a #b", 8);
-    assert!(matches!(result, Err(TagNamesError::Name(TagNameError::MissingHash))));
+    assert!(matches!(
+        result,
+        Err(TagNamesError::Name(TagNameError::MissingHash))
+    ));
 }
 
 #[test]
@@ -84,21 +103,29 @@ fn rejects_tag_with_forbidden_character() {
     let result = parse_hashtag_tags("#a!", 8);
     assert!(matches!(
         result,
-        Err(TagNamesError::Name(TagNameError::ContainsForbiddenChar('!')))
+        Err(TagNamesError::Name(TagNameError::ContainsForbiddenChar(
+            '!'
+        )))
     ));
 }
 
 #[test]
 fn rejects_empty_segment_between_hashes() {
     let result = parse_hashtag_tags("##a", 8);
-    assert!(matches!(result, Err(TagNamesError::Name(TagNameError::Empty))));
+    assert!(matches!(
+        result,
+        Err(TagNamesError::Name(TagNameError::Empty))
+    ));
 }
 
 #[test]
 fn rejects_more_tags_than_max_count() {
     let raw = ["#1", "#2", "#3", "#4", "#5", "#6", "#7", "#8", "#9"].join(" ");
     let result = parse_hashtag_tags(&raw, 8);
-    assert!(matches!(result, Err(TagNamesError::TooManyTags { max_count: 8 })));
+    assert!(matches!(
+        result,
+        Err(TagNamesError::TooManyTags { max_count: 8 })
+    ));
 }
 
 #[test]

@@ -108,7 +108,9 @@ fn verify_rejects_solution_with_wrong_byte_length() -> anyhow::Result<()> {
 
 #[test]
 fn verify_rejects_random_solution_bytes() -> anyhow::Result<()> {
-    let random_solution: String = (0..96).map(|index| format!("{:02x}", (index * 7) % 256)).collect();
+    let random_solution: String = (0..96)
+        .map(|index| format!("{:02x}", (index * 7) % 256))
+        .collect();
     let pow = Pow {
         challenge: sample_challenge()?,
         solution: random_solution,

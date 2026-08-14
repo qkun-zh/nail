@@ -4,9 +4,7 @@ use leptos_router::NavigateOptions;
 use leptos_router::hooks::use_navigate;
 
 use crate::page::notify::{notify_error, notify_success, use_notifications};
-use crate::page::session_gate::{
-    authenticated_user_id, refresh_session,
-};
+use crate::page::session_gate::{authenticated_user_id, refresh_session};
 use crate::page::validation::validate_name;
 
 #[component]
@@ -52,7 +50,7 @@ pub fn NameUpdate() -> impl IntoView {
                         },
                     );
                 }
-                Err(error) => notify_error(&notifications, &error.to_string()),
+                Err(error) => notify_error(&notifications, error.to_string()),
             }
             working.set(false);
         });

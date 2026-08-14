@@ -1,22 +1,25 @@
 use nail_common::request::ArticleSearchParams;
 use nail_common::request::DeleteMode;
-use nail_common::response::article::{ArticleIdView, ArticleListItem, ArticleListPage, ArticleView};
+use nail_common::response::article::{
+    ArticleIdView, ArticleListItem, ArticleListPage, ArticleView,
+};
 use nail_common::response::search::SearchPage;
 use uuid::Uuid;
 
 use crate::infrastructure::pdf::PdfUpload;
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{authorize_create, authorize_or, is_author};
-use crate::repository::authorization::Resource;
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::search::{search_articles, sync_article_best_effort};
 use crate::logic::version::{
     place_uploaded_pdf, remove_orphaned_pdfs, validate_note, validate_version,
 };
 use crate::repository::article::{
-    ArticleDraft, ArticleUpdate, CreateArticleError, UpdateArticleError, create_article as create_article_node,
-    read_article as read_article_node, read_articles as read_article_nodes, update_article as update_article_node,
+    ArticleDraft, ArticleUpdate, CreateArticleError, UpdateArticleError,
+    create_article as create_article_node, read_article as read_article_node,
+    read_articles as read_article_nodes, update_article as update_article_node,
 };
+use crate::repository::authorization::Resource;
 use crate::repository::role::{
     PERMISSION_ARTICLE_CREATE, PERMISSION_ARTICLE_DELETE, PERMISSION_ARTICLE_UPDATE,
 };
@@ -30,16 +33,28 @@ pub enum ArticleReadPage {
     List(ArticleListPage),
 }
 
+pub struct ArticleCreateInput<'a> {
+    pub title: &'a str,
+    pub summary: &'a str,
+    pub tags: &'a str,
+    pub version: &'a str,
+    pub note: &'a str,
+    pub upload: PdfUpload,
+}
+
 pub async fn create_article(
     state: &AppState,
     actor_id: &str,
-    raw_title: &str,
-    raw_summary: &str,
-    raw_tags: &str,
-    raw_version: &str,
-    raw_note: &str,
-    upload: PdfUpload,
+    input: ArticleCreateInput<'_>,
 ) -> Result<(String, String), LogicError> {
+    let ArticleCreateInput {
+        title: raw_title,
+        summary: raw_summary,
+        tags: raw_tags,
+        version: raw_version,
+        note: raw_note,
+        upload,
+    } = input;
     authorize_create(state, actor_id, PERMISSION_ARTICLE_CREATE).await?;
 
     let title = validate_title(raw_title, state.config.server.max_title_chars)?;
@@ -89,7 +104,7 @@ pub async fn read_article(
 ) -> Result<ArticleView, LogicError> {
     let article = read_article_node(&state.graph, article_id)
         .await
-        .map_err(|error| database_error(error))?
+        .map_err(database_error)?
         .ok_or_else(|| LogicError::not_found("article not found"))?;
 
     let created_at = nail_common::time::uuidv7_timestamp_secs(&article.id).unwrap_or(0);
@@ -126,7 +141,7 @@ pub async fn read_articles(
     let offset = page.saturating_sub(1).saturating_mul(limit);
     let (items, total) = read_article_nodes(&state.graph, limit, offset)
         .await
-        .map_err(|error| database_error(error))?;
+        .map_err(database_error)?;
 
     let article_list: Vec<ArticleListItem> = items
         .into_iter()
@@ -210,13 +225,13 @@ pub async fn delete_article(
             transfer_article(&state.graph, article_id)
                 .await
                 .map_err(|error| match error {
-                    TransferTargetError::TargetMissing => LogicError::not_found("article not found"),
+                    TransferTargetError::TargetMissing => {
+                        LogicError::not_found("article not found")
+                    }
                     TransferTargetError::NoRecycler => {
                         LogicError::internal("no recycler available")
                     }
-                    TransferTargetError::Db(error) => {
-                        database_error(error)
-                    }
+                    TransferTargetError::Db(error) => database_error(error),
                 })?;
             sync_article_best_effort(state, article_id).await;
             Ok(ArticleIdView {
@@ -234,7 +249,7 @@ pub async fn delete_article(
             .await?;
             let outcome = crate::repository::delete::delete_article(&state.graph, article_id)
                 .await
-                .map_err(|error| database_error(error))?;
+                .map_err(database_error)?;
             remove_orphaned_pdfs(state, &outcome.removed_pdf_hashes).await;
             sync_article_best_effort(state, article_id).await;
             Ok(ArticleIdView {
@@ -250,13 +265,13 @@ pub async fn delete_article(
 async fn reject_duplicate_content_hash(state: &AppState, hash: &str) -> Result<(), LogicError> {
     let Some(owner) = content_hash_owner(&state.graph, hash)
         .await
-        .map_err(|error| database_error(error))?
+        .map_err(database_error)?
     else {
         return Ok(());
     };
     let owned_version = read_version(&state.graph, &owner.version_id)
         .await
-        .map_err(|error| database_error(error))?
+        .map_err(database_error)?
         .map(|entry| entry.version_number)
         .unwrap_or_default();
     Err(LogicError::bad_request(format!(
@@ -299,9 +314,7 @@ fn map_create_article_error(error: CreateArticleError) -> LogicError {
         CreateArticleError::ContentHashTaken => {
             LogicError::bad_request("identical PDF already exists")
         }
-        CreateArticleError::Db(error) => {
-            database_error(error)
-        }
+        CreateArticleError::Db(error) => database_error(error),
     }
 }
 
@@ -309,8 +322,6 @@ fn map_update_article_error(error: UpdateArticleError) -> LogicError {
     match error {
         UpdateArticleError::Missing => LogicError::not_found("article not found"),
         UpdateArticleError::TitleTaken => LogicError::bad_request("title already exists"),
-        UpdateArticleError::Db(error) => {
-            database_error(error)
-        }
+        UpdateArticleError::Db(error) => database_error(error),
     }
 }

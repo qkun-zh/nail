@@ -1,5 +1,5 @@
-use crate::text::validate_ascii_text;
 use crate::text::TextError;
+use crate::text::validate_ascii_text;
 
 #[test]
 fn rejects_blank_or_whitespace_only_input() {
@@ -41,10 +41,7 @@ fn rejects_oversized_input_at_boundary() {
     let accepted = validate_ascii_text("12345", 5, false);
     assert_eq!(accepted, Ok("12345".to_string()));
     let rejected = validate_ascii_text("123456", 5, false);
-    assert!(matches!(
-        rejected,
-        Err(TextError::TooLong { max_chars: 5 })
-    ));
+    assert!(matches!(rejected, Err(TextError::TooLong { max_chars: 5 })));
 }
 
 #[test]
@@ -52,10 +49,7 @@ fn measures_length_after_trimming() {
     let accepted = validate_ascii_text("  abc  ", 3, false);
     assert_eq!(accepted, Ok("abc".to_string()));
     let rejected = validate_ascii_text("  abcd  ", 3, false);
-    assert!(matches!(
-        rejected,
-        Err(TextError::TooLong { max_chars: 3 })
-    ));
+    assert!(matches!(rejected, Err(TextError::TooLong { max_chars: 3 })));
 }
 
 #[test]

@@ -1,4 +1,6 @@
-use crate::request::download::{filename_from_content_disposition, origin_of, resolve_download_url};
+use crate::request::download::{
+    filename_from_content_disposition, origin_of, resolve_download_url,
+};
 
 #[test]
 fn extracts_origin_from_absolute_urls() {
@@ -28,7 +30,10 @@ fn resolves_root_relative_minted_urls_against_the_window_origin() {
 
 #[test]
 fn refuses_protocol_relative_urls() {
-    assert_eq!(resolve_download_url("//evil.com/x", "https://app.example.com"), None);
+    assert_eq!(
+        resolve_download_url("//evil.com/x", "https://app.example.com"),
+        None
+    );
 }
 
 #[test]
@@ -58,7 +63,10 @@ fn refuses_scheme_mismatch() {
 
 #[test]
 fn refuses_garbage() {
-    assert_eq!(resolve_download_url("garbage", "https://app.example.com"), None);
+    assert_eq!(
+        resolve_download_url("garbage", "https://app.example.com"),
+        None
+    );
 }
 
 #[test]
@@ -76,7 +84,10 @@ fn parses_filename_from_content_disposition() {
 #[test]
 fn falls_back_to_article_pdf_for_missing_or_malformed_filenames() {
     assert_eq!(filename_from_content_disposition(None), "article.pdf");
-    assert_eq!(filename_from_content_disposition(Some("attachment")), "article.pdf");
+    assert_eq!(
+        filename_from_content_disposition(Some("attachment")),
+        "article.pdf"
+    );
     assert_eq!(
         filename_from_content_disposition(Some("attachment; filename=\"\"")),
         "article.pdf"

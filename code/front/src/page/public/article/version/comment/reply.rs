@@ -1,7 +1,7 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
-use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
 use leptos_router::NavigateOptions;
+use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
 
 use crate::infrastructure::limits::use_limits;
 use crate::page::draft::persist_draft;
@@ -20,14 +20,12 @@ pub fn CommentReply() -> impl IntoView {
     let article_id = params.get_untracked().get("article_id").unwrap_or_default();
     let version_id = params.get_untracked().get("version_id").unwrap_or_default();
     let parent_id = params.get_untracked().get("comment_id").unwrap_or_default();
-    let comments_href = format!(
-        "/public/article/{article_id}/version/{version_id}/comment"
-    );
+    let comments_href = format!("/public/article/{article_id}/version/{version_id}/comment");
 
-    let pathname = format!(
-        "/public/article/{article_id}/version/{version_id}/comment/{parent_id}"
-    );
-    persist_draft(navigate.clone(), pathname, move || vec![("reply", body.get())]);
+    let pathname = format!("/public/article/{article_id}/version/{version_id}/comment/{parent_id}");
+    persist_draft(navigate.clone(), pathname, move || {
+        vec![("reply", body.get())]
+    });
 
     let on_submit = {
         let parent_id = parent_id.clone();
@@ -37,7 +35,8 @@ pub fn CommentReply() -> impl IntoView {
         Callback::new(move |event: SubmitEvent| {
             event.prevent_default();
             let limits = limits.get();
-            let content = match validate_comment_content(&body.get(), limits.max_comment_body_chars) {
+            let content = match validate_comment_content(&body.get(), limits.max_comment_body_chars)
+            {
                 Ok(value) => value,
                 Err(error) => {
                     notify_error(&notifications, &error);
@@ -61,7 +60,7 @@ pub fn CommentReply() -> impl IntoView {
                             },
                         );
                     }
-                    Err(error) => notify_error(&notifications, &error.to_string()),
+                    Err(error) => notify_error(&notifications, error.to_string()),
                 }
             });
         })

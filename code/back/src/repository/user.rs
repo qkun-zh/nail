@@ -2,9 +2,11 @@ use std::collections::HashMap;
 
 use agdb::{DbError, QueryBuilder};
 
-use crate::repository::graph::{DbHandle, find_by_index_sync, read_rows_sync, resolve_node_id_sync};
+use crate::repository::graph::{
+    DbHandle, find_by_index_sync, read_rows_sync, resolve_node_id_sync,
+};
 use crate::repository::schema::{
-    ENTITY_TYPE_USER, KEY_EMAIL_ADDRESS_HASH, KEY_TYPE, KEY_USER_NAME, IdRow, UserRow, alias_of,
+    ENTITY_TYPE_USER, IdRow, KEY_EMAIL_ADDRESS_HASH, KEY_TYPE, KEY_USER_NAME, UserRow, alias_of,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

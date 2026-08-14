@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use crate::repository::cache::{
-    token_key, CacheEntry, ChallengeEntry, CreateUserTokenEntry, DeleteUserTokenEntry,
-    DownloadTokenEntry, EmailUpdateTokenEntry, SessionTokenEntry, TokenCache,
+    CacheEntry, ChallengeEntry, CreateUserTokenEntry, DeleteUserTokenEntry, DownloadTokenEntry,
+    EmailUpdateTokenEntry, SessionTokenEntry, TokenCache, token_key,
 };
 
 fn cache<E: crate::repository::cache::CacheEntry>() -> TokenCache<E> {

@@ -1,6 +1,6 @@
-use crate::name::validate_name;
-use crate::name::NameError;
 use crate::name::MAX_NAME_CHAR_COUNT;
+use crate::name::NameError;
+use crate::name::validate_name;
 
 #[test]
 fn rejects_blank_or_whitespace_only_input() {

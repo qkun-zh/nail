@@ -1,6 +1,6 @@
 use gloo_net::http::{Request, Response};
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 use crate::infrastructure::config::api_base_url;
 use crate::request::envelope::{is_success, parse_envelope, unwrap_envelope};
@@ -25,7 +25,9 @@ pub fn handle_unauthorized_status(status: u16, authenticated: bool) {
 pub async fn read_error_message(response: &Response) -> String {
     let status = response.status();
     if let Ok(text) = response.text().await
-        && let Ok(envelope) = serde_json::from_str::<nail_common::response::ResponseEnvelope<serde_json::Value>>(&text)
+        && let Ok(envelope) = serde_json::from_str::<
+            nail_common::response::ResponseEnvelope<serde_json::Value>,
+        >(&text)
         && !envelope.message.trim().is_empty()
     {
         return envelope.message;
@@ -34,8 +36,9 @@ pub async fn read_error_message(response: &Response) -> String {
 }
 
 fn timeout_signal() -> RequestResult<(web_sys::AbortSignal, gloo_timers::callback::Timeout)> {
-    let controller = web_sys::AbortController::new()
-        .map_err(|error| RequestError::network(format!("failed to create AbortController: {error:?}")))?;
+    let controller = web_sys::AbortController::new().map_err(|error| {
+        RequestError::network(format!("failed to create AbortController: {error:?}"))
+    })?;
     let signal = controller.signal();
     let timer = gloo_timers::callback::Timeout::new(REQUEST_TIMEOUT_MS, move || controller.abort());
     Ok((signal, timer))
@@ -48,7 +51,10 @@ fn session_header() -> RequestResult<Option<String>> {
     }
 }
 
-async fn unwrap_json<T: DeserializeOwned>(response: Response, authenticated: bool) -> RequestResult<T> {
+async fn unwrap_json<T: DeserializeOwned>(
+    response: Response,
+    authenticated: bool,
+) -> RequestResult<T> {
     let status = response.status();
     if !is_success(status) {
         handle_unauthorized_status(status, authenticated);
@@ -74,14 +80,13 @@ pub async fn get_json<T: DeserializeOwned>(
     let mut request = Request::get(&build_absolute_url(path_and_query))
         .header("Accept", "application/json")
         .abort_signal(Some(&signal));
-    if authenticated {
-        if let Some(token) = session_header()? {
-            request = request.header("session-token", &token);
-        }
+    if authenticated && let Some(token) = session_header()? {
+        request = request.header("session-token", &token);
     }
     let result = request.send().await;
     timer.cancel();
-    let response = result.map_err(|error| RequestError::network(format!("request failed: {error}")))?;
+    let response =
+        result.map_err(|error| RequestError::network(format!("request failed: {error}")))?;
     unwrap_json(response, authenticated).await
 }
 
@@ -95,17 +100,16 @@ pub async fn post_json<B: Serialize, T: DeserializeOwned>(
         .header("Accept", "application/json")
         .header("Content-Type", "application/json")
         .abort_signal(Some(&signal));
-    if authenticated {
-        if let Some(token) = session_header()? {
-            request = request.header("session-token", &token);
-        }
+    if authenticated && let Some(token) = session_header()? {
+        request = request.header("session-token", &token);
     }
-    let request = request
-        .json(body)
-        .map_err(|error| RequestError::network(format!("failed to serialize request body: {error}")))?;
+    let request = request.json(body).map_err(|error| {
+        RequestError::network(format!("failed to serialize request body: {error}"))
+    })?;
     let result = request.send().await;
     timer.cancel();
-    let response = result.map_err(|error| RequestError::network(format!("request failed: {error}")))?;
+    let response =
+        result.map_err(|error| RequestError::network(format!("request failed: {error}")))?;
     unwrap_json(response, authenticated).await
 }
 
@@ -118,16 +122,15 @@ pub async fn post_form<T: DeserializeOwned>(
     let mut request = Request::post(&build_absolute_url(path_and_query))
         .header("Accept", "application/json")
         .abort_signal(Some(&signal));
-    if authenticated {
-        if let Some(token) = session_header()? {
-            request = request.header("session-token", &token);
-        }
+    if authenticated && let Some(token) = session_header()? {
+        request = request.header("session-token", &token);
     }
-    let request = request
-        .body(form)
-        .map_err(|error| RequestError::network(format!("failed to build multipart request: {error}")))?;
+    let request = request.body(form).map_err(|error| {
+        RequestError::network(format!("failed to build multipart request: {error}"))
+    })?;
     let result = request.send().await;
     timer.cancel();
-    let response = result.map_err(|error| RequestError::network(format!("request failed: {error}")))?;
+    let response =
+        result.map_err(|error| RequestError::network(format!("request failed: {error}")))?;
     unwrap_json(response, authenticated).await
 }

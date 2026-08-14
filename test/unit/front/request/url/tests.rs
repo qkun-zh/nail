@@ -23,7 +23,10 @@ fn encodes_utf8_bytes_percent_wise() {
 
 #[test]
 fn builds_encoded_path_segments() {
-    assert_eq!(build_path_with_query(&["article", "read"], &[]), "/article/read");
+    assert_eq!(
+        build_path_with_query(&["article", "read"], &[]),
+        "/article/read"
+    );
     assert_eq!(
         build_path_with_query(&["article", "a b", "read"], &[]),
         "/article/a%20b/read"
@@ -55,5 +58,8 @@ fn appends_encoded_query_parameters() {
 
 #[test]
 fn builds_path_without_query_when_none_given() {
-    assert_eq!(build_path_with_query(&["challenge", "read"], &[]), "/challenge/read");
+    assert_eq!(
+        build_path_with_query(&["challenge", "read"], &[]),
+        "/challenge/read"
+    );
 }

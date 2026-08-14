@@ -4,7 +4,6 @@ use serde::de::DeserializeOwned;
 
 use crate::interface::envelope::ApiError;
 
-/// JSON body extractor that maps every axum rejection to the 400 envelope.
 pub struct AppJson<T>(pub T);
 
 impl<T, S> FromRequest<S> for AppJson<T>
@@ -22,7 +21,6 @@ where
     }
 }
 
-/// Query-string extractor that maps every axum rejection to the 400 envelope.
 pub struct AppQuery<T>(pub T);
 
 impl<T, S> FromRequestParts<S> for AppQuery<T>
@@ -40,7 +38,6 @@ where
     }
 }
 
-/// Path-parameter extractor that maps every axum rejection to the 400 envelope.
 pub struct AppPath<T>(pub T);
 
 impl<T, S> FromRequestParts<S> for AppPath<T>
@@ -58,7 +55,6 @@ where
     }
 }
 
-/// Multipart extractor that maps every axum rejection to the 400 envelope.
 pub struct AppMultipart(pub axum::extract::Multipart);
 
 impl<S> FromRequest<S> for AppMultipart

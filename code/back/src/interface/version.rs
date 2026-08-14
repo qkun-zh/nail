@@ -21,7 +21,11 @@ pub async fn create_version(
     let mut note = None;
     let mut upload = None;
 
-    while let Some(field) = multipart.next_field().await.map_err(super::article::map_multipart_error)? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(super::article::map_multipart_error)?
+    {
         let name = field.name().unwrap_or_default().to_string();
         match name.as_str() {
             "file" => upload = Some(stream_pdf_field(&state, field).await?),

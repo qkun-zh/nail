@@ -8,7 +8,11 @@ use nail_common::response::user::{UserNameView, UserView};
 use crate::request::error::RequestResult;
 use crate::request::{http, url};
 
-pub async fn read_self_user(user_id: &str, name: bool, email_hash: bool) -> RequestResult<UserView> {
+pub async fn read_self_user(
+    user_id: &str,
+    name: bool,
+    email_hash: bool,
+) -> RequestResult<UserView> {
     let mut query = Vec::new();
     if name {
         query.push(("name", "true"));

@@ -13,9 +13,7 @@ fn feed(guard: &mut PdfStreamGuard, chunks: &[&[u8]]) -> Result<(), PdfGuardErro
 fn minimal_pdf() -> Vec<u8> {
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"%PDF-1.7\n");
-    for _ in 0..64 {
-        bytes.push(b'x');
-    }
+    bytes.extend([b'x'; 64]);
     bytes.extend_from_slice(b"\n%%EOF");
     bytes
 }
@@ -86,8 +84,14 @@ fn content_hash_rel_path_builds_the_two_plus_two_layout() {
 #[test]
 fn content_hash_rel_path_rejects_an_invalid_hash() {
     assert_eq!(content_hash_rel_path("short"), None);
-    assert_eq!(content_hash_rel_path("ABCDEF1234567890ABCDEF1234567890"), None);
-    assert_eq!(content_hash_rel_path("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"), None);
+    assert_eq!(
+        content_hash_rel_path("ABCDEF1234567890ABCDEF1234567890"),
+        None
+    );
+    assert_eq!(
+        content_hash_rel_path("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"),
+        None
+    );
     assert!(valid_content_hash("abcdef1234567890abcdef1234567890"));
     assert!(!valid_content_hash("ABCDEF1234567890abcdef1234567890"));
 }
@@ -135,7 +139,10 @@ async fn upload_places_the_pdf_and_drops_an_unkept_placed_file() {
         assert!(final_path.exists());
         drop(placed);
     }
-    assert!(!final_path.exists(), "an unkept placed file must be removed");
+    assert!(
+        !final_path.exists(),
+        "an unkept placed file must be removed"
+    );
     assert!(!temp_path.exists(), "the temp file must be moved away");
 
     let _ = std::fs::remove_dir_all(&directory);

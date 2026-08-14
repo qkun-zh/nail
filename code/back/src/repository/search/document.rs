@@ -22,10 +22,16 @@ pub(super) fn read_string_field(document: &Document, field: &str) -> String {
 }
 
 pub(super) fn read_i64_field(document: &Document, field: &str) -> i64 {
-    document.get(field).and_then(|value| value.as_i64()).unwrap_or(0)
+    document
+        .get(field)
+        .and_then(|value| value.as_i64())
+        .unwrap_or(0)
 }
 
-pub(super) async fn build_document(db: &DbHandle, article_id: &str) -> anyhow::Result<Option<Document>> {
+pub(super) async fn build_document(
+    db: &DbHandle,
+    article_id: &str,
+) -> anyhow::Result<Option<Document>> {
     let guard = db.read().await;
     let Some(article) = resolve_node_id_sync(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
         return Ok(None);
@@ -33,7 +39,10 @@ pub(super) async fn build_document(db: &DbHandle, article_id: &str) -> anyhow::R
     let article_row = read_rows_sync::<ArticleRow>(&guard, &[article])?
         .into_iter()
         .next();
-    let title = article_row.as_ref().map(|row| row.title.clone()).unwrap_or_default();
+    let title = article_row
+        .as_ref()
+        .map(|row| row.title.clone())
+        .unwrap_or_default();
     let summary = article_row
         .as_ref()
         .map(|row| row.summary.clone())
@@ -154,11 +163,10 @@ fn read_comment_contents(guard: &agdb::DbAny, article: agdb::DbId) -> Result<Vec
                 .query(),
         )?;
         for comment_edge in &comment_edges.elements {
-            if let Some(content) =
-                read_rows_sync::<CommentRow>(guard, &[comment_edge.from])?
-                    .into_iter()
-                    .next()
-                    .map(|row| row.content)
+            if let Some(content) = read_rows_sync::<CommentRow>(guard, &[comment_edge.from])?
+                .into_iter()
+                .next()
+                .map(|row| row.content)
             {
                 comments.push(content);
             }

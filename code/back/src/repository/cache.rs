@@ -44,11 +44,7 @@ impl<E: CacheEntry> TokenCache<E> {
                 }
             })
             .build();
-        Self {
-            main,
-            reverse,
-            ttl,
-        }
+        Self { main, reverse, ttl }
     }
 
     pub fn insert(&self, key: &str, entry: E) {
@@ -61,13 +57,13 @@ impl<E: CacheEntry> TokenCache<E> {
 
     pub fn consume(&self, key: &str) -> Option<E> {
         let key = key.to_string();
-        let result = self
-            .main
-            .entry(key.clone())
-            .and_compute_with(|maybe_entry| match maybe_entry {
-                Some(_) => moka::ops::compute::Op::Remove,
-                None => moka::ops::compute::Op::Nop,
-            });
+        let result =
+            self.main
+                .entry(key.clone())
+                .and_compute_with(|maybe_entry| match maybe_entry {
+                    Some(_) => moka::ops::compute::Op::Remove,
+                    None => moka::ops::compute::Op::Nop,
+                });
         let moka::ops::compute::CompResult::Removed(entry) = result else {
             return None;
         };
@@ -80,14 +76,14 @@ impl<E: CacheEntry> TokenCache<E> {
 
     pub fn consume_if(&self, key: &str, matches: impl FnOnce(&E) -> bool) -> Option<E> {
         let key = key.to_string();
-        let result = self
-            .main
-            .entry(key.clone())
-            .and_compute_with(|maybe_entry| match maybe_entry {
-                Some(entry) if matches(entry.value()) => moka::ops::compute::Op::Remove,
-                Some(_) => moka::ops::compute::Op::Nop,
-                None => moka::ops::compute::Op::Nop,
-            });
+        let result =
+            self.main
+                .entry(key.clone())
+                .and_compute_with(|maybe_entry| match maybe_entry {
+                    Some(entry) if matches(entry.value()) => moka::ops::compute::Op::Remove,
+                    Some(_) => moka::ops::compute::Op::Nop,
+                    None => moka::ops::compute::Op::Nop,
+                });
         let moka::ops::compute::CompResult::Removed(entry) = result else {
             return None;
         };
@@ -227,7 +223,9 @@ fn reverse_add(
     cache
         .entry(key.to_string())
         .and_compute_with(|maybe_entry| {
-            let mut members = maybe_entry.map(|entry| entry.into_value()).unwrap_or_default();
+            let mut members = maybe_entry
+                .map(|entry| entry.into_value())
+                .unwrap_or_default();
             let member = ReverseMember {
                 key: member_key.to_string(),
                 expires_at,

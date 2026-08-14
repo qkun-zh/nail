@@ -4,6 +4,7 @@ use leptos_router::path;
 
 use crate::page::index::Index;
 use crate::page::not_found::NotFound;
+use crate::page::private::PrivateLayout;
 use crate::page::private::authenticate::Authenticate;
 use crate::page::private::deregister::Deregister;
 use crate::page::private::email::EmailIndex;
@@ -25,7 +26,6 @@ use crate::page::public::article::version::create::CreateVersion;
 use crate::page::public::article::version::detail::VersionDetail;
 use crate::page::public::article::version::index::VersionList;
 use crate::page::public::index::PublicIndex;
-use crate::page::private::PrivateLayout;
 use crate::page::session_gate::RootGate;
 
 #[component]

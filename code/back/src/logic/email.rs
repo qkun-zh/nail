@@ -13,7 +13,8 @@ use crate::repository::cache::{
     CreateUserTokenEntry, DeleteUserTokenEntry, EmailUpdateTokenEntry, token_key,
 };
 use crate::repository::user::{
-    UserWriteError, read_user, read_user_by_email_address_hash, update_user_email as write_user_email,
+    UserWriteError, read_user, read_user_by_email_address_hash,
+    update_user_email as write_user_email,
 };
 
 pub fn normalize_email(raw: &str) -> String {
@@ -108,8 +109,9 @@ async fn send_create_user_email(state: &AppState, pow: &Pow) -> Result<String, L
     send_confirmation_email(state, &email, &email_subject, &token).await?;
 
     let email_address_hash = nail_common::hash::email(&email);
-    let key = token_key(&token)
-        .map_err(|error| LogicError::internal(format!("failed to hash create-user token: {error}")))?;
+    let key = token_key(&token).map_err(|error| {
+        LogicError::internal(format!("failed to hash create-user token: {error}"))
+    })?;
     state.caches.create_user.insert(
         &key,
         CreateUserTokenEntry {
@@ -138,7 +140,7 @@ pub async fn send_update_user_email(
 
     let user_entry = read_user(&state.graph, user_id)
         .await
-        .map_err(|error| database_error(error))?
+        .map_err(database_error)?
         .ok_or_else(|| LogicError::unauthorized("user not found"))?;
     let old_email_address_hash = nail_common::hash::email(&old_email);
     if user_entry.email_address_hash != old_email_address_hash {
@@ -148,7 +150,8 @@ pub async fn send_update_user_email(
     }
 
     let allowed_domains = &state.config.email.allowed_domains;
-    if !validate_email(&old_email, allowed_domains) || !validate_email(&new_email, allowed_domains) {
+    if !validate_email(&old_email, allowed_domains) || !validate_email(&new_email, allowed_domains)
+    {
         return Err(LogicError::bad_request("email domain not allowed"));
     }
 
@@ -156,7 +159,7 @@ pub async fn send_update_user_email(
     if let Some(existing_user_id) =
         read_user_by_email_address_hash(&state.graph, &new_email_address_hash)
             .await
-            .map_err(|error| database_error(error))?
+            .map_err(database_error)?
         && existing_user_id != user_id
     {
         return Err(LogicError::bad_request(
@@ -236,7 +239,7 @@ pub async fn update_user_email(
     if let Some(existing_user_id) =
         read_user_by_email_address_hash(&state.graph, &new_email_address_hash)
             .await
-            .map_err(|error| database_error(error))?
+            .map_err(database_error)?
         && existing_user_id != user_id
     {
         return Err(LogicError::bad_request(
@@ -287,7 +290,7 @@ pub async fn send_delete_user_email(
     let email = normalize_email(&pow.payload);
     let user_entry = read_user(&state.graph, user_id)
         .await
-        .map_err(|error| database_error(error))?
+        .map_err(database_error)?
         .ok_or_else(|| LogicError::unauthorized("user not found"))?;
     if user_entry.email_address_hash != nail_common::hash::email(&email) {
         return Err(LogicError::bad_request("email does not match your account"));

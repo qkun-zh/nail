@@ -38,7 +38,7 @@ pub fn use_author_gate(
             match result {
                 Ok(article) => denied.set(article.is_author != Some(true)),
                 Err(error) => {
-                    notify_error(&notification, &format!("author check failed: {error}"));
+                    notify_error(&notification, format!("author check failed: {error}"));
                 }
             }
             checked.set(true);

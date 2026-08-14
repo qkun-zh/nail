@@ -9,7 +9,10 @@ fn every_variant_maps_to_its_status_code() {
         (LogicError::unauthorized("unauth"), StatusCode::UNAUTHORIZED),
         (LogicError::forbidden("denied"), StatusCode::FORBIDDEN),
         (LogicError::not_found("missing"), StatusCode::NOT_FOUND),
-        (LogicError::internal("boom"), StatusCode::INTERNAL_SERVER_ERROR),
+        (
+            LogicError::internal("boom"),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        ),
     ];
     for (error, expected) in cases {
         assert_eq!(error.status(), expected);

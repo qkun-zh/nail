@@ -1,8 +1,8 @@
 use leptos::ev::SubmitEvent;
 use leptos::html::Input;
 use leptos::prelude::*;
-use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
 use leptos_router::NavigateOptions;
+use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
 
 use crate::infrastructure::limits::use_limits;
 use crate::page::author_gate::{denied_view, use_author_gate};
@@ -89,7 +89,7 @@ pub fn CreateVersion() -> impl IntoView {
                         },
                     );
                 }
-                Err(error) => notify_error(&notifications, &error.to_string()),
+                Err(error) => notify_error(&notifications, error.to_string()),
             }
         });
     };
@@ -119,9 +119,13 @@ pub fn CreateVersion() -> impl IntoView {
     view! { <div>{render}</div> }
 }
 
-fn build_form(version: &str, note: &str, file: &web_sys::File) -> Result<web_sys::FormData, String> {
-    let form =
-        web_sys::FormData::new().map_err(|error| format!("failed to create FormData: {error:?}"))?;
+fn build_form(
+    version: &str,
+    note: &str,
+    file: &web_sys::File,
+) -> Result<web_sys::FormData, String> {
+    let form = web_sys::FormData::new()
+        .map_err(|error| format!("failed to create FormData: {error:?}"))?;
     for (field, value) in [("version", version), ("note", note)] {
         form.append_with_str(field, value)
             .map_err(|error| format!("failed to append {field}: {error:?}"))?;

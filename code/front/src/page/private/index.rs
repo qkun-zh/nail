@@ -22,7 +22,7 @@ pub fn PrivateIndex() -> impl IntoView {
         leptos::task::spawn_local(async move {
             match crate::request::user::read_self_user(&user_id, true, true).await {
                 Ok(view) => profile.set(Some(view)),
-                Err(error) => notify_error(&notifications, &error.to_string()),
+                Err(error) => notify_error(&notifications, error.to_string()),
             }
         });
     });

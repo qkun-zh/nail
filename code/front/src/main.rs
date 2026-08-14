@@ -7,7 +7,6 @@ use leptos::mount::mount_to_body;
 use leptos::prelude::*;
 
 fn main() {
-    // fail fast on an invalid compile-time api_base_url scheme (README 10)
     let _ = infrastructure::config::api_base_url();
     mount_to_body(|| {
         infrastructure::limits::provide_limits();

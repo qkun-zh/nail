@@ -13,9 +13,7 @@ impl EmailSender for FailingSender {
         _subject: &'a str,
         _body: &'a str,
     ) -> crate::infrastructure::email::BoxFuture<'a, Result<(), SendEmailError>> {
-        Box::pin(async move {
-            Err(SendEmailError::Transport(anyhow::anyhow!("smtp down")))
-        })
+        Box::pin(async move { Err(SendEmailError::Transport(anyhow::anyhow!("smtp down"))) })
     }
 }
 
@@ -28,7 +26,9 @@ async fn rate_limited_sender_blocks_repeat_sends_within_the_cooldown() {
         .send_email("alice@example.com", "subject", "body")
         .await
         .expect("first send");
-    let second = sender.send_email("alice@example.com", "subject", "body").await;
+    let second = sender
+        .send_email("alice@example.com", "subject", "body")
+        .await;
     assert!(matches!(second, Err(SendEmailError::RateLimited)));
     assert_eq!(recorder.sent.lock().expect("lock").len(), 1);
 }
@@ -68,6 +68,8 @@ async fn zero_cooldown_disables_rate_limiting() {
 #[tokio::test]
 async fn transport_failure_is_propagated() {
     let sender = RateLimitedSender::new(Arc::new(FailingSender), 0);
-    let result = sender.send_email("alice@example.com", "subject", "body").await;
+    let result = sender
+        .send_email("alice@example.com", "subject", "body")
+        .await;
     assert!(matches!(result, Err(SendEmailError::Transport(_))));
 }

@@ -37,7 +37,11 @@ async fn rejects_a_tampered_solution() {
     let mut pow = context.issued_pow("payload");
     pow.solution = format!(
         "{}{}",
-        if pow.solution.starts_with('0') { '1' } else { '0' },
+        if pow.solution.starts_with('0') {
+            '1'
+        } else {
+            '0'
+        },
         &pow.solution[1..]
     );
     let error = crate::logic::pow::verify_issued_pow(&context.state, &pow).unwrap_err();

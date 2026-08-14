@@ -1,7 +1,9 @@
 use super::context::{build_state, test_config};
 
+use crate::logic::download::{
+    consume_download_token, mint_download_token, resolve_version_pdf_path,
+};
 use crate::logic::error::LogicError;
-use crate::logic::download::{consume_download_token, mint_download_token, resolve_version_pdf_path};
 use crate::repository::article::{ArticleDraft, create_article};
 use crate::repository::version::VersionDraft;
 
@@ -58,7 +60,10 @@ async fn mint_then_consume_round_trips_and_the_token_is_single_use() {
         .expect("mint");
     assert_eq!(
         url,
-        format!("/api/article/{article_id}/version/{version_id}/content/read?token={}", token_from_url(&url))
+        format!(
+            "/api/article/{article_id}/version/{version_id}/content/read?token={}",
+            token_from_url(&url)
+        )
     );
 
     let expected_path = std::path::Path::new(&state.config.server.pdf_storage_path)

@@ -2,24 +2,36 @@ use nail_common::request::{EmailReadIntent, EmailReadRequest};
 
 use super::context::TestCtx;
 use crate::logic::email::{
-    EmailReadView, normalize_email, parse_intent, send_delete_user_email,
-    send_update_user_email, update_user_email, validate_email,
+    EmailReadView, normalize_email, parse_intent, send_delete_user_email, send_update_user_email,
+    update_user_email, validate_email,
 };
 use crate::logic::error::LogicError;
 use crate::repository::cache::{SessionTokenEntry, token_key};
 
 #[test]
 fn parse_intent_maps_the_wire_values() {
-    assert_eq!(parse_intent("authenticate"), Some(EmailReadIntent::Authenticate));
-    assert_eq!(parse_intent("change_email"), Some(EmailReadIntent::ChangeEmail));
-    assert_eq!(parse_intent("deregister"), Some(EmailReadIntent::Deregister));
+    assert_eq!(
+        parse_intent("authenticate"),
+        Some(EmailReadIntent::Authenticate)
+    );
+    assert_eq!(
+        parse_intent("change_email"),
+        Some(EmailReadIntent::ChangeEmail)
+    );
+    assert_eq!(
+        parse_intent("deregister"),
+        Some(EmailReadIntent::Deregister)
+    );
     assert_eq!(parse_intent("bogus"), None);
     assert_eq!(parse_intent(""), None);
 }
 
 #[test]
 fn normalize_email_trims_and_lowercases() {
-    assert_eq!(normalize_email("  Alice@Example.COM  "), "alice@example.com");
+    assert_eq!(
+        normalize_email("  Alice@Example.COM  "),
+        "alice@example.com"
+    );
     assert_eq!(normalize_email("alice@example.com"), "alice@example.com");
 }
 
@@ -124,7 +136,14 @@ async fn create_user_intent_rejects_a_disallowed_domain_without_burning_the_chal
     .unwrap_err();
     assert_eq!(error, LogicError::bad_request("email domain not allowed"));
     assert!(context.emails().is_empty());
-    assert!(context.state.caches.challenge.consume(&pow.challenge.id.to_string()).is_some());
+    assert!(
+        context
+            .state
+            .caches
+            .challenge
+            .consume(&pow.challenge.id.to_string())
+            .is_some()
+    );
 }
 
 #[tokio::test]
@@ -138,7 +157,10 @@ async fn change_email_requires_a_session() {
     )
     .await
     .unwrap_err();
-    assert_eq!(error, LogicError::unauthorized("missing session-token header"));
+    assert_eq!(
+        error,
+        LogicError::unauthorized("missing session-token header")
+    );
 }
 
 #[tokio::test]
@@ -171,7 +193,12 @@ async fn change_email_sends_two_emails_and_caches_the_token_hashes() {
     assert_eq!(messages[0].0, "alice@example.com");
     assert_eq!(messages[1].0, "alice-new@example.com");
 
-    let entry = context.state.caches.email_update.read(&user_id).expect("entry");
+    let entry = context
+        .state
+        .caches
+        .email_update
+        .read(&user_id)
+        .expect("entry");
     let old_hash = nail_common::hash::email("alice@example.com");
     let new_hash = nail_common::hash::email("alice-new@example.com");
     assert_eq!(entry.old_email_address_hash, old_hash);
@@ -251,7 +278,10 @@ async fn update_user_email_updates_email_and_returns_a_new_session() {
         .await
         .expect("read")
         .expect("entry");
-    assert_eq!(entry.email_address_hash, nail_common::hash::email("alice-new@example.com"));
+    assert_eq!(
+        entry.email_address_hash,
+        nail_common::hash::email("alice-new@example.com")
+    );
 }
 
 #[tokio::test]

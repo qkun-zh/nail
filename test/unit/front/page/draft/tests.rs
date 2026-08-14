@@ -12,10 +12,7 @@ fn encodes_keys_and_values() {
         build_draft_query(&[("body", "hello world"), ("reply", "hi")]),
         "body=hello%20world&reply=hi"
     );
-    assert_eq!(
-        build_draft_query(&[("a", "x=y&z")]),
-        "a=x%3Dy%26z"
-    );
+    assert_eq!(build_draft_query(&[("a", "x=y&z")]), "a=x%3Dy%26z");
 }
 
 #[test]

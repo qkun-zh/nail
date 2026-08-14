@@ -56,8 +56,14 @@ async fn create_article(
         .await
         .expect("article json");
     (
-        json["data"]["article_id"].as_str().expect("article_id").to_string(),
-        json["data"]["version_id"].as_str().expect("version_id").to_string(),
+        json["data"]["article_id"]
+            .as_str()
+            .expect("article_id")
+            .to_string(),
+        json["data"]["version_id"]
+            .as_str()
+            .expect("version_id")
+            .to_string(),
     )
 }
 
@@ -98,7 +104,6 @@ async fn account_and_content_flows_over_real_tcp() {
     let session = backend.authenticate("alice@example.com").await;
     let user_id = read_user_id(&backend, &session).await;
 
-    // Article create, read, update, and PDF download.
     let pdf = smtp_sink::unique_pdf("seed-a");
     let (article_id, version_id) =
         create_article(&backend, &session, "e2e title", "1.0.0", pdf.clone()).await;
@@ -115,7 +120,10 @@ async fn account_and_content_flows_over_real_tcp() {
         .expect("GET content/read");
     assert_eq!(response.status(), reqwest::StatusCode::OK);
     assert_eq!(
-        response.headers().get("content-type").and_then(|v| v.to_str().ok()),
+        response
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok()),
         Some("application/pdf")
     );
     let downloaded = response.bytes().await.expect("pdf bytes");
@@ -130,7 +138,10 @@ async fn account_and_content_flows_over_real_tcp() {
     )
     .await;
     assert_eq!(status, reqwest::StatusCode::OK, "list: {json}");
-    assert_eq!(json["data"]["article_list"].as_array().map(Vec::len), Some(1));
+    assert_eq!(
+        json["data"]["article_list"].as_array().map(Vec::len),
+        Some(1)
+    );
 
     let (status, json) = request_json(
         &backend.client,
@@ -157,7 +168,6 @@ async fn account_and_content_flows_over_real_tcp() {
     .await;
     assert_eq!(status, reqwest::StatusCode::OK, "update: {json}");
 
-    // Versioning.
     let form = reqwest::multipart::Form::new()
         .text("version", "2.0.0".to_string())
         .text("note", "second".to_string())
@@ -178,8 +188,14 @@ async fn account_and_content_flows_over_real_tcp() {
         .await
         .expect("POST version/create");
     assert_eq!(response.status(), reqwest::StatusCode::CREATED);
-    let json = response.json::<serde_json::Value>().await.expect("version json");
-    let version_id_2 = json["data"]["version_id"].as_str().expect("version_id").to_string();
+    let json = response
+        .json::<serde_json::Value>()
+        .await
+        .expect("version json");
+    let version_id_2 = json["data"]["version_id"]
+        .as_str()
+        .expect("version_id")
+        .to_string();
 
     let (status, json) = request_json(
         &backend.client,
@@ -190,19 +206,31 @@ async fn account_and_content_flows_over_real_tcp() {
     )
     .await;
     assert_eq!(status, reqwest::StatusCode::OK, "versions: {json}");
-    assert_eq!(json["data"]["version_list"].as_array().map(Vec::len), Some(2));
+    assert_eq!(
+        json["data"]["version_list"].as_array().map(Vec::len),
+        Some(2)
+    );
 
-    // Comments.
     let (status, json) = request_json(
         &backend.client,
         reqwest::Method::POST,
-        &format!("{}/version/{version_id_2}/comments/create", backend.base_url),
+        &format!(
+            "{}/version/{version_id_2}/comments/create",
+            backend.base_url
+        ),
         Some(&session),
         Some(serde_json::json!({ "content": "first comment" })),
     )
     .await;
-    assert_eq!(status, reqwest::StatusCode::CREATED, "comment create: {json}");
-    let comment_id = json["data"]["comment_id"].as_str().expect("comment_id").to_string();
+    assert_eq!(
+        status,
+        reqwest::StatusCode::CREATED,
+        "comment create: {json}"
+    );
+    let comment_id = json["data"]["comment_id"]
+        .as_str()
+        .expect("comment_id")
+        .to_string();
 
     let (status, json) = request_json(
         &backend.client,
@@ -235,7 +263,6 @@ async fn account_and_content_flows_over_real_tcp() {
     .await;
     assert_eq!(status, reqwest::StatusCode::OK, "comment delete: {json}");
 
-    // Article delete (hard).
     let (status, json) = request_json(
         &backend.client,
         reqwest::Method::POST,
@@ -247,7 +274,6 @@ async fn account_and_content_flows_over_real_tcp() {
     assert_eq!(status, reqwest::StatusCode::OK, "article delete: {json}");
     assert_eq!(json["message"].as_str(), Some("deleted"));
 
-    // Rename.
     let rename_pow = backend.server_pow("e2e-alice").await;
     let (status, json) = request_json(
         &backend.client,
@@ -260,8 +286,6 @@ async fn account_and_content_flows_over_real_tcp() {
     assert_eq!(status, reqwest::StatusCode::OK, "rename: {json}");
     assert_eq!(json["data"]["name"].as_str(), Some("e2e-alice"));
 
-    // Email change (two-step). The old address was mailed at auth time, so
-    // wait out the 1 s cooldown before mailing it again.
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
     let (status, json) = request_json(
         &backend.client,
@@ -280,8 +304,10 @@ async fn account_and_content_flows_over_real_tcp() {
     let new_mail = backend.wait_for_mail("alice-new@example.com", 10).await;
     let old_token = smtp_sink::extract_token(&old_mail);
     let new_token = smtp_sink::extract_token(&new_mail);
-    let payload = format!("{old_token}
-{new_token}");
+    let payload = format!(
+        "{old_token}
+{new_token}"
+    );
     let (status, json) = request_json(
         &backend.client,
         reqwest::Method::POST,
@@ -295,7 +321,10 @@ async fn account_and_content_flows_over_real_tcp() {
     )
     .await;
     assert_eq!(status, reqwest::StatusCode::OK, "email step2: {json}");
-    let new_session = json["data"]["session_token"].as_str().expect("session").to_string();
+    let new_session = json["data"]["session_token"]
+        .as_str()
+        .expect("session")
+        .to_string();
 
     let (status, _) = request_json(
         &backend.client,
@@ -305,9 +334,12 @@ async fn account_and_content_flows_over_real_tcp() {
         None,
     )
     .await;
-    assert_eq!(status, reqwest::StatusCode::UNAUTHORIZED, "old session must die");
+    assert_eq!(
+        status,
+        reqwest::StatusCode::UNAUTHORIZED,
+        "old session must die"
+    );
 
-    // Logout.
     let logout_pow = backend.server_pow("logout-nonce").await;
     let (status, json) = request_json(
         &backend.client,
@@ -319,8 +351,6 @@ async fn account_and_content_flows_over_real_tcp() {
     .await;
     assert_eq!(status, reqwest::StatusCode::OK, "logout: {json}");
 
-    // Re-authenticate with the new email, then deregister. Wait out the
-    // cooldown from the email-change mail before mailing the new address again.
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;
     let session = backend.authenticate("alice-new@example.com").await;
     tokio::time::sleep(std::time::Duration::from_secs(2)).await;

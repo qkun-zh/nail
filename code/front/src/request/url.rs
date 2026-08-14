@@ -15,7 +15,11 @@ pub fn encode_component(value: &str) -> String {
 }
 
 fn is_encode_uri_component_safe(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')')
+    byte.is_ascii_alphanumeric()
+        || matches!(
+            byte,
+            b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')'
+        )
 }
 
 pub fn build_path_with_query(path_segments: &[&str], query: &[(&str, &str)]) -> String {

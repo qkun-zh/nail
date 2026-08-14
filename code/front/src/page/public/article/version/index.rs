@@ -37,7 +37,7 @@ pub fn VersionList() -> impl IntoView {
             match crate::request::version::read_versions(&article_id, page_value, limit).await {
                 Ok(view) => state.set(VersionPage::Loaded(view)),
                 Err(error) => {
-                    notify_error(&notifications, &error.to_string());
+                    notify_error(&notifications, error.to_string());
                     state.set(VersionPage::Error(error.to_string()));
                 }
             }

@@ -2,15 +2,24 @@ use crate::request::{DeleteMode, EmailReadIntent};
 
 #[test]
 fn delete_mode_serializes_as_lowercase_strings() -> anyhow::Result<()> {
-    assert_eq!(serde_json::to_string(&DeleteMode::Transfer)?, r#""transfer""#);
+    assert_eq!(
+        serde_json::to_string(&DeleteMode::Transfer)?,
+        r#""transfer""#
+    );
     assert_eq!(serde_json::to_string(&DeleteMode::Hard)?, r#""hard""#);
     Ok(())
 }
 
 #[test]
 fn delete_mode_deserializes_from_lowercase_strings() -> anyhow::Result<()> {
-    assert_eq!(serde_json::from_str::<DeleteMode>(r#""transfer""#)?, DeleteMode::Transfer);
-    assert_eq!(serde_json::from_str::<DeleteMode>(r#""hard""#)?, DeleteMode::Hard);
+    assert_eq!(
+        serde_json::from_str::<DeleteMode>(r#""transfer""#)?,
+        DeleteMode::Transfer
+    );
+    assert_eq!(
+        serde_json::from_str::<DeleteMode>(r#""hard""#)?,
+        DeleteMode::Hard
+    );
     Ok(())
 }
 
@@ -58,7 +67,12 @@ fn email_read_intent_deserializes_from_snake_case_strings() -> anyhow::Result<()
 
 #[test]
 fn email_read_intent_rejects_unknown_values() {
-    for value in [r#""change-email""#, r#""authenticate ""#, r#""Deregister""#, r#""""#] {
+    for value in [
+        r#""change-email""#,
+        r#""authenticate ""#,
+        r#""Deregister""#,
+        r#""""#,
+    ] {
         let result = serde_json::from_str::<EmailReadIntent>(value);
         assert!(result.is_err(), "value {value} must be rejected");
     }
@@ -81,8 +95,7 @@ fn delete_body_round_trips_with_mode() -> anyhow::Result<()> {
         mode: Some(DeleteMode::Transfer),
     };
     assert_eq!(serde_json::to_string(&body)?, r##"{"mode":"transfer"}"##);
-    let decoded: crate::request::DeleteBody =
-        serde_json::from_str(r##"{"mode":"transfer"}"##)?;
+    let decoded: crate::request::DeleteBody = serde_json::from_str(r##"{"mode":"transfer"}"##)?;
     assert_eq!(decoded, body);
     Ok(())
 }
@@ -182,33 +195,23 @@ fn email_read_request_dual_pair_is_consistent_only_when_both_or_neither() -> any
 
 #[test]
 fn single_pow_requests_round_trip() -> anyhow::Result<()> {
-    let token_request = crate::request::TokenRequest {
-        pow: sample_pow()?,
-    };
+    let token_request = crate::request::TokenRequest { pow: sample_pow()? };
     let json = serde_json::to_string(&token_request)?;
     let decoded: crate::request::TokenRequest = serde_json::from_str(&json)?;
     assert_eq!(decoded, token_request);
-    let logout_request = crate::request::LogoutRequest {
-        pow: sample_pow()?,
-    };
+    let logout_request = crate::request::LogoutRequest { pow: sample_pow()? };
     let json = serde_json::to_string(&logout_request)?;
     let decoded: crate::request::LogoutRequest = serde_json::from_str(&json)?;
     assert_eq!(decoded, logout_request);
-    let name_set_request = crate::request::NameSetRequest {
-        pow: sample_pow()?,
-    };
+    let name_set_request = crate::request::NameSetRequest { pow: sample_pow()? };
     let json = serde_json::to_string(&name_set_request)?;
     let decoded: crate::request::NameSetRequest = serde_json::from_str(&json)?;
     assert_eq!(decoded, name_set_request);
-    let deregister_request = crate::request::DeregisterUserRequest {
-        pow: sample_pow()?,
-    };
+    let deregister_request = crate::request::DeregisterUserRequest { pow: sample_pow()? };
     let json = serde_json::to_string(&deregister_request)?;
     let decoded: crate::request::DeregisterUserRequest = serde_json::from_str(&json)?;
     assert_eq!(decoded, deregister_request);
-    let deregister_confirm = crate::request::DeregisterUserConfirmRequest {
-        pow: sample_pow()?,
-    };
+    let deregister_confirm = crate::request::DeregisterUserConfirmRequest { pow: sample_pow()? };
     let json = serde_json::to_string(&deregister_confirm)?;
     let decoded: crate::request::DeregisterUserConfirmRequest = serde_json::from_str(&json)?;
     assert_eq!(decoded, deregister_confirm);

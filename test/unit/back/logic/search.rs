@@ -5,9 +5,12 @@ use crate::logic::error::LogicError;
 use crate::repository::role::{ROLE_MEMBER, hold_role};
 
 async fn member(context: &TestCtx, email: &str) -> String {
-    let user_id = crate::repository::user::create_user(&context.state.graph, &nail_common::hash::email(email))
-        .await
-        .expect("user");
+    let user_id = crate::repository::user::create_user(
+        &context.state.graph,
+        &nail_common::hash::email(email),
+    )
+    .await
+    .expect("user");
     hold_role(&context.state.graph, &user_id, ROLE_MEMBER)
         .await
         .expect("member role");
@@ -34,7 +37,10 @@ async fn search_articles_rejects_an_unknown_range() {
     let error = crate::logic::search::search_articles(&context.state, &request)
         .await
         .unwrap_err();
-    assert_eq!(error, LogicError::bad_request("unknown search range: bogus"));
+    assert_eq!(
+        error,
+        LogicError::bad_request("unknown search range: bogus")
+    );
 }
 
 #[tokio::test]
@@ -48,7 +54,10 @@ async fn search_articles_rejects_from_greater_than_to() {
     let error = crate::logic::search::search_articles(&context.state, &request)
         .await
         .unwrap_err();
-    assert_eq!(error, LogicError::bad_request("from must not be greater than to"));
+    assert_eq!(
+        error,
+        LogicError::bad_request("from must not be greater than to")
+    );
 }
 
 #[tokio::test]
@@ -68,12 +77,14 @@ async fn search_articles_returns_articles_for_an_empty_query() {
     let _ = crate::logic::article::create_article(
         &context.state,
         &actor,
-        "Searchable Title",
-        "A summary for search.",
-        "#rust",
-        "1.0.0",
-        "note",
-        context.upload(&valid_pdf()),
+        crate::logic::article::ArticleCreateInput {
+            title: "Searchable Title",
+            summary: "A summary for search.",
+            tags: "#rust",
+            version: "1.0.0",
+            note: "note",
+            upload: context.upload(&valid_pdf()),
+        },
     )
     .await
     .expect("create");
@@ -82,7 +93,11 @@ async fn search_articles_returns_articles_for_an_empty_query() {
         .await
         .expect("search");
     assert!(page.total >= 1);
-    assert!(page.article_list.iter().any(|item| item.title == "Searchable Title"));
+    assert!(
+        page.article_list
+            .iter()
+            .any(|item| item.title == "Searchable Title")
+    );
     assert_eq!(page.page, 1);
     assert!(!page.has_prev);
 }

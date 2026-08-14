@@ -6,9 +6,9 @@ use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{authorize_create, authorize_or, is_author};
-use crate::repository::authorization::Resource;
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::search::sync_article_best_effort;
+use crate::repository::authorization::Resource;
 use crate::repository::comment::{
     CreateCommentError, create_reply_comment, create_top_level_comment,
     read_comments_page_by_version, update_comment_content, version_of_comment,
@@ -28,7 +28,8 @@ pub async fn create_comment(
     raw_content: &str,
 ) -> Result<String, LogicError> {
     authorize_create(state, actor_id, PERMISSION_COMMENT_CREATE).await?;
-    let content = validate_comment_content(raw_content, state.config.server.max_comment_body_chars)?;
+    let content =
+        validate_comment_content(raw_content, state.config.server.max_comment_body_chars)?;
     let comment_id = Uuid::now_v7().to_string();
     create_top_level_comment(&state.graph, &comment_id, actor_id, version_id, &content)
         .await
@@ -44,7 +45,8 @@ pub async fn create_reply(
     raw_content: &str,
 ) -> Result<String, LogicError> {
     authorize_create(state, actor_id, PERMISSION_COMMENT_CREATE).await?;
-    let content = validate_comment_content(raw_content, state.config.server.max_comment_body_chars)?;
+    let content =
+        validate_comment_content(raw_content, state.config.server.max_comment_body_chars)?;
     let comment_id = Uuid::now_v7().to_string();
     create_reply_comment(
         &state.graph,
@@ -70,7 +72,7 @@ pub async fn read_comments(
 ) -> Result<CommentListPage, LogicError> {
     if read_version(&state.graph, version_id)
         .await
-        .map_err(|error| database_error(error))?
+        .map_err(database_error)?
         .is_none()
     {
         return Err(LogicError::not_found("version not found"));
@@ -85,7 +87,7 @@ pub async fn read_comments(
         offset,
     )
     .await
-    .map_err(|error| database_error(error))?;
+    .map_err(database_error)?;
 
     let mut seen_users: HashSet<String> = HashSet::new();
     let mut user_ids: Vec<String> = Vec::new();
@@ -96,7 +98,7 @@ pub async fn read_comments(
     }
     let user_names = crate::repository::user::read_user_names(&state.graph, &user_ids)
         .await
-        .map_err(|error| database_error(error))?;
+        .map_err(database_error)?;
 
     let comments: Vec<CommentView> = items
         .into_iter()
@@ -142,10 +144,11 @@ pub async fn update_comment(
         "comment not found",
     )
     .await?;
-    let content = validate_comment_content(raw_content, state.config.server.max_comment_body_chars)?;
+    let content =
+        validate_comment_content(raw_content, state.config.server.max_comment_body_chars)?;
     let found = update_comment_content(&state.graph, comment_id, &content)
         .await
-        .map_err(|error| database_error(error))?;
+        .map_err(database_error)?;
     if !found {
         return Err(LogicError::not_found("comment not found"));
     }
@@ -186,7 +189,7 @@ pub async fn delete_comment(
             .await?;
             crate::repository::delete::delete_comment(&state.graph, comment_id)
                 .await
-                .map_err(|error| database_error(error))?;
+                .map_err(database_error)?;
         }
         None => {
             return Err(LogicError::bad_request(
@@ -217,9 +220,7 @@ fn map_create_comment_error(error: CreateCommentError, is_reply: bool) -> LogicE
         CreateCommentError::CommentTreeTooDeep => LogicError::bad_request(format!(
             "comment thread too deep (max {MAX_COMMENT_TREE_DEPTH} reply layers)"
         )),
-        CreateCommentError::Db(error) => {
-            database_error(error)
-        }
+        CreateCommentError::Db(error) => database_error(error),
     }
 }
 
@@ -227,9 +228,7 @@ fn map_transfer_error(error: TransferTargetError) -> LogicError {
     match error {
         TransferTargetError::TargetMissing => LogicError::not_found("comment not found"),
         TransferTargetError::NoRecycler => LogicError::internal("no recycler available"),
-        TransferTargetError::Db(error) => {
-            database_error(error)
-        }
+        TransferTargetError::Db(error) => database_error(error),
     }
 }
 

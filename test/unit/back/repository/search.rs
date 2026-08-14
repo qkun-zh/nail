@@ -131,7 +131,10 @@ async fn sync_user_refreshes_the_author_name() {
         .await
         .expect("rename");
 
-    let synced = index.sync_user(&state.graph, &author_id).await.expect("sync user");
+    let synced = index
+        .sync_user(&state.graph, &author_id)
+        .await
+        .expect("sync user");
     assert_eq!(synced, 1);
 
     let outcome = index.read(empty_request(10)).await.expect("read");
@@ -160,7 +163,10 @@ async fn sync_removes_a_document_for_a_deleted_article() {
     crate::repository::delete::delete_article(&state.graph, &article_id)
         .await
         .expect("delete");
-    index.sync(&state.graph, &article_id).await.expect("sync after delete");
+    index
+        .sync(&state.graph, &article_id)
+        .await
+        .expect("sync after delete");
 
     let outcome = index.read(empty_request(10)).await.expect("read");
     assert_eq!(outcome.total, 0);
@@ -183,21 +189,33 @@ async fn sync_all_and_incremental_sync_agree_on_document_count() {
     let first = create_fixture_with_hash(&state, &author_id, "First Article", &pdf_hash(2)).await;
     let second = create_fixture_with_hash(&state, &author_id, "Second Article", &pdf_hash(3)).await;
     index.sync(&state.graph, &first).await.expect("sync first");
-    index.sync(&state.graph, &second).await.expect("sync second");
+    index
+        .sync(&state.graph, &second)
+        .await
+        .expect("sync second");
     let incremental_total = index.read(empty_request(10)).await.expect("read").total;
     assert_eq!(incremental_total, 2);
 
     let rebuilt = index.sync_all(&state.graph).await.expect("sync all");
     assert_eq!(rebuilt, 2);
     let after_rebuild_total = index.read(empty_request(10)).await.expect("read").total;
-    assert_eq!(after_rebuild_total, 2, "full rebuild must agree with incremental sync");
+    assert_eq!(
+        after_rebuild_total, 2,
+        "full rebuild must agree with incremental sync"
+    );
 
     crate::repository::delete::delete_article(&state.graph, &first)
         .await
         .expect("delete");
-    index.sync(&state.graph, &first).await.expect("sync after delete");
+    index
+        .sync(&state.graph, &first)
+        .await
+        .expect("sync after delete");
     let after_delete_total = index.read(empty_request(10)).await.expect("read").total;
-    assert_eq!(after_delete_total, 1, "incremental delete must agree with the seekstorm count");
+    assert_eq!(
+        after_delete_total, 1,
+        "incremental delete must agree with the seekstorm count"
+    );
     index.close().await;
 }
 

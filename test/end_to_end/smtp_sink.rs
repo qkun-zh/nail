@@ -45,7 +45,9 @@ async fn handle_connection(socket: tokio::net::TcpStream, inbox: MailBox) -> std
 
     let (read_half, mut write_half) = socket.into_split();
     let mut reader = tokio::io::BufReader::new(read_half);
-    write_half.write_all(b"220 nail-test-sink ESMTP\r\n").await?;
+    write_half
+        .write_all(b"220 nail-test-sink ESMTP\r\n")
+        .await?;
 
     let mut to = String::new();
     let mut body_lines: Vec<String> = Vec::new();
@@ -56,13 +58,10 @@ async fn handle_connection(socket: tokio::net::TcpStream, inbox: MailBox) -> std
         if in_data {
             if line == "." {
                 let body = body_lines.join("\n");
-                inbox
-                    .lock()
-                    .expect("sink inbox lock")
-                    .push(CapturedMail {
-                        to: to.clone(),
-                        body,
-                    });
+                inbox.lock().expect("sink inbox lock").push(CapturedMail {
+                    to: to.clone(),
+                    body,
+                });
                 body_lines.clear();
                 to.clear();
                 in_data = false;
@@ -110,9 +109,7 @@ pub fn extract_token(mail_body: &str) -> String {
     mail_body
         .split_whitespace()
         .filter(|word| {
-            word.len() == 36
-                && uuid::Uuid::parse_str(word).is_ok()
-                && word.as_bytes()[14] == b'7'
+            word.len() == 36 && uuid::Uuid::parse_str(word).is_ok() && word.as_bytes()[14] == b'7'
         })
         .map(str::to_string)
         .last()

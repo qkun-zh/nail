@@ -14,9 +14,18 @@ fn returns_none_for_non_uuid_strings() {
 
 #[test]
 fn returns_none_for_non_v7_uuids() {
-    assert_eq!(uuidv7_timestamp_ms("00000000-0000-4000-8000-000000000000"), None);
-    assert_eq!(uuidv7_timestamp_ms("00000000-0000-1000-8000-000000000000"), None);
-    assert_eq!(uuidv7_timestamp_ms("00000000-0000-6000-8000-000000000000"), None);
+    assert_eq!(
+        uuidv7_timestamp_ms("00000000-0000-4000-8000-000000000000"),
+        None
+    );
+    assert_eq!(
+        uuidv7_timestamp_ms("00000000-0000-1000-8000-000000000000"),
+        None
+    );
+    assert_eq!(
+        uuidv7_timestamp_ms("00000000-0000-6000-8000-000000000000"),
+        None
+    );
 }
 
 #[test]
@@ -109,22 +118,31 @@ fn formats_with_positive_and_negative_offsets() {
 fn formats_a_known_wall_clock_time() {
     let utc = crate::time::format_rfc3339_with_offset(1_700_000_000_000, 0).expect("format utc");
     assert_eq!(utc, "2023-11-14T22:13:20Z");
-    let beijing = crate::time::format_rfc3339_with_offset(1_700_000_000_000, 28_800)
-        .expect("format beijing");
+    let beijing =
+        crate::time::format_rfc3339_with_offset(1_700_000_000_000, 28_800).expect("format beijing");
     assert_eq!(beijing, "2023-11-15T06:13:20+08:00");
 }
 
 #[test]
 fn truncates_sub_second_millis_to_whole_seconds() {
     let exact = crate::time::format_rfc3339_with_offset(1_700_000_000_000, 0).expect("exact");
-    let with_fraction = crate::time::format_rfc3339_with_offset(1_700_000_000_999, 0)
-        .expect("with fraction");
+    let with_fraction =
+        crate::time::format_rfc3339_with_offset(1_700_000_000_999, 0).expect("with fraction");
     assert_eq!(with_fraction, exact);
 }
 
 #[test]
 fn rejects_offsets_not_representable_in_rfc3339() {
-    for offset in [86_400, 86_399, 90_000, -86_400, -86_399, -90_000, i32::MAX, i32::MIN] {
+    for offset in [
+        86_400,
+        86_399,
+        90_000,
+        -86_400,
+        -86_399,
+        -90_000,
+        i32::MAX,
+        i32::MIN,
+    ] {
         let result = crate::time::format_rfc3339_with_offset(0, offset);
         assert!(result.is_err(), "offset {offset} must be rejected");
     }

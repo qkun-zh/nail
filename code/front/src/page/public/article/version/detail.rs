@@ -25,7 +25,7 @@ pub fn VersionDetail() -> impl IntoView {
             match crate::request::version::read_version(&version_id, &article_id).await {
                 Ok(view) => version.set(Some(view)),
                 Err(request_error) => {
-                    notify_error(&notifications, &request_error.to_string());
+                    notify_error(&notifications, request_error.to_string());
                     error.set(Some(request_error.to_string()));
                 }
             }
@@ -42,10 +42,11 @@ pub fn VersionDetail() -> impl IntoView {
         let version_id = params.get().get("version_id").unwrap_or_default();
         let notifications = download_notifications.clone();
         leptos::task::spawn_local(async move {
-            let result = match crate::request::download::mint_download_url(&article_id, &version_id).await {
-                Ok(minted_url) => crate::request::download::download_pdf(&minted_url).await,
-                Err(error) => Err(error.to_string()),
-            };
+            let result =
+                match crate::request::download::mint_download_url(&article_id, &version_id).await {
+                    Ok(minted_url) => crate::request::download::download_pdf(&minted_url).await,
+                    Err(error) => Err(error.to_string()),
+                };
             match result {
                 Ok(()) => notify_success(&notifications, "download started"),
                 Err(message) => notify_error(&notifications, &message),
@@ -62,10 +63,7 @@ pub fn VersionDetail() -> impl IntoView {
         let Some(version) = version.get() else {
             return view! { <p>loading...</p> }.into_any();
         };
-        let created_at = format_timestamp(
-            version.created_at,
-            limits.get().timezone_offset_seconds,
-        );
+        let created_at = format_timestamp(version.created_at, limits.get().timezone_offset_seconds);
         let article_id = params.get().get("article_id").unwrap_or_default();
         let comments_href = format!(
             "/public/article/{article_id}/version/{}/comment",

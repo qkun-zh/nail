@@ -40,9 +40,7 @@ pub async fn search_articles(
     if let (Some(from), Some(to)) = (from_seconds, to_seconds)
         && from > to
     {
-        return Err(LogicError::bad_request(
-            "from must not be greater than to",
-        ));
+        return Err(LogicError::bad_request("from must not be greater than to"));
     }
 
     let limit = params
@@ -124,7 +122,11 @@ fn parse_ranges(raw: Option<&str>) -> Result<Vec<SearchRange>, LogicError> {
             "comment" => SearchRange::Comment,
             "note" => SearchRange::Note,
             "tag" => SearchRange::Tag,
-            _ => return Err(LogicError::bad_request(format!("unknown search range: {token}"))),
+            _ => {
+                return Err(LogicError::bad_request(format!(
+                    "unknown search range: {token}"
+                )));
+            }
         };
         if !ranges.contains(&range) {
             ranges.push(range);
@@ -144,13 +146,19 @@ fn parse_sort(raw: Option<&str>) -> Result<Vec<SearchSort>, LogicError> {
             continue;
         }
         let Some((field, direction)) = token.split_once(':') else {
-            return Err(LogicError::bad_request(format!("invalid sort entry: {token}")));
+            return Err(LogicError::bad_request(format!(
+                "invalid sort entry: {token}"
+            )));
         };
         let field = match field.trim() {
             "time" => SearchSortField::Time,
             "title" => SearchSortField::Title,
             "author" => SearchSortField::Author,
-            _ => return Err(LogicError::bad_request(format!("unknown sort field: {field}"))),
+            _ => {
+                return Err(LogicError::bad_request(format!(
+                    "unknown sort field: {field}"
+                )));
+            }
         };
         let direction = match direction.trim() {
             "asc" => SearchSortDirection::Asc,
@@ -158,7 +166,7 @@ fn parse_sort(raw: Option<&str>) -> Result<Vec<SearchSort>, LogicError> {
             _ => {
                 return Err(LogicError::bad_request(format!(
                     "unknown sort direction: {direction}"
-                )))
+                )));
             }
         };
         sort.push(SearchSort { field, direction });

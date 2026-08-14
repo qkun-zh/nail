@@ -56,12 +56,7 @@ pub fn filename_from_content_disposition(header: Option<&str>) -> String {
 pub async fn mint_download_url(article_id: &str, version_id: &str) -> RequestResult<String> {
     let path = crate::request::url::build_path_with_query(
         &[
-            "article",
-            article_id,
-            "version",
-            version_id,
-            "content",
-            "read",
+            "article", article_id, "version", version_id, "content", "read",
         ],
         &[("download", "1")],
     );
@@ -103,12 +98,8 @@ pub async fn download_pdf(minted_url: &str) -> Result<(), String> {
         .binary()
         .await
         .map_err(|error| format!("failed to read download bytes: {error}"))?;
-    let filename = filename_from_content_disposition(
-        response
-            .headers()
-            .get("content-disposition")
-            .as_deref(),
-    );
+    let filename =
+        filename_from_content_disposition(response.headers().get("content-disposition").as_deref());
     save_blob(&bytes, &filename)
 }
 

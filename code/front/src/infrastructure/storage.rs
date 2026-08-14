@@ -9,5 +9,5 @@ pub fn write(key: &str, value: &str) {
 }
 
 pub fn remove(key: &str) {
-    let _ = LocalStorage::delete(key);
+    LocalStorage::delete(key);
 }

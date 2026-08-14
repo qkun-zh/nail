@@ -59,8 +59,7 @@ pub async fn create_top_level_comment(
         let Some(user) = resolve_node_id_in_txn(transaction, ENTITY_TYPE_USER, user_id)? else {
             return Err(CreateCommentError::TargetNotFound);
         };
-        let Some(version) =
-            resolve_node_id_in_txn(transaction, ENTITY_TYPE_VERSION, version_id)?
+        let Some(version) = resolve_node_id_in_txn(transaction, ENTITY_TYPE_VERSION, version_id)?
         else {
             return Err(CreateCommentError::TargetNotFound);
         };
@@ -179,8 +178,8 @@ fn parent_chain_depth_in_txn(
         let Some(parent_node) = edges.elements.first().map(|edge| edge.to) else {
             return Ok(depth);
         };
-        let Some(parent_id) = read_node_in_txn::<IdRow>(transaction, parent_node)?
-            .map(|row| row.id)
+        let Some(parent_id) =
+            read_node_in_txn::<IdRow>(transaction, parent_node)?.map(|row| row.id)
         else {
             return Ok(depth);
         };
@@ -279,8 +278,7 @@ pub async fn read_comments_page_by_version(
         depth += 1;
         let mut kids: Vec<String> = Vec::new();
         for parent_id in &parents {
-            let Some(parent) = resolve_node_id_sync(&guard, ENTITY_TYPE_COMMENT, parent_id)?
-            else {
+            let Some(parent) = resolve_node_id_sync(&guard, ENTITY_TYPE_COMMENT, parent_id)? else {
                 continue;
             };
             let reply_edges = guard.exec(

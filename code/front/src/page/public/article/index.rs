@@ -1,7 +1,7 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
-use leptos_router::components::A;
 use leptos_router::NavigateOptions;
+use leptos_router::components::A;
 use leptos_router::hooks::{use_navigate, use_query_map};
 use nail_common::response::article::ArticleListPage;
 use nail_common::response::search::SearchPage;
@@ -70,7 +70,7 @@ pub fn ArticleIndex() -> impl IntoView {
                 match crate::request::article::search_articles(&borrows).await {
                     Ok(page) => state.set(ArticlePage::Search(page)),
                     Err(error) => {
-                        notify_error(&notifications, &error.to_string());
+                        notify_error(&notifications, error.to_string());
                         state.set(ArticlePage::Error(error.to_string()));
                     }
                 }
@@ -78,7 +78,7 @@ pub fn ArticleIndex() -> impl IntoView {
                 match crate::request::article::read_articles(page_value, limit).await {
                     Ok(page) => state.set(ArticlePage::List(page)),
                     Err(error) => {
-                        notify_error(&notifications, &error.to_string());
+                        notify_error(&notifications, error.to_string());
                         state.set(ArticlePage::Error(error.to_string()));
                     }
                 }
@@ -115,7 +115,12 @@ pub fn ArticleIndex() -> impl IntoView {
                 .map(|article| {
                     let article_id = article.id.clone();
                     let detail = format!("/public/article/{article_id}");
-                    let tags = article.tags.iter().map(|tag| tag.name.clone()).collect::<Vec<_>>().join(" ");
+                    let tags = article
+                        .tags
+                        .iter()
+                        .map(|tag| tag.name.clone())
+                        .collect::<Vec<_>>()
+                        .join(" ");
                     view! {
                         <div>
                             <A href=detail.clone()>{article.title}</A>
@@ -165,7 +170,8 @@ pub fn ArticleIndex() -> impl IntoView {
                     }
                 })
                 .collect_view();
-            let encoded_q = crate::request::url::encode_component(&query.get().get("q").unwrap_or_default());
+            let encoded_q =
+                crate::request::url::encode_component(&query.get().get("q").unwrap_or_default());
             let previous = pagination.previous_page.map(|previous| {
                 let href = format!("/public/article?q={encoded_q}&page={previous}");
                 view! { <A href=href.clone()>previous</A> }.into_any()

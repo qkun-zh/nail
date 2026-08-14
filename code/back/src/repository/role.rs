@@ -156,7 +156,11 @@ pub async fn hold_role(db: &DbHandle, user_id: &str, role_name: &str) -> Result<
 }
 
 #[cfg(test)]
-pub async fn user_holds_role(db: &DbHandle, user_id: &str, role_name: &str) -> Result<bool, DbError> {
+pub async fn user_holds_role(
+    db: &DbHandle,
+    user_id: &str,
+    role_name: &str,
+) -> Result<bool, DbError> {
     let guard = db.read().await;
     let Some(user_db_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)? else {
         return Ok(false);
@@ -245,7 +249,11 @@ pub async fn user_holds_permission(
                 .value(EDGE_ROLE_GRANT_PERMISSION)
                 .query(),
         )?;
-        if grants.elements.iter().any(|grant| grant.to == permission_db_id) {
+        if grants
+            .elements
+            .iter()
+            .any(|grant| grant.to == permission_db_id)
+        {
             return Ok(true);
         }
     }
@@ -301,7 +309,12 @@ pub async fn revoke_permission_from_role(
         .ok_or_else(|| not_found(ENTITY_TYPE_ROLE, role_name))?;
     let permission_id = resolve_node_id_sync(&guard, ENTITY_TYPE_PERMISSION, permission_name)?
         .ok_or_else(|| not_found(ENTITY_TYPE_PERMISSION, permission_name))?;
-    remove_outgoing_edge(&mut guard, role_id, permission_id, EDGE_ROLE_GRANT_PERMISSION)?;
+    remove_outgoing_edge(
+        &mut guard,
+        role_id,
+        permission_id,
+        EDGE_ROLE_GRANT_PERMISSION,
+    )?;
     Ok(())
 }
 
@@ -368,11 +381,7 @@ fn read_role_view_sync(db: &agdb::DbAny, role_id: agdb::DbId) -> Result<RoleView
     Ok(role)
 }
 
-fn read_edge_rows<T>(
-    db: &agdb::DbAny,
-    from: agdb::DbId,
-    edge_type: &str,
-) -> Result<Vec<T>, DbError>
+fn read_edge_rows<T>(db: &agdb::DbAny, from: agdb::DbId, edge_type: &str) -> Result<Vec<T>, DbError>
 where
     T: agdb::DbType<ValueType = T> + agdb::DbTypeMarker,
 {
@@ -392,7 +401,7 @@ where
     if ids.is_empty() {
         return Ok(Vec::new());
     }
-    Ok(read_rows_sync::<T>(db, &ids)?)
+    read_rows_sync::<T>(db, &ids)
 }
 
 fn get_or_create_tag_sync(db: &mut agdb::DbAny, name: &str) -> Result<agdb::DbId, DbError> {

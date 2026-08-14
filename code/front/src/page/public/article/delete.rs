@@ -30,7 +30,7 @@ pub fn DeleteArticle() -> impl IntoView {
                     title.set(view.title);
                     loaded.set(true);
                 }
-                Err(error) => notify_error(&notifications, &error.to_string()),
+                Err(error) => notify_error(&notifications, error.to_string()),
             }
         });
     });
@@ -54,7 +54,7 @@ pub fn DeleteArticle() -> impl IntoView {
                         },
                     );
                 }
-                Err(error) => notify_error(&notifications, &error.to_string()),
+                Err(error) => notify_error(&notifications, error.to_string()),
             }
         });
     };

@@ -16,7 +16,9 @@ pub enum PdfGuardError {
 impl std::fmt::Display for PdfGuardError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::TooLarge { size, max } => write!(formatter, "PDF too large: {size} > {max} bytes"),
+            Self::TooLarge { size, max } => {
+                write!(formatter, "PDF too large: {size} > {max} bytes")
+            }
             Self::TooSmall { size } => write!(formatter, "PDF too small: {size} bytes"),
             Self::BadHeader => formatter.write_str("Invalid PDF header: must start with %PDF-"),
             Self::BadVersion => formatter.write_str("Invalid PDF version"),
@@ -102,7 +104,9 @@ pub fn valid_content_hash(hash: &str) -> bool {
 pub fn sanitize_attachment_filename(filename: &str) -> String {
     let safe: String = filename
         .chars()
-        .filter(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.'))
+        .filter(|character| {
+            character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.')
+        })
         .collect();
     if safe.is_empty() {
         "article.pdf".to_string()
@@ -200,16 +204,15 @@ impl PdfUpload {
 
 impl Drop for PdfUpload {
     fn drop(&mut self) {
-        if let UploadPhase::Placed { final_path } = &self.phase {
-            if let Err(error) = std::fs::remove_file(final_path)
-                && error.kind() != std::io::ErrorKind::NotFound
-            {
-                tracing::warn!(
-                    path = %final_path.display(),
-                    error = %error,
-                    "failed to remove orphaned pdf after upload failed"
-                );
-            }
+        if let UploadPhase::Placed { final_path } = &self.phase
+            && let Err(error) = std::fs::remove_file(final_path)
+            && error.kind() != std::io::ErrorKind::NotFound
+        {
+            tracing::warn!(
+                path = %final_path.display(),
+                error = %error,
+                "failed to remove orphaned pdf after upload failed"
+            );
         }
     }
 }

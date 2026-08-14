@@ -8,7 +8,14 @@ async fn create_challenge_returns_the_configured_difficulty_and_stores_the_chall
         &context.state.caches,
     );
     assert_eq!(challenge.difficulty, context.difficulty());
-    assert!(context.state.caches.challenge.consume(&challenge.id.to_string()).is_some());
+    assert!(
+        context
+            .state
+            .caches
+            .challenge
+            .consume(&challenge.id.to_string())
+            .is_some()
+    );
 }
 
 #[tokio::test]
@@ -18,6 +25,20 @@ async fn create_challenge_is_single_use() {
         &context.state.config.server,
         &context.state.caches,
     );
-    assert!(context.state.caches.challenge.consume(&challenge.id.to_string()).is_some());
-    assert!(context.state.caches.challenge.consume(&challenge.id.to_string()).is_none());
+    assert!(
+        context
+            .state
+            .caches
+            .challenge
+            .consume(&challenge.id.to_string())
+            .is_some()
+    );
+    assert!(
+        context
+            .state
+            .caches
+            .challenge
+            .consume(&challenge.id.to_string())
+            .is_none()
+    );
 }

@@ -36,11 +36,17 @@ async fn user_read_self_returns_name_and_optional_email_hash() {
         .get(&format!("/user/{user_id}/read"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert_eq!(body["data"]["name"].as_str(), Some(user_id.replace('-', "").as_str()));
+    assert_eq!(
+        body["data"]["name"].as_str(),
+        Some(user_id.replace('-', "").as_str())
+    );
     assert!(body["data"].get("email_hash").is_none());
 
     let (status, body) = context
-        .get(&format!("/user/{user_id}/read?email_hash=true"), Some(&token))
+        .get(
+            &format!("/user/{user_id}/read?email_hash=true"),
+            Some(&token),
+        )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(
@@ -55,7 +61,9 @@ async fn user_read_other_by_member_is_forbidden() {
     let (_, token) = session_for(&context, "alice@example.com").await;
     let (target, _) = session_for(&context, "bob@example.com").await;
 
-    let (status, body) = context.get(&format!("/user/{target}/read"), Some(&token)).await;
+    let (status, body) = context
+        .get(&format!("/user/{target}/read"), Some(&token))
+        .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("you are denied"));
 }
@@ -67,7 +75,10 @@ async fn user_read_other_by_admin_returns_profile() {
     let (target, _) = session_for(&context, "alice@example.com").await;
 
     let (status, body) = context
-        .get(&format!("/user/{target}/read?email_hash=true"), Some(&admin_token))
+        .get(
+            &format!("/user/{target}/read?email_hash=true"),
+            Some(&admin_token),
+        )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["data"]["id"].as_str(), Some(target.as_str()));
@@ -93,7 +104,9 @@ async fn user_list_by_admin_returns_paginated_users() {
     session_for(&context, "alice@example.com").await;
     session_for(&context, "bob@example.com").await;
 
-    let (status, body) = context.get("/user/read?page=1&limit=2", Some(&admin_token)).await;
+    let (status, body) = context
+        .get("/user/read?page=1&limit=2", Some(&admin_token))
+        .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["data"]["total"].as_u64(), Some(3));
     assert_eq!(body["data"]["user_list"].as_array().map(Vec::len), Some(2));
@@ -159,7 +172,11 @@ async fn user_delete_rejects_a_missing_mode() {
     let (user_id, token) = session_for(&context, "alice@example.com").await;
     let pow = context.issued_pow("ignored");
     let (status, body) = context
-        .post(&format!("/user/{user_id}/delete"), json!({ "pow": pow }), Some(&token))
+        .post(
+            &format!("/user/{user_id}/delete"),
+            json!({ "pow": pow }),
+            Some(&token),
+        )
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     assert_eq!(
@@ -198,10 +215,12 @@ async fn user_delete_transfer_after_email_confirmation() {
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("deleted"));
 
-    assert!(crate::repository::user::read_user(&context.state.graph, &user_id)
-        .await
-        .expect("read")
-        .is_none());
+    assert!(
+        crate::repository::user::read_user(&context.state.graph, &user_id)
+            .await
+            .expect("read")
+            .is_none()
+    );
 }
 
 #[tokio::test]
@@ -220,8 +239,18 @@ async fn email_change_two_step_flow_updates_email_and_rotates_session() {
         )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert!(!body["data"]["old_email_subject"].as_str().unwrap_or("").is_empty());
-    assert!(!body["data"]["new_email_subject"].as_str().unwrap_or("").is_empty());
+    assert!(
+        !body["data"]["old_email_subject"]
+            .as_str()
+            .unwrap_or("")
+            .is_empty()
+    );
+    assert!(
+        !body["data"]["new_email_subject"]
+            .as_str()
+            .unwrap_or("")
+            .is_empty()
+    );
 
     let messages = context.emails();
     assert_eq!(messages.len(), 2);
@@ -244,7 +273,12 @@ async fn email_change_two_step_flow_updates_email_and_rotates_session() {
         )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert!(!body["data"]["session_token"].as_str().unwrap_or("").is_empty());
+    assert!(
+        !body["data"]["session_token"]
+            .as_str()
+            .unwrap_or("")
+            .is_empty()
+    );
 
     let entry = crate::repository::user::read_user(&context.state.graph, &user_id)
         .await
@@ -255,7 +289,9 @@ async fn email_change_two_step_flow_updates_email_and_rotates_session() {
         nail_common::hash::email("alice-new@example.com")
     );
 
-    let (status, _) = context.get("/session/read?id=true", Some(&old_session)).await;
+    let (status, _) = context
+        .get("/session/read?id=true", Some(&old_session))
+        .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
@@ -337,6 +373,8 @@ async fn email_change_rejects_a_pow_payload_mismatch() {
         )
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
-    assert_eq!(body["message"].as_str(), Some("PoW payload does not match token"));
+    assert_eq!(
+        body["message"].as_str(),
+        Some("PoW payload does not match token")
+    );
 }
-

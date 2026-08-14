@@ -3,20 +3,16 @@ use axum::extract::DefaultBodyLimit;
 use axum::routing::{get, post};
 
 use crate::infrastructure::state::AppState;
-use crate::interface::{article, challenge, comment, config, content, email, role, session, user, version};
+use crate::interface::{
+    article, challenge, comment, config, content, email, role, session, user, version,
+};
 
 pub fn build_router(state: AppState) -> Router {
     let body_limit = state
         .config
         .server
         .max_pdf_size_bytes
-        .saturating_add(
-            state
-                .config
-                .server
-                .max_text_field_bytes
-                .saturating_mul(5),
-        )
+        .saturating_add(state.config.server.max_text_field_bytes.saturating_mul(5))
         .saturating_add(64 * 1024);
 
     Router::new()
@@ -35,13 +31,22 @@ pub fn build_router(state: AppState) -> Router {
         .route("/article/{id}/read", get(article::read_article))
         .route("/article/{id}/update", post(article::update_article))
         .route("/article/{id}/delete", post(article::delete_article))
-        .route("/article/{id}/version/create", post(version::create_version))
+        .route(
+            "/article/{id}/version/create",
+            post(version::create_version),
+        )
         .route("/article/{id}/version/read", get(version::read_versions))
-        .route("/article/{id}/version/{version_id}/content/read", get(content::read_content))
+        .route(
+            "/article/{id}/version/{version_id}/content/read",
+            get(content::read_content),
+        )
         .route("/version/{id}/read", get(version::read_version))
         .route("/version/{id}/update", post(version::update_version))
         .route("/version/{id}/delete", post(version::delete_version))
-        .route("/version/{id}/comments/create", post(comment::create_comment))
+        .route(
+            "/version/{id}/comments/create",
+            post(comment::create_comment),
+        )
         .route("/comments/{id}/replies/create", post(comment::create_reply))
         .route("/version/{id}/comments/read", get(comment::read_comments))
         .route("/comment/{id}/update", post(comment::update_comment))

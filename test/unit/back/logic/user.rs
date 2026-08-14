@@ -34,7 +34,10 @@ async fn read_user_self_returns_name_and_optional_email_hash() {
     let data = crate::logic::user::read_user(&context.state, &user_id, &user_id, true, false)
         .await
         .expect("read");
-    assert_eq!(data.name.as_deref(), Some(user_id.replace('-', "").as_str()));
+    assert_eq!(
+        data.name.as_deref(),
+        Some(user_id.replace('-', "").as_str())
+    );
     assert!(data.email_hash.is_none());
 
     let data = crate::logic::user::read_user(&context.state, &user_id, &user_id, true, true)
@@ -94,7 +97,7 @@ async fn read_users_by_admin_returns_paginated_users() {
         .expect("read users");
     assert_eq!(data.total, 3);
     assert_eq!(data.user_list.len(), 2);
-    assert_eq!(data.has_next, true);
+    assert!(data.has_next);
 }
 
 #[tokio::test]
@@ -213,10 +216,12 @@ async fn delete_user_hard_by_admin_removes_the_user() {
         panic!("unexpected empty delete");
     };
     assert_eq!(view.user_id, target);
-    assert!(crate::repository::user::read_user(&context.state.graph, &target)
-        .await
-        .expect("read")
-        .is_none());
+    assert!(
+        crate::repository::user::read_user(&context.state.graph, &target)
+            .await
+            .expect("read")
+            .is_none()
+    );
 }
 
 #[tokio::test]
@@ -255,8 +260,10 @@ async fn delete_user_transfer_after_email_confirmation() {
     .await
     .expect("transfer delete");
     assert!(matches!(data, UserDeleteView::Empty(_)));
-    assert!(crate::repository::user::read_user(&context.state.graph, &user_id)
-        .await
-        .expect("read")
-        .is_none());
+    assert!(
+        crate::repository::user::read_user(&context.state.graph, &user_id)
+            .await
+            .expect("read")
+            .is_none()
+    );
 }

@@ -3,7 +3,7 @@ use leptos_router::NavigateOptions;
 use leptos_router::hooks::use_navigate;
 
 use crate::page::notify::{notify_error, notify_success, use_notifications};
-use crate::page::session_gate::{mark_session_invalid};
+use crate::page::session_gate::mark_session_invalid;
 
 #[component]
 pub fn Logout() -> impl IntoView {
@@ -37,7 +37,7 @@ pub fn Logout() -> impl IntoView {
                         },
                     );
                 }
-                Err(error) => notify_error(&notifications, &error.to_string()),
+                Err(error) => notify_error(&notifications, error.to_string()),
             }
             working.set(false);
         });

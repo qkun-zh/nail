@@ -53,8 +53,18 @@ async fn create_top_level_comment_writes_nodes_and_edges() {
         .await
         .expect("create");
 
-    assert_eq!(owner_of_comment(&state.graph, &comment_id).await.expect("owner"), Some(author_id.clone()));
-    assert_eq!(version_of_comment(&state.graph, &comment_id).await.expect("version"), Some(version_id));
+    assert_eq!(
+        owner_of_comment(&state.graph, &comment_id)
+            .await
+            .expect("owner"),
+        Some(author_id.clone())
+    );
+    assert_eq!(
+        version_of_comment(&state.graph, &comment_id)
+            .await
+            .expect("version"),
+        Some(version_id)
+    );
 }
 
 #[tokio::test]
@@ -82,12 +92,26 @@ async fn create_reply_links_to_the_parent_and_is_not_top_level() {
     let top_id = uuid::Uuid::now_v7().to_string();
     let reply_id = uuid::Uuid::now_v7().to_string();
 
-    create_top_level_comment(&state.graph, &top_id, &author_id, &version_id, "top").await.expect("top");
-    create_reply_comment(&state.graph, &reply_id, &author_id, &top_id, "reply", MAX_DEPTH)
+    create_top_level_comment(&state.graph, &top_id, &author_id, &version_id, "top")
         .await
-        .expect("reply");
+        .expect("top");
+    create_reply_comment(
+        &state.graph,
+        &reply_id,
+        &author_id,
+        &top_id,
+        "reply",
+        MAX_DEPTH,
+    )
+    .await
+    .expect("reply");
 
-    assert_eq!(version_of_comment(&state.graph, &reply_id).await.expect("version"), Some(version_id.clone()));
+    assert_eq!(
+        version_of_comment(&state.graph, &reply_id)
+            .await
+            .expect("version"),
+        Some(version_id.clone())
+    );
 
     let (items, total) = read_comments_page_by_version(&state.graph, &version_id, MAX_DEPTH, 10, 0)
         .await
@@ -125,7 +149,9 @@ async fn create_reply_rejects_a_thread_deeper_than_the_cap() {
     let version_id = create_version_fixture(&state, &author_id).await;
 
     let mut parent = uuid::Uuid::now_v7().to_string();
-    create_top_level_comment(&state.graph, &parent, &author_id, &version_id, "top").await.expect("top");
+    create_top_level_comment(&state.graph, &parent, &author_id, &version_id, "top")
+        .await
+        .expect("top");
 
     for _ in 0..MAX_DEPTH {
         let next = uuid::Uuid::now_v7().to_string();
@@ -179,8 +205,16 @@ async fn update_comment_content_applies_the_new_text_and_reports_missing() {
         .await
         .expect("create");
 
-    assert!(update_comment_content(&state.graph, &comment_id, "after").await.expect("update"));
-    assert!(!update_comment_content(&state.graph, "missing", "after").await.expect("missing"));
+    assert!(
+        update_comment_content(&state.graph, &comment_id, "after")
+            .await
+            .expect("update")
+    );
+    assert!(
+        !update_comment_content(&state.graph, "missing", "after")
+            .await
+            .expect("missing")
+    );
 
     let (items, _) = read_comments_page_by_version(&state.graph, &version_id, MAX_DEPTH, 10, 0)
         .await

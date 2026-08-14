@@ -3,9 +3,12 @@ use crate::logic::error::LogicError;
 use crate::repository::role::{ROLE_MEMBER, hold_role};
 
 async fn member(context: &TestCtx, email: &str) -> String {
-    let user_id = crate::repository::user::create_user(&context.state.graph, &nail_common::hash::email(email))
-        .await
-        .expect("user");
+    let user_id = crate::repository::user::create_user(
+        &context.state.graph,
+        &nail_common::hash::email(email),
+    )
+    .await
+    .expect("user");
     hold_role(&context.state.graph, &user_id, ROLE_MEMBER)
         .await
         .expect("member role");
@@ -21,39 +24,48 @@ async fn create_article_writes_the_article_and_version() {
     let (article_id, version_id) = crate::logic::article::create_article(
         &context.state,
         &actor,
-        "My Article",
-        "A summary.",
-        "#rust",
-        "1.0.0",
-        "note",
-        upload,
+        crate::logic::article::ArticleCreateInput {
+            title: "My Article",
+            summary: "A summary.",
+            tags: "#rust",
+            version: "1.0.0",
+            note: "note",
+            upload,
+        },
     )
     .await
     .expect("create article");
 
     assert!(!article_id.is_empty());
     assert!(!version_id.is_empty());
-    assert!(crate::repository::article::read_article(&context.state.graph, &article_id)
-        .await
-        .expect("read")
-        .is_some());
+    assert!(
+        crate::repository::article::read_article(&context.state.graph, &article_id)
+            .await
+            .expect("read")
+            .is_some()
+    );
 }
 
 #[tokio::test]
 async fn create_article_requires_article_create_permission() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = crate::repository::user::create_user(&context.state.graph, &nail_common::hash::email("alice@example.com"))
-        .await
-        .expect("user");
+    let actor = crate::repository::user::create_user(
+        &context.state.graph,
+        &nail_common::hash::email("alice@example.com"),
+    )
+    .await
+    .expect("user");
     let error = crate::logic::article::create_article(
         &context.state,
         &actor,
-        "Title",
-        "Summary",
-        "#rust",
-        "1.0.0",
-        "note",
-        context.upload(&valid_pdf()),
+        crate::logic::article::ArticleCreateInput {
+            title: "Title",
+            summary: "Summary",
+            tags: "#rust",
+            version: "1.0.0",
+            note: "note",
+            upload: context.upload(&valid_pdf()),
+        },
     )
     .await
     .unwrap_err();
@@ -67,12 +79,14 @@ async fn create_article_rejects_an_empty_title() {
     let error = crate::logic::article::create_article(
         &context.state,
         &actor,
-        "",
-        "Summary",
-        "#rust",
-        "1.0.0",
-        "note",
-        context.upload(&valid_pdf()),
+        crate::logic::article::ArticleCreateInput {
+            title: "",
+            summary: "Summary",
+            tags: "#rust",
+            version: "1.0.0",
+            note: "note",
+            upload: context.upload(&valid_pdf()),
+        },
     )
     .await
     .unwrap_err();
@@ -86,12 +100,14 @@ async fn create_article_rejects_a_duplicate_title() {
     let _ = crate::logic::article::create_article(
         &context.state,
         &actor,
-        "Duplicated",
-        "Summary",
-        "#rust",
-        "1.0.0",
-        "note",
-        context.upload(&unique_pdf("first")),
+        crate::logic::article::ArticleCreateInput {
+            title: "Duplicated",
+            summary: "Summary",
+            tags: "#rust",
+            version: "1.0.0",
+            note: "note",
+            upload: context.upload(&unique_pdf("first")),
+        },
     )
     .await
     .expect("first");
@@ -99,12 +115,14 @@ async fn create_article_rejects_a_duplicate_title() {
     let error = crate::logic::article::create_article(
         &context.state,
         &actor,
-        "Duplicated",
-        "Summary",
-        "#rust",
-        "1.0.0",
-        "note",
-        context.upload(&unique_pdf("second")),
+        crate::logic::article::ArticleCreateInput {
+            title: "Duplicated",
+            summary: "Summary",
+            tags: "#rust",
+            version: "1.0.0",
+            note: "note",
+            upload: context.upload(&unique_pdf("second")),
+        },
     )
     .await
     .unwrap_err();
@@ -119,12 +137,14 @@ async fn create_article_rejects_a_duplicate_content_hash() {
     let _ = crate::logic::article::create_article(
         &context.state,
         &actor,
-        "First",
-        "Summary",
-        "#rust",
-        "1.0.0",
-        "note",
-        context.upload(&pdf),
+        crate::logic::article::ArticleCreateInput {
+            title: "First",
+            summary: "Summary",
+            tags: "#rust",
+            version: "1.0.0",
+            note: "note",
+            upload: context.upload(&pdf),
+        },
     )
     .await
     .expect("first");
@@ -132,17 +152,22 @@ async fn create_article_rejects_a_duplicate_content_hash() {
     let error = crate::logic::article::create_article(
         &context.state,
         &actor,
-        "Second",
-        "Summary",
-        "#rust",
-        "1.0.0",
-        "note",
-        context.upload(&pdf),
+        crate::logic::article::ArticleCreateInput {
+            title: "Second",
+            summary: "Summary",
+            tags: "#rust",
+            version: "1.0.0",
+            note: "note",
+            upload: context.upload(&pdf),
+        },
     )
     .await
     .unwrap_err();
     let message = error.to_string();
-    assert!(message.starts_with("identical PDF already exists"), "{message}");
+    assert!(
+        message.starts_with("identical PDF already exists"),
+        "{message}"
+    );
 }
 
 #[tokio::test]
@@ -152,12 +177,14 @@ async fn read_article_returns_detail_and_is_author() {
     let (article_id, _) = crate::logic::article::create_article(
         &context.state,
         &actor,
-        "Titled",
-        "Summary",
-        "#rust",
-        "1.0.0",
-        "note",
-        context.upload(&valid_pdf()),
+        crate::logic::article::ArticleCreateInput {
+            title: "Titled",
+            summary: "Summary",
+            tags: "#rust",
+            version: "1.0.0",
+            note: "note",
+            upload: context.upload(&valid_pdf()),
+        },
     )
     .await
     .expect("create");

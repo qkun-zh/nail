@@ -63,13 +63,18 @@ impl ServerConfig {
         if self.timezone_offset_seconds % 60 != 0
             || !(-86_340..=86_340).contains(&self.timezone_offset_seconds)
         {
-            bail!("config: timezone_offset_seconds must be a whole number of minutes within -23:59..=+23:59");
+            bail!(
+                "config: timezone_offset_seconds must be a whole number of minutes within -23:59..=+23:59"
+            );
         }
         for (name, value) in [
             ("token_ttl_seconds", self.token_ttl_seconds),
             ("session_ttl_seconds", self.session_ttl_seconds),
             ("challenge_ttl_seconds", self.challenge_ttl_seconds),
-            ("download_token_ttl_seconds", self.download_token_ttl_seconds),
+            (
+                "download_token_ttl_seconds",
+                self.download_token_ttl_seconds,
+            ),
             ("token_cache_capacity", self.token_cache_capacity),
             ("email_cooldown_seconds", self.email_cooldown_seconds),
             ("log_prune_interval_secs", self.log_prune_interval_secs),

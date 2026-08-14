@@ -7,7 +7,7 @@ const TICK_MS: u32 = 1_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NotificationType {
-    #[allow(dead_code)] // FR-64 info toast; no page emits one yet.
+    #[allow(dead_code)]
     Info,
     Success,
     Error,
@@ -103,7 +103,8 @@ impl Notifications {
     }
 
     pub fn dismiss(&self, id: u64) {
-        self.toasts.update(|list| list.retain(|toast| toast.id != id));
+        self.toasts
+            .update(|list| list.retain(|toast| toast.id != id));
     }
 
     pub fn toggle_history(&self) {
@@ -130,7 +131,7 @@ pub fn notify_success(notifications: &Notifications, message: impl Into<String>)
     notifications.push(NotificationType::Success, message);
 }
 
-#[allow(dead_code)] // FR-64 info toast; no page emits one yet.
+#[allow(dead_code)]
 pub fn notify_info(notifications: &Notifications, message: impl Into<String>) {
     notifications.push(NotificationType::Info, message);
 }
@@ -181,7 +182,7 @@ pub fn ToastContainer() -> impl IntoView {
                 .collect_view()
                 .into_any()
         } else {
-            view! {}.into_any()
+            ().into_any()
         }
     };
 

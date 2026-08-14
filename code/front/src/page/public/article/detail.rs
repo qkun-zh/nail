@@ -22,7 +22,7 @@ pub fn ArticleDetail() -> impl IntoView {
             match crate::request::article::read_article(&article_id, false).await {
                 Ok(view) => article.set(Some(view)),
                 Err(request_error) => {
-                    notify_error(&notifications, &request_error.to_string());
+                    notify_error(&notifications, request_error.to_string());
                     error.set(Some(request_error.to_string()));
                 }
             }
@@ -36,10 +36,7 @@ pub fn ArticleDetail() -> impl IntoView {
         let Some(article) = article.get() else {
             return view! { <p>loading...</p> }.into_any();
         };
-        let created_at = format_timestamp(
-            article.created_at,
-            limits.get().timezone_offset_seconds,
-        );
+        let created_at = format_timestamp(article.created_at, limits.get().timezone_offset_seconds);
         let tags = article
             .tags
             .iter()

@@ -34,10 +34,16 @@ pub fn UpdateArticle() -> impl IntoView {
                 Ok(view) => {
                     title.set(view.title);
                     summary.set(view.summary);
-                    tags.set(view.tags.iter().map(|tag| tag.name.clone()).collect::<Vec<_>>().join(" "));
+                    tags.set(
+                        view.tags
+                            .iter()
+                            .map(|tag| tag.name.clone())
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                    );
                     loaded.set(true);
                 }
-                Err(error) => notify_error(&notifications, &error.to_string()),
+                Err(error) => notify_error(&notifications, error.to_string()),
             }
         });
     });
@@ -71,7 +77,14 @@ pub fn UpdateArticle() -> impl IntoView {
         let notifications = submit_notifications.clone();
         let navigate = navigate.clone();
         leptos::task::spawn_local(async move {
-            match crate::request::article::update_article(&id, &title_value, &summary_value, &tags_value).await {
+            match crate::request::article::update_article(
+                &id,
+                &title_value,
+                &summary_value,
+                &tags_value,
+            )
+            .await
+            {
                 Ok(_) => {
                     notify_success(&notifications, "article updated");
                     navigate(
@@ -82,7 +95,7 @@ pub fn UpdateArticle() -> impl IntoView {
                         },
                     );
                 }
-                Err(error) => notify_error(&notifications, &error.to_string()),
+                Err(error) => notify_error(&notifications, error.to_string()),
             }
         });
     };

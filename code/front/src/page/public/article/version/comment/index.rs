@@ -36,7 +36,9 @@ pub fn CommentIndex() -> impl IntoView {
         params.get_untracked().get("article_id").unwrap_or_default(),
         params.get_untracked().get("version_id").unwrap_or_default()
     );
-    persist_draft(navigate.clone(), pathname, move || vec![("body", body.get())]);
+    persist_draft(navigate.clone(), pathname, move || {
+        vec![("body", body.get())]
+    });
 
     let effect_notifications = notifications.clone();
     Effect::new(move |_| {
@@ -53,7 +55,7 @@ pub fn CommentIndex() -> impl IntoView {
             match crate::request::comment::read_comments(&version_id, page_value, limit).await {
                 Ok(view) => state.set(CommentPage::Loaded(view)),
                 Err(error) => {
-                    notify_error(&notifications, &error.to_string());
+                    notify_error(&notifications, error.to_string());
                     state.set(CommentPage::Error(error.to_string()));
                 }
             }
@@ -79,7 +81,7 @@ pub fn CommentIndex() -> impl IntoView {
                     notify_success(&notifications, "comment created");
                     body.set(String::new());
                 }
-                Err(error) => notify_error(&notifications, &error.to_string()),
+                Err(error) => notify_error(&notifications, error.to_string()),
             }
         });
     };
@@ -87,54 +89,60 @@ pub fn CommentIndex() -> impl IntoView {
     let render = move || {
         let submit = submit.clone();
         match state.get() {
-        CommentPage::Loading => view! { <p>loading...</p> }.into_any(),
-        CommentPage::Error(message) => view! { <p>{message}</p> }.into_any(),
-        CommentPage::Loaded(view) => {
-            let article_id = article_id();
-            let version_id = version_id();
-            let current_page = query
-                .get()
-                .get("page")
-                .and_then(|value| value.parse::<u64>().ok())
-                .unwrap_or(1)
-                .max(1);
-            let pagination = pagination_state(current_page, view.has_next);
-            let rows = view
-                .comments
-                .iter()
-                .map(|comment| {
-                    let id = comment.id.clone();
-                    let reply_href = format!(
-                        "/public/article/{article_id}/version/{version_id}/comment/{id}"
+            CommentPage::Loading => view! { <p>loading...</p> }.into_any(),
+            CommentPage::Error(message) => view! { <p>{message}</p> }.into_any(),
+            CommentPage::Loaded(view) => {
+                let article_id = article_id();
+                let version_id = version_id();
+                let current_page = query
+                    .get()
+                    .get("page")
+                    .and_then(|value| value.parse::<u64>().ok())
+                    .unwrap_or(1)
+                    .max(1);
+                let pagination = pagination_state(current_page, view.has_next);
+                let rows = view
+                    .comments
+                    .iter()
+                    .map(|comment| {
+                        let id = comment.id.clone();
+                        let reply_href = format!(
+                            "/public/article/{article_id}/version/{version_id}/comment/{id}"
+                        );
+                        let delete_href = format!("{reply_href}/delete");
+                        let created_at = format_timestamp(
+                            comment.created_at,
+                            limits.get().timezone_offset_seconds,
+                        );
+                        let indent = if comment.parent_id.is_some() {
+                            "  reply: "
+                        } else {
+                            ""
+                        };
+                        view! {
+                            <div>
+                                <span>{indent}</span>
+                                <span>{comment.user_name.clone()} | {created_at}</span>
+                                <p>{comment.content.clone()}</p>
+                                <A href=reply_href>reply</A>
+                                <A href=delete_href>delete</A>
+                            </div>
+                        }
+                    })
+                    .collect_view();
+                let previous = pagination.previous_page.map(|previous| {
+                    let href = format!(
+                        "/public/article/{article_id}/version/{version_id}/comment?page={previous}"
                     );
-                    let delete_href = format!("{reply_href}/delete");
-                    let created_at =
-                        format_timestamp(comment.created_at, limits.get().timezone_offset_seconds);
-                    let indent = if comment.parent_id.is_some() { "  reply: " } else { "" };
-                    view! {
-                        <div>
-                            <span>{indent}</span>
-                            <span>{comment.user_name.clone()} | {created_at}</span>
-                            <p>{comment.content.clone()}</p>
-                            <A href=reply_href>reply</A>
-                            <A href=delete_href>delete</A>
-                        </div>
-                    }
-                })
-                .collect_view();
-            let previous = pagination.previous_page.map(|previous| {
-                let href = format!(
-                    "/public/article/{article_id}/version/{version_id}/comment?page={previous}"
-                );
-                view! { <A href=href.clone()>previous</A> }.into_any()
-            });
-            let next = pagination.next_page.map(|next| {
-                let href = format!(
-                    "/public/article/{article_id}/version/{version_id}/comment?page={next}"
-                );
-                view! { <A href=href.clone()>next</A> }.into_any()
-            });
-            view! {
+                    view! { <A href=href.clone()>previous</A> }.into_any()
+                });
+                let next = pagination.next_page.map(|next| {
+                    let href = format!(
+                        "/public/article/{article_id}/version/{version_id}/comment?page={next}"
+                    );
+                    view! { <A href=href.clone()>next</A> }.into_any()
+                });
+                view! {
                 <div>
                     <form on:submit=submit>
                         <textarea prop:value=body on:input=move |event| body.set(event_target_value(&event))></textarea>
@@ -146,7 +154,7 @@ pub fn CommentIndex() -> impl IntoView {
                 </div>
             }
             .into_any()
-        }
+            }
         }
     };
 

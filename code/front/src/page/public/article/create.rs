@@ -85,7 +85,14 @@ pub fn CreateArticle() -> impl IntoView {
             return;
         }
 
-        let form = match build_form(&title_value, &summary_value, &tags.get(), &version.get(), &note_value, &file) {
+        let form = match build_form(
+            &title_value,
+            &summary_value,
+            &tags.get(),
+            &version.get(),
+            &note_value,
+            &file,
+        ) {
             Ok(form) => form,
             Err(error) => {
                 notify_error(&notifications, &error);
@@ -107,7 +114,7 @@ pub fn CreateArticle() -> impl IntoView {
                         },
                     );
                 }
-                Err(error) => notify_error(&notifications, &error.to_string()),
+                Err(error) => notify_error(&notifications, error.to_string()),
             }
         });
     };
@@ -141,7 +148,8 @@ fn build_form(
     note: &str,
     file: &web_sys::File,
 ) -> Result<web_sys::FormData, String> {
-    let form = web_sys::FormData::new().map_err(|error| format!("failed to create FormData: {error:?}"))?;
+    let form = web_sys::FormData::new()
+        .map_err(|error| format!("failed to create FormData: {error:?}"))?;
     for (field, value) in [
         ("title", title),
         ("summary", summary),

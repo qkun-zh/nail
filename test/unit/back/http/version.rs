@@ -9,9 +9,12 @@ use crate::repository::role::{ROLE_MEMBER, hold_role};
 use crate::repository::version::VersionDraft;
 
 async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
-    let user_id = crate::repository::user::create_user(&context.state.graph, &nail_common::hash::email(email))
-        .await
-        .expect("user");
+    let user_id = crate::repository::user::create_user(
+        &context.state.graph,
+        &nail_common::hash::email(email),
+    )
+    .await
+    .expect("user");
     hold_role(&context.state.graph, &user_id, ROLE_MEMBER)
         .await
         .expect("member role");
@@ -100,11 +103,17 @@ async fn read_versions_over_http() {
     let (article_id, _) = article_fixture(&context, &user_id).await;
 
     let (status, body) = context
-        .get(&format!("/article/{article_id}/version/read?page=1&limit=8"), Some(&token))
+        .get(
+            &format!("/article/{article_id}/version/read?page=1&limit=8"),
+            Some(&token),
+        )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["data"]["total"].as_u64(), Some(1));
-    assert_eq!(body["data"]["version_list"].as_array().map(Vec::len), Some(1));
+    assert_eq!(
+        body["data"]["version_list"].as_array().map(Vec::len),
+        Some(1)
+    );
 }
 
 #[tokio::test]
@@ -146,7 +155,10 @@ async fn update_version_note_over_http() {
         )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert_eq!(body["data"]["version_id"].as_str(), Some(version_id.as_str()));
+    assert_eq!(
+        body["data"]["version_id"].as_str(),
+        Some(version_id.as_str())
+    );
 }
 
 #[tokio::test]
@@ -228,7 +240,10 @@ async fn create_version_rejects_a_duplicate_content_hash() {
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     let message = body["message"].as_str().expect("message");
-    assert!(message.contains("identical PDF already exists"), "message: {message}");
+    assert!(
+        message.contains("identical PDF already exists"),
+        "message: {message}"
+    );
 }
 
 #[tokio::test]

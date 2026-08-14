@@ -7,11 +7,11 @@ use serde::Deserialize;
 use tokio::io::AsyncWriteExt;
 
 use crate::infrastructure::pdf::{PdfStreamGuard, PdfUpload, TempPdf};
-use nail_common::hash::PdfHasher;
 use crate::infrastructure::state::AppState;
 use crate::interface::envelope::{ApiError, json_response};
 use crate::interface::extractor::{AppJson, AppMultipart, AppPath, AppQuery};
 use crate::interface::principal::Principal;
+use nail_common::hash::PdfHasher;
 
 pub async fn read_articles(
     State(state): State<AppState>,
@@ -56,17 +56,16 @@ pub async fn create_article(
     let note = note.ok_or_else(|| ApiError::bad_request("note is required"))?;
     let upload = upload.ok_or_else(|| ApiError::bad_request("file is required"))?;
 
-    let (article_id, version_id) = crate::logic::article::create_article(
-        &state,
-        &principal.user_id,
-        &title,
-        &summary,
-        &tags,
-        &version,
-        &note,
+    let input = crate::logic::article::ArticleCreateInput {
+        title: &title,
+        summary: &summary,
+        tags: &tags,
+        version: &version,
+        note: &note,
         upload,
-    )
-    .await?;
+    };
+    let (article_id, version_id) =
+        crate::logic::article::create_article(&state, &principal.user_id, input).await?;
 
     Ok(json_response(
         StatusCode::CREATED,
@@ -141,8 +140,7 @@ pub(crate) async fn read_text_field(
     if bytes.len() as u64 > state.config.server.max_text_field_bytes {
         return Err(ApiError::bad_request("text field too large"));
     }
-    String::from_utf8(bytes.to_vec())
-        .map_err(|_| ApiError::bad_request("text field must be UTF-8"))
+    String::from_utf8(bytes.to_vec()).map_err(|_| ApiError::bad_request("text field must be UTF-8"))
 }
 
 pub(crate) async fn stream_pdf_field(
@@ -153,9 +151,11 @@ pub(crate) async fn stream_pdf_field(
         .join(".tmp")
         .join(format!("{}.pdf", uuid::Uuid::now_v7()));
     let temp = TempPdf::new(temp_path.clone());
-    let mut file = tokio::fs::File::create(&temp_path)
-        .await
-        .map_err(|error| ApiError::from(crate::logic::error::LogicError::internal(format!("failed to create temp pdf: {error}"))))?;
+    let mut file = tokio::fs::File::create(&temp_path).await.map_err(|error| {
+        ApiError::from(crate::logic::error::LogicError::internal(format!(
+            "failed to create temp pdf: {error}"
+        )))
+    })?;
     let mut guard = PdfStreamGuard::new(state.config.server.max_pdf_size_bytes);
     let mut hasher = PdfHasher::new();
 

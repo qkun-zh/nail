@@ -58,14 +58,24 @@ async fn admin_console_authorize_grants_admin_and_denies_member() {
         .expect("member role");
 
     assert!(
-        authorize(&context.state, &admin, PERMISSION_USER_READ, &admin_console())
-            .await
-            .is_ok()
+        authorize(
+            &context.state,
+            &admin,
+            PERMISSION_USER_READ,
+            &admin_console()
+        )
+        .await
+        .is_ok()
     );
     assert_eq!(
-        authorize(&context.state, &member, PERMISSION_USER_READ, &admin_console())
-            .await
-            .unwrap_err(),
+        authorize(
+            &context.state,
+            &member,
+            PERMISSION_USER_READ,
+            &admin_console()
+        )
+        .await
+        .unwrap_err(),
         LogicError::forbidden("you are denied")
     );
 }
@@ -154,20 +164,26 @@ async fn is_author_is_true_for_owner_and_article_update_holder() {
     let admin = create_user(&context, "user-zero@example.com").await;
     let (article_id, _) = create_article_fixture(&context, &owner, "Mine").await;
 
-    assert!(is_author(&context.state, &owner, Some(&article_id), None, None)
-        .await
-        .expect("owner check"));
-    assert!(is_author(&context.state, &admin, Some(&article_id), None, None)
-        .await
-        .expect("admin check"));
+    assert!(
+        is_author(&context.state, &owner, Some(&article_id), None, None)
+            .await
+            .expect("owner check")
+    );
+    assert!(
+        is_author(&context.state, &admin, Some(&article_id), None, None)
+            .await
+            .expect("admin check")
+    );
 
     let stranger = create_user(&context, "bob@example.com").await;
     crate::repository::role::hold_role(&context.state.graph, &stranger, "member")
         .await
         .expect("member");
-    assert!(!is_author(&context.state, &stranger, Some(&article_id), None, None)
-        .await
-        .expect("stranger check"));
+    assert!(
+        !is_author(&context.state, &stranger, Some(&article_id), None, None)
+            .await
+            .expect("stranger check")
+    );
 }
 
 #[tokio::test]
@@ -185,9 +201,15 @@ async fn is_author_rejects_zero_or_multiple_ids() {
     let article_id = uuid::Uuid::now_v7().to_string();
     let version_id = uuid::Uuid::now_v7().to_string();
     assert_eq!(
-        is_author(&context.state, &actor, Some(&article_id), Some(&version_id), None)
-            .await
-            .unwrap_err(),
+        is_author(
+            &context.state,
+            &actor,
+            Some(&article_id),
+            Some(&version_id),
+            None
+        )
+        .await
+        .unwrap_err(),
         LogicError::bad_request("exactly one of article_id, version_id or comment_id is required")
     );
 }
@@ -397,4 +419,3 @@ async fn read_open_allows_an_authenticated_non_owner_to_read() {
         .is_ok()
     );
 }
-

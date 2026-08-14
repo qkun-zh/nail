@@ -28,7 +28,10 @@ async fn read_user_returns_the_email_hash_and_default_name() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let hash = nail_common::hash::email("alice@example.com");
     let user_id = create_user(&state.graph, &hash).await.expect("user");
-    let entry = read_user(&state.graph, &user_id).await.expect("read").expect("entry");
+    let entry = read_user(&state.graph, &user_id)
+        .await
+        .expect("read")
+        .expect("entry");
     assert_eq!(entry.email_address_hash, hash);
     assert_eq!(entry.name, user_id.replace('-', ""));
 }
@@ -72,8 +75,13 @@ async fn update_user_name_applies_the_new_name() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let hash = nail_common::hash::email("alice@example.com");
     let user_id = create_user(&state.graph, &hash).await.expect("user");
-    update_user_name(&state.graph, &user_id, "alice").await.expect("update");
-    let entry = read_user(&state.graph, &user_id).await.expect("read").expect("entry");
+    update_user_name(&state.graph, &user_id, "alice")
+        .await
+        .expect("update");
+    let entry = read_user(&state.graph, &user_id)
+        .await
+        .expect("read")
+        .expect("entry");
     assert_eq!(entry.name, "alice");
 }
 
@@ -86,7 +94,9 @@ async fn update_user_name_rejects_a_taken_name() {
     let second = create_user(&state.graph, &nail_common::hash::email("b@example.com"))
         .await
         .expect("second");
-    update_user_name(&state.graph, &first, "alice").await.expect("first update");
+    update_user_name(&state.graph, &first, "alice")
+        .await
+        .expect("first update");
     assert!(matches!(
         update_user_name(&state.graph, &second, "alice").await,
         Err(UserWriteError::AlreadyTaken)
@@ -111,7 +121,10 @@ async fn update_user_email_applies_the_new_hash() {
     update_user_email(&state.graph, &user_id, &old_hash, &new_hash)
         .await
         .expect("update");
-    let entry = read_user(&state.graph, &user_id).await.expect("read").expect("entry");
+    let entry = read_user(&state.graph, &user_id)
+        .await
+        .expect("read")
+        .expect("entry");
     assert_eq!(entry.email_address_hash, new_hash);
 }
 

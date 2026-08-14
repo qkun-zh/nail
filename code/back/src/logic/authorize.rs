@@ -56,7 +56,9 @@ pub async fn authorize_create(
         Default::default(),
     ));
     let allowed = crate::infrastructure::cedar::decide(&principal, action, &resource_uid, entities)
-        .map_err(|error| LogicError::internal(format!("authorization evaluation failed: {error}")))?;
+        .map_err(|error| {
+            LogicError::internal(format!("authorization evaluation failed: {error}"))
+        })?;
     if allowed {
         Ok(())
     } else {

@@ -1,8 +1,8 @@
 use super::context::{build_state, test_config};
 
 use crate::repository::article::{
-    ArticleDraft, ArticleUpdate, CreateArticleError, UpdateArticleError, create_article,
-    owner_of, read_article, read_articles, update_article,
+    ArticleDraft, ArticleUpdate, CreateArticleError, UpdateArticleError, create_article, owner_of,
+    read_article, read_articles, update_article,
 };
 use crate::repository::version::VersionDraft;
 
@@ -111,9 +111,12 @@ async fn create_article_writes_nodes_and_edges_and_reads_back() {
 #[tokio::test]
 async fn create_article_rejects_a_missing_author() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let error = create_article(&state.graph, &article_draft("missing", "Title", &pdf_hash(1), vec!["#go".to_string()]))
-        .await
-        .expect_err("missing author");
+    let error = create_article(
+        &state.graph,
+        &article_draft("missing", "Title", &pdf_hash(1), vec!["#go".to_string()]),
+    )
+    .await
+    .expect_err("missing author");
     assert!(matches!(error, CreateArticleError::AuthorMissing));
 }
 
@@ -123,9 +126,17 @@ async fn create_article_rejects_a_duplicate_title() {
     let author_id = create_user(&state, "alice@example.com").await;
     create_article_fixture(&state, &author_id, "Duplicated", &pdf_hash(1)).await;
 
-    let error = create_article(&state.graph, &article_draft(&author_id, "Duplicated", &pdf_hash(2), vec!["#go".to_string()]))
-        .await
-        .expect_err("duplicate title");
+    let error = create_article(
+        &state.graph,
+        &article_draft(
+            &author_id,
+            "Duplicated",
+            &pdf_hash(2),
+            vec!["#go".to_string()],
+        ),
+    )
+    .await
+    .expect_err("duplicate title");
     assert!(matches!(error, CreateArticleError::TitleTaken));
 }
 
@@ -135,9 +146,12 @@ async fn create_article_rejects_a_duplicate_content_hash() {
     let author_id = create_user(&state, "alice@example.com").await;
     create_article_fixture(&state, &author_id, "First", &pdf_hash(3)).await;
 
-    let error = create_article(&state.graph, &article_draft(&author_id, "Second", &pdf_hash(3), vec!["#go".to_string()]))
-        .await
-        .expect_err("duplicate content hash");
+    let error = create_article(
+        &state.graph,
+        &article_draft(&author_id, "Second", &pdf_hash(3), vec!["#go".to_string()]),
+    )
+    .await
+    .expect_err("duplicate content hash");
     assert!(matches!(error, CreateArticleError::ContentHashTaken));
 }
 
@@ -148,7 +162,9 @@ async fn read_articles_returns_id_desc_with_enrichment() {
     create_article_fixture(&state, &author_id, "First", &pdf_hash(1)).await;
     create_article_fixture(&state, &author_id, "Second", &pdf_hash(2)).await;
 
-    let (items, total) = read_articles(&state.graph, 10, 0).await.expect("read articles");
+    let (items, total) = read_articles(&state.graph, 10, 0)
+        .await
+        .expect("read articles");
     assert_eq!(total, 2);
     assert_eq!(items.len(), 2);
     assert_eq!(items[0].title, "Second");
@@ -230,8 +246,14 @@ async fn owner_of_returns_the_author() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = create_user(&state, "alice@example.com").await;
     let (article_id, _) = create_article_fixture(&state, &author_id, "Titled", &pdf_hash(9)).await;
-    assert_eq!(owner_of(&state.graph, &article_id).await.expect("owner"), Some(author_id));
-    assert_eq!(owner_of(&state.graph, "missing").await.expect("owner"), None);
+    assert_eq!(
+        owner_of(&state.graph, &article_id).await.expect("owner"),
+        Some(author_id)
+    );
+    assert_eq!(
+        owner_of(&state.graph, "missing").await.expect("owner"),
+        None
+    );
 }
 
 #[tokio::test]
@@ -240,8 +262,18 @@ async fn concurrent_identical_content_hashes_are_serialized_by_the_write_lock() 
     let author_id = create_user(&state, "alice@example.com").await;
     let shared_hash = pdf_hash(7);
 
-    let first_draft = article_draft(&author_id, "Concurrent A", &shared_hash, vec!["#a".to_string()]);
-    let second_draft = article_draft(&author_id, "Concurrent B", &shared_hash, vec!["#b".to_string()]);
+    let first_draft = article_draft(
+        &author_id,
+        "Concurrent A",
+        &shared_hash,
+        vec!["#a".to_string()],
+    );
+    let second_draft = article_draft(
+        &author_id,
+        "Concurrent B",
+        &shared_hash,
+        vec!["#b".to_string()],
+    );
     let first = create_article(&state.graph, &first_draft);
     let second = create_article(&state.graph, &second_draft);
 
@@ -255,8 +287,14 @@ async fn concurrent_identical_content_hashes_are_serialized_by_the_write_lock() 
             Err(other) => panic!("unexpected create result: {other}"),
         }
     }
-    assert_eq!(accepted, 1, "exactly one identical content hash must be accepted");
-    assert_eq!(deduplicated, 1, "the racing duplicate must be rejected as ContentHashTaken");
+    assert_eq!(
+        accepted, 1,
+        "exactly one identical content hash must be accepted"
+    );
+    assert_eq!(
+        deduplicated, 1,
+        "the racing duplicate must be rejected as ContentHashTaken"
+    );
 }
 
 async fn tag_node_ids_by_name(
@@ -283,7 +321,9 @@ async fn update_article_removes_orphan_tags_and_keeps_shared_tags() {
         vec!["#shared".to_string(), "#one".to_string()],
     );
     let first_id = first_draft.article_id.clone();
-    create_article(&state.graph, &first_draft).await.expect("create first");
+    create_article(&state.graph, &first_draft)
+        .await
+        .expect("create first");
     let second_draft = article_draft(
         &author_id,
         "Shared Second",
@@ -291,7 +331,9 @@ async fn update_article_removes_orphan_tags_and_keeps_shared_tags() {
         vec!["#shared".to_string(), "#two".to_string()],
     );
     let second_id = second_draft.article_id.clone();
-    create_article(&state.graph, &second_draft).await.expect("create second");
+    create_article(&state.graph, &second_draft)
+        .await
+        .expect("create second");
     assert_eq!(tag_node_ids_by_name(&state, "#shared").await.len(), 1);
 
     update_article(
@@ -329,4 +371,3 @@ async fn update_article_removes_orphan_tags_and_keeps_shared_tags() {
     assert_eq!(tag_node_ids_by_name(&state, "#one").await.len(), 1);
     assert_eq!(tag_node_ids_by_name(&state, "#two").await.len(), 1);
 }
-

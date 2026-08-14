@@ -96,10 +96,7 @@ impl std::fmt::Display for UpdateArticleError {
 
 impl std::error::Error for UpdateArticleError {}
 
-pub async fn create_article(
-    db: &DbHandle,
-    draft: &ArticleDraft,
-) -> Result<(), CreateArticleError> {
+pub async fn create_article(db: &DbHandle, draft: &ArticleDraft) -> Result<(), CreateArticleError> {
     let mut guard = db.write().await;
     guard.transaction_mut(|transaction| {
         if resolve_node_id_in_txn(transaction, ENTITY_TYPE_USER, &draft.author_id)?.is_none() {
@@ -108,8 +105,12 @@ pub async fn create_article(
         if !find_by_index_in_txn(transaction, KEY_TITLE, &draft.title)?.is_empty() {
             return Err(CreateArticleError::TitleTaken);
         }
-        if !find_by_index_in_txn(transaction, KEY_CONTENT_HASH, &draft.first_version.content_hash)?
-            .is_empty()
+        if !find_by_index_in_txn(
+            transaction,
+            KEY_CONTENT_HASH,
+            &draft.first_version.content_hash,
+        )?
+        .is_empty()
         {
             return Err(CreateArticleError::ContentHashTaken);
         }
@@ -126,7 +127,10 @@ pub async fn create_article(
         transaction.exec_mut(
             QueryBuilder::insert()
                 .nodes()
-                .aliases([alias_of(ENTITY_TYPE_VERSION, &draft.first_version.version_id)])
+                .aliases([alias_of(
+                    ENTITY_TYPE_VERSION,
+                    &draft.first_version.version_id,
+                )])
                 .values(VersionRow {
                     db_id: None,
                     entity_type: ENTITY_TYPE_VERSION.to_string(),
@@ -256,8 +260,7 @@ pub async fn update_article(
                 .value(EDGE_ARTICLE_TO_TAG)
                 .query(),
         )?;
-        let old_ids: HashSet<agdb::DbId> =
-            old_edges.elements.iter().map(|edge| edge.to).collect();
+        let old_ids: HashSet<agdb::DbId> = old_edges.elements.iter().map(|edge| edge.to).collect();
 
         let mut seen_tags = HashSet::new();
         let mut new_ids: Vec<agdb::DbId> = Vec::with_capacity(update.tags.len());
@@ -272,7 +275,12 @@ pub async fn update_article(
 
         for tag_id in &new_ids {
             if !old_ids.contains(tag_id) {
-                insert_edge(transaction, EDGE_ARTICLE_TO_TAG, article.into(), (*tag_id).into())?;
+                insert_edge(
+                    transaction,
+                    EDGE_ARTICLE_TO_TAG,
+                    article.into(),
+                    (*tag_id).into(),
+                )?;
             }
         }
 
@@ -390,19 +398,14 @@ fn enrich_articles(guard: &agdb::DbAny, ids: &[agdb::DbId]) -> Result<Vec<Articl
         if !node_set.contains(&edge.from) {
             continue;
         }
-        let (Some(name), Some(id)) = (
-            tag_name_by_node.get(&edge.to),
-            tag_id_by_node.get(&edge.to),
-        ) else {
+        let (Some(name), Some(id)) = (tag_name_by_node.get(&edge.to), tag_id_by_node.get(&edge.to))
+        else {
             continue;
         };
-        tags_by_article
-            .entry(edge.from)
-            .or_default()
-            .push(TagRef {
-                id: id.clone(),
-                name: name.clone(),
-            });
+        tags_by_article.entry(edge.from).or_default().push(TagRef {
+            id: id.clone(),
+            name: name.clone(),
+        });
     }
     for tags in tags_by_article.values_mut() {
         tags.sort_by(|left, right| left.id.cmp(&right.id));

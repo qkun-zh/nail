@@ -1,6 +1,5 @@
 use super::context::{build_state, test_config};
 
-use agdb::QueryBuilder;
 use crate::repository::article::{ArticleDraft, create_article};
 use crate::repository::delete::{delete_article, delete_user, delete_version};
 use crate::repository::schema::{
@@ -8,6 +7,7 @@ use crate::repository::schema::{
     ENTITY_TYPE_COMMENT, ENTITY_TYPE_USER, KEY_TYPE, alias_of,
 };
 use crate::repository::version::{VersionDraft, versions_of};
+use agdb::QueryBuilder;
 
 fn pdf_hash(seed: u8) -> String {
     (0..32).map(|_| format!("{seed:x}")).collect()
@@ -184,20 +184,26 @@ async fn delete_article_cascades_versions_and_comments_and_collects_hashes() {
         .expect("delete");
     assert_eq!(outcome.removed_pdf_hashes, vec![pdf_hash(1)]);
 
-    assert!(crate::repository::article::read_article(&state.graph, &article_id)
-        .await
-        .expect("read")
-        .is_none());
-    assert!(crate::repository::version::read_version(&state.graph, &version_id)
-        .await
-        .expect("read")
-        .is_none());
+    assert!(
+        crate::repository::article::read_article(&state.graph, &article_id)
+            .await
+            .expect("read")
+            .is_none()
+    );
+    assert!(
+        crate::repository::version::read_version(&state.graph, &version_id)
+            .await
+            .expect("read")
+            .is_none()
+    );
 }
 
 #[tokio::test]
 async fn delete_article_is_idempotent_for_a_missing_article() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let outcome = delete_article(&state.graph, "missing").await.expect("delete");
+    let outcome = delete_article(&state.graph, "missing")
+        .await
+        .expect("delete");
     assert!(outcome.removed_pdf_hashes.is_empty());
 }
 
@@ -205,7 +211,8 @@ async fn delete_article_is_idempotent_for_a_missing_article() {
 async fn delete_version_removes_only_the_version_and_refreshes_latest() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, first_version) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let (article_id, first_version) =
+        create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
     let second_version = uuid::Uuid::now_v7().to_string();
     crate::repository::version::create_version(
         &state.graph,
@@ -235,7 +242,9 @@ async fn delete_version_removes_only_the_version_and_refreshes_latest() {
 #[tokio::test]
 async fn delete_version_is_idempotent_for_a_missing_version() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let outcome = delete_version(&state.graph, "missing").await.expect("delete");
+    let outcome = delete_version(&state.graph, "missing")
+        .await
+        .expect("delete");
     assert!(outcome.removed_pdf_hashes.is_empty());
 }
 
@@ -246,7 +255,9 @@ async fn delete_article_removes_a_nested_comment_subtree_and_collects_the_pdf_ha
     let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
     insert_comment_tree(&state, &version_id, &author_id).await;
 
-    let outcome = delete_article(&state.graph, &article_id).await.expect("delete");
+    let outcome = delete_article(&state.graph, &article_id)
+        .await
+        .expect("delete");
     assert_eq!(outcome.removed_pdf_hashes, vec![pdf_hash(1)]);
 
     assert_no_comment_subtree_remains(&state).await;
@@ -259,7 +270,9 @@ async fn delete_version_removes_a_nested_comment_subtree_and_collects_the_pdf_ha
     let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
     insert_comment_tree(&state, &version_id, &author_id).await;
 
-    let outcome = delete_version(&state.graph, &version_id).await.expect("delete");
+    let outcome = delete_version(&state.graph, &version_id)
+        .await
+        .expect("delete");
     assert_eq!(outcome.removed_pdf_hashes, vec![pdf_hash(1)]);
 
     assert_no_comment_subtree_remains(&state).await;

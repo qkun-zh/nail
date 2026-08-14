@@ -27,7 +27,8 @@ struct OffsetTime {
 impl OffsetTime {
     fn new(offset_seconds: i32) -> Result<Self> {
         Ok(Self {
-            offset: UtcOffset::from_whole_seconds(offset_seconds).context("invalid timezone offset")?,
+            offset: UtcOffset::from_whole_seconds(offset_seconds)
+                .context("invalid timezone offset")?,
         })
     }
 }
@@ -54,7 +55,10 @@ pub fn init(config: &ServerConfig) -> Result<()> {
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.log_filter));
     tracing_subscriber::fmt()
         .with_env_filter(filter)
-        .with_writer(spawn_writer_thread(dir.to_path_buf(), config.timezone_offset_seconds)?)
+        .with_writer(spawn_writer_thread(
+            dir.to_path_buf(),
+            config.timezone_offset_seconds,
+        )?)
         .with_ansi(false)
         .with_timer(OffsetTime::new(config.timezone_offset_seconds)?)
         .try_init()
@@ -118,7 +122,8 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for ChannelWriter {
 }
 
 fn spawn_writer_thread(dir: PathBuf, offset_seconds: i32) -> Result<ChannelWriter> {
-    let offset = UtcOffset::from_whole_seconds(offset_seconds).context("invalid timezone offset")?;
+    let offset =
+        UtcOffset::from_whole_seconds(offset_seconds).context("invalid timezone offset")?;
     let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<u8>>(1024);
     std::thread::Builder::new()
         .name("nail-log-writer".to_string())
@@ -134,19 +139,14 @@ fn spawn_writer_thread(dir: PathBuf, offset_seconds: i32) -> Result<ChannelWrite
     Ok(ChannelWriter { tx })
 }
 
-pub async fn prune_loop(
-    dir: PathBuf,
-    retention_days: u64,
-    ring_size: usize,
-    interval_secs: u64,
-) {
+pub async fn prune_loop(dir: PathBuf, retention_days: u64, ring_size: usize, interval_secs: u64) {
     let mut interval = tokio::time::interval(Duration::from_secs(interval_secs));
     interval.tick().await;
     loop {
         interval.tick().await;
         let dir = dir.clone();
-        let result = tokio::task::spawn_blocking(move || prune(&dir, retention_days, ring_size))
-            .await;
+        let result =
+            tokio::task::spawn_blocking(move || prune(&dir, retention_days, ring_size)).await;
         match result {
             Ok(Ok(())) => {}
             Ok(Err(error)) => tracing::warn!(error = %error, "log retention prune failed"),
@@ -207,13 +207,13 @@ impl MinuteLogWriter {
         let now = OffsetDateTime::now_utc().to_offset(self.offset);
         let day = now
             .format(DAY_FORMAT)
-            .map_err(|error| io::Error::new(io::ErrorKind::Other, error.to_string()))?;
+            .map_err(|error| io::Error::other(error.to_string()))?;
         let hour = now
             .format(HOUR_FORMAT)
-            .map_err(|error| io::Error::new(io::ErrorKind::Other, error.to_string()))?;
+            .map_err(|error| io::Error::other(error.to_string()))?;
         let minute = now
             .format(MINUTE_FORMAT)
-            .map_err(|error| io::Error::new(io::ErrorKind::Other, error.to_string()))?;
+            .map_err(|error| io::Error::other(error.to_string()))?;
         let relative = format!("{day}/{hour}/{minute}.log");
 
         let rotated = self
@@ -228,9 +228,10 @@ impl MinuteLogWriter {
             let file = OpenOptions::new().create(true).append(true).open(&path)?;
             self.current = Some((relative, file));
         }
-        let (_, file) = self.current.as_mut().ok_or_else(|| {
-            io::Error::new(io::ErrorKind::Other, "log writer has no open file")
-        })?;
+        let (_, file) = self
+            .current
+            .as_mut()
+            .ok_or_else(|| io::Error::other("log writer has no open file"))?;
         Ok(file)
     }
 }
@@ -263,12 +264,11 @@ fn collect_log_files(dir: &Path, out: &mut Vec<(PathBuf, SystemTime)>) -> Result
         let path = entry.path();
         if file_type.is_dir() {
             collect_log_files(&path, out)?;
-        } else if path.extension().is_some_and(|extension| extension == "log") {
-            if let Ok(metadata) = fs::metadata(&path)
-                && let Ok(modified) = metadata.modified()
-            {
-                out.push((path, modified));
-            }
+        } else if path.extension().is_some_and(|extension| extension == "log")
+            && let Ok(metadata) = fs::metadata(&path)
+            && let Ok(modified) = metadata.modified()
+        {
+            out.push((path, modified));
         }
     }
     Ok(())
