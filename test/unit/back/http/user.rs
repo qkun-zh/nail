@@ -203,3 +203,140 @@ async fn user_delete_transfer_after_email_confirmation() {
         .expect("read")
         .is_none());
 }
+
+#[tokio::test]
+async fn email_change_two_step_flow_updates_email_and_rotates_session() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, old_session) = session_for(&context, "alice@example.com").await;
+
+    let (status, body) = context
+        .post(
+            "/email/read?intent=change_email",
+            json!({
+                "old_email_pow": context.issued_pow("alice@example.com"),
+                "new_email_pow": context.issued_pow("alice-new@example.com"),
+            }),
+            Some(&old_session),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert!(!body["data"]["old_email_subject"].as_str().unwrap_or("").is_empty());
+    assert!(!body["data"]["new_email_subject"].as_str().unwrap_or("").is_empty());
+
+    let messages = context.emails();
+    assert_eq!(messages.len(), 2);
+    assert_eq!(messages[0].0, "alice@example.com");
+    assert_eq!(messages[1].0, "alice-new@example.com");
+    let old_token = messages[0].2.clone();
+    let new_token = messages[1].2.clone();
+    assert!(context.state.caches.email_update.read(&user_id).is_some());
+
+    let payload = format!("{old_token}\n{new_token}");
+    let (status, body) = context
+        .post(
+            &format!("/user/{user_id}/update"),
+            json!({
+                "pow": context.issued_pow(&payload),
+                "old_email_token": old_token,
+                "new_email_token": new_token,
+            }),
+            Some(&old_session),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert!(!body["data"]["session_token"].as_str().unwrap_or("").is_empty());
+
+    let entry = crate::repository::user::read_user(&context.state.graph, &user_id)
+        .await
+        .expect("read")
+        .expect("entry");
+    assert_eq!(
+        entry.email_address_hash,
+        nail_common::hash::email("alice-new@example.com")
+    );
+
+    let (status, _) = context.get("/session/read?id=true", Some(&old_session)).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn email_change_rejects_same_old_and_new_email() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, session) = session_for(&context, "alice@example.com").await;
+
+    let (status, body) = context
+        .post(
+            "/email/read?intent=change_email",
+            json!({
+                "old_email_pow": context.issued_pow("alice@example.com"),
+                "new_email_pow": context.issued_pow("alice@example.com"),
+            }),
+            Some(&session),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(
+        body["message"].as_str(),
+        Some("new email must be different from old email")
+    );
+}
+
+#[tokio::test]
+async fn email_change_rejects_a_taken_new_email() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, session) = session_for(&context, "alice@example.com").await;
+    session_for(&context, "bob@example.com").await;
+
+    let (status, body) = context
+        .post(
+            "/email/read?intent=change_email",
+            json!({
+                "old_email_pow": context.issued_pow("alice@example.com"),
+                "new_email_pow": context.issued_pow("bob@example.com"),
+            }),
+            Some(&session),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(
+        body["message"].as_str(),
+        Some("new email is already used by another account")
+    );
+}
+
+#[tokio::test]
+async fn email_change_rejects_a_pow_payload_mismatch() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, session) = session_for(&context, "alice@example.com").await;
+
+    let (status, _) = context
+        .post(
+            "/email/read?intent=change_email",
+            json!({
+                "old_email_pow": context.issued_pow("alice@example.com"),
+                "new_email_pow": context.issued_pow("alice-new@example.com"),
+            }),
+            Some(&session),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let messages = context.emails();
+    let old_token = messages[0].2.clone();
+    let new_token = messages[1].2.clone();
+
+    let (status, body) = context
+        .post(
+            &format!("/user/{user_id}/update"),
+            json!({
+                "pow": context.issued_pow("does-not-match"),
+                "old_email_token": old_token,
+                "new_email_token": new_token,
+            }),
+            Some(&session),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("PoW payload does not match token"));
+}
+
