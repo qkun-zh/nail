@@ -155,6 +155,7 @@ pub async fn hold_role(db: &DbHandle, user_id: &str, role_name: &str) -> Result<
     Ok(())
 }
 
+#[cfg(test)]
 pub async fn user_holds_role(db: &DbHandle, user_id: &str, role_name: &str) -> Result<bool, DbError> {
     let guard = db.read().await;
     let Some(user_db_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)? else {
@@ -204,6 +205,7 @@ pub async fn users_holding_role(db: &DbHandle, role_name: &str) -> Result<Vec<St
     Ok(users)
 }
 
+#[cfg(test)]
 pub async fn user_holds_permission(
     db: &DbHandle,
     user_id: &str,

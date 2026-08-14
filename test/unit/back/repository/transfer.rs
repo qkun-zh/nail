@@ -26,7 +26,6 @@ async fn transfer_account_assets_removes_the_user_node() {
         .await
         .expect("transfer");
     assert!(outcome.transferred_article_ids.is_empty());
-    assert!(outcome.transferred_comment_ids.is_empty());
 
     let entry = crate::repository::user::read_user(&state.graph, &user_id)
         .await
@@ -41,7 +40,6 @@ async fn transfer_account_assets_is_idempotent_for_a_missing_user() {
         .await
         .expect("transfer");
     assert!(outcome.transferred_article_ids.is_empty());
-    assert!(outcome.transferred_comment_ids.is_empty());
 }
 
 #[tokio::test]
@@ -211,7 +209,6 @@ async fn account_transfer_excludes_the_transferring_author() {
         .await
         .expect("transfer account");
     assert_eq!(outcome.transferred_article_ids, vec![article_id.clone()]);
-    assert_eq!(outcome.transferred_comment_ids, vec![comment_id.clone()]);
     assert_eq!(
         owner_of(&state.graph, &article_id).await.expect("owner"),
         Some(user_zero.clone())

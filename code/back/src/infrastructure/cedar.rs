@@ -3,6 +3,7 @@ use std::sync::OnceLock;
 use anyhow::Context;
 use cedar_policy::{Authorizer, Decision, Entities, Entity, EntityUid, PolicySet, Request};
 
+#[cfg(test)]
 pub const SCHEMA: &str = include_str!("cedar/schema.cedar");
 pub const POLICY: &str = include_str!("cedar/policy.cedar");
 

@@ -114,7 +114,6 @@ async fn send_create_user_email(state: &AppState, pow: &Pow) -> Result<String, L
         &key,
         CreateUserTokenEntry {
             email_address_hash: email_address_hash.clone(),
-            email_subject: email_subject.clone(),
         },
     );
     Ok(email_subject)

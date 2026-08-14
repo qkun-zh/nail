@@ -97,7 +97,6 @@ fn consume_if_removes_the_entry_only_when_the_predicate_matches() {
 fn entry_reverse_keys_are_wired_to_the_right_fields() {
     let create_user = CreateUserTokenEntry {
         email_address_hash: "hash-a".to_string(),
-        email_subject: "subject".to_string(),
     };
     assert_eq!(create_user.reverse_key(), Some("hash-a"));
 

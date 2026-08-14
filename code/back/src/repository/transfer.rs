@@ -11,7 +11,6 @@ use crate::repository::schema::{
 
 pub struct AccountTransferOutcome {
     pub transferred_article_ids: Vec<String>,
-    pub transferred_comment_ids: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -74,13 +73,12 @@ pub async fn transfer_account_assets(
         let recycler = resolve_node_id_in_txn(transaction, ENTITY_TYPE_USER, &target)?
             .ok_or(TransferError::NoRecycler)?;
         let article_ids = repoint_from_user(transaction, recycler, author_id, EDGE_USER_TO_ARTICLE)?;
-        let comment_ids = repoint_from_user(transaction, recycler, author_id, EDGE_USER_TO_COMMENT)?;
+        repoint_from_user(transaction, recycler, author_id, EDGE_USER_TO_COMMENT)?;
         if let Some(user_node) = resolve_node_id_in_txn(transaction, ENTITY_TYPE_USER, author_id)? {
             transaction.exec_mut(QueryBuilder::remove().ids([user_node]).query())?;
         }
         Ok(AccountTransferOutcome {
             transferred_article_ids: article_ids,
-            transferred_comment_ids: comment_ids,
         })
     })
 }

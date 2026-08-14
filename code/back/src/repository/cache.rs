@@ -123,16 +123,11 @@ impl<E: CacheEntry> TokenCache<E> {
         }
         count
     }
-
-    pub fn run_pending_tasks(&self) {
-        self.main.run_pending_tasks();
-    }
 }
 
 #[derive(Debug, Clone)]
 pub struct CreateUserTokenEntry {
     pub email_address_hash: String,
-    pub email_subject: String,
 }
 
 impl CacheEntry for CreateUserTokenEntry {

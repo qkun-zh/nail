@@ -7,6 +7,7 @@ const TICK_MS: u32 = 1_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NotificationType {
+    #[allow(dead_code)] // FR-64 info toast; no page emits one yet.
     Info,
     Success,
     Error,
@@ -129,6 +130,7 @@ pub fn notify_success(notifications: &Notifications, message: impl Into<String>)
     notifications.push(NotificationType::Success, message);
 }
 
+#[allow(dead_code)] // FR-64 info toast; no page emits one yet.
 pub fn notify_info(notifications: &Notifications, message: impl Into<String>) {
     notifications.push(NotificationType::Info, message);
 }

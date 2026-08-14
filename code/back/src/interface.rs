@@ -5,7 +5,6 @@ pub mod config;
 pub mod content;
 pub mod email;
 pub mod envelope;
-pub mod pow;
 pub mod principal;
 pub mod role;
 pub mod router;

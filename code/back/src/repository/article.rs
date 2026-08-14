@@ -305,6 +305,7 @@ pub async fn update_article(
     })
 }
 
+#[cfg(test)]
 pub async fn owner_of(db: &DbHandle, article_id: &str) -> Result<Option<String>, DbError> {
     let guard = db.read().await;
     let Some(article) = resolve_node_id_sync(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
