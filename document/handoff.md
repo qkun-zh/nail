@@ -38,13 +38,19 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
   warnings (host + wasm32). E2E: 2 tests green under `--features end_to_end`.
 
 - **Code hygiene + proxy (2026-08-14): hygiene DONE (b7c1ebe); pingap
-  downloaded + config written (ee6bf76), full-stack integration pending.**
-  All comments stripped (incl. rustdoc) via comment-stripper-rs; cargo fmt +
-  clippy zero warnings on all crates. pingap 0.13.9 (linux-gnu-x86-full) at
-  `code/proxy/` (gitignored); `configuration/proxy/` (servers/locations/
-  plugins/upstreams.toml) written per the official docs and validated with
-  `pingap -t`. TODO: commit the proxy config, run pingap + back + front
-  integration, confirm `client_max_body_size` field for 32 MiB PDF uploads.
+  integration DONE (0c4364f, b8253e6, 5991bfe).** All comments stripped (incl.
+  rustdoc) via comment-stripper-rs; cargo fmt + clippy zero warnings on all
+  crates. pingap 0.13.9 (linux-gnu-x86-full) at `code/proxy/` (gitignored);
+  `configuration/proxy/` committed with servers/locations/plugins/upstreams
+  toml. `client_max_body_size = "32MiB"` confirmed as a LocationConf field in
+  0.13.9 (bytesize serde feature) and added at location level. access_log uses
+  the legacy daily-rolling format
+  (`log/proxy/access.log?rolling=daily {when} {client_ip} {method} {uri}
+  {proto} {status} {latency_human}`), all tags verified in 0.13.9 source.
+  Full-stack integration verified: back (real config) + pingap + front dist,
+  browser-driven with chromiumoxide through pingap — reverse proxy prefix
+  strip, static hosting, SPA fallback, 32 MiB PDF upload, comments, logout,
+  deregister all green; 33 MiB body -> 413 from the proxy.
 
 ## Pending — current agent
 
@@ -168,9 +174,15 @@ logic is host-testable.
 - [x] Identity/admin HTTP tests (74d7e78).
 - [x] Dead-code cleanup + drop #![allow(dead_code)] (43858ac).
 - [x] e2e (#32): app-only core + chromiumoxide 0.9.1 (74fb893).
-- [ ] Proxy integration: commit `configuration/proxy/`; run pingap + back +
-      front end-to-end on localhost:8080 (reverse proxy, static hosting, SPA
-      fallback, PDF upload); confirm `client_max_body_size`; update handoff.
+- [x] Proxy integration (0c4364f, b8253e6, 5991bfe): committed
+      `configuration/proxy/`; pingap + back + front end-to-end verified on
+      localhost:8081 (8080 is the DSH GUI's port in this session) via a
+      chromiumoxide browser probe covering every page: anonymous gate, email
+      authenticate, rename, email change (two-token), article + PDF upload,
+      version + PDF upload, version download, comments + reply + delete,
+      article update/delete, logout, re-login, deregister; `client_max_body_size
+      = "32MiB"` confirmed at location level (33 MiB -> 413, 32 MiB passes);
+      access_log switched to the legacy daily-rolling variable format.
 
 **E2E tooling facts (owner, 2026-08-14)**: the legacy e2e stack is back
 process + pingap + chromium with an in-process SMTP sink
