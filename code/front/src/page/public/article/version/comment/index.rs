@@ -40,26 +40,33 @@ pub fn CommentIndex() -> impl IntoView {
         vec![("body", body.get())]
     });
 
-    let effect_notifications = notifications.clone();
-    Effect::new(move |_| {
-        let limit = clamp_page_size(limits.get().search_page_size, 8);
-        let page_value = query
-            .get()
-            .get("page")
-            .and_then(|value| value.parse::<u64>().ok())
-            .unwrap_or(1)
-            .max(1);
-        let version_id = version_id();
-        let notifications = effect_notifications.clone();
-        leptos::task::spawn_local(async move {
-            match crate::request::comment::read_comments(&version_id, page_value, limit).await {
-                Ok(view) => state.set(CommentPage::Loaded(view)),
-                Err(error) => {
-                    notify_error(&notifications, error.to_string());
-                    state.set(CommentPage::Error(error.to_string()));
+    let reload = StoredValue::new({
+        let notifications = notifications.clone();
+        move |version_id: String| {
+            let limit = clamp_page_size(limits.get().search_page_size, 8);
+            let page_value = query
+                .get()
+                .get("page")
+                .and_then(|value| value.parse::<u64>().ok())
+                .unwrap_or(1)
+                .max(1);
+            let notifications = notifications.clone();
+            leptos::task::spawn_local(async move {
+                match crate::request::comment::read_comments(&version_id, page_value, limit).await {
+                    Ok(view) => state.set(CommentPage::Loaded(view)),
+                    Err(error) => {
+                        notify_error(&notifications, error.to_string());
+                        state.set(CommentPage::Error(error.to_string()));
+                    }
                 }
-            }
-        });
+            });
+        }
+    });
+
+    Effect::new(move |_| {
+        let version_id = version_id();
+        let reload = reload.get_value();
+        reload(version_id);
     });
 
     let submit_notifications = notifications.clone();
@@ -75,11 +82,12 @@ pub fn CommentIndex() -> impl IntoView {
             }
         };
         let notifications = submit_notifications.clone();
+        let reload = reload.get_value();
         leptos::task::spawn_local(async move {
             match crate::request::comment::create_comment(&version_id, &content).await {
                 Ok(_) => {
                     notify_success(&notifications, "comment created");
-                    body.set(String::new());
+                    reload(version_id);
                 }
                 Err(error) => notify_error(&notifications, error.to_string()),
             }

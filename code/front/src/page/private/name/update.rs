@@ -1,8 +1,9 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
-use leptos_router::hooks::use_navigate;
+use leptos_router::hooks::{use_navigate, use_query_map};
 
+use crate::page::draft::persist_draft;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
 use crate::page::session_gate::{authenticated_user_id, refresh_session};
 use crate::page::validation::validate_name;
@@ -11,8 +12,13 @@ use crate::page::validation::validate_name;
 pub fn NameUpdate() -> impl IntoView {
     let navigate = use_navigate();
     let notifications = use_notifications();
-    let name = RwSignal::new(String::new());
+    let query = use_query_map();
+    let name = RwSignal::new(query.get_untracked().get("name").unwrap_or_default());
     let working = RwSignal::new(false);
+
+    persist_draft(navigate.clone(), "/private/name/update".to_string(), move || {
+        vec![("name", name.get())]
+    });
 
     let submit = move |event: SubmitEvent| {
         event.prevent_default();

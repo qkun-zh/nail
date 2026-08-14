@@ -2,8 +2,9 @@ use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 use leptos_router::components::A;
-use leptos_router::hooks::use_navigate;
+use leptos_router::hooks::{use_navigate, use_query_map};
 
+use crate::page::draft::persist_draft;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
 use crate::page::session_gate::{SessionStatus, refresh_session, use_session_status};
 
@@ -12,10 +13,15 @@ pub fn Authenticate() -> impl IntoView {
     let navigate = use_navigate();
     let notifications = use_notifications();
     let status = use_session_status();
+    let query = use_query_map();
 
-    let email = RwSignal::new(String::new());
-    let token = RwSignal::new(String::new());
+    let email = RwSignal::new(query.get_untracked().get("email").unwrap_or_default());
+    let token = RwSignal::new(query.get_untracked().get("token").unwrap_or_default());
     let working = RwSignal::new(false);
+
+    persist_draft(navigate.clone(), "/private/authenticate".to_string(), move || {
+        vec![("email", email.get()), ("token", token.get())]
+    });
 
     let send_notifications = notifications.clone();
     let send_email = move |event: SubmitEvent| {

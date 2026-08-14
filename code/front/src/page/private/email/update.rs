@@ -1,8 +1,9 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
-use leptos_router::hooks::use_navigate;
+use leptos_router::hooks::{use_navigate, use_query_map};
 
+use crate::page::draft::persist_draft;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
 use crate::page::session_gate::{authenticated_user_id, refresh_session};
 
@@ -10,9 +11,14 @@ use crate::page::session_gate::{authenticated_user_id, refresh_session};
 pub fn EmailUpdate() -> impl IntoView {
     let navigate = use_navigate();
     let notifications = use_notifications();
-    let old_token = RwSignal::new(String::new());
-    let new_token = RwSignal::new(String::new());
+    let query = use_query_map();
+    let old_token = RwSignal::new(query.get_untracked().get("old_token").unwrap_or_default());
+    let new_token = RwSignal::new(query.get_untracked().get("new_token").unwrap_or_default());
     let working = RwSignal::new(false);
+
+    persist_draft(navigate.clone(), "/private/email/update".to_string(), move || {
+        vec![("old_token", old_token.get()), ("new_token", new_token.get())]
+    });
 
     let submit = move |event: SubmitEvent| {
         event.prevent_default();

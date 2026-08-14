@@ -3,17 +3,23 @@ pub mod update;
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
-use leptos_router::hooks::use_navigate;
+use leptos_router::hooks::{use_navigate, use_query_map};
 
+use crate::page::draft::persist_draft;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
 
 #[component]
 pub fn EmailIndex() -> impl IntoView {
     let navigate = use_navigate();
     let notifications = use_notifications();
-    let old_email = RwSignal::new(String::new());
-    let new_email = RwSignal::new(String::new());
+    let query = use_query_map();
+    let old_email = RwSignal::new(query.get_untracked().get("old_email").unwrap_or_default());
+    let new_email = RwSignal::new(query.get_untracked().get("new_email").unwrap_or_default());
     let working = RwSignal::new(false);
+
+    persist_draft(navigate.clone(), "/private/email".to_string(), move || {
+        vec![("old_email", old_email.get()), ("new_email", new_email.get())]
+    });
 
     let submit = move |event: SubmitEvent| {
         event.prevent_default();
