@@ -1,27 +1,27 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
-use leptos_router::components::A;
 use leptos_router::hooks::{use_navigate, use_query_map};
 
 use crate::page::draft::persist_draft;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
-use crate::page::session_gate::{SessionStatus, refresh_session, use_session_status};
+use crate::page::session_gate::refresh_session;
 
 #[component]
 pub fn Authenticate() -> impl IntoView {
     let navigate = use_navigate();
     let notifications = use_notifications();
-    let status = use_session_status();
     let query = use_query_map();
 
     let email = RwSignal::new(query.get_untracked().get("email").unwrap_or_default());
     let token = RwSignal::new(query.get_untracked().get("token").unwrap_or_default());
     let working = RwSignal::new(false);
 
-    persist_draft(navigate.clone(), "/private/authenticate".to_string(), move || {
-        vec![("email", email.get()), ("token", token.get())]
-    });
+    persist_draft(
+        navigate.clone(),
+        "/private/authenticate".to_string(),
+        move || vec![("email", email.get()), ("token", token.get())],
+    );
 
     let send_notifications = notifications.clone();
     let send_email = move |event: SubmitEvent| {
@@ -91,32 +91,13 @@ pub fn Authenticate() -> impl IntoView {
     };
 
     view! {
-        <div>
-            {move || {
-                let send_email = send_email.clone();
-                let redeem = redeem.clone();
-                match status.get() {
-                SessionStatus::Authenticated(_) => view! {
-                    <div>
-                        <p>you are already signed in</p>
-                        <A href="/private">private area</A>
-                    </div>
-                }.into_any(),
-                _ => view! {
-                    <div>
-                        <p>authenticate</p>
-                        <form on:submit=send_email>
-                            <input type="text" prop:value=email on:input=move |event| email.set(event_target_value(&event)) placeholder="email"/>
-                            <button type="submit" disabled=move || working.get()>send</button>
-                        </form>
-                        <form on:submit=redeem>
-                            <input type="text" prop:value=token on:input=move |event| token.set(event_target_value(&event)) placeholder="token"/>
-                            <button type="submit" disabled=move || working.get()>authenticate</button>
-                        </form>
-                    </div>
-                }.into_any(),
-                }
-            }}
-        </div>
+        <form on:submit=send_email>
+            <input type="text" prop:value=email on:input=move |event| email.set(event_target_value(&event)) placeholder="email"/>
+            <button type="submit" disabled=move || working.get()>send</button>
+        </form>
+        <form on:submit=redeem>
+            <input type="text" prop:value=token on:input=move |event| token.set(event_target_value(&event)) placeholder="token"/>
+            <button type="submit" disabled=move || working.get()>authenticate</button>
+        </form>
     }
 }

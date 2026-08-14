@@ -133,13 +133,10 @@ pub fn UpdateArticle() -> impl IntoView {
         }
         view! {
             <form on:submit=submit>
-                <p>title</p>
-                <input type="text" prop:value=title on:input=move |event| title.set(event_target_value(&event))/>
-                <p>summary</p>
-                <textarea prop:value=summary on:input=move |event| summary.set(event_target_value(&event))></textarea>
-                <p>tags</p>
-                <input type="text" prop:value=tags on:input=move |event| tags.set(event_target_value(&event))/>
-                <button type="submit">update</button>
+                <div><input type="text" placeholder="title" prop:value=title on:input=move |event| title.set(event_target_value(&event)) /></div>
+                <div><textarea placeholder="summary" rows="6" prop:value=summary on:input=move |event| summary.set(event_target_value(&event))></textarea></div>
+                <div><input type="text" placeholder="tag (#a #b)" prop:value=tags on:input=move |event| tags.set(event_target_value(&event)) /></div>
+                <button type="submit">save</button>
             </form>
         }
         .into_any()

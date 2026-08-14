@@ -120,23 +120,32 @@ pub fn ArticleIndex() -> impl IntoView {
                         .iter()
                         .map(|tag| tag.name.clone())
                         .collect::<Vec<_>>()
-                        .join(" ");
+                        .join(" · ");
+                    let meta = vec![
+                        article.author_name.clone(),
+                        tags,
+                        article.latest_version.clone(),
+                    ]
+                    .into_iter()
+                    .filter(|part| !part.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(" · ");
                     view! {
                         <div>
-                            <A href=detail.clone()>{article.title}</A>
+                            <div><A href=detail.clone()>{article.title}</A></div>
                             <p>{article.summary}</p>
-                            <p>{article.author_name} | {tags} | {article.latest_version}</p>
+                            <p>{meta}</p>
                         </div>
                     }
                 })
                 .collect_view();
             let previous = pagination.previous_page.map(|previous| {
                 let href = format!("/public/article?page={previous}");
-                view! { <A href=href.clone()>previous</A> }.into_any()
+                view! { <div><A href=href.clone()>previous</A></div> }.into_any()
             });
             let next = pagination.next_page.map(|next| {
                 let href = format!("/public/article?page={next}");
-                view! { <A href=href.clone()>next</A> }.into_any()
+                view! { <div><A href=href.clone()>next</A></div> }.into_any()
             });
             view! {
                 <div>
@@ -158,14 +167,13 @@ pub fn ArticleIndex() -> impl IntoView {
                     let hits = article
                         .hits
                         .iter()
-                        .map(|hit| format!("{}: {}", hit.label, hit.snippet))
-                        .collect::<Vec<_>>()
-                        .join(" | ");
+                        .map(|hit| format!("[{}] {}", hit.label, hit.snippet))
+                        .collect::<Vec<_>>();
                     view! {
                         <div>
-                            <A href=detail.clone()>{article.title}</A>
-                            <p>{article.author} | {article.time}</p>
-                            <p>{hits}</p>
+                            <div><A href=detail.clone()>{article.title}</A></div>
+                            <p>{article.author}{" · "}{article.time}</p>
+                            {hits.into_iter().map(|hit| view! { <p>{hit}</p> }).collect_view()}
                         </div>
                     }
                 })
@@ -174,11 +182,11 @@ pub fn ArticleIndex() -> impl IntoView {
                 crate::request::url::encode_component(&query.get().get("q").unwrap_or_default());
             let previous = pagination.previous_page.map(|previous| {
                 let href = format!("/public/article?q={encoded_q}&page={previous}");
-                view! { <A href=href.clone()>previous</A> }.into_any()
+                view! { <div><A href=href.clone()>previous</A></div> }.into_any()
             });
             let next = pagination.next_page.map(|next| {
                 let href = format!("/public/article?q={encoded_q}&page={next}");
-                view! { <A href=href.clone()>next</A> }.into_any()
+                view! { <div><A href=href.clone()>next</A></div> }.into_any()
             });
             view! {
                 <div>
@@ -192,17 +200,16 @@ pub fn ArticleIndex() -> impl IntoView {
     };
 
     view! {
-            <div>
-            <form on:submit=submit_search>
-                <input
-                    type="text"
-                    prop:value=search_input
-                    on:input=move |event| search_input.set(event_target_value(&event))
-                />
-                <button type="submit">search</button>
-            </form>
-            <A href="/public/article/create">publish article</A>
-            {render}
-            </div>
+        <form on:submit=submit_search>
+            <input
+                type="text"
+                placeholder="search"
+                prop:value=search_input
+                on:input=move |event| search_input.set(event_target_value(&event))
+            />
+            <button type="submit">search</button>
+        </form>
+        <div><A href="/public/article/create">create</A></div>
+        {render}
     }
 }

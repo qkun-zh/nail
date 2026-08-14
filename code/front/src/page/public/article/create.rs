@@ -120,23 +120,15 @@ pub fn CreateArticle() -> impl IntoView {
     };
 
     view! {
-            <div>
-            <form on:submit=submit>
-                <p>title</p>
-                <input type="text" prop:value=title on:input=move |event| title.set(event_target_value(&event))/>
-                <p>summary</p>
-                <textarea prop:value=summary on:input=move |event| summary.set(event_target_value(&event))></textarea>
-                <p>tags (space separated, each starting with #)</p>
-                <input type="text" prop:value=tags on:input=move |event| tags.set(event_target_value(&event))/>
-                <p>version (semver)</p>
-                <input type="text" prop:value=version on:input=move |event| version.set(event_target_value(&event))/>
-                <p>note</p>
-                <textarea prop:value=note on:input=move |event| note.set(event_target_value(&event))></textarea>
-                <p>pdf</p>
-                <input type="file" accept="application/pdf" node_ref=file_ref/>
-                <button type="submit">publish</button>
-            </form>
-            </div>
+        <form on:submit=submit>
+            <div><input type="text" placeholder="title" prop:value=title on:input=move |event| title.set(event_target_value(&event)) /></div>
+            <div><textarea placeholder="summary" rows="6" prop:value=summary on:input=move |event| summary.set(event_target_value(&event))></textarea></div>
+            <div><input type="text" placeholder="tag (#a #b)" prop:value=tags on:input=move |event| tags.set(event_target_value(&event)) /></div>
+            <div><input type="text" placeholder="version" prop:value=version on:input=move |event| version.set(event_target_value(&event)) /></div>
+            <div><textarea placeholder="note: what changed in this version" rows="4" prop:value=note on:input=move |event| note.set(event_target_value(&event))></textarea></div>
+            <div><input type="file" accept="application/pdf" node_ref=file_ref /></div>
+            <button type="submit">create article</button>
+        </form>
     }
 }
 

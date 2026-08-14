@@ -16,9 +16,11 @@ pub fn Deregister() -> impl IntoView {
     let token = RwSignal::new(query.get_untracked().get("token").unwrap_or_default());
     let working = RwSignal::new(false);
 
-    persist_draft(navigate.clone(), "/private/deregister".to_string(), move || {
-        vec![("email", email.get()), ("token", token.get())]
-    });
+    persist_draft(
+        navigate.clone(),
+        "/private/deregister".to_string(),
+        move || vec![("email", email.get()), ("token", token.get())],
+    );
 
     let send_notifications = notifications.clone();
     let send_confirmation = move |event: SubmitEvent| {
@@ -89,16 +91,13 @@ pub fn Deregister() -> impl IntoView {
     };
 
     view! {
-            <div>
-                <p>deregister your account</p>
-                <form on:submit=send_confirmation>
-                    <input type="text" prop:value=email on:input=move |event| email.set(event_target_value(&event)) placeholder="email"/>
-                    <button type="submit" disabled=move || working.get()>send</button>
-                </form>
-                <form on:submit=confirm>
-                    <input type="text" prop:value=token on:input=move |event| token.set(event_target_value(&event)) placeholder="token"/>
-                    <button type="submit" disabled=move || working.get()>deregister</button>
-                </form>
-            </div>
+        <form on:submit=send_confirmation>
+            <input type="text" prop:value=email on:input=move |event| email.set(event_target_value(&event)) placeholder="email"/>
+            <button type="submit" disabled=move || working.get()>send</button>
+        </form>
+        <form on:submit=confirm>
+            <input type="text" prop:value=token on:input=move |event| token.set(event_target_value(&event)) placeholder="token"/>
+            <button type="submit" disabled=move || working.get()>deregister</button>
+        </form>
     }
 }

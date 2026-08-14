@@ -67,12 +67,9 @@ pub fn CommentReply() -> impl IntoView {
     };
 
     view! {
-            <div>
-                <p>reply to comment {parent_id.clone()}</p>
-                <form on:submit=move |event| on_submit.run(event)>
-                    <textarea prop:value=body on:input=move |event| body.set(event_target_value(&event))></textarea>
-                    <button type="submit">reply</button>
-                </form>
-            </div>
+        <form on:submit=move |event| on_submit.run(event)>
+            <textarea placeholder="reply" prop:value=body on:input=move |event| body.set(event_target_value(&event))></textarea>
+            <button type="submit">reply</button>
+        </form>
     }
 }

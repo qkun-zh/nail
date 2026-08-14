@@ -75,7 +75,7 @@ pub fn VersionDetail() -> impl IntoView {
                 <p>{created_at}</p>
                 <p>{version.note}</p>
                 <button on:click=move |_| download()>download</button>
-                <A href=comments_href>comments</A>
+                <div><A href=comments_href>comment</A></div>
             </div>
         }
         .into_any()

@@ -104,13 +104,10 @@ pub fn CreateVersion() -> impl IntoView {
         }
         view! {
             <form on:submit=submit>
-                <p>version (semver, strictly greater than latest)</p>
-                <input type="text" prop:value=version on:input=move |event| version.set(event_target_value(&event))/>
-                <p>note</p>
-                <textarea prop:value=note on:input=move |event| note.set(event_target_value(&event))></textarea>
-                <p>pdf</p>
-                <input type="file" accept="application/pdf" node_ref=file_ref/>
-                <button type="submit">publish</button>
+                <div><input type="text" placeholder="version" prop:value=version on:input=move |event| version.set(event_target_value(&event)) /></div>
+                <div><textarea placeholder="note: what changed in this version" rows="4" prop:value=note on:input=move |event| note.set(event_target_value(&event))></textarea></div>
+                <div><input type="file" accept="application/pdf" node_ref=file_ref /></div>
+                <button type="submit">create version</button>
             </form>
         }
         .into_any()

@@ -154,9 +154,11 @@ pub fn ToastContainer() -> impl IntoView {
                 let remaining = remaining_seconds(toast.expires_at_ms, notifications.now_ms.get());
                 view! {
                     <div>
-                        <span>{kind_label(kind)}</span>
-                        <span>{message}</span>
-                        <span>{remaining}</span>
+                        {kind_label(kind)}
+                        {" · "}
+                        {message}
+                        {" · "}
+                        {remaining}
                         <button on:click=move |_| notifications.dismiss(id)>dismiss</button>
                     </div>
                 }
@@ -174,8 +176,9 @@ pub fn ToastContainer() -> impl IntoView {
                 .map(|toast| {
                     view! {
                         <div>
-                            <span>{kind_label(toast.kind)}</span>
-                            <span>{toast.message}</span>
+                            {kind_label(toast.kind)}
+                            {" · "}
+                            {toast.message}
                         </div>
                     }
                 })

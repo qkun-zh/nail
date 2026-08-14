@@ -123,17 +123,16 @@ pub fn CommentIndex() -> impl IntoView {
                             limits.get().timezone_offset_seconds,
                         );
                         let indent = if comment.parent_id.is_some() {
-                            "  reply: "
+                            "↳ "
                         } else {
                             ""
                         };
                         view! {
                             <div>
-                                <span>{indent}</span>
-                                <span>{comment.user_name.clone()} | {created_at}</span>
+                                <p>{indent}{comment.user_name.clone()}{" · "}{created_at}</p>
                                 <p>{comment.content.clone()}</p>
-                                <A href=reply_href>reply</A>
-                                <A href=delete_href>delete</A>
+                                <div><A href=reply_href>reply</A></div>
+                                <div><A href=delete_href>delete</A></div>
                             </div>
                         }
                     })
@@ -142,13 +141,13 @@ pub fn CommentIndex() -> impl IntoView {
                     let href = format!(
                         "/public/article/{article_id}/version/{version_id}/comment?page={previous}"
                     );
-                    view! { <A href=href.clone()>previous</A> }.into_any()
+                    view! { <div><A href=href.clone()>previous</A></div> }.into_any()
                 });
                 let next = pagination.next_page.map(|next| {
                     let href = format!(
                         "/public/article/{article_id}/version/{version_id}/comment?page={next}"
                     );
-                    view! { <A href=href.clone()>next</A> }.into_any()
+                    view! { <div><A href=href.clone()>next</A></div> }.into_any()
                 });
                 view! {
                 <div>

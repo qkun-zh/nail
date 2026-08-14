@@ -6,7 +6,6 @@ use nail_common::response::version::VersionListPage;
 use crate::infrastructure::limits::use_limits;
 use crate::page::notify::{notify_error, use_notifications};
 use crate::page::pagination::{clamp_page_size, pagination_state};
-use crate::page::time_format::format_timestamp;
 
 #[derive(Clone)]
 enum VersionPage {
@@ -63,27 +62,22 @@ pub fn VersionList() -> impl IntoView {
                 .map(|version| {
                     let version_id = version.id.clone();
                     let detail_href = format!("/public/article/{article_id}/version/{version_id}");
-                    let created_at =
-                        format_timestamp(version.created_at, limits.get().timezone_offset_seconds);
                     view! {
-                        <div>
-                            <A href=detail_href.clone()>{version.version}</A>
-                            <span>{created_at}</span>
-                        </div>
+                        <div><A href=detail_href.clone()>{version.version}</A></div>
                     }
                 })
                 .collect_view();
             let previous = pagination.previous_page.map(|previous| {
                 let href = format!("/public/article/{article_id}/version?page={previous}");
-                view! { <A href=href.clone()>previous</A> }.into_any()
+                view! { <div><A href=href.clone()>previous</A></div> }.into_any()
             });
             let next = pagination.next_page.map(|next| {
                 let href = format!("/public/article/{article_id}/version?page={next}");
-                view! { <A href=href.clone()>next</A> }.into_any()
+                view! { <div><A href=href.clone()>next</A></div> }.into_any()
             });
             view! {
                 <div>
-                    <A href=create_href>add version</A>
+                    <div><A href=create_href>create</A></div>
                     {rows}
                     {previous}
                     {next}

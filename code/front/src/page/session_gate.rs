@@ -71,7 +71,7 @@ fn verify_once(status: RwSignal<SessionStatus>) {
 pub fn who_are_you() -> AnyView {
     view! {
         <p>who are you?</p>
-        <A href="/private/authenticate">authenticate</A>
+        <div><A href="/private/authenticate">authenticate</A></div>
     }
     .into_any()
 }

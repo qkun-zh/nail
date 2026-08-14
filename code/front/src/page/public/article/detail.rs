@@ -50,12 +50,12 @@ pub fn ArticleDetail() -> impl IntoView {
         view! {
             <div>
                 <h2>{article.title}</h2>
-                <p>{article.author_name} | {created_at}</p>
+                <p>{article.author_name}{" · "}{created_at}</p>
                 <p>{tags}</p>
                 <p>{article.summary}</p>
-                <A href=versions_href>versions</A>
-                <A href=update_href>update</A>
-                <A href=delete_href>delete</A>
+                <div><A href=versions_href>version</A></div>
+                <div><A href=update_href>update</A></div>
+                <div><A href=delete_href>delete</A></div>
             </div>
         }
         .into_any()

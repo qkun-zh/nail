@@ -18,7 +18,10 @@ pub fn EmailIndex() -> impl IntoView {
     let working = RwSignal::new(false);
 
     persist_draft(navigate.clone(), "/private/email".to_string(), move || {
-        vec![("old_email", old_email.get()), ("new_email", new_email.get())]
+        vec![
+            ("old_email", old_email.get()),
+            ("new_email", new_email.get()),
+        ]
     });
 
     let submit = move |event: SubmitEvent| {
@@ -64,13 +67,10 @@ pub fn EmailIndex() -> impl IntoView {
     };
 
     view! {
-            <div>
-                <p>change email</p>
-                <form on:submit=submit>
-                    <input type="text" prop:value=old_email on:input=move |event| old_email.set(event_target_value(&event)) placeholder="old_email"/>
-                    <input type="text" prop:value=new_email on:input=move |event| new_email.set(event_target_value(&event)) placeholder="new_email"/>
-                    <button type="submit" disabled=move || working.get()>send</button>
-                </form>
-            </div>
+        <form on:submit=submit>
+            <input type="text" prop:value=old_email on:input=move |event| old_email.set(event_target_value(&event)) placeholder="email(old)"/>
+            <input type="text" prop:value=new_email on:input=move |event| new_email.set(event_target_value(&event)) placeholder="email(new)"/>
+            <button type="submit" disabled=move || working.get()>send</button>
+        </form>
     }
 }

@@ -16,9 +16,11 @@ pub fn NameUpdate() -> impl IntoView {
     let name = RwSignal::new(query.get_untracked().get("name").unwrap_or_default());
     let working = RwSignal::new(false);
 
-    persist_draft(navigate.clone(), "/private/name/update".to_string(), move || {
-        vec![("name", name.get())]
-    });
+    persist_draft(
+        navigate.clone(),
+        "/private/name/update".to_string(),
+        move || vec![("name", name.get())],
+    );
 
     let submit = move |event: SubmitEvent| {
         event.prevent_default();

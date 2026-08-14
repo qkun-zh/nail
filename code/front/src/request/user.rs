@@ -3,26 +3,10 @@ use nail_common::request::{DeleteMode, EmailReadRequest, UserDeleteRequest, User
 use nail_common::response::EmptyView;
 use nail_common::response::email::{EmailSubjectView, EmailSubjectsView};
 use nail_common::response::session::SessionTokenView;
-use nail_common::response::user::{UserNameView, UserView};
+use nail_common::response::user::UserNameView;
 
 use crate::request::error::RequestResult;
 use crate::request::{http, url};
-
-pub async fn read_self_user(
-    user_id: &str,
-    name: bool,
-    email_hash: bool,
-) -> RequestResult<UserView> {
-    let mut query = Vec::new();
-    if name {
-        query.push(("name", "true"));
-    }
-    if email_hash {
-        query.push(("email_hash", "true"));
-    }
-    let path = url::build_path_with_query(&["user", user_id, "read"], &query);
-    http::get_json(&path, true).await
-}
 
 pub async fn update_self_name(user_id: &str, pow: Pow) -> RequestResult<UserNameView> {
     let path = url::build_path_with_query(&["user", user_id, "update"], &[]);

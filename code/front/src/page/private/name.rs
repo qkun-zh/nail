@@ -9,13 +9,20 @@ use crate::page::session_gate::{SessionStatus, use_session_status};
 pub fn Name() -> impl IntoView {
     let status = use_session_status();
     view! {
-            <div>
-                <p>name</p>
-                {move || match status.get() {
-                    SessionStatus::Authenticated(view) => view! { <p>{view.name.unwrap_or_default()}</p> }.into_any(),
-                    _ => view! { <p>unknown</p> }.into_any(),
-                }}
-                <A href="/private/name/update">update name</A>
-            </div>
+        <div>
+            {move || match status.get() {
+                SessionStatus::Authenticated(view) => {
+                    let name = view.name.unwrap_or_default();
+                    let greeting = if name.is_empty() {
+                        "hi!".to_string()
+                    } else {
+                        format!("hi, {name}!")
+                    };
+                    view! { <p>{greeting}</p> }.into_any()
+                }
+                _ => view! { <p>hi!</p> }.into_any(),
+            }}
+            <div><A href="/private/name/update">update</A></div>
+        </div>
     }
 }
