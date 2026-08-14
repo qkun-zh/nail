@@ -33,6 +33,11 @@ _Avoid_: label, category, hashtag
 A snippet of one article field matching a query, together with that field's
 display label and the article it belongs to.
 
+**Download token**:
+A single-use, short-lived token (TTL 60 s) bound to one version's PDF and one
+user; redeeming it serves that PDF's bytes.
+_Avoid_: download link, one-time URL
+
 ### Identity and sign-in
 
 **User**:

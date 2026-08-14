@@ -150,6 +150,42 @@ constitution); this document records state and process only.
     batch `read_user_names` replaces N per-author reads; depth check and writes
     stay inside the graph write transaction.
 
+- ✅ **Phase 3 slice 5 — download/PDF** (2026-08-14, commit `1d29a6a`):
+  `GET /article/{id}/version/{version_id}/content/read` across the four layers.
+  **back 224 tests green** (common 104), `cargo check` zero warnings.
+  - #1: mint returns `/api/article/{id}/version/{version_id}/content/read?token={token}`;
+    the consume branch passes `params.token` (the legacy passed the path
+    `version_id` as the token and discarded the minted token — both halves of
+    the broken chain are fixed). Token is single-use (atomic `consume_if`), TTL
+    `download_token_ttl_seconds` (60 s), bound to the minting user (different
+    user → 400 "download token is bound to another account"; unknown/expired/
+    reused → 400 "invalid or expired download token"). #28: the served filename
+    is always the hash-derived `<hash>.pdf`; `sanitize_attachment_filename`
+    lives in `infrastructure/pdf.rs` (ascii alnum/`-`/`_`/`.`, fallback
+    `article.pdf`; no original filename is stored). #29: `download=1|true`
+    returns the `{url}` envelope from the otherwise-binary route (deliberate
+    contract, documented).
+  - New modules: `logic/download.rs` (`mint_download_token` /
+    `consume_download_token` / `resolve_version_pdf_path`) and
+    `interface/content.rs` (`read_content` + streaming `serve_pdf_file` via
+    `tokio-util` `ReaderStream`). `repository/cache.rs` gained
+    `DownloadTokenEntry` (no reverse key) and the `download` cache; config
+    gained `download_token_ttl_seconds`.
+  - Vocabulary note: `mint`/`consume` are the owner-accepted verdict-#1 terms
+    for the download-token flow (not in the §5.2 forbidden flow-term list); the
+    interface stays strict `read_content` for the `content/read` route.
+  - §8.3 gate: equal-or-better on all five axes. Correctness: the mint/consume
+    chain is restored per #1 (the legacy chain was broken in both directions);
+    single-use is atomic and user-bound. Readability: one small
+    `logic/download.rs` + one `interface/content.rs` replace the chain split
+    across legacy `api/article.rs` + `logic/download.rs`. Conciseness:
+    `DownloadTokenEntry` rides the generic `TokenCache<E>` (the legacy's
+    dedicated `repo/token/download.rs` is gone). Performance: streaming with no
+    in-memory read and no reverse-index bookkeeping for the download token.
+  - `thermo-nuclear-code-quality-review` skill is still NOT available (registry
+    list unchanged); the manual §8.3 gate above stands in, as in slice 4. The
+    512-line bar (README §5.3) holds: every slice-5 file is ≤ 261 lines.
+
 ### Owner decisions (2026-08-13)
 
 - **#26 closed**: `intent` is a query parameter, not a body field.
@@ -177,10 +213,10 @@ constitution); this document records state and process only.
 ## Handover (2026-08-14) — current agent
 
 Personnel change: agent E completed **slice 4 (comment domain)**; a new agent
-(F) takes over from **slice 5 (download/PDF)**.
+(F) took over at **slice 5 (download/PDF)** and completed it (see Current state).
 
-- ✅ Slices 1-4 are done. **back 205 tests green** (common 104), `cargo check`
-  zero warnings, working tree clean at `f5bbee6`.
+- ✅ Slices 1-5 are done. **back 224 tests green** (common 104), `cargo check`
+  zero warnings, working tree clean.
 
 - ✅ Slice 3 (article + version) is done: TDD rewrite of slices 1-3 under the
   CRUD-only vocabulary (commits `8de3490` archive + `6747cad` rewrite),
@@ -201,16 +237,18 @@ Personnel change: agent E completed **slice 4 (comment domain)**; a new agent
   normally; the slice 3 "Tooling (corrected again)" note was wrong and is
   replaced with a factual note above. No tooling claim is recorded without an
   exact path and error text.
-- ⏳ **Hard-delete reply-subtree regression tests (agent F, one commit)**: the
-  slice 3 hard-delete tests did not exercise nested reply subtrees, which is
-  how the `delete_comment_tree_in_txn` direction bug survived into slice 4
-  (fixed in `91597bb`). Add regression tests to
-  `test/unit/back/repository/delete.rs` covering article / version / user hard
-  delete with a depth ≥ 2 comment tree (top-level + replies), asserting every
-  node and edge is removed.
-- Next: **slice 5 (download/PDF)** — #1 (mint → `.../content/read?token={token}`,
+- ✅ **Hard-delete reply-subtree regression tests (agent F, commit `6b8ee16`)**:
+  article / version / user hard delete now assert that a depth ≥ 2 comment tree
+  (top-level + replies) removes every comment node and every
+  `comment_to_comment` / `comment_to_version` / `user_to_comment` edge, and that
+  the PDF hash list is still collected. Verified red against the reverted
+  traversal direction, then green.
+- ✅ **Slice 5 (download/PDF) done**: #1 (mint → `.../content/read?token={token}`,
   single-use 60s, user-bound), #28 (hash-based filenames only), #29 (mint-JSON
-  contract documented), then slice 6 (role/authorization, #5/#7/#8/#9), slice 7
+  contract documented). See Current state.
+- Next: **slice 6 (role/authorization)** — #5 (visibility deleted; policy 2
+  rewritten to the owner-confirmed read-open semantics), #7 (member_count), #8
+  (REQUIRED_ROLES protected), #9 (duplicate role → 400), then slice 7
   (config/email/infrastructure, #13/#19/#22/#26/#32).
 - All prior handover items (a)-(d) and the slice 2 deferred items (search
   re-sync, hard-delete cascade + PDF cleanup, recycler least-loaded selection)
@@ -271,9 +309,9 @@ Per domain: read the PRD slice → write failing tests first (red) → implement
 4. ✅ Comment domain — create/reply/read/update/delete with the `DeleteBody`
    mode contract (#2), #16 (invalid comment id → 400), #3 — done (see Current
    state).
-5. Download/PDF — #1 (mint → `.../content/read?token={token}`, single-use
-   60s, user-bound), #28 (hash-based filenames only), #29 (mint-JSON
-   contract documented).
+5. ✅ Download/PDF — #1 (mint → `.../content/read?token={token}`, single-use
+   60s, user-bound), #28 (hash-based filenames only), #29 (mint-JSON contract
+   documented) — done (see Current state).
 6. Role/authorization — #5 (visibility deleted; policy 2 rewritten to the
    owner-confirmed read-open semantics), #7 (member_count), #8 (REQUIRED_ROLES
    protected), #9 (duplicate role → 400).
