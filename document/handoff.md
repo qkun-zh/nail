@@ -28,18 +28,16 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
 
 ## Pending — current agent
 
-1. **Typed-DTO sweep (owner-ordered FIRST, before Phase 4)** — one slice per
-   response family: define wire-shaped response DTOs in
-   `common::response` (submodules per domain), refactor the backend handlers
-   to return them instead of `serde_json::Value`/`json!`; the wire stays
-   byte-identical (the `test/unit/back/http/*` assertions are the guard).
-   **Progress:** search split done (`9923ea9`) — `ArticleSearchParams` →
-   `common::request`, `SearchHit`/`SearchArticleItem`/`SearchPage` →
-   `common::response/search.rs`, shared enums stay in `common::search`;
-   `SearchPage.has_more` renamed to `has_next` (#34, FR-46). Common 104 +
-   back 245 green. Next: add the remaining `common::response` domain
-   submodules and refactor handlers family by family. Then Phase 4.
-2. **Phase 4 — frontend migration** (after the sweep). Layering per README
+1. **Typed-DTO sweep (owner-ordered FIRST, before Phase 4)** — DONE.
+   Every response family now returns typed `common::response` DTOs instead of
+   `serde_json::Value`/`json!`; the wire stays byte-identical (the
+   `test/unit/back/http/*` assertions are green). Submodules: `search`,
+   `session`, `email`, `content`, `user`, `article`, `version`, `comment`,
+   `role` + `EmptyView`. `SearchPage.has_more` renamed to `has_next` (#34,
+   FR-46). Backend-local untagged enums (`ArticleReadPage`, `UserUpdateView`,
+   `UserDeleteView`, `EmailReadView`) cover one-of-N response unions. Common
+   108 + back 245 green.
+2. **Phase 4 — frontend migration** (next). Layering per README
    §4.2 (router → page → request → infrastructure); Leptos CSR, no CSS
    (README §10); runtime config from `/config/read` (reuse `RuntimeLimits` as
    the limits signal) with compile-time fallback. Items: #14 (English UI),
@@ -47,9 +45,6 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
    per-comment pre-check), #12 (drop `/private/email/check` link), #4 (delete
    `pow-worker.js`). Gate: `cargo check --target wasm32-unknown-unknown` on
    `nail_front`.
-- Phase 5 cleanup candidate (recorded, not urgent): sweep the slices 1-6
-  `serde_json::Value`/`json!` responses to typed DTOs per the owner decision
-  below.
 
 ## Owner decisions (details: adjudication.md + git log)
 
