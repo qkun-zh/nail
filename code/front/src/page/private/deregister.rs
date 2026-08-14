@@ -86,12 +86,12 @@ pub fn Deregister() -> impl IntoView {
             <div>
                 <p>deregister your account</p>
                 <form on:submit=send_confirmation>
-                    <input type="text" prop:value=email on:input=move |event| email.set(event_target_value(&event)) placeholder="account email"/>
-                    <button type="submit" disabled=move || working.get()>send confirmation email</button>
+                    <input type="text" prop:value=email on:input=move |event| email.set(event_target_value(&event)) placeholder="email"/>
+                    <button type="submit" disabled=move || working.get()>send</button>
                 </form>
                 <form on:submit=confirm>
-                    <input type="text" prop:value=token on:input=move |event| token.set(event_target_value(&event)) placeholder="confirmation token"/>
-                    <button type="submit" disabled=move || working.get()>confirm deregister</button>
+                    <input type="text" prop:value=token on:input=move |event| token.set(event_target_value(&event)) placeholder="token"/>
+                    <button type="submit" disabled=move || working.get()>deregister</button>
                 </form>
             </div>
     }

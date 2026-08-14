@@ -116,7 +116,7 @@ pub fn UpdateArticle() -> impl IntoView {
                 <textarea prop:value=summary on:input=move |event| summary.set(event_target_value(&event))></textarea>
                 <p>tags</p>
                 <input type="text" prop:value=tags on:input=move |event| tags.set(event_target_value(&event))/>
-                <button type="submit">save</button>
+                <button type="submit">update</button>
             </form>
         }
         .into_any()

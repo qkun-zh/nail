@@ -74,7 +74,7 @@ pub fn VersionDetail() -> impl IntoView {
                 <p>{version.version}</p>
                 <p>{created_at}</p>
                 <p>{version.note}</p>
-                <button on:click=move |_| download()>download pdf</button>
+                <button on:click=move |_| download()>download</button>
                 <A href=comments_href>comments</A>
             </div>
         }

@@ -53,7 +53,7 @@ pub fn CommentDelete() -> impl IntoView {
             <div>
                 <p>delete comment {comment_id.clone()}</p>
                 <button on:click=move |_| on_transfer.run(())>transfer</button>
-                <button on:click=move |_| on_hard.run(())>hard delete</button>
+                <button on:click=move |_| on_hard.run(())>delete</button>
             </div>
     }
 }

@@ -101,11 +101,11 @@ pub fn Authenticate() -> impl IntoView {
                         <p>authenticate</p>
                         <form on:submit=send_email>
                             <input type="text" prop:value=email on:input=move |event| email.set(event_target_value(&event)) placeholder="email"/>
-                            <button type="submit" disabled=move || working.get()>send email</button>
+                            <button type="submit" disabled=move || working.get()>send</button>
                         </form>
                         <form on:submit=redeem>
-                            <input type="text" prop:value=token on:input=move |event| token.set(event_target_value(&event)) placeholder="emailed token"/>
-                            <button type="submit" disabled=move || working.get()>sign in</button>
+                            <input type="text" prop:value=token on:input=move |event| token.set(event_target_value(&event)) placeholder="token"/>
+                            <button type="submit" disabled=move || working.get()>authenticate</button>
                         </form>
                     </div>
                 }.into_any(),

@@ -79,7 +79,7 @@ pub fn DeleteArticle() -> impl IntoView {
             <div>
                 <p>{title}</p>
                 <button on:click=move |_| on_transfer.run(())>transfer</button>
-                <button on:click=move |_| on_hard.run(())>hard delete</button>
+                <button on:click=move |_| on_hard.run(())>delete</button>
             </div>
         }
         .into_any()

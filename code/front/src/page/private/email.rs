@@ -61,9 +61,9 @@ pub fn EmailIndex() -> impl IntoView {
             <div>
                 <p>change email</p>
                 <form on:submit=submit>
-                    <input type="text" prop:value=old_email on:input=move |event| old_email.set(event_target_value(&event)) placeholder="old email"/>
-                    <input type="text" prop:value=new_email on:input=move |event| new_email.set(event_target_value(&event)) placeholder="new email"/>
-                    <button type="submit" disabled=move || working.get()>send confirmation emails</button>
+                    <input type="text" prop:value=old_email on:input=move |event| old_email.set(event_target_value(&event)) placeholder="old_email"/>
+                    <input type="text" prop:value=new_email on:input=move |event| new_email.set(event_target_value(&event)) placeholder="new_email"/>
+                    <button type="submit" disabled=move || working.get()>send</button>
                 </form>
             </div>
     }

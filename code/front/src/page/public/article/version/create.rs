@@ -110,7 +110,7 @@ pub fn CreateVersion() -> impl IntoView {
                 <textarea prop:value=note on:input=move |event| note.set(event_target_value(&event))></textarea>
                 <p>pdf</p>
                 <input type="file" accept="application/pdf" node_ref=file_ref/>
-                <button type="submit">publish version</button>
+                <button type="submit">publish</button>
             </form>
         }
         .into_any()
