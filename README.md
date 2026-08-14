@@ -35,8 +35,8 @@ hold several versions of each crate; the lock files pin the ones in use.
 | uuid | 1.24.0 | `<base>/uuid-1.24.0/` |
 | time | 0.3.55 | `<base>/time-0.3.55/` |
 | serde | 1.0.229 | `<base>/serde-1.0.229/` |
-| seekstorm | 3.3.5 (Phase 3, not yet added) | `<base>/seekstorm-3.3.5/` |
-| cedar-policy | 4.12.0 (Phase 3, not yet added) | `<base>/cedar-policy-4.12.0/` |
+| seekstorm | 3.3.5 (in use) | `<base>/seekstorm-3.3.5/` |
+| cedar-policy | 4.12.0 (in use) | `<base>/cedar-policy-4.12.0/` |
 | leptos | 0.8.20 (Phase 4, not yet added) | `<base>/leptos-0.8.20/` |
 
 ## 3. Project Skeleton (fixed, must not be changed)
@@ -151,10 +151,8 @@ graph TD
 
 The module trees beneath `router`, `page`, `request`, and `infrastructure`
 must be designed fresh for `nail_new`; it is absolutely forbidden to copy
-the legacy `nail` frontend's module division into these layers. A module
-boundary is valid only when justified by the new layer's responsibilities
-and its callers — "the legacy code did it this way" is never an acceptable
-justification.
+the legacy `nail` frontend's module division into these layers. The same
+boundary-validity rule as §4.1 applies.
 
 ### 4.3 Shared crate (`common`)
 
@@ -215,8 +213,8 @@ justification.
 - No hardcoding. Anything configurable must live in toml configuration files.
 - Do not chase dead or unused code during the migration; interim code may
   still be consumed by later slices or rewritten. Batch-remove all dead code
-  in one dedicated pass after the entire refactoring is complete (the final
-  task of Phase 5), then the zero-warning gate is enforced.
+  in one pass after the entire refactoring is complete (final task of
+  Phase 5), then the zero-warning gate is enforced.
 
 ### 5.5 Comments
 
@@ -272,10 +270,10 @@ justification.
   they were produced through extensive argumentation and repeated study of
   library source code and are close to best practice. Build on them rather
   than re-deriving them.
-- Before implementing any of the designated strong-reference areas (the
-  `nail` database design, cache design, email-sending business logic, or
-  backend API design), read and study the legacy implementation carefully
-  first — understand its reasoning before writing new code. This is the
+- Before implementing any designated strong-reference area (the `nail`
+  database design, cache design, email-sending business logic, or backend
+  API design), read and study the legacy implementation carefully first —
+  understand its reasoning before writing new code. This is the
   pre-implementation counterpart of the post-completion comparison (§8.3).
 
 ### 8.3 Quality gate
