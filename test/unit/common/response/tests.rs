@@ -118,3 +118,39 @@ fn empty_view_serializes_as_empty_object() -> anyhow::Result<()> {
     assert_eq!(decoded, crate::response::EmptyView {});
     Ok(())
 }
+
+#[test]
+fn article_view_omits_is_author_when_absent() -> anyhow::Result<()> {
+    let view = crate::response::article::ArticleView {
+        id: "a".to_string(),
+        author_id: "u".to_string(),
+        author_name: "alice".to_string(),
+        title: "Title".to_string(),
+        summary: "Summary".to_string(),
+        created_at: 1,
+        tags: Vec::new(),
+        is_author: None,
+    };
+    let json = serde_json::to_string(&view)?;
+    assert!(!json.contains("is_author"));
+    let decoded: crate::response::article::ArticleView = serde_json::from_str(&json)?;
+    assert_eq!(decoded.is_author, None);
+    Ok(())
+}
+
+#[test]
+fn comment_view_serializes_parent_id_as_null_when_top_level() -> anyhow::Result<()> {
+    let view = crate::response::comment::CommentView {
+        id: "c".to_string(),
+        content: "hello".to_string(),
+        user_id: "u".to_string(),
+        parent_id: None,
+        created_at: 1,
+        user_name: "alice".to_string(),
+    };
+    let json = serde_json::to_string(&view)?;
+    assert!(json.contains(r#""parent_id":null"#));
+    let decoded: crate::response::comment::CommentView = serde_json::from_str(&json)?;
+    assert_eq!(decoded.parent_id, None);
+    Ok(())
+}
