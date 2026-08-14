@@ -1,3 +1,6 @@
+use leptos::prelude::*;
+use leptos_router::NavigateOptions;
+
 use crate::request::url::encode_component;
 
 pub fn build_draft_query(fields: &[(&str, &str)]) -> String {
@@ -16,6 +19,33 @@ pub fn draft_url(pathname: &str, fields: &[(&str, &str)]) -> String {
     } else {
         format!("{pathname}?{query}")
     }
+}
+
+pub fn persist_draft<Navigate>(
+    navigate: Navigate,
+    pathname: String,
+    fields: impl Fn() -> Vec<(&'static str, String)> + 'static,
+) where
+    Navigate: Fn(&str, NavigateOptions) + Clone + 'static,
+{
+    Effect::new(move |previous: Option<()>| {
+        let captured = fields();
+        if previous.is_none() {
+            return;
+        }
+        let pairs: Vec<(&str, &str)> = captured
+            .iter()
+            .map(|(key, value)| (*key, value.as_str()))
+            .collect();
+        navigate(
+            &draft_url(&pathname, &pairs),
+            NavigateOptions {
+                replace: true,
+                resolve: false,
+                ..Default::default()
+            },
+        );
+    });
 }
 
 #[cfg(test)]

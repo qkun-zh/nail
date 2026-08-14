@@ -1,7 +1,11 @@
 pub mod author_gate;
 pub mod draft;
+pub mod index;
+pub mod not_found;
 pub mod notify;
 pub mod pagination;
+pub mod private;
+pub mod public;
 pub mod session_gate;
 pub mod time_format;
 pub mod validation;

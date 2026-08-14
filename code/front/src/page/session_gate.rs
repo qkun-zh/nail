@@ -1,7 +1,7 @@
 use std::sync::OnceLock;
 
 use leptos::prelude::*;
-use leptos_router::components::A;
+use leptos_router::components::{A, Outlet};
 use nail_common::response::session::SessionView;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,6 +43,18 @@ pub fn authenticated_user_id() -> Option<String> {
     }
 }
 
+pub fn refresh_session() {
+    let Some(status) = SESSION_STATUS.get() else {
+        return;
+    };
+    leptos::task::spawn_local(async move {
+        match crate::request::auth::read_session(true, true).await {
+            Ok(view) => status.set(SessionStatus::Authenticated(view)),
+            Err(_) => status.set(SessionStatus::Anonymous),
+        }
+    });
+}
+
 fn verify_once(status: RwSignal<SessionStatus>) {
     leptos::task::spawn_local(async move {
         let result = match crate::request::session::read_session_token() {
@@ -67,12 +79,12 @@ pub fn who_are_you() -> AnyView {
 }
 
 #[component]
-pub fn SessionGate(children: ChildrenFn) -> impl IntoView {
+pub fn RootGate() -> impl IntoView {
     let status = use_session_status();
     view! {
         {move || match status.get() {
             SessionStatus::Checking => view! { <p>checking session...</p> }.into_any(),
-            SessionStatus::Authenticated(_) => children().into_any(),
+            SessionStatus::Authenticated(_) => view! { <Outlet/> }.into_any(),
             SessionStatus::Anonymous => who_are_you(),
         }}
     }
