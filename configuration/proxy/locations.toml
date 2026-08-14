@@ -1,5 +1,6 @@
 [locations.back_api]
 path = "/api"
+client_max_body_size = "32MiB"
 plugins = ["rateLimit"]
 rewrite = "^/api/(?<path>.+)$ /$1"
 upstream = "back"
