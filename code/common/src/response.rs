@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 pub mod search;
+pub mod session;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -42,6 +43,9 @@ pub struct RuntimeLimits {
     pub search_page_size: u64,
     pub max_search_pages: u64,
 }
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EmptyView {}
 
 #[cfg(test)]
 #[path = "../../../test/unit/common/response/tests.rs"]

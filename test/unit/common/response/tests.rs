@@ -96,3 +96,25 @@ fn search_page_round_trips_with_paging_fields() -> anyhow::Result<()> {
     assert_eq!(decoded, page);
     Ok(())
 }
+
+#[test]
+fn session_view_omits_absent_fields() -> anyhow::Result<()> {
+    let view = crate::response::session::SessionView {
+        id: Some("0197c0b0-1234-7000-8000-000000000001".to_string()),
+        name: None,
+    };
+    let json = serde_json::to_string(&view)?;
+    assert_eq!(json, r##"{"id":"0197c0b0-1234-7000-8000-000000000001"}"##);
+    let decoded: crate::response::session::SessionView = serde_json::from_str(&json)?;
+    assert_eq!(decoded, view);
+    Ok(())
+}
+
+#[test]
+fn empty_view_serializes_as_empty_object() -> anyhow::Result<()> {
+    let json = serde_json::to_string(&crate::response::EmptyView {})?;
+    assert_eq!(json, "{}");
+    let decoded: crate::response::EmptyView = serde_json::from_str("{}")?;
+    assert_eq!(decoded, crate::response::EmptyView {});
+    Ok(())
+}

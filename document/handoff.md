@@ -21,8 +21,10 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
   the typed `common::response::RuntimeLimits` (slice 7).
 - `_`-prefixed archive files removed (`aa39cb6`); pre-rewrite code in git
   (`8de3490^`). File tools work on all paths (verified). The
-  `thermo-nuclear-code-quality-review` skill is unavailable in the registry —
-  use the manual §8.3 gate and record it (512-line bar, README §5.3).
+  `thermo-nuclear-code-quality-review` skill is AVAILABLE (fixed 2026-08-14:
+  its `disable-model-invocation: true` flag excluded it from the registry — a
+  known harness bug; the flag was removed). Use it for §8.3 gates; its 1k-line
+  default bar is superseded by README §5.3 (512 lines).
 
 ## Pending — current agent
 
@@ -144,5 +146,5 @@ README outranks any skill. Do not grill routine work.
 | handoff | end of every slice/phase/session | update this file; keep adjudication current |
 | domain-modeling | any new domain term | glossary at `document/context.md` |
 | grilling / grill-with-docs | an open/risky owner decision | one question at a time, recommend an answer |
-| thermo-nuclear-code-quality-review | §8.3 gate per slice | unavailable in registry — manual §8.3 gate + record; 512-line bar |
+| thermo-nuclear-code-quality-review | §8.3 gate per slice | available since 2026-08-14 (flag removed); its 1k-line default bar is superseded by README §5.3 (512 lines) |
 | setup-matt-pocock-skills | first session, once | already done |
