@@ -1,93 +1,119 @@
 use crate::infrastructure::state::AppState;
 use crate::logic::error::LogicError;
-use crate::repository::role::{
-    PERMISSION_ARTICLE_UPDATE, user_holds_permission,
-};
+use crate::repository::authorization::{AssemblyError, Resource, assemble, assemble_principal};
+use crate::repository::role::{PERMISSION_ARTICLE_UPDATE, PERMISSION_COMMENT_DELETE};
 
-pub async fn require_permission(
+pub async fn authorize(
     state: &AppState,
     actor_id: &str,
-    permission: &str,
+    action: &str,
+    resource: &Resource,
 ) -> Result<(), LogicError> {
-    let granted = user_holds_permission(&state.graph, actor_id, permission)
+    let assembly = assemble(&state.graph, actor_id, resource.clone())
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
-    if granted {
+        .map_err(map_assembly_error)?;
+    let allowed = crate::infrastructure::cedar::decide(
+        &assembly.principal,
+        action,
+        &assembly.resource,
+        assembly.entities,
+    )
+    .map_err(|error| LogicError::internal(format!("authorization evaluation failed: {error}")))?;
+    if allowed {
         Ok(())
     } else {
         Err(LogicError::forbidden("you are denied"))
     }
 }
 
-pub async fn require_owner_or_permission_for_article(
+pub async fn authorize_or(
     state: &AppState,
     actor_id: &str,
-    article_id: &str,
-    permission: &str,
+    action: &str,
+    resource: &Resource,
+    not_found_message: &str,
 ) -> Result<(), LogicError> {
-    let owner = crate::repository::article::owner_of(&state.graph, article_id)
-        .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
-    let Some(owner) = owner else {
-        return Err(LogicError::not_found("article not found"));
-    };
-    if owner == actor_id {
-        return Ok(());
+    match authorize(state, actor_id, action, resource).await {
+        Ok(()) => Ok(()),
+        Err(LogicError::NotFound(_)) => Err(LogicError::not_found(not_found_message)),
+        Err(error) => Err(error),
     }
-    require_permission(state, actor_id, permission).await
 }
 
-pub async fn require_owner_or_permission_for_version(
+pub async fn authorize_create(
     state: &AppState,
     actor_id: &str,
-    version_id: &str,
-    permission: &str,
+    action: &str,
 ) -> Result<(), LogicError> {
-    let parent_article = crate::repository::version::parent_article_of(&state.graph, version_id)
+    let (principal, mut entities) = assemble_principal(&state.graph, actor_id)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
-    let Some(parent_article) = parent_article else {
-        return Err(LogicError::not_found("version not found"));
-    };
-    let owner = crate::repository::article::owner_of(&state.graph, &parent_article)
-        .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
-    if owner.as_deref() == Some(actor_id) {
-        return Ok(());
+        .map_err(map_assembly_error)?;
+    let resource_uid: cedar_policy::EntityUid = "Article::\"__create__\""
+        .parse()
+        .map_err(|error| LogicError::internal(format!("invalid create resource uid: {error}")))?;
+    entities.push(cedar_policy::Entity::new_no_attrs(
+        resource_uid.clone(),
+        Default::default(),
+    ));
+    let allowed = crate::infrastructure::cedar::decide(&principal, action, &resource_uid, entities)
+        .map_err(|error| LogicError::internal(format!("authorization evaluation failed: {error}")))?;
+    if allowed {
+        Ok(())
+    } else {
+        Err(LogicError::forbidden("you are denied"))
     }
-    require_permission(state, actor_id, permission).await
 }
 
-pub async fn require_owner_or_permission_for_comment(
+pub async fn is_allowed(
     state: &AppState,
     actor_id: &str,
-    comment_id: &str,
-    permission: &str,
-) -> Result<(), LogicError> {
-    let owner = crate::repository::comment::owner_of_comment(&state.graph, comment_id)
-        .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
-    let Some(owner) = owner else {
-        return Err(LogicError::not_found("comment not found"));
-    };
-    if owner == actor_id {
-        return Ok(());
+    action: &str,
+    resource: &Resource,
+) -> bool {
+    match assemble(&state.graph, actor_id, resource.clone()).await {
+        Ok(assembly) => crate::infrastructure::cedar::decide(
+            &assembly.principal,
+            action,
+            &assembly.resource,
+            assembly.entities,
+        )
+        .unwrap_or(false),
+        Err(_) => false,
     }
-    require_permission(state, actor_id, permission).await
 }
 
-pub async fn is_article_author(
+pub async fn is_author(
     state: &AppState,
     actor_id: &str,
-    article_id: &str,
+    article_id: Option<&str>,
+    version_id: Option<&str>,
+    comment_id: Option<&str>,
 ) -> Result<bool, LogicError> {
-    let owner = crate::repository::article::owner_of(&state.graph, article_id)
-        .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
-    if owner.as_deref() == Some(actor_id) {
-        return Ok(true);
+    let (action, resource) = match (article_id, version_id, comment_id) {
+        (Some(article_id), None, None) => (
+            PERMISSION_ARTICLE_UPDATE,
+            Resource::Article(article_id.to_string()),
+        ),
+        (None, Some(version_id), None) => (
+            PERMISSION_ARTICLE_UPDATE,
+            Resource::Version(version_id.to_string()),
+        ),
+        (None, None, Some(comment_id)) => (
+            PERMISSION_COMMENT_DELETE,
+            Resource::Comment(comment_id.to_string()),
+        ),
+        _ => {
+            return Err(LogicError::bad_request(
+                "exactly one of article_id, version_id or comment_id is required",
+            ));
+        }
+    };
+    Ok(is_allowed(state, actor_id, action, &resource).await)
+}
+
+fn map_assembly_error(error: AssemblyError) -> LogicError {
+    match error {
+        AssemblyError::ResourceNotFound => LogicError::not_found("resource not found"),
+        AssemblyError::Internal(message) => LogicError::internal(message),
     }
-    user_holds_permission(&state.graph, actor_id, PERMISSION_ARTICLE_UPDATE)
-        .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))
 }

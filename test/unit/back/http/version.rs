@@ -26,6 +26,24 @@ async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
     (user_id, token)
 }
 
+async fn admin_session(context: &TestCtx) -> (String, String) {
+    let user_id = crate::repository::user::create_user(
+        &context.state.graph,
+        &nail_common::hash::email("user-zero@example.com"),
+    )
+    .await
+    .expect("admin");
+    let token = Uuid::now_v7().to_string();
+    let key = token_key(&token).expect("token key");
+    context.state.caches.session.insert(
+        &key,
+        SessionTokenEntry {
+            user_id: user_id.clone(),
+        },
+    );
+    (user_id, token)
+}
+
 async fn article_fixture(context: &TestCtx, author_id: &str) -> (String, String) {
     let article_id = Uuid::now_v7().to_string();
     let version_id = Uuid::now_v7().to_string();
@@ -135,7 +153,7 @@ async fn read_version_cross_check_over_http() {
 #[tokio::test]
 async fn update_version_note_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
+    let (user_id, token) = admin_session(&context).await;
     let (_, version_id) = article_fixture(&context, &user_id).await;
 
     let (status, body) = context
@@ -172,7 +190,7 @@ async fn delete_version_rejects_transfer_mode() {
 #[tokio::test]
 async fn delete_version_hard_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
+    let (user_id, token) = admin_session(&context).await;
     let (_, version_id) = article_fixture(&context, &user_id).await;
 
     let (status, body) = context

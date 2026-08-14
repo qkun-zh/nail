@@ -6,10 +6,8 @@ use uuid::Uuid;
 
 use crate::infrastructure::pdf::{PdfUpload, content_hash_rel_path};
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::{
-    is_article_author, require_owner_or_permission_for_article,
-    require_owner_or_permission_for_version,
-};
+use crate::logic::authorize::{authorize_or, is_author};
+use crate::repository::authorization::Resource;
 use crate::logic::error::LogicError;
 use crate::logic::search::sync_article_best_effort;
 use crate::repository::role::{
@@ -76,8 +74,14 @@ pub async fn create_version(
     raw_note: &str,
     upload: PdfUpload,
 ) -> Result<String, LogicError> {
-    require_owner_or_permission_for_article(state, actor_id, article_id, PERMISSION_VERSION_CREATE)
-        .await?;
+    authorize_or(
+        state,
+        actor_id,
+        PERMISSION_VERSION_CREATE,
+        &Resource::Article(article_id.to_string()),
+        "article not found",
+    )
+    .await?;
 
     let version_number = validate_version(raw_version)?;
     let note = validate_note(raw_note, state.config.server.max_version_note_chars)?;
@@ -150,7 +154,7 @@ pub async fn read_version(
         "note": entry.note,
     });
     if check_if_is_author {
-        let is_author = is_article_author(state, actor_id, &parent_article).await?;
+        let is_author = is_author(state, actor_id, None, Some(version_id), None).await?;
         data["is_author"] = serde_json::json!(is_author);
     }
     Ok(data)
@@ -191,8 +195,14 @@ pub async fn update_version(
     version_id: &str,
     raw_note: &str,
 ) -> Result<serde_json::Value, LogicError> {
-    require_owner_or_permission_for_version(state, actor_id, version_id, PERMISSION_VERSION_UPDATE)
-        .await?;
+    authorize_or(
+        state,
+        actor_id,
+        PERMISSION_VERSION_UPDATE,
+        &Resource::Version(version_id.to_string()),
+        "version not found",
+    )
+    .await?;
     let note = validate_note(raw_note, state.config.server.max_version_note_chars)?;
     update_version_node(&state.graph, version_id, &note)
         .await
@@ -211,8 +221,14 @@ pub async fn delete_version(
             "version delete only supports mode \"hard\"",
         ));
     }
-    require_owner_or_permission_for_version(state, actor_id, version_id, PERMISSION_VERSION_DELETE)
-        .await?;
+    authorize_or(
+        state,
+        actor_id,
+        PERMISSION_VERSION_DELETE,
+        &Resource::Version(version_id.to_string()),
+        "version not found",
+    )
+    .await?;
     let parent_article = parent_article_of(&state.graph, version_id)
         .await
         .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;

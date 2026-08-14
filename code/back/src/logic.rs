@@ -6,6 +6,7 @@ pub mod download;
 pub mod email;
 pub mod error;
 pub mod pow;
+pub mod role;
 pub mod search;
 pub mod session;
 pub mod user;

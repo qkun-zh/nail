@@ -10,6 +10,9 @@ pub mod infrastructure_email;
 #[path = "infrastructure/pdf.rs"]
 pub mod infrastructure_pdf;
 
+#[path = "infrastructure/cedar.rs"]
+pub mod infrastructure_cedar;
+
 #[path = "repository/cache.rs"]
 pub mod repository_cache;
 
@@ -81,6 +84,9 @@ pub mod http_version;
 
 #[path = "http/content.rs"]
 pub mod http_content;
+
+#[path = "http/role.rs"]
+pub mod http_role;
 
 #[path = "repository/comment.rs"]
 pub mod repository_comment;

@@ -1,8 +1,10 @@
 use super::context::TestCtx;
+use crate::logic::authorize::{authorize, authorize_create, authorize_or, is_author};
 use crate::logic::error::LogicError;
 use crate::repository::article::{ArticleDraft, create_article};
+use crate::repository::authorization::Resource;
 use crate::repository::role::{
-    PERMISSION_ARTICLE_DELETE, PERMISSION_ARTICLE_UPDATE, PERMISSION_USER_READ,
+    PERMISSION_ARTICLE_CREATE, PERMISSION_ARTICLE_UPDATE, PERMISSION_USER_READ,
 };
 use crate::repository::version::VersionDraft;
 
@@ -40,8 +42,12 @@ async fn create_article_fixture(
     (article_id, version_id)
 }
 
+fn admin_console() -> Resource {
+    Resource::System("admin-console".to_string())
+}
+
 #[tokio::test]
-async fn require_permission_grants_admin_and_denies_member() {
+async fn admin_console_authorize_grants_admin_and_denies_member() {
     let context = TestCtx::new().await.expect("test context");
     let admin = create_user(&context, "user-zero@example.com").await;
     let member = create_user(&context, "alice@example.com").await;
@@ -49,11 +55,13 @@ async fn require_permission_grants_admin_and_denies_member() {
         .await
         .expect("member role");
 
-    assert!(crate::logic::authorize::require_permission(&context.state, &admin, PERMISSION_USER_READ)
-        .await
-        .is_ok());
+    assert!(
+        authorize(&context.state, &admin, PERMISSION_USER_READ, &admin_console())
+            .await
+            .is_ok()
+    );
     assert_eq!(
-        crate::logic::authorize::require_permission(&context.state, &member, PERMISSION_USER_READ)
+        authorize(&context.state, &member, PERMISSION_USER_READ, &admin_console())
             .await
             .unwrap_err(),
         LogicError::forbidden("you are denied")
@@ -69,14 +77,16 @@ async fn owner_can_update_own_article_without_permission() {
         .expect("member");
     let (article_id, _) = create_article_fixture(&context, &owner, "Mine").await;
 
-    assert!(crate::logic::authorize::require_owner_or_permission_for_article(
-        &context.state,
-        &owner,
-        &article_id,
-        PERMISSION_ARTICLE_UPDATE,
-    )
-    .await
-    .is_ok());
+    assert!(
+        authorize(
+            &context.state,
+            &owner,
+            PERMISSION_ARTICLE_UPDATE,
+            &Resource::Article(article_id),
+        )
+        .await
+        .is_ok()
+    );
 }
 
 #[tokio::test]
@@ -90,11 +100,11 @@ async fn non_owner_without_permission_is_forbidden() {
     let (article_id, _) = create_article_fixture(&context, &owner, "Mine").await;
 
     assert_eq!(
-        crate::logic::authorize::require_owner_or_permission_for_article(
+        authorize(
             &context.state,
             &other,
-            &article_id,
             PERMISSION_ARTICLE_UPDATE,
+            &Resource::Article(article_id),
         )
         .await
         .unwrap_err(),
@@ -107,11 +117,12 @@ async fn missing_article_is_not_found() {
     let context = TestCtx::new().await.expect("test context");
     let actor = create_user(&context, "alice@example.com").await;
     assert_eq!(
-        crate::logic::authorize::require_owner_or_permission_for_article(
+        authorize_or(
             &context.state,
             &actor,
-            "missing",
             PERMISSION_ARTICLE_UPDATE,
+            &Resource::Article("missing".to_string()),
+            "article not found",
         )
         .await
         .unwrap_err(),
@@ -120,30 +131,61 @@ async fn missing_article_is_not_found() {
 }
 
 #[tokio::test]
-async fn is_article_author_is_true_for_owner_and_article_update_holder() {
+async fn authorize_create_grants_a_member_article_create() {
+    let context = TestCtx::new().await.expect("test context");
+    let member = create_user(&context, "alice@example.com").await;
+    crate::repository::role::hold_role(&context.state.graph, &member, "member")
+        .await
+        .expect("member");
+
+    assert!(
+        authorize_create(&context.state, &member, PERMISSION_ARTICLE_CREATE)
+            .await
+            .is_ok()
+    );
+}
+
+#[tokio::test]
+async fn is_author_is_true_for_owner_and_article_update_holder() {
     let context = TestCtx::new().await.expect("test context");
     let owner = create_user(&context, "alice@example.com").await;
     let admin = create_user(&context, "user-zero@example.com").await;
     let (article_id, _) = create_article_fixture(&context, &owner, "Mine").await;
 
-    assert!(
-        crate::logic::authorize::is_article_author(&context.state, &owner, &article_id)
-            .await
-            .expect("owner check")
-    );
-    assert!(
-        crate::logic::authorize::is_article_author(&context.state, &admin, &article_id)
-            .await
-            .expect("admin check")
-    );
+    assert!(is_author(&context.state, &owner, Some(&article_id), None, None)
+        .await
+        .expect("owner check"));
+    assert!(is_author(&context.state, &admin, Some(&article_id), None, None)
+        .await
+        .expect("admin check"));
+
     let stranger = create_user(&context, "bob@example.com").await;
     crate::repository::role::hold_role(&context.state.graph, &stranger, "member")
         .await
         .expect("member");
-    assert!(
-        !crate::logic::authorize::is_article_author(&context.state, &stranger, &article_id)
+    assert!(!is_author(&context.state, &stranger, Some(&article_id), None, None)
+        .await
+        .expect("stranger check"));
+}
+
+#[tokio::test]
+async fn is_author_rejects_zero_or_multiple_ids() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = create_user(&context, "alice@example.com").await;
+
+    assert_eq!(
+        is_author(&context.state, &actor, None, None, None)
             .await
-            .expect("stranger check")
+            .unwrap_err(),
+        LogicError::bad_request("exactly one of article_id, version_id or comment_id is required")
     );
-    let _ = PERMISSION_ARTICLE_DELETE;
+
+    let article_id = uuid::Uuid::now_v7().to_string();
+    let version_id = uuid::Uuid::now_v7().to_string();
+    assert_eq!(
+        is_author(&context.state, &actor, Some(&article_id), Some(&version_id), None)
+            .await
+            .unwrap_err(),
+        LogicError::bad_request("exactly one of article_id, version_id or comment_id is required")
+    );
 }

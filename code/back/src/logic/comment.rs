@@ -4,9 +4,8 @@ use nail_common::request::DeleteMode;
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::{
-    is_article_author, require_owner_or_permission_for_comment, require_permission,
-};
+use crate::logic::authorize::{authorize_create, authorize_or, is_author};
+use crate::repository::authorization::Resource;
 use crate::logic::error::LogicError;
 use crate::logic::search::sync_article_best_effort;
 use crate::repository::comment::{
@@ -28,7 +27,7 @@ pub async fn create_comment(
     version_id: &str,
     raw_content: &str,
 ) -> Result<String, LogicError> {
-    require_permission(state, actor_id, PERMISSION_COMMENT_CREATE).await?;
+    authorize_create(state, actor_id, PERMISSION_COMMENT_CREATE).await?;
     let content = validate_comment_content(raw_content)?;
     let comment_id = Uuid::now_v7().to_string();
     create_top_level_comment(&state.graph, &comment_id, actor_id, version_id, &content)
@@ -44,7 +43,7 @@ pub async fn create_reply(
     parent_comment_id: &str,
     raw_content: &str,
 ) -> Result<String, LogicError> {
-    require_permission(state, actor_id, PERMISSION_COMMENT_CREATE).await?;
+    authorize_create(state, actor_id, PERMISSION_COMMENT_CREATE).await?;
     let content = validate_comment_content(raw_content)?;
     let comment_id = Uuid::now_v7().to_string();
     create_reply_comment(
@@ -122,13 +121,7 @@ pub async fn read_comments(
         "total": total,
     });
     if check_if_is_author {
-        let parent_article = parent_article_of(&state.graph, version_id)
-            .await
-            .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
-        let is_author = match parent_article {
-            Some(article_id) => is_article_author(state, actor_id, &article_id).await?,
-            None => false,
-        };
+        let is_author = is_author(state, actor_id, None, Some(version_id), None).await?;
         data["is_author"] = serde_json::json!(is_author);
     }
     Ok(data)
@@ -140,11 +133,12 @@ pub async fn update_comment(
     comment_id: &str,
     raw_content: &str,
 ) -> Result<serde_json::Value, LogicError> {
-    require_owner_or_permission_for_comment(
+    authorize_or(
         state,
         actor_id,
-        comment_id,
         PERMISSION_COMMENT_UPDATE,
+        &Resource::Comment(comment_id.to_string()),
+        "comment not found",
     )
     .await?;
     let content = validate_comment_content(raw_content)?;
@@ -166,11 +160,12 @@ pub async fn delete_comment(
 ) -> Result<serde_json::Value, LogicError> {
     match mode {
         Some(DeleteMode::Transfer) => {
-            require_owner_or_permission_for_comment(
+            authorize_or(
                 state,
                 actor_id,
-                comment_id,
                 PERMISSION_COMMENT_DELETE,
+                &Resource::Comment(comment_id.to_string()),
+                "comment not found",
             )
             .await?;
             transfer_comment(&state.graph, comment_id)
@@ -178,11 +173,12 @@ pub async fn delete_comment(
                 .map_err(map_transfer_error)?;
         }
         Some(DeleteMode::Hard) => {
-            require_owner_or_permission_for_comment(
+            authorize_or(
                 state,
                 actor_id,
-                comment_id,
                 PERMISSION_COMMENT_DELETE,
+                &Resource::Comment(comment_id.to_string()),
+                "comment not found",
             )
             .await?;
             crate::repository::delete::delete_comment(&state.graph, comment_id)

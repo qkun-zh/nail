@@ -2,13 +2,14 @@ use nail_common::pow::Pow;
 use nail_common::request::{DeleteMode, UserDeleteRequest, UserUpdateRequest};
 
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::require_permission;
+use crate::logic::authorize::authorize;
 use crate::logic::error::LogicError;
 use crate::logic::pow::verify_issued_pow;
 use crate::logic::search::{sync_all_best_effort, sync_article_best_effort, sync_user_best_effort};
 use crate::logic::session::normalize_token;
 use crate::repository::cache::token_key;
 use crate::repository::role::{PERMISSION_USER_DELETE, PERMISSION_USER_READ, PERMISSION_USER_UPDATE, ROLE_MEMBER};
+use crate::repository::authorization::Resource;
 use crate::repository::transfer::TransferError;
 use crate::repository::user::{UserWriteError, read_user as read_user_node, update_user_name};
 
@@ -70,7 +71,7 @@ pub async fn read_user(
         return Ok(serde_json::Value::Object(data));
     }
 
-    require_permission(state, actor_id, PERMISSION_USER_READ).await?;
+    authorize(state, actor_id, PERMISSION_USER_READ, &admin_console()).await?;
     let entry = read_user_node(&state.graph, target_id)
         .await
         .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
@@ -153,7 +154,7 @@ pub async fn read_users(
     page: u64,
     limit: u64,
 ) -> Result<serde_json::Value, LogicError> {
-    require_permission(state, actor_id, PERMISSION_USER_READ).await?;
+    authorize(state, actor_id, PERMISSION_USER_READ, &admin_console()).await?;
     let offset = page.saturating_sub(1).saturating_mul(limit);
     let (items, total) = crate::repository::user::read_users(&state.graph, limit, offset)
         .await
@@ -196,7 +197,7 @@ async fn handle_admin_update_name(
     target_id: &str,
     raw_name: &str,
 ) -> Result<String, LogicError> {
-    require_permission(state, actor_id, PERMISSION_USER_UPDATE).await?;
+    authorize(state, actor_id, PERMISSION_USER_UPDATE, &admin_console()).await?;
     let name = nail_common::name::validate_name(raw_name)
         .map_err(|error| LogicError::bad_request(error.to_string()))?;
     update_user_name(&state.graph, target_id, &name)
@@ -267,7 +268,7 @@ async fn handle_delete_user_hard(
     actor_id: &str,
     target_id: &str,
 ) -> Result<(), LogicError> {
-    require_permission(state, actor_id, PERMISSION_USER_DELETE).await?;
+    authorize(state, actor_id, PERMISSION_USER_DELETE, &admin_console()).await?;
     let outcome = crate::repository::delete::delete_user(&state.graph, target_id)
         .await
         .map_err(|error| LogicError::internal(format!("failed to delete user: {error}")))?;
@@ -283,4 +284,8 @@ fn name_update_error(error: UserWriteError) -> LogicError {
         UserWriteError::EmailMismatch => LogicError::internal("unexpected email mismatch"),
         UserWriteError::Db(error) => LogicError::internal(format!("failed to update name: {error}")),
     }
+}
+
+fn admin_console() -> Resource {
+    Resource::System("admin-console".to_string())
 }

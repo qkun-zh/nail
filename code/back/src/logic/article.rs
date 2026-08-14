@@ -4,9 +4,8 @@ use uuid::Uuid;
 
 use crate::infrastructure::pdf::PdfUpload;
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::{
-    is_article_author, require_owner_or_permission_for_article, require_permission,
-};
+use crate::logic::authorize::{authorize_create, authorize_or, is_author};
+use crate::repository::authorization::Resource;
 use crate::logic::error::LogicError;
 use crate::logic::search::{search_articles, sync_article_best_effort};
 use crate::logic::version::{
@@ -37,7 +36,7 @@ pub async fn create_article(
     raw_note: &str,
     upload: PdfUpload,
 ) -> Result<(String, String), LogicError> {
-    require_permission(state, actor_id, PERMISSION_ARTICLE_CREATE).await?;
+    authorize_create(state, actor_id, PERMISSION_ARTICLE_CREATE).await?;
 
     let title = validate_title(raw_title, state.config.server.max_title_chars)?;
     let summary = validate_summary(raw_summary, state.config.server.max_summary_chars)?;
@@ -105,7 +104,7 @@ pub async fn read_article(
         "tags": tags,
     });
     if check_if_is_author {
-        data["is_author"] = serde_json::json!(is_article_author(state, actor_id, article_id).await?);
+        data["is_author"] = serde_json::json!(is_author(state, actor_id, Some(article_id), None, None).await?);
     }
     Ok(data)
 }
@@ -164,8 +163,14 @@ pub async fn update_article(
     raw_summary: &str,
     raw_tags: &str,
 ) -> Result<serde_json::Value, LogicError> {
-    require_owner_or_permission_for_article(state, actor_id, article_id, PERMISSION_ARTICLE_UPDATE)
-        .await?;
+    authorize_or(
+        state,
+        actor_id,
+        PERMISSION_ARTICLE_UPDATE,
+        &Resource::Article(article_id.to_string()),
+        "article not found",
+    )
+    .await?;
     let title = validate_title(raw_title, state.config.server.max_title_chars)?;
     let summary = validate_summary(raw_summary, state.config.server.max_summary_chars)?;
     let tags = validate_tags(raw_tags, state.config.server.max_tags_per_article)?;
@@ -192,11 +197,12 @@ pub async fn delete_article(
 ) -> Result<serde_json::Value, LogicError> {
     match mode {
         Some(DeleteMode::Transfer) => {
-            require_owner_or_permission_for_article(
+            authorize_or(
                 state,
                 actor_id,
-                article_id,
                 PERMISSION_ARTICLE_DELETE,
+                &Resource::Article(article_id.to_string()),
+                "article not found",
             )
             .await?;
             transfer_article(&state.graph, article_id)
@@ -214,11 +220,12 @@ pub async fn delete_article(
             Ok(serde_json::json!({ "article_id": article_id }))
         }
         Some(DeleteMode::Hard) => {
-            require_owner_or_permission_for_article(
+            authorize_or(
                 state,
                 actor_id,
-                article_id,
                 PERMISSION_ARTICLE_DELETE,
+                &Resource::Article(article_id.to_string()),
+                "article not found",
             )
             .await?;
             let outcome = crate::repository::delete::delete_article(&state.graph, article_id)

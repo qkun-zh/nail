@@ -14,6 +14,15 @@ async fn member(context: &TestCtx, email: &str) -> String {
     user_id
 }
 
+async fn admin(context: &TestCtx) -> String {
+    crate::repository::user::create_user(
+        &context.state.graph,
+        &nail_common::hash::email("user-zero@example.com"),
+    )
+    .await
+    .expect("admin")
+}
+
 async fn article_fixture(context: &TestCtx, author_id: &str, title: &str) -> (String, String) {
     let article_id = uuid::Uuid::now_v7().to_string();
     let version_id = uuid::Uuid::now_v7().to_string();
@@ -134,7 +143,7 @@ async fn read_version_cross_checks_the_parent_article() {
 #[tokio::test]
 async fn delete_version_hard_removes_the_version() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = admin(&context).await;
     let (article_id, version_id) = article_fixture(&context, &actor, "Article").await;
 
     let data = crate::logic::version::delete_version(
