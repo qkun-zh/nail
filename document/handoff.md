@@ -65,6 +65,14 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
   byte-identical (the `test/unit/back/http/*` assertions are the guard), and
   the Phase 4 frontend then consumes the shared DTOs directly. The slices 1-6
   `serde_json::Value`/`json!` responses are swept now, not in Phase 5.
+- **Search split into request/response (owner, 2026-08-14)**: `common::search`
+  was not a special case — it is request + response like everything else.
+  `ArticleSearchParams` moves to `common::request`; `SearchHit`/
+  `SearchArticleItem`/`SearchPage` move to `common::response/search.rs` (the
+  first response submodule); the shared enums `SearchRange`/
+  `SearchSortField`/`SearchSortDirection` stay in `common::search` as the
+  vocabulary home. The 9-module list and the README §3 skeleton are
+  unchanged; wire shapes unchanged.
 - **Pagination config scope (owner, 2026-08-14)**: config holds only
   frontend-facing `search_page_size` + `max_search_pages`; the backend clamp
   caps `max_search_page_size` (200) and `max_page` (10000) stay hardcoded
