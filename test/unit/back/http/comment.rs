@@ -27,24 +27,6 @@ async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
     (user_id, token)
 }
 
-async fn admin_session(context: &TestCtx) -> (String, String) {
-    let user_id = crate::repository::user::create_user(
-        &context.state.graph,
-        &nail_common::hash::email("user-zero@example.com"),
-    )
-    .await
-    .expect("admin");
-    let token = Uuid::now_v7().to_string();
-    let key = token_key(&token).expect("token key");
-    context.state.caches.session.insert(
-        &key,
-        SessionTokenEntry {
-            user_id: user_id.clone(),
-        },
-    );
-    (user_id, token)
-}
-
 async fn version_fixture(context: &TestCtx, author_id: &str) -> String {
     let article_id = Uuid::now_v7().to_string();
     let version_id = Uuid::now_v7().to_string();
@@ -142,6 +124,7 @@ async fn read_comments_over_http() {
 async fn update_comment_over_http() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = member_session(&context, "alice@example.com").await;
+    let (_, stranger_token) = member_session(&context, "bob@example.com").await;
     let version_id = version_fixture(&context, &user_id).await;
     let (_, created) = context
         .post(
@@ -156,17 +139,16 @@ async fn update_comment_over_http() {
         .post(
             &format!("/comment/{comment_id}/update"),
             json!({ "content": "stolen" }),
-            Some(&token),
+            Some(&stranger_token),
         )
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 
-    let (_, admin_token) = admin_session(&context).await;
     let (status, body) = context
         .post(
             &format!("/comment/{comment_id}/update"),
             json!({ "content": "edited" }),
-            Some(&admin_token),
+            Some(&token),
         )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");

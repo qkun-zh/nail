@@ -4,7 +4,8 @@ use crate::logic::error::LogicError;
 use crate::repository::article::{ArticleDraft, create_article};
 use crate::repository::authorization::Resource;
 use crate::repository::role::{
-    PERMISSION_ARTICLE_CREATE, PERMISSION_ARTICLE_UPDATE, PERMISSION_USER_READ,
+    PERMISSION_ARTICLE_CREATE, PERMISSION_ARTICLE_UPDATE, PERMISSION_COMMENT_UPDATE,
+    PERMISSION_USER_READ,
 };
 use crate::repository::version::VersionDraft;
 
@@ -187,5 +188,45 @@ async fn is_author_rejects_zero_or_multiple_ids() {
             .await
             .unwrap_err(),
         LogicError::bad_request("exactly one of article_id, version_id or comment_id is required")
+    );
+}
+
+#[tokio::test]
+async fn comment_author_can_update_own_comment_but_article_owner_cannot() {
+    let context = TestCtx::new().await.expect("test context");
+    let article_owner = create_user(&context, "alice@example.com").await;
+    let comment_author = create_user(&context, "bob@example.com").await;
+    let (_, version_id) = create_article_fixture(&context, &article_owner, "Mine").await;
+    let comment_id = uuid::Uuid::now_v7().to_string();
+    crate::repository::comment::create_top_level_comment(
+        &context.state.graph,
+        &comment_id,
+        &comment_author,
+        &version_id,
+        "hello",
+    )
+    .await
+    .expect("comment");
+
+    assert!(
+        authorize(
+            &context.state,
+            &comment_author,
+            PERMISSION_COMMENT_UPDATE,
+            &Resource::Comment(comment_id.clone()),
+        )
+        .await
+        .is_ok()
+    );
+    assert_eq!(
+        authorize(
+            &context.state,
+            &article_owner,
+            PERMISSION_COMMENT_UPDATE,
+            &Resource::Comment(comment_id),
+        )
+        .await
+        .unwrap_err(),
+        LogicError::forbidden("you are denied")
     );
 }

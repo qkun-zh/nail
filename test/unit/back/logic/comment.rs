@@ -23,10 +23,6 @@ async fn member(state: &AppState, email: &str) -> String {
     user_id
 }
 
-async fn admin(state: &AppState) -> String {
-    create_user(state, "user-zero@example.com").await
-}
-
 async fn create_version_fixture(state: &AppState, author_id: &str) -> String {
     let article_id = uuid::Uuid::now_v7().to_string();
     let version_id = uuid::Uuid::now_v7().to_string();
@@ -157,24 +153,24 @@ async fn read_comments_rejects_a_non_uuidv7_comment_id() {
 }
 
 #[tokio::test]
-async fn update_comment_revalidates_content_and_rejects_an_unpermissioned_actor() {
+async fn update_comment_allows_the_comment_author_and_rejects_a_non_owner() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let admin_id = admin(&state).await;
     let author_id = member(&state, "alice@example.com").await;
+    let stranger = member(&state, "bob@example.com").await;
     let version_id = create_version_fixture(&state, &author_id).await;
     let comment_id = create_comment(&state, &author_id, &version_id, "hello").await.expect("create");
 
-    let error = update_comment(&state, &author_id, &comment_id, "stolen")
+    let error = update_comment(&state, &stranger, &comment_id, "stolen")
         .await
-        .expect_err("author has no permission");
+        .expect_err("non owner");
     assert!(matches!(error, LogicError::Forbidden(_)));
 
-    let error = update_comment(&state, &admin_id, &comment_id, "   ")
+    let error = update_comment(&state, &author_id, &comment_id, "   ")
         .await
         .expect_err("empty content");
     assert!(matches!(error, LogicError::BadRequest(_)));
 
-    update_comment(&state, &admin_id, &comment_id, "edited")
+    update_comment(&state, &author_id, &comment_id, "edited")
         .await
         .expect("update");
 }

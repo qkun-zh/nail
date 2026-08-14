@@ -3,11 +3,15 @@
 // these policies.
 
 // 1. Owner bypass: the resource owner may read/update/delete and create new
-//    versions; Comment::Delete lets a comment author delete their own comment.
+//    versions; Comment::Delete lets a comment author delete their own comment;
+//    Version::Update/Delete and Comment::Update keep the author stories in
+//    FR-20/FR-21 (edit any version note, hard-delete a version, edit my
+//    comment content).
 permit (principal, action in [Action::"Article::Read", Action::"Version::Read",
                               Action::"Comment::Read", Action::"Comment::Delete",
                               Action::"Article::Update", Action::"Article::Delete",
-                              Action::"Version::Create"],
+                              Action::"Version::Create", Action::"Version::Update",
+                              Action::"Version::Delete", Action::"Comment::Update"],
         resource)
   when { resource.owner == principal };
 

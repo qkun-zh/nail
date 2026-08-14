@@ -188,7 +188,7 @@ constitution); this document records state and process only.
 
 - ✅ **Phase 3 slice 6 — role/authorization (Cedar)** (2026-08-14, commit
   `34f4dfd`): the five role routes + Cedar authorization across the four layers.
-  **back 240 tests green** (common 104), `cargo check` zero warnings.
+  **back 241 tests green** (common 104), `cargo check` zero warnings.
   - Cedar landed: `cedar-policy 4.12.0`, `infrastructure/cedar.rs` (cached
     `PolicySet` + `decide()`), `infrastructure/cedar/{schema,policy}.cedar`,
     and `repository/authorization.rs` (principal/resource assembly).
@@ -204,12 +204,16 @@ constitution); this document records state and process only.
     exactly one of article/version/comment ids else 400). The transitional
     `require_permission` / `require_owner_or_permission_for_*` /
     `is_article_author` are gone. `read_roles` replaces the forbidden `list_roles`.
-  - ⚠️ **Behavior correction (flag for owner)**: converging to the legacy
-    policy 1 (FR-52) means the owner bypass does NOT cover `Version::Update`,
-    `Version::Delete`, or `Comment::Update` (they need a role permission or
-    admin). The slice 1-4 transitional Rust gate had allowed owners to do
-    these; 5 tests were updated to the spec behavior. If the owner prefers the
-    slice 1-4 owner-bypass for those actions, policy 1 needs an amendment.
+  - ✅ **#33 owner-bypass widened (2026-08-14)**: policy 1 now covers
+    `Version::Update` / `Version::Delete` / `Comment::Update` in the owner
+    bypass (`resource.owner == principal`). The member role's seed grants were
+    NOT widened (still only `Article::Create` + `Comment::Create`, so no
+    non-owner-scoped broadening). Slice 6's 5 denial tests were flipped back to
+    owner-allow; a new assembly test asserts `Comment.owner` is the comment
+    author, so the article owner cannot edit another author's comment.
+    `repository/authorization.rs` was already correct (`Comment.owner` =
+    `owner_of_comment`, `Version.owner` = article owner) — no assembly fix was
+    needed.
   - §8.3 gate: equal-or-better on all five axes. Correctness: #5/#7/#8/#9 and
     the owner-bypass scope now match FR-52/policy 1 (legacy strong reference).
     Readability: engine/assembly/gate split across infrastructure/repository/
@@ -265,8 +269,8 @@ Personnel change: agent F completed **slice 5 (download/PDF)** and **slice 6
 (role/authorization)**; a new agent (G) takes over with the **#33 owner-bypass
 patch**, then **slice 7 (config/email/infrastructure)**.
 
-- ✅ Slices 1-6 are done. **back 240 tests green** (common 104), `cargo check`
-  zero warnings, working tree clean at `fedf6e8`.
+- ✅ Slices 1-6 are done. **back 241 tests green** (common 104), `cargo check`
+  zero warnings, working tree clean.
 
 - ✅ Slice 3 (article + version) is done: TDD rewrite of slices 1-3 under the
   CRUD-only vocabulary (commits `8de3490` archive + `6747cad` rewrite),
@@ -300,16 +304,12 @@ patch**, then **slice 7 (config/email/infrastructure)**.
   read-open), #7 (member_count), #8 (REQUIRED_ROLES protected), #9 (duplicate
   role → 400). Cedar engine landed; the Rust gate converged to Cedar. See
   Current state.
-- ⏳ **#33 owner-bypass patch (first task of agent G, one commit)**: the owner
-  adjudicated (2026-08-14) that legacy policy 1's exclusion of
-  `Version::Update`/`Version::Delete`/`Comment::Update` from the owner bypass is
-  wrong (contradicts FR-20/FR-21). Amend policy 1 in
-  `code/back/src/infrastructure/cedar/policy.cedar`; verify `Comment.owner` is
-  the comment author and `Version.owner` is the article owner in
-  `repository/authorization.rs` (fix if not); flip slice 6's 5 denial tests to
-  owner-allow; add a comment-author ≠ article-owner authorization test. Do NOT
-  widen the member role's seed grants. Full details: adjudication #33 + Owner
-  decisions in this file.
+- ✅ **#33 owner-bypass patch (done)**: policy 1 now includes
+  `Version::Update`/`Version::Delete`/`Comment::Update` in the owner bypass.
+  `Comment.owner` was already the comment author and `Version.owner` the article
+  owner in `repository/authorization.rs` (no assembly fix needed); slice 6's 5
+  denial tests were flipped to owner-allow and a comment-author ≠ article-owner
+  assembly test was added. The member role's seed grants were NOT widened.
 - ⏳ **Slice 7 (config/email/infrastructure)** — #13 (dead config fields),
   #19 (timezone from toml via `/config/read`), #22 (multipart read-then-validate,
   K), #26 (email service with explicit intent — check convergence with
