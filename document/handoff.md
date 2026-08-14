@@ -26,14 +26,20 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
 
 ## Pending — current agent
 
-- **Phase 4 — frontend migration** (next phase; the backend API is stable).
-  Layering per README §4.2 (router → page → request → infrastructure); Leptos
-  CSR, no CSS (README §10); runtime config from `/config/read` (reuse
-  `RuntimeLimits` as the limits signal) with compile-time fallback. Items: #14
-  (English UI), #24 (page size from config), #25 (has_next = page <
-  total_pages), #3 (no per-comment pre-check), #12 (drop `/private/email/check`
-  link), #4 (delete `pow-worker.js`). Gate: `cargo check --target
-  wasm32-unknown-unknown` on `nail_front`.
+1. **Typed-DTO sweep (owner-ordered FIRST, before Phase 4)** — one slice per
+   response family: define wire-shaped response DTOs in
+   `common::response` (submodules per domain), refactor the backend handlers
+   to return them instead of `serde_json::Value`/`json!`; the wire stays
+   byte-identical (the `test/unit/back/http/*` assertions are the guard).
+   Then Phase 4.
+2. **Phase 4 — frontend migration** (after the sweep). Layering per README
+   §4.2 (router → page → request → infrastructure); Leptos CSR, no CSS
+   (README §10); runtime config from `/config/read` (reuse `RuntimeLimits` as
+   the limits signal) with compile-time fallback. Items: #14 (English UI),
+   #24 (page size from config), #25 (has_next = page < total_pages), #3 (no
+   per-comment pre-check), #12 (drop `/private/email/check` link), #4 (delete
+   `pow-worker.js`). Gate: `cargo check --target wasm32-unknown-unknown` on
+   `nail_front`.
 - Phase 5 cleanup candidate (recorded, not urgent): sweep the slices 1-6
   `serde_json::Value`/`json!` responses to typed DTOs per the owner decision
   below.
@@ -52,8 +58,13 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
   comment author and `Version.owner` = article owner confirmed in
   `repository/authorization.rs` (no assembly fix needed); 5 denial tests
   flipped to owner-allow; member seed grants NOT widened.
-- **Responses are fixed data structures, not `json!` (owner, 2026-08-14)**: a
-  typed-DTO sweep of the slices 1-6 responses is a Phase 5 cleanup candidate.
+- **Responses are fixed data structures, not `json!` (owner, 2026-08-14)**.
+  **Order changed (owner, 2026-08-14): the typed-DTO sweep is done FIRST,**
+  before Phase 4 — the backend emits typed response DTOs from `common`
+  (response payloads shared through common, README §7), the wire stays
+  byte-identical (the `test/unit/back/http/*` assertions are the guard), and
+  the Phase 4 frontend then consumes the shared DTOs directly. The slices 1-6
+  `serde_json::Value`/`json!` responses are swept now, not in Phase 5.
 - **Pagination config scope (owner, 2026-08-14)**: config holds only
   frontend-facing `search_page_size` + `max_search_pages`; the backend clamp
   caps `max_search_page_size` (200) and `max_page` (10000) stay hardcoded
@@ -89,7 +100,7 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
 Slices 1-7 complete, back 245 tests green. Details per slice:
 `document/progress-log.md`.
 
-### Phase 4 — frontend migration (next)
+### Phase 4 — frontend migration (next, after the typed-DTO sweep)
 
 Layering per README §4.2 (router → page → request → infrastructure); Leptos
 CSR, no CSS (README §10); runtime config from `/config/read` with
@@ -98,11 +109,12 @@ compile-time fallback. Items: #14 (English UI), #24 (page size from config),
 `/private/email/check` link), #4 (delete `pow-worker.js`). Gate:
 `cargo check --target wasm32-unknown-unknown` on `nail_front`.
 
-### Phase 5 — tests + e2e + cleanup
+### Phase 5 — remaining: tests + e2e + cleanup
 
-Rebuild the test tree per README §12 (unit families at the four seams +
-common); e2e strategy (#32) with the owner; final batch dead-code cleanup
-(README §5.4) in one pass, then zero-warning gate.
+After Phase 4: rebuild the remaining test tree per README §12; e2e strategy
+(#32) with the owner; final batch dead-code cleanup (README §5.4) in one
+pass, then zero-warning gate. (The typed-DTO sweep, formerly Phase 5's first
+item, is done before Phase 4 per the owner decision above.)
 
 ## Skills — mandatory usage
 
