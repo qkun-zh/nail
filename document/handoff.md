@@ -28,12 +28,14 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
   known harness bug; the flag was removed). Use it for §8.3 gates; its 1k-line
   default bar is superseded by README §5.3 (512 lines).
 
-- **Phase 5 (tests + e2e + cleanup): tests + cleanup DONE, e2e pending owner.**
+- **Phase 5 (tests + e2e + cleanup): DONE.**
   Keep-behavior refactors (06d58a3); repository + Cedar tests (1bdd644); role
   tag-removal fix (6365170); content-domain HTTP tests (ec60539); identity/admin
-  HTTP tests (74d7e78); dead-code cleanup + drop #![allow(dead_code)] (43858ac).
-  Back **294 tests green**, common **108**, front **61**; all crates zero warnings.
-  E2E (#32) is the only remaining item, blocked on owner strategy.
+  HTTP tests (74d7e78); dead-code cleanup + drop #![allow(dead_code)] (43858ac);
+  rejection-envelope extractors (2e0d27e); AC10 email-change HTTP tests (8808ade);
+  feature-gated end_to_end suite (74fb893). Back **300 tests green** (+2
+  rejection-envelope, +4 AC10), common **108**, front **61**; all crates zero
+  warnings (host + wasm32). E2E: 2 tests green under `--features end_to_end`.
 
 ## Pending — current agent
 
@@ -46,12 +48,14 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
    no worker file — PoW runs in-wasm on the main thread, #19 timezone via
    `RuntimeLimits.timezone_offset_seconds`). Gate met: `cargo check --target
    wasm32-unknown-unknown` zero warnings on `nail_front`.
-2. **Phase 5 - tests + e2e + cleanup: tests + cleanup DONE; e2e pending.**
+2. **Phase 5 - tests + e2e + cleanup: DONE.**
    Completed: keep-behavior refactors (06d58a3), repository + Cedar tests
    (1bdd644), role tag-removal fix (6365170), content-domain HTTP tests
    (ec60539), identity/admin HTTP tests (74d7e78), dead-code cleanup + drop
-   #![allow(dead_code)] (43858ac). Back 294 + common 108 + front 61 green, zero
-   warnings. Remaining: e2e (#32) - owner strategy decision needed.
+   #![allow(dead_code)] (43858ac), rejection-envelope App extractors (2e0d27e),
+   AC10 email-change HTTP tests (8808ade), feature-gated end_to_end suite
+   (74fb893). Back 300 + common 108 + front 61 green, zero warnings; E2E 2
+   tests green under `--features end_to_end`.
 
 ## Phase 4 — what was built
 
@@ -154,7 +158,7 @@ logic is host-testable.
 - [x] Content-domain HTTP tests (ec60539).
 - [x] Identity/admin HTTP tests (74d7e78).
 - [x] Dead-code cleanup + drop #![allow(dead_code)] (43858ac).
-- [ ] e2e (#32): app-only core + chromiumoxide 0.9.1 (owner confirmed).
+- [x] e2e (#32): app-only core + chromiumoxide 0.9.1 (74fb893).
 
 **E2E tooling facts (owner, 2026-08-14)**: the legacy e2e stack is back
 process + pingap + chromium with an in-process SMTP sink
@@ -165,18 +169,17 @@ feature-gated (`end_to_end`) dependency when Phase 5 starts — its crates are
 already cached in the local registry. **pingap is NOT installed on this
 machine**; it has a GitHub repository with released binaries — obtain the
 release binary from GitHub when the e2e phase starts.
-**Remaining Phase 5 tasks (owner decisions, 2026-08-14):**
-1. Rejection-envelope gap: FIX THOROUGHLY. Add AppJson/AppQuery/AppPath/
-   AppMultipart extractors (Rejection = ApiError) so malformed bodies return the
-   constitution-11 envelope (400 'invalid request body' etc.). Then add an HTTP
-   test: POST {} to /session/delete -> 400 envelope. (axum handler macro returns
-   extractor rejections via rejection.into_response(); verified in axum-0.8.9
-   src/handler/mod.rs impl_handler.)
-2. AC10 email-change two-token flow: COVER with a tower-oneshot HTTP test in
-   test/unit/back/http/user.rs; flow and messages mirror logic/email.rs tests.
-3. E2E: APP-ONLY CORE (back process + chromium + in-process SMTP sink; no pingap).
-   chromiumoxide = 0.9.1 (owner confirmed; only version in the local registry).
-   trunk IS installed (/home/qkun/.cargo/bin/trunk) to build/serve the frontend.
+**Phase 5 remaining tasks (owner decisions, 2026-08-14) — all DONE:**
+1. [x] Rejection-envelope gap (2e0d27e): AppJson/AppQuery/AppPath/AppMultipart
+   extractors (Rejection = ApiError) map malformed bodies to the envelope (400
+   'invalid request body' etc.); HTTP test POST {} to /session/delete -> 400.
+2. [x] AC10 email-change two-token flow (8808ade): tower-oneshot HTTP tests in
+   test/unit/back/http/user.rs (happy path + old==new + taken + payload mismatch).
+3. [x] E2E app-only core (74fb893): feature-gated `end_to_end` suite in
+   code/back/tests/end_to_end.rs + test/end_to_end/{smtp_sink,context,flows}.rs;
+   spawns back process (in-memory db, temp pdf/search, SMTP sink) + trunk serve
+   (proxy /api) + chromium (chromiumoxide 0.9.1); code/front/index.html added
+   for trunk. 2 tests green under `--features end_to_end`.
 
 Invoke the matching skill via the `skill` tool before each covered task; the
 README outranks any skill. Do not grill routine work.
