@@ -9,7 +9,7 @@ use crate::infrastructure::pdf::{PdfUpload, content_hash_rel_path};
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{authorize_or, is_author};
 use crate::repository::authorization::Resource;
-use crate::logic::error::LogicError;
+use crate::logic::error::{LogicError, database_error};
 use crate::logic::search::sync_article_best_effort;
 use crate::repository::role::{
     PERMISSION_VERSION_CREATE, PERMISSION_VERSION_DELETE, PERMISSION_VERSION_UPDATE,
@@ -90,11 +90,11 @@ pub async fn create_version(
     let hash = upload.hash.clone();
     if let Some(owner) = content_hash_owner(&state.graph, &hash)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+        .map_err(|error| database_error(error))?
     {
         let owned_version = read_version_node(&state.graph, &owner.version_id)
             .await
-            .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+            .map_err(|error| database_error(error))?
             .map(|entry| entry.version_number)
             .unwrap_or_default();
         return Err(LogicError::bad_request(format!(
@@ -134,7 +134,7 @@ pub async fn read_version(
 ) -> Result<VersionView, LogicError> {
     let parent_article = parent_article_of(&state.graph, version_id)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+        .map_err(|error| database_error(error))?
         .ok_or_else(|| LogicError::not_found("version not found"))?;
     if let Some(expected_article) = article_id
         && parent_article != expected_article
@@ -144,7 +144,7 @@ pub async fn read_version(
 
     let entry = read_version_node(&state.graph, version_id)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+        .map_err(|error| database_error(error))?
         .ok_or_else(|| LogicError::not_found("version not found"))?;
 
     let created_at = nail_common::time::uuidv7_timestamp_secs(version_id).unwrap_or(0);
@@ -170,7 +170,7 @@ pub async fn read_versions(
     let offset = page.saturating_sub(1).saturating_mul(limit);
     let (items, total) = versions_of(&state.graph, article_id, limit, offset)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
+        .map_err(|error| database_error(error))?;
     let version_list: Vec<VersionListItem> = items
         .into_iter()
         .map(|item| VersionListItem {
@@ -205,7 +205,7 @@ pub async fn update_version(
     let note = validate_note(raw_note, state.config.server.max_version_note_chars)?;
     update_version_node(&state.graph, version_id, &note)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
+        .map_err(|error| database_error(error))?;
     Ok(VersionIdView {
         version_id: version_id.to_string(),
     })
@@ -232,10 +232,10 @@ pub async fn delete_version(
     .await?;
     let parent_article = parent_article_of(&state.graph, version_id)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
+        .map_err(|error| database_error(error))?;
     let outcome = delete_version_node(&state.graph, version_id)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
+        .map_err(|error| database_error(error))?;
     remove_orphaned_pdfs(state, &outcome.removed_pdf_hashes).await;
     if let Some(parent_article) = parent_article {
         sync_article_best_effort(state, &parent_article).await;
@@ -261,7 +261,7 @@ fn map_create_version_error(error: CreateVersionError) -> LogicError {
             LogicError::bad_request("identical PDF already exists")
         }
         CreateVersionError::Db(error) => {
-            LogicError::internal(format!("database query failed: {error}"))
+            database_error(error)
         }
     }
 }

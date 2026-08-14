@@ -8,7 +8,7 @@ use crate::infrastructure::pdf::PdfUpload;
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{authorize_create, authorize_or, is_author};
 use crate::repository::authorization::Resource;
-use crate::logic::error::LogicError;
+use crate::logic::error::{LogicError, database_error};
 use crate::logic::search::{search_articles, sync_article_best_effort};
 use crate::logic::version::{
     place_uploaded_pdf, remove_orphaned_pdfs, validate_note, validate_version,
@@ -22,9 +22,6 @@ use crate::repository::role::{
 };
 use crate::repository::transfer::{TransferTargetError, transfer_article};
 use crate::repository::version::{VersionDraft, content_hash_owner, read_version};
-
-const MAX_PAGE_SIZE: u64 = 200;
-const MAX_PAGE: u64 = 10_000;
 
 #[derive(Debug, serde::Serialize)]
 #[serde(untagged)]
@@ -92,7 +89,7 @@ pub async fn read_article(
 ) -> Result<ArticleView, LogicError> {
     let article = read_article_node(&state.graph, article_id)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+        .map_err(|error| database_error(error))?
         .ok_or_else(|| LogicError::not_found("article not found"))?;
 
     let created_at = nail_common::time::uuidv7_timestamp_secs(&article.id).unwrap_or(0);
@@ -121,15 +118,15 @@ pub async fn read_articles(
         return Ok(ArticleReadPage::Search(page));
     }
 
-    let limit = params
-        .limit
-        .unwrap_or(state.config.server.search_page_size)
-        .clamp(1, MAX_PAGE_SIZE);
-    let page = params.page.unwrap_or(1).clamp(1, MAX_PAGE);
+    let (page, limit) = crate::logic::pagination::clamp_page_limit(
+        params.page,
+        params.limit,
+        state.config.server.search_page_size,
+    );
     let offset = page.saturating_sub(1).saturating_mul(limit);
     let (items, total) = read_article_nodes(&state.graph, limit, offset)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
+        .map_err(|error| database_error(error))?;
 
     let article_list: Vec<ArticleListItem> = items
         .into_iter()
@@ -218,7 +215,7 @@ pub async fn delete_article(
                         LogicError::internal("no recycler available")
                     }
                     TransferTargetError::Db(error) => {
-                        LogicError::internal(format!("database query failed: {error}"))
+                        database_error(error)
                     }
                 })?;
             sync_article_best_effort(state, article_id).await;
@@ -237,7 +234,7 @@ pub async fn delete_article(
             .await?;
             let outcome = crate::repository::delete::delete_article(&state.graph, article_id)
                 .await
-                .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
+                .map_err(|error| database_error(error))?;
             remove_orphaned_pdfs(state, &outcome.removed_pdf_hashes).await;
             sync_article_best_effort(state, article_id).await;
             Ok(ArticleIdView {
@@ -253,13 +250,13 @@ pub async fn delete_article(
 async fn reject_duplicate_content_hash(state: &AppState, hash: &str) -> Result<(), LogicError> {
     let Some(owner) = content_hash_owner(&state.graph, hash)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+        .map_err(|error| database_error(error))?
     else {
         return Ok(());
     };
     let owned_version = read_version(&state.graph, &owner.version_id)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+        .map_err(|error| database_error(error))?
         .map(|entry| entry.version_number)
         .unwrap_or_default();
     Err(LogicError::bad_request(format!(
@@ -303,7 +300,7 @@ fn map_create_article_error(error: CreateArticleError) -> LogicError {
             LogicError::bad_request("identical PDF already exists")
         }
         CreateArticleError::Db(error) => {
-            LogicError::internal(format!("database query failed: {error}"))
+            database_error(error)
         }
     }
 }
@@ -313,7 +310,7 @@ fn map_update_article_error(error: UpdateArticleError) -> LogicError {
         UpdateArticleError::Missing => LogicError::not_found("article not found"),
         UpdateArticleError::TitleTaken => LogicError::bad_request("title already exists"),
         UpdateArticleError::Db(error) => {
-            LogicError::internal(format!("database query failed: {error}"))
+            database_error(error)
         }
     }
 }

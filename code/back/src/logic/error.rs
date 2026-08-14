@@ -67,3 +67,7 @@ impl std::fmt::Display for LogicError {
 }
 
 impl std::error::Error for LogicError {}
+
+pub fn database_error(error: impl std::fmt::Display) -> LogicError {
+    LogicError::internal(format!("database query failed: {error}"))
+}

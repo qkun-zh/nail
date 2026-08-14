@@ -11,9 +11,6 @@ use crate::infrastructure::state::AppState;
 use crate::interface::envelope::{ApiError, json_response};
 use crate::interface::principal::Principal;
 
-const MAX_PAGE_SIZE: u64 = 200;
-const MAX_PAGE: u64 = 10_000;
-
 pub async fn create_user(
     State(state): State<AppState>,
     Json(payload): Json<TokenRequest>,
@@ -63,11 +60,11 @@ pub async fn read_users(
     principal: Principal,
     Query(params): Query<UsersReadParams>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let limit = params
-        .limit
-        .unwrap_or(state.config.server.search_page_size)
-        .clamp(1, MAX_PAGE_SIZE);
-    let page = params.page.unwrap_or(1).clamp(1, MAX_PAGE);
+    let (page, limit) = crate::logic::pagination::clamp_page_limit(
+        params.page,
+        params.limit,
+        state.config.server.search_page_size,
+    );
     let data = crate::logic::user::read_users(&state, &principal.user_id, page, limit).await?;
     Ok(json_response::<UserListPage>(StatusCode::OK, data, "ok"))
 }

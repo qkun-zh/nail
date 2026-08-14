@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::infrastructure::state::AppState;
-use crate::logic::error::LogicError;
+use crate::logic::error::{LogicError, database_error};
 use crate::logic::session::normalize_token;
 use crate::logic::version::pdf_final_path;
 use crate::repository::cache::{DownloadTokenEntry, token_key};
@@ -14,14 +14,14 @@ pub async fn resolve_version_pdf_path(
 ) -> Result<PathBuf, LogicError> {
     let parent = parent_article_of(&state.graph, version_id)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+        .map_err(|error| database_error(error))?
         .ok_or_else(|| LogicError::not_found("article version not found"))?;
     if parent != article_id {
         return Err(LogicError::not_found("article version not found"));
     }
     let entry = read_version(&state.graph, version_id)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+        .map_err(|error| database_error(error))?
         .ok_or_else(|| LogicError::not_found("article version not found"))?;
     pdf_final_path(&state.config.server.pdf_storage_path, &entry.content_hash)
         .ok_or_else(|| LogicError::internal("invalid content hash"))

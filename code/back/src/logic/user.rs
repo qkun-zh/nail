@@ -8,7 +8,7 @@ use nail_common::response::user::{
 
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::authorize;
-use crate::logic::error::LogicError;
+use crate::logic::error::{LogicError, database_error};
 use crate::logic::pow::verify_issued_pow;
 use crate::logic::search::{sync_all_best_effort, sync_article_best_effort, sync_user_best_effort};
 use crate::logic::session::normalize_token;
@@ -51,7 +51,7 @@ pub async fn create_user(state: &AppState, pow: &Pow) -> Result<String, LogicErr
         Ok(user_id) => user_id,
         Err(error) => {
             state.caches.create_user.insert(&key, entry);
-            return Err(LogicError::internal(format!("database query failed: {error}")));
+            return Err(database_error(error));
         }
     };
 
@@ -75,7 +75,7 @@ pub async fn read_user(
         if name_requested || email_hash_requested {
             let entry = read_user_node(&state.graph, actor_id)
                 .await
-                .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+                .map_err(|error| database_error(error))?
                 .ok_or_else(|| LogicError::unauthorized("user not found"))?;
             if name_requested {
                 view.name = Some(entry.name);
@@ -90,7 +90,7 @@ pub async fn read_user(
     authorize(state, actor_id, PERMISSION_USER_READ, &admin_console()).await?;
     let entry = read_user_node(&state.graph, target_id)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+        .map_err(|error| database_error(error))?
         .ok_or_else(|| LogicError::not_found("user not found"))?;
     view.id = Some(target_id.to_string());
     if name_requested {
@@ -175,7 +175,7 @@ pub async fn read_users(
     let offset = page.saturating_sub(1).saturating_mul(limit);
     let (items, total) = crate::repository::user::read_users(&state.graph, limit, offset)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
+        .map_err(|error| database_error(error))?;
     let user_list: Vec<UserListItem> = items
         .into_iter()
         .map(|item| UserListItem {
@@ -238,7 +238,7 @@ async fn handle_delete_user_transfer(
     let Some(entry) = state.caches.delete_user.read(&token_hash) else {
         let user_exists = read_user_node(&state.graph, actor_id)
             .await
-            .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+            .map_err(|error| database_error(error))?
             .is_some();
         if user_exists {
             return Err(LogicError::bad_request("invalid or expired delete token"));

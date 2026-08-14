@@ -1,6 +1,6 @@
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::authorize;
-use crate::logic::error::LogicError;
+use crate::logic::error::{LogicError, database_error};
 use crate::repository::authorization::Resource;
 use crate::repository::role::{
     PERMISSION_ROLE_MANAGE, REQUIRED_ROLES, RoleView as RepositoryRoleView,
@@ -41,7 +41,7 @@ pub async fn create_role(
     let name = validate_role_name(raw_name)?;
     if read_role_node(&state.graph, &name)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+        .map_err(|error| database_error(error))?
         .is_some()
     {
         return Err(LogicError::bad_request("role already exists"));
@@ -61,7 +61,7 @@ pub async fn read_roles(
     require_role_manage(state, actor_id).await?;
     let roles = read_role_nodes(&state.graph)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
+        .map_err(|error| database_error(error))?;
     let total = roles.len() as u64;
     let offset = page.saturating_sub(1).saturating_mul(limit);
     let page_roles: Vec<RepositoryRoleView> = roles
@@ -74,7 +74,7 @@ pub async fn read_roles(
     for role in &page_roles {
         let member_count = read_role_members(&state.graph, &role.role_name)
             .await
-            .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+            .map_err(|error| database_error(error))?
             .len() as u64;
         role_list.push(RoleListItem {
             name: role.role_name.clone(),
@@ -99,11 +99,11 @@ pub async fn read_role(
     require_role_manage(state, actor_id).await?;
     let role = read_role_node(&state.graph, name)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+        .map_err(|error| database_error(error))?
         .ok_or_else(|| LogicError::not_found("role not found"))?;
     let members = read_role_members(&state.graph, name)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
+        .map_err(|error| database_error(error))?;
     Ok(RoleView {
         name: role.role_name,
         permissions: role.permissions,
@@ -126,7 +126,7 @@ pub async fn update_role(
     require_role_manage(state, actor_id).await?;
     if read_role_node(&state.graph, name)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+        .map_err(|error| database_error(error))?
         .is_none()
     {
         return Err(LogicError::not_found("role not found"));

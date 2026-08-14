@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::infrastructure::email::SendEmailError;
 use crate::infrastructure::state::AppState;
-use crate::logic::error::LogicError;
+use crate::logic::error::{LogicError, database_error};
 use crate::logic::pow::verify_issued_pow;
 use crate::logic::session::{create_session, normalize_token, read_session};
 use crate::repository::cache::{
@@ -139,7 +139,7 @@ pub async fn send_update_user_email(
 
     let user_entry = read_user(&state.graph, user_id)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+        .map_err(|error| database_error(error))?
         .ok_or_else(|| LogicError::unauthorized("user not found"))?;
     let old_email_address_hash = nail_common::hash::email(&old_email);
     if user_entry.email_address_hash != old_email_address_hash {
@@ -157,7 +157,7 @@ pub async fn send_update_user_email(
     if let Some(existing_user_id) =
         read_user_by_email_address_hash(&state.graph, &new_email_address_hash)
             .await
-            .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+            .map_err(|error| database_error(error))?
         && existing_user_id != user_id
     {
         return Err(LogicError::bad_request(
@@ -237,7 +237,7 @@ pub async fn update_user_email(
     if let Some(existing_user_id) =
         read_user_by_email_address_hash(&state.graph, &new_email_address_hash)
             .await
-            .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+            .map_err(|error| database_error(error))?
         && existing_user_id != user_id
     {
         return Err(LogicError::bad_request(
@@ -288,7 +288,7 @@ pub async fn send_delete_user_email(
     let email = normalize_email(&pow.payload);
     let user_entry = read_user(&state.graph, user_id)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+        .map_err(|error| database_error(error))?
         .ok_or_else(|| LogicError::unauthorized("user not found"))?;
     if user_entry.email_address_hash != nail_common::hash::email(&email) {
         return Err(LogicError::bad_request("email does not match your account"));

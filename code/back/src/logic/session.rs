@@ -2,7 +2,7 @@ use nail_common::pow::Pow;
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
-use crate::logic::error::LogicError;
+use crate::logic::error::{LogicError, database_error};
 use crate::logic::pow::verify_issued_pow;
 use crate::repository::cache::{SessionTokenEntry, token_key};
 
@@ -42,7 +42,7 @@ pub async fn read_user_name(state: &AppState, session_token: &str) -> Result<Str
     let user_id = read_session(state, session_token)?;
     let entry = crate::repository::user::read_user(&state.graph, &user_id)
         .await
-        .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
+        .map_err(|error| database_error(error))?
         .ok_or_else(|| LogicError::unauthorized("user not found"))?;
     Ok(entry.name)
 }
