@@ -3,7 +3,7 @@
 Pickup doc for the current migrating agent. Rules live in `nail_new/README.md`
 (the constitution — read it in full first). Full history, per-slice §8.3 gates,
 and probe findings: `document/progress-log.md`. Adjudication verdicts:
-`document/adjudication.md` (32 + #33).
+`document/adjudication.md` (32 + #33 + #34).
 
 ## Current state (facts)
 
@@ -11,11 +11,12 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
   snapshot, **untrusted** (33 adjudicated defects). Reconstruction docs pass
   `--check`; PRD `features/02-code/PRD.md` = the domain spec; INTERFACES /
   DATA-MODEL / ARCHITECTURE under `document/reconstruction/architecture/`.
-- **Phase 3 backend: DONE (slices 1-7).** back **245 tests green** (common
-  104), `cargo check` zero warnings, working tree clean at `d7378e9`. No git
-  remote. History + per-slice §8.3 gates: `document/progress-log.md`.
-  Personnel: agent G completed Phase 3 (slice 7 + #33); a new agent takes
-  over at Phase 4.
+- **Phase 3 backend: DONE (slices 1-7); typed-DTO sweep: DONE.** back **245
+  tests green** (common 108), `cargo check` zero warnings, working tree clean
+  at `13156b8`. No git remote. History + per-slice §8.3 gates:
+  `document/progress-log.md`. Personnel: agent G completed Phase 3 (slice 7 +
+  #33), agent H completed the typed-DTO sweep (+ #34); a new agent takes over
+  at Phase 4.
 - Backend layering per ADR-0001; `intent` per ADR-0002; glossary
   `document/context.md`; Cedar engine landed (slice 6); `/config/read` returns
   the typed `common::response::RuntimeLimits` (slice 7).
@@ -96,7 +97,7 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
 
 ## Reference materials
 
-- `README.md` — constitution. `document/adjudication.md` — 33 verdicts.
+- `README.md` — constitution. `document/adjudication.md` — 34 verdicts.
   `document/context.md` — glossary. `document/adr/` — 0001, 0002.
   `document/progress-log.md` — history + §8.3 gates.
 - `document/reconstruction/features/02-code/PRD.md` — the spec (FR-1..66).
