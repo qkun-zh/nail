@@ -1,0 +1,7 @@
+[servers.nail]
+access_log = "combined"
+addr = "127.0.0.1:8080"
+locations = [
+    "back_api",
+    "front",
+]

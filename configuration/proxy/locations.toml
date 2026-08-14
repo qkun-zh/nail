@@ -1,0 +1,10 @@
+[locations.back_api]
+path = "/api"
+plugins = ["rateLimit"]
+rewrite = "^/api/(?<path>.+)$ /$1"
+upstream = "back"
+
+[locations.front]
+path = "/"
+plugins = ["forFront"]
+rewrite = "^/[a-zA-Z0-9/.-]+$ /index.html"

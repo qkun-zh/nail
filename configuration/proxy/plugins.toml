@@ -1,0 +1,12 @@
+[plugins.forFront]
+category = "directory"
+index = "index.html"
+path = "/home/qkun/nail_new/code/front/dist"
+step = "request"
+
+[plugins.rateLimit]
+category = "limit"
+interval = "1s"
+max = 32
+tag = "ip"
+type = "rate"
