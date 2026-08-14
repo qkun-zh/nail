@@ -261,11 +261,12 @@ constitution); this document records state and process only.
 
 ## Handover (2026-08-14) — current agent
 
-Personnel change: agent E completed **slice 4 (comment domain)**; a new agent
-(F) took over at **slice 5 (download/PDF)** and completed it (see Current state).
+Personnel change: agent F completed **slice 5 (download/PDF)** and **slice 6
+(role/authorization)**; a new agent (G) takes over with the **#33 owner-bypass
+patch**, then **slice 7 (config/email/infrastructure)**.
 
 - ✅ Slices 1-6 are done. **back 240 tests green** (common 104), `cargo check`
-  zero warnings, working tree clean.
+  zero warnings, working tree clean at `fedf6e8`.
 
 - ✅ Slice 3 (article + version) is done: TDD rewrite of slices 1-3 under the
   CRUD-only vocabulary (commits `8de3490` archive + `6747cad` rewrite),
@@ -298,10 +299,25 @@ Personnel change: agent E completed **slice 4 (comment domain)**; a new agent
 - ✅ **Slice 6 (role/authorization) done**: #5 (visibility deleted; policy 2
   read-open), #7 (member_count), #8 (REQUIRED_ROLES protected), #9 (duplicate
   role → 400). Cedar engine landed; the Rust gate converged to Cedar. See
-  Current state — including the ⚠️ owner-bypass scope flag.
-- Next: **slice 7 (config/email/infrastructure)** — #13 (dead config fields),
-  #19 (timezone from toml via `/config/read`), #22 (multipart read-then-validate),
-  #26 (email service with explicit intent), #32 (e2e flag; test tree in Phase 5).
+  Current state.
+- ⏳ **#33 owner-bypass patch (first task of agent G, one commit)**: the owner
+  adjudicated (2026-08-14) that legacy policy 1's exclusion of
+  `Version::Update`/`Version::Delete`/`Comment::Update` from the owner bypass is
+  wrong (contradicts FR-20/FR-21). Amend policy 1 in
+  `code/back/src/infrastructure/cedar/policy.cedar`; verify `Comment.owner` is
+  the comment author and `Version.owner` is the article owner in
+  `repository/authorization.rs` (fix if not); flip slice 6's 5 denial tests to
+  owner-allow; add a comment-author ≠ article-owner authorization test. Do NOT
+  widen the member role's seed grants. Full details: adjudication #33 + Owner
+  decisions in this file.
+- ⏳ **Slice 7 (config/email/infrastructure)** — #13 (dead config fields),
+  #19 (timezone from toml via `/config/read`), #22 (multipart read-then-validate,
+  K), #26 (email service with explicit intent — check convergence with
+  ADR-0002), #32 (e2e flag; test tree in Phase 5). FR-1..8 leftovers: config
+  validation matrix (`startup-errors.log`, exit 1), `/config/read` route
+  (README §11), per-minute log rotation + retention prune, graceful shutdown
+  (close wiring already in). §8.2 pre-study: legacy `other/conf.rs`,
+  `other/log.rs`, `api/meta.rs`.
 - All prior handover items (a)-(d) and the slice 2 deferred items (search
   re-sync, hard-delete cascade + PDF cleanup, recycler least-loaded selection)
   are ✅ done.
