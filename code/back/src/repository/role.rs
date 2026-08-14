@@ -334,7 +334,9 @@ pub async fn remove_tag_from_role(
     let mut guard = db.write().await;
     let role_id = resolve_node_id_sync(&guard, ENTITY_TYPE_ROLE, role_name)?
         .ok_or_else(|| not_found(ENTITY_TYPE_ROLE, role_name))?;
-    let tag_id = resolve_node_id_sync(&guard, ENTITY_TYPE_TAG, tag_name)?
+    let tag_ids = find_by_index_sync(&guard, KEY_TAG_NAME, tag_name)?;
+    let tag_id = *tag_ids
+        .first()
         .ok_or_else(|| not_found(ENTITY_TYPE_TAG, tag_name))?;
     remove_outgoing_edge(&mut guard, role_id, tag_id, EDGE_ROLE_APPLY_TAG)?;
     Ok(())

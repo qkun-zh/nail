@@ -106,29 +106,6 @@ async fn users_holding_role_lists_recycler_holders() {
     assert_eq!(recyclers, vec![user_zero]);
 }
 
-async fn tag_business_id_by_name(
-    state: &crate::infrastructure::state::AppState,
-    name: &str,
-) -> String {
-    let guard = state.graph.read().await;
-    let nodes = crate::repository::graph::find_by_index_sync(
-        &guard,
-        crate::repository::schema::KEY_TAG_NAME,
-        name,
-    )
-    .expect("tag name index lookup");
-    assert_eq!(nodes.len(), 1, "exactly one tag node for {name}");
-    crate::repository::graph::read_rows_sync::<crate::repository::schema::TagRow>(
-        &guard,
-        &nodes,
-    )
-    .expect("tag row")
-    .into_iter()
-    .next()
-    .expect("tag row present")
-    .id
-}
-
 async fn role_apply_tag_edge_count(
     state: &crate::infrastructure::state::AppState,
     role_name: &str,
@@ -174,10 +151,9 @@ async fn role_tag_scopes_apply_read_and_remove() {
     apply_tag_to_role(&state.graph, "editor", "#rust").await.expect("apply rust again");
     assert_eq!(role_apply_tag_edge_count(&state, "editor").await, 2);
 
-    // the repository resolves the remove target by the tag node's business id,
-    // so the id is looked up from the tag name first
-    let rust_tag_id = tag_business_id_by_name(&state, "#rust").await;
-    remove_tag_from_role(&state.graph, "editor", &rust_tag_id).await.expect("remove rust");
+    remove_tag_from_role(&state.graph, "editor", "#rust")
+        .await
+        .expect("remove rust");
     let role = read_role(&state.graph, "editor").await.expect("read").expect("role");
     assert_eq!(role.scopes, vec!["#db"]);
     assert_eq!(role_apply_tag_edge_count(&state, "editor").await, 1);
