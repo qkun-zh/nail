@@ -156,6 +156,44 @@ The five role routes + Cedar authorization across the four layers.
   The owner adjudicated this design wrong (**#33**, 2026-08-14) — see the
   current handoff; the policy-1 amendment is a pending task.
 
+## #33 — owner-bypass amendment (2026-08-14, commit `efe8cfe`)
+
+Owner ruling: legacy policy 1's exclusion of `Version::Update`/
+`Version::Delete`/`Comment::Update` from the owner bypass is wrong (contradicts
+FR-20/FR-21). Policy 1 in `infrastructure/cedar/policy.cedar` now includes the
+three actions. `repository/authorization.rs` was verified correct —
+`Comment.owner` = comment author, `Version.owner` = article owner — no assembly
+fix needed. Slice 6's 5 denial tests flipped to owner-allow; a
+comment-author ≠ article-owner assembly test added. Member seed grants NOT
+widened (non-owner-scoped).
+
+## Phase 3 slice 7 — config/email/infrastructure (2026-08-14, commit `06c72f4`)
+
+Final backend slice. **back 245 tests green** (common 104), `cargo check` zero
+warnings.
+
+- `/config/read` returns the typed `common::response::RuntimeLimits` DTO (11
+  fields), not `json!`. Config validation matrix: empty path / difficulty 0 or
+  >10000 / zero ttls+capacities / zero content limits / text_field > pdf /
+  zero pagination limits → `AppConfig::load` fails → `main` appends to
+  `startup-errors.log` and exits 1.
+- #13: `db_namespace`/`db_database`/`max_id_filter_count` confirmed absent
+  (never entered `ServerConfig`/`server.toml`). #19: timezone is config
+  (`timezone_offset_seconds`, whole minutes ±23:59), served via `/config/read`,
+  consumed by logging (`OffsetTime`) + search; no hardcoded `+08:00` anywhere.
+  #22: multipart read-then-validate (K) — `PdfStreamGuard` streaming + body
+  bound already in place. #26: email intent converged (ADR-0002). #32: e2e
+  flag + test tree → Phase 5.
+- `main.rs` bootstrap: config load → fail-fast (`startup-errors.log`, exit 1)
+  → `logging::init` + `prune_loop` (per-minute rotation + retention prune, 2
+  new prune tests) → `run_server` (graceful shutdown closes the search index,
+  verified). `max_comment_body_chars` moved from a constant into config and
+  wired into `logic/comment.rs`.
+- §8.3: typed `RuntimeLimits` replaces the legacy `api/meta.rs` `json!` (which
+  also leaked the dead `max_page`); logging drops `chrono::Local` for the
+  `time` crate + config offset (#19); config sheds dead/backend-internal
+  fields.
+
 ## Personnel history
 
 - Agent A/B: Phase 2 (common) + slice 1.
@@ -163,4 +201,5 @@ The five role routes + Cedar authorization across the four layers.
 - Agent D: slice 3 (article + version; owner-ordered CRUD-vocabulary rewrite).
 - Agent E: slice 4 (comment domain).
 - Agent F: slice 5 (download/PDF) + slice 6 (role/authorization, Cedar).
-- Agent G: #33 owner-bypass patch + slice 7 (config/email/infrastructure).
+- Agent G: #33 owner-bypass patch (`efe8cfe`) + slice 7
+  (config/email/infrastructure, `06c72f4`) — Phase 3 backend complete.

@@ -11,11 +11,12 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
   snapshot, **untrusted** (33 adjudicated defects). Reconstruction docs pass
   `--check`; PRD `features/02-code/PRD.md` = the domain spec; INTERFACES /
   DATA-MODEL / ARCHITECTURE under `document/reconstruction/architecture/`.
-- **Phase 3 backend: slices 1-6 done.** back **240 tests green** (common 104),
-  `cargo check` zero warnings, working tree clean at `29955cb`. No git remote.
+- **Phase 3 backend: DONE (slices 1-7).** back **245 tests green** (common
+  104), `cargo check` zero warnings, working tree clean at `c0df600`. No git
+  remote. History + per-slice §8.3 gates: `document/progress-log.md`.
 - Backend layering per ADR-0001; `intent` per ADR-0002; glossary
-  `document/context.md`; Cedar engine landed in slice 6
-  (`infrastructure/cedar/{schema,policy}.cedar` + `repository/authorization.rs`).
+  `document/context.md`; Cedar engine landed (slice 6); `/config/read` returns
+  the typed `common::response::RuntimeLimits` (slice 7).
 - `_`-prefixed archive files removed (`aa39cb6`); pre-rewrite code in git
   (`8de3490^`). File tools work on all paths (verified). The
   `thermo-nuclear-code-quality-review` skill is unavailable in the registry —
@@ -23,23 +24,17 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
 
 ## Pending — current agent
 
-1. **#33 owner-bypass patch** (one commit): amend policy 1 in
-   `code/back/src/infrastructure/cedar/policy.cedar` to add
-   `Version::Update`/`Version::Delete`/`Comment::Update` to the owner bypass
-   (`resource.owner == principal`); verify `Comment.owner` = comment author,
-   `Version.owner` = article owner in `repository/authorization.rs` (fix if
-   not); flip slice 6's 5 denial tests to owner-allow; add a
-   comment-author ≠ article-owner test. Do NOT widen the member role's seed
-   grants (non-owner-scoped). Details: adjudication #33 + Owner decisions.
-2. **Slice 7 — config/email/infrastructure** (last backend slice, TDD): #13
-   (dead config `db_namespace`/`db_database`/`max_id_filter_count`), #19
-   (timezone from toml via `/config/read`), #22 (multipart read-then-validate,
-   K), #26 (email explicit intent — verify convergence with ADR-0002), #32
-   (e2e flag + test tree → Phase 5). FR-1..8 leftovers: config validation
-   matrix (fail fast → `startup-errors.log`, exit 1), `/config/read` route
-   (README §11), per-minute log rotation + retention prune, graceful shutdown
-   (search-index close already wired). §8.2 pre-study: legacy `other/conf.rs`,
-   `other/log.rs`, `api/meta.rs`.
+- **Phase 4 — frontend migration** (next phase; the backend API is stable).
+  Layering per README §4.2 (router → page → request → infrastructure); Leptos
+  CSR, no CSS (README §10); runtime config from `/config/read` (reuse
+  `RuntimeLimits` as the limits signal) with compile-time fallback. Items: #14
+  (English UI), #24 (page size from config), #25 (has_next = page <
+  total_pages), #3 (no per-comment pre-check), #12 (drop `/private/email/check`
+  link), #4 (delete `pow-worker.js`). Gate: `cargo check --target
+  wasm32-unknown-unknown` on `nail_front`.
+- Phase 5 cleanup candidate (recorded, not urgent): sweep the slices 1-6
+  `serde_json::Value`/`json!` responses to typed DTOs per the owner decision
+  below.
 
 ## Owner decisions (details: adjudication.md + git log)
 
@@ -50,8 +45,17 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
   backend identifiers; interface strictest, logic top-level same verbs.
   Sanctioned exceptions: `create_reply`; `mint`/`consume` for token resources.
 - **#33**: legacy policy 1's owner bypass was judged wrong (excludes
-  Version::Update/Delete, Comment::Update, contradicting FR-20/21) — amend
-  policy 1; do not widen member seed grants.
+  Version::Update/Delete, Comment::Update, contradicting FR-20/21) — amended
+  in `efe8cfe`: policy 1 now includes the three actions; `Comment.owner` =
+  comment author and `Version.owner` = article owner confirmed in
+  `repository/authorization.rs` (no assembly fix needed); 5 denial tests
+  flipped to owner-allow; member seed grants NOT widened.
+- **Responses are fixed data structures, not `json!` (owner, 2026-08-14)**: a
+  typed-DTO sweep of the slices 1-6 responses is a Phase 5 cleanup candidate.
+- **Pagination config scope (owner, 2026-08-14)**: config holds only
+  frontend-facing `search_page_size` + `max_search_pages`; the backend clamp
+  caps `max_search_page_size` (200) and `max_page` (10000) stay hardcoded
+  constants, neither config nor served.
 - Common contracts: `now_ms() -> Result<u64, SystemTimeError>`; `uuidv7_*`
   return `None` for non-v7 ids; `format_rfc3339_with_offset` whole-minute
   offsets only.
@@ -78,7 +82,12 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
 
 ## Remaining steps
 
-### Phase 4 — frontend migration (after the backend API is stable)
+### Phase 3 — backend migration (DONE, 2026-08-14)
+
+Slices 1-7 complete, back 245 tests green. Details per slice:
+`document/progress-log.md`.
+
+### Phase 4 — frontend migration (next)
 
 Layering per README §4.2 (router → page → request → infrastructure); Leptos
 CSR, no CSS (README §10); runtime config from `/config/read` with
