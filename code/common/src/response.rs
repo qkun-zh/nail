@@ -2,6 +2,13 @@ use serde::{Deserialize, Serialize};
 
 pub mod search;
 pub mod session;
+pub mod email;
+pub mod content;
+pub mod user;
+pub mod article;
+pub mod version;
+pub mod comment;
+pub mod role;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

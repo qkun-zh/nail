@@ -8,6 +8,7 @@ use crate::infrastructure::state::AppState;
 use crate::interface::envelope::{ApiError, json_response};
 use crate::interface::principal::Principal;
 use crate::logic::error::LogicError;
+use nail_common::response::content::MintUrl;
 
 #[derive(Debug, Default, Deserialize)]
 pub struct ContentReadParams {
@@ -29,11 +30,7 @@ pub async fn read_content(
             &version_id,
         )
         .await?;
-        return Ok(json_response(
-            StatusCode::OK,
-            serde_json::json!({ "url": url }),
-            "ok",
-        ));
+        return Ok(json_response(StatusCode::OK, MintUrl { url }, "ok"));
     }
 
     let path = if let Some(token) = params.token.as_deref() {

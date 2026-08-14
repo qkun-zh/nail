@@ -133,6 +133,16 @@ After Phase 4: rebuild the remaining test tree per README §12; e2e strategy
 pass, then zero-warning gate. (The typed-DTO sweep, formerly Phase 5's first
 item, is done before Phase 4 per the owner decision above.)
 
+**E2E tooling facts (owner, 2026-08-14)**: the legacy e2e stack is back
+process + pingap + chromium with an in-process SMTP sink
+(`test/end_to_end/browser/context.rs`). Chromium is already installed
+(`/usr/bin/chromium`). For the browser driver use the **latest chromiumoxide**
+crate version (NOT the legacy 0.9.1); add it `cargo add` as an optional,
+feature-gated (`end_to_end`) dependency when Phase 5 starts — its crates are
+already cached in the local registry. **pingap is NOT installed on this
+machine**; it has a GitHub repository with released binaries — obtain the
+release binary from GitHub when the e2e phase starts.
+
 ## Skills — mandatory usage
 
 Invoke the matching skill via the `skill` tool before each covered task; the

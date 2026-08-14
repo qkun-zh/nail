@@ -1,5 +1,10 @@
 use nail_common::pow::Pow;
 use nail_common::request::{DeleteMode, UserDeleteRequest, UserUpdateRequest};
+use nail_common::response::EmptyView;
+use nail_common::response::session::SessionTokenView;
+use nail_common::response::user::{
+    UserIdView, UserListItem, UserListPage, UserNameView, UserView,
+};
 
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::authorize;
@@ -12,6 +17,20 @@ use crate::repository::role::{PERMISSION_USER_DELETE, PERMISSION_USER_READ, PERM
 use crate::repository::authorization::Resource;
 use crate::repository::transfer::TransferError;
 use crate::repository::user::{UserWriteError, read_user as read_user_node, update_user_name};
+
+#[derive(Debug, serde::Serialize)]
+#[serde(untagged)]
+pub enum UserUpdateView {
+    Name(UserNameView),
+    SessionToken(SessionTokenView),
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(untagged)]
+pub enum UserDeleteView {
+    Empty(EmptyView),
+    UserId(UserIdView),
+}
 
 pub async fn create_user(state: &AppState, pow: &Pow) -> Result<String, LogicError> {
     verify_issued_pow(state, pow)?;
@@ -50,8 +69,8 @@ pub async fn read_user(
     target_id: &str,
     name_requested: bool,
     email_hash_requested: bool,
-) -> Result<serde_json::Value, LogicError> {
-    let mut data = serde_json::Map::new();
+) -> Result<UserView, LogicError> {
+    let mut view = UserView::default();
     if target_id == actor_id {
         if name_requested || email_hash_requested {
             let entry = read_user_node(&state.graph, actor_id)
@@ -59,16 +78,13 @@ pub async fn read_user(
                 .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
                 .ok_or_else(|| LogicError::unauthorized("user not found"))?;
             if name_requested {
-                data.insert("name".to_string(), serde_json::json!(entry.name));
+                view.name = Some(entry.name);
             }
             if email_hash_requested {
-                data.insert(
-                    "email_hash".to_string(),
-                    serde_json::json!(entry.email_address_hash),
-                );
+                view.email_hash = Some(entry.email_address_hash);
             }
         }
-        return Ok(serde_json::Value::Object(data));
+        return Ok(view);
     }
 
     authorize(state, actor_id, PERMISSION_USER_READ, &admin_console()).await?;
@@ -76,17 +92,14 @@ pub async fn read_user(
         .await
         .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
         .ok_or_else(|| LogicError::not_found("user not found"))?;
-    data.insert("id".to_string(), serde_json::json!(target_id));
+    view.id = Some(target_id.to_string());
     if name_requested {
-        data.insert("name".to_string(), serde_json::json!(entry.name));
+        view.name = Some(entry.name);
     }
     if email_hash_requested {
-        data.insert(
-            "email_hash".to_string(),
-            serde_json::json!(entry.email_address_hash),
-        );
+        view.email_hash = Some(entry.email_address_hash);
     }
-    Ok(serde_json::Value::Object(data))
+    Ok(view)
 }
 
 pub async fn update_user(
@@ -94,7 +107,7 @@ pub async fn update_user(
     actor_id: &str,
     target_id: &str,
     request: UserUpdateRequest,
-) -> Result<serde_json::Value, LogicError> {
+) -> Result<UserUpdateView, LogicError> {
     match (request.old_email_token, request.new_email_token) {
         (Some(old_token), Some(new_token)) => {
             let pow = request.pow.ok_or_else(|| {
@@ -103,7 +116,9 @@ pub async fn update_user(
             let new_session_token =
                 crate::logic::email::update_user_email(state, actor_id, &pow, &old_token, &new_token)
                     .await?;
-            return Ok(serde_json::json!({ "session_token": new_session_token }));
+            return Ok(UserUpdateView::SessionToken(SessionTokenView {
+                session_token: new_session_token,
+            }));
         }
         (Some(_), None) | (None, Some(_)) => {
             return Err(LogicError::bad_request(
@@ -116,7 +131,7 @@ pub async fn update_user(
     if let Some(raw_name) = request.name {
         let name = handle_admin_update_name(state, actor_id, target_id, &raw_name).await?;
         sync_user_best_effort(state, target_id).await;
-        return Ok(serde_json::json!({ "name": name }));
+        return Ok(UserUpdateView::Name(UserNameView { name }));
     }
 
     let pow = request
@@ -124,7 +139,7 @@ pub async fn update_user(
         .ok_or_else(|| LogicError::bad_request("pow is required"))?;
     let name = handle_update_name(state, actor_id, &pow).await?;
     sync_user_best_effort(state, actor_id).await;
-    Ok(serde_json::json!({ "name": name }))
+    Ok(UserUpdateView::Name(UserNameView { name }))
 }
 
 pub async fn delete_user(
@@ -132,15 +147,17 @@ pub async fn delete_user(
     actor_id: &str,
     target_id: &str,
     request: UserDeleteRequest,
-) -> Result<serde_json::Value, LogicError> {
+) -> Result<UserDeleteView, LogicError> {
     match request.mode {
         Some(DeleteMode::Transfer) => {
             handle_delete_user_transfer(state, actor_id, &request.pow).await?;
-            Ok(serde_json::json!({}))
+            Ok(UserDeleteView::Empty(EmptyView {}))
         }
         Some(DeleteMode::Hard) => {
             handle_delete_user_hard(state, actor_id, target_id).await?;
-            Ok(serde_json::json!({ "user_id": target_id }))
+            Ok(UserDeleteView::UserId(UserIdView {
+                user_id: target_id.to_string(),
+            }))
         }
         None => Err(LogicError::bad_request(
             "missing or unsupported delete mode (expected \"transfer\" or \"hard\")",
@@ -153,28 +170,26 @@ pub async fn read_users(
     actor_id: &str,
     page: u64,
     limit: u64,
-) -> Result<serde_json::Value, LogicError> {
+) -> Result<UserListPage, LogicError> {
     authorize(state, actor_id, PERMISSION_USER_READ, &admin_console()).await?;
     let offset = page.saturating_sub(1).saturating_mul(limit);
     let (items, total) = crate::repository::user::read_users(&state.graph, limit, offset)
         .await
         .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
-    let user_list: Vec<serde_json::Value> = items
+    let user_list: Vec<UserListItem> = items
         .into_iter()
-        .map(|item| {
-            serde_json::json!({
-                "id": item.id,
-                "name": item.name,
-                "email_hash": item.email_address_hash,
-            })
+        .map(|item| UserListItem {
+            id: item.id,
+            name: item.name,
+            email_hash: item.email_address_hash,
         })
         .collect();
     let has_next = page < total.div_ceil(limit);
-    Ok(serde_json::json!({
-        "user_list": user_list,
-        "has_next": has_next,
-        "total": total,
-    }))
+    Ok(UserListPage {
+        user_list,
+        has_next,
+        total,
+    })
 }
 
 async fn handle_update_name(

@@ -3,6 +3,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use nail_common::request::{CreateRoleRequest, DeleteBody, DeleteMode, RoleUpdateRequest};
+use nail_common::response::role::RoleNameView;
 use serde::Deserialize;
 
 use crate::infrastructure::state::AppState;
@@ -21,9 +22,9 @@ pub async fn create_role(
     Json(payload): Json<CreateRoleRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     let name = crate::logic::role::create_role(&state, &principal.user_id, &payload.name).await?;
-    Ok(json_response::<serde_json::Value>(
+    Ok(json_response(
         StatusCode::CREATED,
-        serde_json::json!({ "name": name }),
+        RoleNameView { name },
         "created",
     ))
 }
@@ -36,7 +37,7 @@ pub async fn read_roles(
     let limit = params.limit.unwrap_or(state.config.server.search_page_size).clamp(1, 200);
     let page = params.page.unwrap_or(1).clamp(1, 10_000);
     let data = crate::logic::role::read_roles(&state, &principal.user_id, page, limit).await?;
-    Ok(json_response::<serde_json::Value>(StatusCode::OK, data, "ok"))
+    Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
 pub async fn read_role(
@@ -45,7 +46,7 @@ pub async fn read_role(
     Path(name): Path<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     let data = crate::logic::role::read_role(&state, &principal.user_id, &name).await?;
-    Ok(json_response::<serde_json::Value>(StatusCode::OK, data, "ok"))
+    Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
 pub async fn update_role(
@@ -69,11 +70,7 @@ pub async fn update_role(
         &users.remove,
     )
     .await?;
-    Ok(json_response::<serde_json::Value>(
-        StatusCode::OK,
-        serde_json::json!({ "name": name }),
-        "ok",
-    ))
+    Ok(json_response(StatusCode::OK, RoleNameView { name }, "ok"))
 }
 
 pub async fn delete_role(
@@ -86,9 +83,5 @@ pub async fn delete_role(
         return Err(ApiError::bad_request("role delete only supports mode \"hard\""));
     }
     let data = crate::logic::role::delete_role(&state, &principal.user_id, &name).await?;
-    Ok(json_response::<serde_json::Value>(
-        StatusCode::OK,
-        data,
-        "deleted",
-    ))
+    Ok(json_response(StatusCode::OK, data, "deleted"))
 }

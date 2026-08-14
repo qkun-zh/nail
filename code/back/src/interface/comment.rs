@@ -3,6 +3,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use nail_common::request::{CreateCommentRequest, DeleteBody};
+use nail_common::response::comment::CommentIdView;
 use serde::Deserialize;
 
 use crate::infrastructure::state::AppState;
@@ -22,9 +23,9 @@ pub async fn create_comment(
         &payload.content,
     )
     .await?;
-    Ok(json_response::<serde_json::Value>(
+    Ok(json_response(
         StatusCode::CREATED,
-        serde_json::json!({ "comment_id": comment_id }),
+        CommentIdView { comment_id },
         "created",
     ))
 }
@@ -42,9 +43,9 @@ pub async fn create_reply(
         &payload.content,
     )
     .await?;
-    Ok(json_response::<serde_json::Value>(
+    Ok(json_response(
         StatusCode::CREATED,
-        serde_json::json!({ "comment_id": comment_id }),
+        CommentIdView { comment_id },
         "created",
     ))
 }
@@ -73,7 +74,7 @@ pub async fn read_comments(
         params.check_if_is_author.unwrap_or(false),
     )
     .await?;
-    Ok(json_response::<serde_json::Value>(StatusCode::OK, data, "ok"))
+    Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
 pub async fn update_comment(
@@ -89,7 +90,7 @@ pub async fn update_comment(
         &payload.content,
     )
     .await?;
-    Ok(json_response::<serde_json::Value>(StatusCode::OK, data, "ok"))
+    Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
 pub async fn delete_comment(
@@ -105,9 +106,5 @@ pub async fn delete_comment(
         payload.mode,
     )
     .await?;
-    Ok(json_response::<serde_json::Value>(
-        StatusCode::OK,
-        data,
-        "deleted",
-    ))
+    Ok(json_response(StatusCode::OK, data, "deleted"))
 }

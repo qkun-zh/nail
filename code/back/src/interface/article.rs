@@ -3,6 +3,7 @@ use axum::extract::{Multipart, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use nail_common::request::{DeleteBody, UpdateArticleRequest};
+use nail_common::response::article::CreateArticleView;
 use serde::Deserialize;
 use tokio::io::AsyncWriteExt;
 
@@ -18,7 +19,7 @@ pub async fn read_articles(
     Query(params): Query<nail_common::request::ArticleSearchParams>,
 ) -> Result<impl IntoResponse, ApiError> {
     let data = crate::logic::article::read_articles(&state, &params).await?;
-    Ok(json_response::<serde_json::Value>(StatusCode::OK, data, "ok"))
+    Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
 pub async fn create_article(
@@ -67,9 +68,12 @@ pub async fn create_article(
     )
     .await?;
 
-    Ok(json_response::<serde_json::Value>(
+    Ok(json_response(
         StatusCode::CREATED,
-        serde_json::json!({ "article_id": article_id, "version_id": version_id }),
+        CreateArticleView {
+            article_id,
+            version_id,
+        },
         "created",
     ))
 }
@@ -92,7 +96,7 @@ pub async fn read_article(
         params.check_if_is_author.unwrap_or(false),
     )
     .await?;
-    Ok(json_response::<serde_json::Value>(StatusCode::OK, data, "ok"))
+    Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
 pub async fn update_article(
@@ -110,7 +114,7 @@ pub async fn update_article(
         &payload.tags,
     )
     .await?;
-    Ok(json_response::<serde_json::Value>(StatusCode::OK, data, "ok"))
+    Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
 pub async fn delete_article(
@@ -126,11 +130,7 @@ pub async fn delete_article(
         payload.mode,
     )
     .await?;
-    Ok(json_response::<serde_json::Value>(
-        StatusCode::OK,
-        data,
-        "deleted",
-    ))
+    Ok(json_response(StatusCode::OK, data, "deleted"))
 }
 
 pub(crate) async fn read_text_field(

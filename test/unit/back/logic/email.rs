@@ -2,8 +2,8 @@ use nail_common::request::{EmailReadIntent, EmailReadRequest};
 
 use super::context::TestCtx;
 use crate::logic::email::{
-    normalize_email, parse_intent, send_delete_user_email, send_update_user_email,
-    update_user_email, validate_email,
+    EmailReadView, normalize_email, parse_intent, send_delete_user_email,
+    send_update_user_email, update_user_email, validate_email,
 };
 use crate::logic::error::LogicError;
 use crate::repository::cache::{SessionTokenEntry, token_key};
@@ -75,14 +75,17 @@ async fn create_user_intent_sends_and_caches_a_token() {
     )
     .await
     .expect("email read");
-    let subject = data["email_subject"].as_str().expect("subject");
+    let subject = match data {
+        EmailReadView::Subject(view) => view.email_subject,
+        EmailReadView::Subjects(_) => panic!("unexpected subjects"),
+    };
     assert!(!subject.is_empty());
 
     let messages = context.emails();
     assert_eq!(messages.len(), 1);
     let (to, message_subject, body) = &messages[0];
     assert_eq!(to, "alice@example.com");
-    assert_eq!(message_subject, subject);
+    assert_eq!(message_subject, &subject);
     let token_key = token_key(body).expect("token key");
     assert!(context.state.caches.create_user.read(&token_key).is_some());
 }
@@ -157,8 +160,11 @@ async fn change_email_sends_two_emails_and_caches_the_token_hashes() {
     )
     .await
     .expect("email read");
-    assert!(data["old_email_subject"].as_str().is_some());
-    assert!(data["new_email_subject"].as_str().is_some());
+    let EmailReadView::Subjects(view) = data else {
+        panic!("expected subjects");
+    };
+    assert!(!view.old_email_subject.is_empty());
+    assert!(!view.new_email_subject.is_empty());
 
     let messages = context.emails();
     assert_eq!(messages.len(), 2);

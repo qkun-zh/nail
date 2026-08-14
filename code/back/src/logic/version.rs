@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use nail_common::request::DeleteMode;
+use nail_common::response::version::{VersionIdView, VersionListItem, VersionListPage, VersionView};
 use semver::Version;
 use uuid::Uuid;
 
@@ -130,7 +131,7 @@ pub async fn read_version(
     version_id: &str,
     article_id: Option<&str>,
     check_if_is_author: bool,
-) -> Result<serde_json::Value, LogicError> {
+) -> Result<VersionView, LogicError> {
     let parent_article = parent_article_of(&state.graph, version_id)
         .await
         .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
@@ -147,17 +148,17 @@ pub async fn read_version(
         .ok_or_else(|| LogicError::not_found("version not found"))?;
 
     let created_at = nail_common::time::uuidv7_timestamp_secs(version_id).unwrap_or(0);
-    let mut data = serde_json::json!({
-        "id": version_id,
-        "version": entry.version_number,
-        "created_at": created_at,
-        "note": entry.note,
-    });
+    let mut view = VersionView {
+        id: version_id.to_string(),
+        version: entry.version_number,
+        created_at,
+        note: entry.note,
+        is_author: None,
+    };
     if check_if_is_author {
-        let is_author = is_author(state, actor_id, None, Some(version_id), None).await?;
-        data["is_author"] = serde_json::json!(is_author);
+        view.is_author = Some(is_author(state, actor_id, None, Some(version_id), None).await?);
     }
-    Ok(data)
+    Ok(view)
 }
 
 pub async fn read_versions(
@@ -165,28 +166,26 @@ pub async fn read_versions(
     article_id: &str,
     page: u64,
     limit: u64,
-) -> Result<serde_json::Value, LogicError> {
+) -> Result<VersionListPage, LogicError> {
     let offset = page.saturating_sub(1).saturating_mul(limit);
     let (items, total) = versions_of(&state.graph, article_id, limit, offset)
         .await
         .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
-    let version_list: Vec<serde_json::Value> = items
+    let version_list: Vec<VersionListItem> = items
         .into_iter()
-        .map(|item| {
-            serde_json::json!({
-                "id": item.id,
-                "version": item.version_number,
-                "created_at": nail_common::time::uuidv7_timestamp_secs(&item.id).unwrap_or(0),
-            })
+        .map(|item| VersionListItem {
+            id: item.id.clone(),
+            version: item.version_number,
+            created_at: nail_common::time::uuidv7_timestamp_secs(&item.id).unwrap_or(0),
         })
         .collect();
     let has_next = page < total.div_ceil(limit);
-    Ok(serde_json::json!({
-        "version_list": version_list,
-        "page": page,
-        "total": total,
-        "has_next": has_next,
-    }))
+    Ok(VersionListPage {
+        version_list,
+        page,
+        total,
+        has_next,
+    })
 }
 
 pub async fn update_version(
@@ -194,7 +193,7 @@ pub async fn update_version(
     actor_id: &str,
     version_id: &str,
     raw_note: &str,
-) -> Result<serde_json::Value, LogicError> {
+) -> Result<VersionIdView, LogicError> {
     authorize_or(
         state,
         actor_id,
@@ -207,7 +206,9 @@ pub async fn update_version(
     update_version_node(&state.graph, version_id, &note)
         .await
         .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
-    Ok(serde_json::json!({ "version_id": version_id }))
+    Ok(VersionIdView {
+        version_id: version_id.to_string(),
+    })
 }
 
 pub async fn delete_version(
@@ -215,7 +216,7 @@ pub async fn delete_version(
     actor_id: &str,
     version_id: &str,
     mode: Option<DeleteMode>,
-) -> Result<serde_json::Value, LogicError> {
+) -> Result<VersionIdView, LogicError> {
     if !matches!(mode, Some(DeleteMode::Hard)) {
         return Err(LogicError::bad_request(
             "version delete only supports mode \"hard\"",
@@ -239,7 +240,9 @@ pub async fn delete_version(
     if let Some(parent_article) = parent_article {
         sync_article_best_effort(state, &parent_article).await;
     }
-    Ok(serde_json::json!({ "version_id": version_id }))
+    Ok(VersionIdView {
+        version_id: version_id.to_string(),
+    })
 }
 
 pub(crate) fn validate_note(raw: &str, max_chars: u64) -> Result<String, LogicError> {

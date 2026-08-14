@@ -3,11 +3,12 @@ use crate::logic::authorize::authorize;
 use crate::logic::error::LogicError;
 use crate::repository::authorization::Resource;
 use crate::repository::role::{
-    PERMISSION_ROLE_MANAGE, REQUIRED_ROLES, RoleView,
+    PERMISSION_ROLE_MANAGE, REQUIRED_ROLES, RoleView as RepositoryRoleView,
     apply_tag_to_role, create_role as create_role_node, delete_role as delete_role_node,
     grant_permission_to_role, hold_role, read_role as read_role_node, read_role_members,
     read_roles as read_role_nodes, remove_tag_from_role, revoke_permission_from_role, unhold_role,
 };
+use nail_common::response::role::{RoleListItem, RoleListPage, RoleNameView, RoleView};
 
 fn admin_console() -> Resource {
     Resource::System("admin-console".to_string())
@@ -56,14 +57,14 @@ pub async fn read_roles(
     actor_id: &str,
     page: u64,
     limit: u64,
-) -> Result<serde_json::Value, LogicError> {
+) -> Result<RoleListPage, LogicError> {
     require_role_manage(state, actor_id).await?;
     let roles = read_role_nodes(&state.graph)
         .await
         .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
     let total = roles.len() as u64;
     let offset = page.saturating_sub(1).saturating_mul(limit);
-    let page_roles: Vec<RoleView> = roles
+    let page_roles: Vec<RepositoryRoleView> = roles
         .into_iter()
         .skip(offset as usize)
         .take(limit as usize)
@@ -75,26 +76,26 @@ pub async fn read_roles(
             .await
             .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
             .len() as u64;
-        role_list.push(serde_json::json!({
-            "name": role.role_name,
-            "permissions": role.permissions,
-            "scopes": role.scopes,
-            "member_count": member_count,
-        }));
+        role_list.push(RoleListItem {
+            name: role.role_name.clone(),
+            permissions: role.permissions.clone(),
+            scopes: role.scopes.clone(),
+            member_count,
+        });
     }
     let has_next = page < total.div_ceil(limit);
-    Ok(serde_json::json!({
-        "role_list": role_list,
-        "has_next": has_next,
-        "total": total,
-    }))
+    Ok(RoleListPage {
+        role_list,
+        has_next,
+        total,
+    })
 }
 
 pub async fn read_role(
     state: &AppState,
     actor_id: &str,
     name: &str,
-) -> Result<serde_json::Value, LogicError> {
+) -> Result<RoleView, LogicError> {
     require_role_manage(state, actor_id).await?;
     let role = read_role_node(&state.graph, name)
         .await
@@ -103,12 +104,12 @@ pub async fn read_role(
     let members = read_role_members(&state.graph, name)
         .await
         .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
-    Ok(serde_json::json!({
-        "name": role.role_name,
-        "permissions": role.permissions,
-        "scopes": role.scopes,
-        "members": members,
-    }))
+    Ok(RoleView {
+        name: role.role_name,
+        permissions: role.permissions,
+        scopes: role.scopes,
+        members,
+    })
 }
 
 pub async fn update_role(
@@ -177,7 +178,7 @@ pub async fn delete_role(
     state: &AppState,
     actor_id: &str,
     name: &str,
-) -> Result<serde_json::Value, LogicError> {
+) -> Result<RoleNameView, LogicError> {
     require_role_manage(state, actor_id).await?;
     if REQUIRED_ROLES.contains(&name) {
         return Err(LogicError::bad_request(format!(
@@ -187,5 +188,5 @@ pub async fn delete_role(
     delete_role_node(&state.graph, name)
         .await
         .map_err(|error| LogicError::internal(format!("failed to delete role: {error}")))?;
-    Ok(serde_json::json!({ "name": name }))
+    Ok(RoleNameView { name: name.to_string() })
 }

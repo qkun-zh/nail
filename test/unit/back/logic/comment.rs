@@ -110,14 +110,14 @@ async fn read_comments_returns_a_tree_with_user_names_and_is_author() {
     let data = read_comments(&state, &author_id, &version_id, 1, 8, true)
         .await
         .expect("read");
-    let comments = data["comments"].as_array().expect("comments");
+    let comments = &data.comments;
     assert_eq!(comments.len(), 2);
-    assert_eq!(comments[0]["id"].as_str(), Some(top.as_str()));
-    assert_eq!(comments[0]["parent_id"].as_null().is_some(), true);
-    assert_eq!(comments[1]["id"].as_str(), Some(reply.as_str()));
-    assert_eq!(comments[1]["parent_id"].as_str(), Some(top.as_str()));
-    assert_eq!(comments[0]["user_name"].as_str().is_some(), true);
-    assert_eq!(data["is_author"].as_bool(), Some(true));
+    assert_eq!(comments[0].id, top);
+    assert!(comments[0].parent_id.is_none());
+    assert_eq!(comments[1].id, reply);
+    assert_eq!(comments[1].parent_id.as_deref(), Some(top.as_str()));
+    assert!(!comments[0].user_name.is_empty());
+    assert_eq!(data.is_author, Some(true));
 }
 
 #[tokio::test]

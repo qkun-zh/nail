@@ -1,5 +1,5 @@
+use crate::logic::user::{UserDeleteView, UserUpdateView};
 use nail_common::request::{UserDeleteRequest, UserUpdateRequest};
-use serde_json::json;
 
 use super::context::TestCtx;
 use crate::logic::error::LogicError;
@@ -34,14 +34,14 @@ async fn read_user_self_returns_name_and_optional_email_hash() {
     let data = crate::logic::user::read_user(&context.state, &user_id, &user_id, true, false)
         .await
         .expect("read");
-    assert_eq!(data["name"].as_str(), Some(user_id.replace('-', "").as_str()));
-    assert!(data.get("email_hash").is_none());
+    assert_eq!(data.name.as_deref(), Some(user_id.replace('-', "").as_str()));
+    assert!(data.email_hash.is_none());
 
     let data = crate::logic::user::read_user(&context.state, &user_id, &user_id, true, true)
         .await
         .expect("read");
     assert_eq!(
-        data["email_hash"].as_str(),
+        data.email_hash.as_deref(),
         Some(nail_common::hash::email("alice@example.com").as_str())
     );
 }
@@ -65,9 +65,9 @@ async fn read_user_other_by_admin_returns_profile() {
     let data = crate::logic::user::read_user(&context.state, &admin, &target, true, true)
         .await
         .expect("read");
-    assert_eq!(data["id"].as_str(), Some(target.as_str()));
+    assert_eq!(data.id.as_deref(), Some(target.as_str()));
     assert_eq!(
-        data["email_hash"].as_str(),
+        data.email_hash.as_deref(),
         Some(nail_common::hash::email("alice@example.com").as_str())
     );
 }
@@ -92,9 +92,9 @@ async fn read_users_by_admin_returns_paginated_users() {
     let data = crate::logic::user::read_users(&context.state, &admin, 1, 2)
         .await
         .expect("read users");
-    assert_eq!(data["total"].as_u64(), Some(3));
-    assert_eq!(data["user_list"].as_array().map(Vec::len), Some(2));
-    assert_eq!(data["has_next"].as_bool(), Some(true));
+    assert_eq!(data.total, 3);
+    assert_eq!(data.user_list.len(), 2);
+    assert_eq!(data.has_next, true);
 }
 
 #[tokio::test]
@@ -115,7 +115,10 @@ async fn update_user_self_rename_via_pow() {
     )
     .await
     .expect("update");
-    assert_eq!(data["name"].as_str(), Some("alice-renamed"));
+    let UserUpdateView::Name(view) = data else {
+        panic!("unexpected session token");
+    };
+    assert_eq!(view.name, "alice-renamed");
 }
 
 #[tokio::test]
@@ -136,7 +139,10 @@ async fn update_user_admin_rename() {
     )
     .await
     .expect("update");
-    assert_eq!(data["name"].as_str(), Some("alice-by-admin"));
+    let UserUpdateView::Name(view) = data else {
+        panic!("unexpected session token");
+    };
+    assert_eq!(view.name, "alice-by-admin");
 }
 
 #[tokio::test]
@@ -203,7 +209,10 @@ async fn delete_user_hard_by_admin_removes_the_user() {
     )
     .await
     .expect("delete");
-    assert_eq!(data, json!({ "user_id": target }));
+    let UserDeleteView::UserId(view) = data else {
+        panic!("unexpected empty delete");
+    };
+    assert_eq!(view.user_id, target);
     assert!(crate::repository::user::read_user(&context.state.graph, &target)
         .await
         .expect("read")
@@ -245,7 +254,7 @@ async fn delete_user_transfer_after_email_confirmation() {
     )
     .await
     .expect("transfer delete");
-    assert_eq!(data, json!({}));
+    assert!(matches!(data, UserDeleteView::Empty(_)));
     assert!(crate::repository::user::read_user(&context.state.graph, &user_id)
         .await
         .expect("read")

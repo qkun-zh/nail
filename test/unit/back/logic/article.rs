@@ -165,8 +165,8 @@ async fn read_article_returns_detail_and_is_author() {
     let data = crate::logic::article::read_article(&context.state, &actor, &article_id, true)
         .await
         .expect("read");
-    assert_eq!(data["title"].as_str(), Some("Titled"));
-    assert_eq!(data["is_author"].as_bool(), Some(true));
+    assert_eq!(data.title, "Titled");
+    assert_eq!(data.is_author, Some(true));
 }
 
 #[tokio::test]

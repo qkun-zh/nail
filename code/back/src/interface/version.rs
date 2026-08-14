@@ -3,6 +3,7 @@ use axum::extract::{Multipart, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use nail_common::request::DeleteBody;
+use nail_common::response::version::VersionIdView;
 use serde::Deserialize;
 
 use crate::infrastructure::state::AppState;
@@ -46,9 +47,9 @@ pub async fn create_version(
     )
     .await?;
 
-    Ok(json_response::<serde_json::Value>(
+    Ok(json_response(
         StatusCode::CREATED,
-        serde_json::json!({ "version_id": version_id }),
+        VersionIdView { version_id },
         "created",
     ))
 }
@@ -68,7 +69,7 @@ pub async fn read_versions(
     let limit = params.limit.unwrap_or(state.config.server.search_page_size).clamp(1, 200);
     let page = params.page.unwrap_or(1).clamp(1, 10_000);
     let data = crate::logic::version::read_versions(&state, &article_id, page, limit).await?;
-    Ok(json_response::<serde_json::Value>(StatusCode::OK, data, "ok"))
+    Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -91,7 +92,7 @@ pub async fn read_version(
         params.check_if_is_author.unwrap_or(false),
     )
     .await?;
-    Ok(json_response::<serde_json::Value>(StatusCode::OK, data, "ok"))
+    Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
 #[derive(Debug, Deserialize)]
@@ -112,7 +113,7 @@ pub async fn update_version(
         &payload.note,
     )
     .await?;
-    Ok(json_response::<serde_json::Value>(StatusCode::OK, data, "ok"))
+    Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
 pub async fn delete_version(
@@ -128,9 +129,5 @@ pub async fn delete_version(
         payload.mode,
     )
     .await?;
-    Ok(json_response::<serde_json::Value>(
-        StatusCode::OK,
-        data,
-        "deleted",
-    ))
+    Ok(json_response(StatusCode::OK, data, "deleted"))
 }

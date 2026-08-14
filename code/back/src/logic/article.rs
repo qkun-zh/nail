@@ -1,5 +1,7 @@
-use nail_common::request::DeleteMode;
 use nail_common::request::ArticleSearchParams;
+use nail_common::request::DeleteMode;
+use nail_common::response::article::{ArticleIdView, ArticleListItem, ArticleListPage, ArticleView};
+use nail_common::response::search::SearchPage;
 use uuid::Uuid;
 
 use crate::infrastructure::pdf::PdfUpload;
@@ -23,6 +25,13 @@ use crate::repository::version::{VersionDraft, content_hash_owner, read_version}
 
 const MAX_PAGE_SIZE: u64 = 200;
 const MAX_PAGE: u64 = 10_000;
+
+#[derive(Debug, serde::Serialize)]
+#[serde(untagged)]
+pub enum ArticleReadPage {
+    Search(SearchPage),
+    List(ArticleListPage),
+}
 
 pub async fn create_article(
     state: &AppState,
@@ -80,41 +89,36 @@ pub async fn read_article(
     actor_id: &str,
     article_id: &str,
     check_if_is_author: bool,
-) -> Result<serde_json::Value, LogicError> {
+) -> Result<ArticleView, LogicError> {
     let article = read_article_node(&state.graph, article_id)
         .await
         .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
         .ok_or_else(|| LogicError::not_found("article not found"))?;
 
     let created_at = nail_common::time::uuidv7_timestamp_secs(&article.id).unwrap_or(0);
-    let tags: Vec<serde_json::Value> = article
-        .tags
-        .into_iter()
-        .map(|tag| serde_json::json!({ "id": tag.id, "name": tag.name }))
-        .collect();
-    let mut data = serde_json::json!({
-        "id": article.id,
-        "author_id": article.author_id,
-        "author_name": article.author_name,
-        "title": article.title,
-        "summary": article.summary,
-        "created_at": created_at,
-        "tags": tags,
-    });
+    let mut view = ArticleView {
+        id: article.id,
+        author_id: article.author_id,
+        author_name: article.author_name,
+        title: article.title,
+        summary: article.summary,
+        created_at,
+        tags: article.tags,
+        is_author: None,
+    };
     if check_if_is_author {
-        data["is_author"] = serde_json::json!(is_author(state, actor_id, Some(article_id), None, None).await?);
+        view.is_author = Some(is_author(state, actor_id, Some(article_id), None, None).await?);
     }
-    Ok(data)
+    Ok(view)
 }
 
 pub async fn read_articles(
     state: &AppState,
     params: &ArticleSearchParams,
-) -> Result<serde_json::Value, LogicError> {
+) -> Result<ArticleReadPage, LogicError> {
     if is_search_request(params) {
         let page = search_articles(state, params).await?;
-        return serde_json::to_value(page)
-            .map_err(|error| LogicError::internal(format!("failed to serialize search page: {error}")));
+        return Ok(ArticleReadPage::Search(page));
     }
 
     let limit = params
@@ -127,32 +131,30 @@ pub async fn read_articles(
         .await
         .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
 
-    let article_list: Vec<serde_json::Value> = items
+    let article_list: Vec<ArticleListItem> = items
         .into_iter()
-        .map(|item| {
-            serde_json::json!({
-                "id": item.id,
-                "title": item.title,
-                "summary": item.summary,
-                "author_id": item.author_id,
-                "author_name": item.author_name,
-                "tags": item.tags.into_iter().map(|tag| serde_json::json!({ "id": tag.id, "name": tag.name })).collect::<Vec<_>>(),
-                "latest_version": item.latest_version,
-                "latest_version_id": item.latest_version_id,
-            })
+        .map(|item| ArticleListItem {
+            id: item.id,
+            title: item.title,
+            summary: item.summary,
+            author_id: item.author_id,
+            author_name: item.author_name,
+            tags: item.tags,
+            latest_version: item.latest_version,
+            latest_version_id: item.latest_version_id,
         })
         .collect();
 
     let total_pages = total.div_ceil(limit);
     let truncated = total_pages > state.config.server.max_search_pages;
-    Ok(serde_json::json!({
-        "article_list": article_list,
-        "page": page,
-        "total": total,
-        "total_pages": total_pages,
-        "has_next": page < total_pages,
-        "has_prev": page > 1,
-        "truncated": truncated,
+    Ok(ArticleReadPage::List(ArticleListPage {
+        article_list,
+        page,
+        total,
+        total_pages,
+        has_next: page < total_pages,
+        has_prev: page > 1,
+        truncated,
     }))
 }
 
@@ -163,7 +165,7 @@ pub async fn update_article(
     raw_title: &str,
     raw_summary: &str,
     raw_tags: &str,
-) -> Result<serde_json::Value, LogicError> {
+) -> Result<ArticleIdView, LogicError> {
     authorize_or(
         state,
         actor_id,
@@ -187,7 +189,9 @@ pub async fn update_article(
     .await
     .map_err(map_update_article_error)?;
     sync_article_best_effort(state, article_id).await;
-    Ok(serde_json::json!({ "article_id": article_id }))
+    Ok(ArticleIdView {
+        article_id: article_id.to_string(),
+    })
 }
 
 pub async fn delete_article(
@@ -195,7 +199,7 @@ pub async fn delete_article(
     actor_id: &str,
     article_id: &str,
     mode: Option<DeleteMode>,
-) -> Result<serde_json::Value, LogicError> {
+) -> Result<ArticleIdView, LogicError> {
     match mode {
         Some(DeleteMode::Transfer) => {
             authorize_or(
@@ -218,7 +222,9 @@ pub async fn delete_article(
                     }
                 })?;
             sync_article_best_effort(state, article_id).await;
-            Ok(serde_json::json!({ "article_id": article_id }))
+            Ok(ArticleIdView {
+                article_id: article_id.to_string(),
+            })
         }
         Some(DeleteMode::Hard) => {
             authorize_or(
@@ -234,7 +240,9 @@ pub async fn delete_article(
                 .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
             remove_orphaned_pdfs(state, &outcome.removed_pdf_hashes).await;
             sync_article_best_effort(state, article_id).await;
-            Ok(serde_json::json!({ "article_id": article_id }))
+            Ok(ArticleIdView {
+                article_id: article_id.to_string(),
+            })
         }
         None => Err(LogicError::bad_request(
             "missing or unsupported delete mode (expected \"transfer\" or \"hard\")",

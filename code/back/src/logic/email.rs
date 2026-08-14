@@ -1,6 +1,7 @@
 use email_address::{EmailAddress, Options};
 use nail_common::pow::Pow;
 use nail_common::request::{EmailReadIntent, EmailReadRequest};
+use nail_common::response::email::{EmailSubjectView, EmailSubjectsView};
 use uuid::Uuid;
 
 use crate::infrastructure::email::SendEmailError;
@@ -39,19 +40,26 @@ pub fn validate_email(email: &str, allowed_domains: &[String]) -> bool {
     allowed_domains.iter().any(|allowed| allowed == &domain)
 }
 
+#[derive(Debug, serde::Serialize)]
+#[serde(untagged)]
+pub enum EmailReadView {
+    Subject(EmailSubjectView),
+    Subjects(EmailSubjectsView),
+}
+
 pub async fn read_email(
     state: &AppState,
     intent: EmailReadIntent,
     request: EmailReadRequest,
     session_token: Option<String>,
-) -> Result<serde_json::Value, LogicError> {
+) -> Result<EmailReadView, LogicError> {
     match intent {
         EmailReadIntent::Authenticate => {
             let pow = request
                 .pow
                 .ok_or_else(|| LogicError::bad_request("pow is required"))?;
             let email_subject = send_create_user_email(state, &pow).await?;
-            Ok(serde_json::json!({ "email_subject": email_subject }))
+            Ok(EmailReadView::Subject(EmailSubjectView { email_subject }))
         }
         EmailReadIntent::ChangeEmail => {
             let user_id = read_session_user(state, session_token)?;
@@ -63,9 +71,9 @@ pub async fn read_email(
                 .ok_or_else(|| LogicError::bad_request("new_email_pow is required"))?;
             let (old_email_subject, new_email_subject) =
                 send_update_user_email(state, &user_id, &old_email_pow, &new_email_pow).await?;
-            Ok(serde_json::json!({
-                "old_email_subject": old_email_subject,
-                "new_email_subject": new_email_subject,
+            Ok(EmailReadView::Subjects(EmailSubjectsView {
+                old_email_subject,
+                new_email_subject,
             }))
         }
         EmailReadIntent::Deregister => {
@@ -74,7 +82,7 @@ pub async fn read_email(
                 .pow
                 .ok_or_else(|| LogicError::bad_request("pow is required"))?;
             let email_subject = send_delete_user_email(state, &user_id, &pow).await?;
-            Ok(serde_json::json!({ "email_subject": email_subject }))
+            Ok(EmailReadView::Subject(EmailSubjectView { email_subject }))
         }
     }
 }

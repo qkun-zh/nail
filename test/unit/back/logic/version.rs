@@ -117,7 +117,7 @@ async fn read_version_cross_checks_the_parent_article() {
     )
     .await
     .expect("read");
-    assert_eq!(data["version"].as_str(), Some("1.0.0"));
+    assert_eq!(data.version, "1.0.0");
 
     let error = crate::logic::version::read_version(
         &context.state,
@@ -145,7 +145,7 @@ async fn delete_version_hard_removes_the_version() {
     )
     .await
     .expect("delete");
-    assert_eq!(data["version_id"].as_str(), Some(version_id.as_str()));
+    assert_eq!(data.version_id, version_id);
     assert!(crate::repository::version::read_version(&context.state.graph, &version_id)
         .await
         .expect("read")

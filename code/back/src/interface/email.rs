@@ -31,5 +31,5 @@ pub async fn read_email(
         .and_then(|value| value.to_str().ok())
         .map(str::to_string);
     let data = crate::logic::email::read_email(&state, intent, payload, session_token).await?;
-    Ok(json_response::<serde_json::Value>(StatusCode::OK, data, "ok"))
+    Ok(json_response(StatusCode::OK, data, "ok"))
 }

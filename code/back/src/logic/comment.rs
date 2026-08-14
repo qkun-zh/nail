@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use nail_common::request::DeleteMode;
+use nail_common::response::comment::{CommentIdView, CommentListPage, CommentView};
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
@@ -66,7 +67,7 @@ pub async fn read_comments(
     page: u64,
     limit: u64,
     check_if_is_author: bool,
-) -> Result<serde_json::Value, LogicError> {
+) -> Result<CommentListPage, LogicError> {
     if read_version(&state.graph, version_id)
         .await
         .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?
@@ -97,33 +98,34 @@ pub async fn read_comments(
         .await
         .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
 
-    let comments: Vec<serde_json::Value> = items
+    let comments: Vec<CommentView> = items
         .into_iter()
-        .map(|item| -> Result<serde_json::Value, LogicError> {
+        .map(|item| -> Result<CommentView, LogicError> {
             let created_at = nail_common::time::uuidv7_timestamp_secs(&item.id)
                 .ok_or_else(|| LogicError::bad_request("invalid comment id"))?;
-            Ok(serde_json::json!({
-                "id": item.id,
-                "content": item.content,
-                "user_id": item.author_id,
-                "parent_id": item.parent_id,
-                "created_at": created_at,
-                "user_name": user_names.get(&item.author_id).cloned().unwrap_or_default(),
-            }))
+            let user_name = user_names.get(&item.author_id).cloned().unwrap_or_default();
+            Ok(CommentView {
+                id: item.id,
+                content: item.content,
+                user_id: item.author_id,
+                parent_id: item.parent_id,
+                created_at,
+                user_name,
+            })
         })
         .collect::<Result<Vec<_>, _>>()?;
 
     let has_next = page < total.div_ceil(limit);
-    let mut data = serde_json::json!({
-        "comments": comments,
-        "has_next": has_next,
-        "total": total,
-    });
+    let mut view = CommentListPage {
+        comments,
+        has_next,
+        total,
+        is_author: None,
+    };
     if check_if_is_author {
-        let is_author = is_author(state, actor_id, None, Some(version_id), None).await?;
-        data["is_author"] = serde_json::json!(is_author);
+        view.is_author = Some(is_author(state, actor_id, None, Some(version_id), None).await?);
     }
-    Ok(data)
+    Ok(view)
 }
 
 pub async fn update_comment(
@@ -131,7 +133,7 @@ pub async fn update_comment(
     actor_id: &str,
     comment_id: &str,
     raw_content: &str,
-) -> Result<serde_json::Value, LogicError> {
+) -> Result<CommentIdView, LogicError> {
     authorize_or(
         state,
         actor_id,
@@ -148,7 +150,9 @@ pub async fn update_comment(
         return Err(LogicError::not_found("comment not found"));
     }
     sync_article_best_effort_for_comment(state, comment_id).await;
-    Ok(serde_json::json!({ "comment_id": comment_id }))
+    Ok(CommentIdView {
+        comment_id: comment_id.to_string(),
+    })
 }
 
 pub async fn delete_comment(
@@ -156,7 +160,7 @@ pub async fn delete_comment(
     actor_id: &str,
     comment_id: &str,
     mode: Option<DeleteMode>,
-) -> Result<serde_json::Value, LogicError> {
+) -> Result<CommentIdView, LogicError> {
     match mode {
         Some(DeleteMode::Transfer) => {
             authorize_or(
@@ -191,7 +195,9 @@ pub async fn delete_comment(
         }
     }
     sync_article_best_effort_for_comment(state, comment_id).await;
-    Ok(serde_json::json!({ "comment_id": comment_id }))
+    Ok(CommentIdView {
+        comment_id: comment_id.to_string(),
+    })
 }
 
 fn validate_comment_content(raw: &str, max_chars: u64) -> Result<String, LogicError> {
