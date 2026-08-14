@@ -1,6 +1,7 @@
 pub mod article;
 pub mod challenge;
 pub mod comment;
+pub mod config;
 pub mod content;
 pub mod email;
 pub mod envelope;

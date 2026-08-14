@@ -26,6 +26,21 @@ impl<T> ResponseEnvelope<T> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RuntimeLimits {
+    pub max_tags_per_article: u64,
+    pub max_comment_body_chars: u64,
+    pub max_version_note_chars: u64,
+    pub max_title_chars: u64,
+    pub max_summary_chars: u64,
+    pub max_pdf_size_bytes: u64,
+    pub max_text_field_bytes: u64,
+    pub download_token_ttl_seconds: u64,
+    pub timezone_offset_seconds: i32,
+    pub search_page_size: u64,
+    pub max_search_pages: u64,
+}
+
 #[cfg(test)]
 #[path = "../../../test/unit/common/response/tests.rs"]
 mod tests;

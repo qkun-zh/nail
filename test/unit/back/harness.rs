@@ -10,6 +10,9 @@ pub mod infrastructure_email;
 #[path = "infrastructure/pdf.rs"]
 pub mod infrastructure_pdf;
 
+#[path = "infrastructure/logging.rs"]
+pub mod infrastructure_logging;
+
 #[path = "infrastructure/cedar.rs"]
 pub mod infrastructure_cedar;
 
@@ -72,6 +75,9 @@ pub mod logic_search;
 
 #[path = "http/session.rs"]
 pub mod http_session;
+
+#[path = "http/config.rs"]
+pub mod http_config;
 
 #[path = "http/user.rs"]
 pub mod http_user;

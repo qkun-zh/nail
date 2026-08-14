@@ -7,8 +7,6 @@ use crate::infrastructure::state::AppState;
 use crate::logic::error::LogicError;
 use crate::repository::search::{SearchRequest, SearchSort};
 
-const MAX_SEARCH_PAGES: u64 = 1024;
-const DEFAULT_PAGE_SIZE: u64 = 8;
 const MAX_PAGE_SIZE: u64 = 200;
 const MAX_PAGE: u64 = 10_000;
 
@@ -48,7 +46,10 @@ pub async fn search_articles(
         ));
     }
 
-    let limit = params.limit.unwrap_or(DEFAULT_PAGE_SIZE).clamp(1, MAX_PAGE_SIZE);
+    let limit = params
+        .limit
+        .unwrap_or(state.config.server.search_page_size)
+        .clamp(1, MAX_PAGE_SIZE);
     let page = params.page.unwrap_or(1).clamp(1, MAX_PAGE);
     let offset = page.saturating_sub(1).saturating_mul(limit);
 
@@ -67,8 +68,8 @@ pub async fn search_articles(
         .map_err(|error| LogicError::internal(format!("search failed: {error}")))?;
 
     let raw_total_pages = outcome.total.div_ceil(limit);
-    let total_pages = raw_total_pages.min(MAX_SEARCH_PAGES);
-    let truncated = raw_total_pages > MAX_SEARCH_PAGES;
+    let total_pages = raw_total_pages.min(state.config.server.max_search_pages);
+    let truncated = raw_total_pages > state.config.server.max_search_pages;
 
     let article_list = outcome
         .articles

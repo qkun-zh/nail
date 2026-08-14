@@ -18,7 +18,6 @@ use crate::repository::role::{
 use crate::repository::transfer::{TransferTargetError, transfer_comment};
 use crate::repository::version::{parent_article_of, read_version};
 
-const MAX_COMMENT_BODY_CHARS: usize = 1024;
 const MAX_COMMENT_TREE_DEPTH: usize = 64;
 
 pub async fn create_comment(
@@ -28,7 +27,7 @@ pub async fn create_comment(
     raw_content: &str,
 ) -> Result<String, LogicError> {
     authorize_create(state, actor_id, PERMISSION_COMMENT_CREATE).await?;
-    let content = validate_comment_content(raw_content)?;
+    let content = validate_comment_content(raw_content, state.config.server.max_comment_body_chars)?;
     let comment_id = Uuid::now_v7().to_string();
     create_top_level_comment(&state.graph, &comment_id, actor_id, version_id, &content)
         .await
@@ -44,7 +43,7 @@ pub async fn create_reply(
     raw_content: &str,
 ) -> Result<String, LogicError> {
     authorize_create(state, actor_id, PERMISSION_COMMENT_CREATE).await?;
-    let content = validate_comment_content(raw_content)?;
+    let content = validate_comment_content(raw_content, state.config.server.max_comment_body_chars)?;
     let comment_id = Uuid::now_v7().to_string();
     create_reply_comment(
         &state.graph,
@@ -141,7 +140,7 @@ pub async fn update_comment(
         "comment not found",
     )
     .await?;
-    let content = validate_comment_content(raw_content)?;
+    let content = validate_comment_content(raw_content, state.config.server.max_comment_body_chars)?;
     let found = update_comment_content(&state.graph, comment_id, &content)
         .await
         .map_err(|error| LogicError::internal(format!("database query failed: {error}")))?;
@@ -195,8 +194,8 @@ pub async fn delete_comment(
     Ok(serde_json::json!({ "comment_id": comment_id }))
 }
 
-fn validate_comment_content(raw: &str) -> Result<String, LogicError> {
-    nail_common::text::validate_ascii_text(raw, MAX_COMMENT_BODY_CHARS, true)
+fn validate_comment_content(raw: &str, max_chars: u64) -> Result<String, LogicError> {
+    nail_common::text::validate_ascii_text(raw, max_chars as usize, true)
         .map_err(|error| LogicError::bad_request(error.to_string()))
 }
 

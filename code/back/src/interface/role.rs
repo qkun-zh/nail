@@ -33,7 +33,7 @@ pub async fn read_roles(
     principal: Principal,
     Query(params): Query<RoleListParams>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let limit = params.limit.unwrap_or(8).clamp(1, 200);
+    let limit = params.limit.unwrap_or(state.config.server.search_page_size).clamp(1, 200);
     let page = params.page.unwrap_or(1).clamp(1, 10_000);
     let data = crate::logic::role::read_roles(&state, &principal.user_id, page, limit).await?;
     Ok(json_response::<serde_json::Value>(StatusCode::OK, data, "ok"))

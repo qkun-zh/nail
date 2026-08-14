@@ -223,6 +223,40 @@ constitution); this document records state and process only.
   - `thermo-nuclear-code-quality-review` skill is still NOT available; manual
     §8.3 gate stands in. 512-line bar holds (largest file 473 lines).
 
+- ✅ **Phase 3 slice 7 — config/email/infrastructure** (2026-08-14): the final
+  backend slice. `/config/read` route with a typed `RuntimeLimits` DTO, config
+  validation matrix, `main.rs` bootstrap (fail-fast + `startup-errors.log` +
+  exit 1, logging init + prune loop, graceful shutdown). **back 245 tests green**
+  (common 104), `cargo check` zero warnings.
+  - #13: `db_namespace`/`db_database`/`max_id_filter_count` confirmed absent —
+    they never entered nail_new's `ServerConfig`/`server.toml` (verified by grep).
+    #19: timezone is config (`timezone_offset_seconds`), served via `/config/read`,
+    consumed by logging + search; no hardcoded `+08:00` anywhere. #22: multipart
+    read-then-validate (K) — `PdfStreamGuard` streaming + `DefaultBodyLimit` bound
+    already in place (slice 3). #26: email service already converged (ADR-0002
+    `intent`, SMTP command/wall-clock timeouts, per-recipient cooldown). #32:
+    e2e flag + test tree are Phase 5 — recorded, not built.
+  - FR-1..8 leftovers: config validation matrix (empty path / difficulty 0 or
+    >10000 / zero ttls+capacities / zero content limits / text_field > pdf /
+    zero pagination limits) → `AppConfig::load` fails → `main` appends to
+    `startup-errors.log` and exits 1. `/config/read` returns the typed
+    `RuntimeLimits`. Per-minute log rotation + retention prune wired in `main`
+    (`logging::init` + `prune_loop`; 2 new prune tests). Graceful shutdown closes
+    the search index (`server.rs::run_server` already wired; verified).
+  - Owner correction (2026-08-14): responses are fixed data structures, not
+    `serde_json::json!`. `/config/read` returns `common::response::RuntimeLimits`
+    (11 frontend-facing fields). Pagination config is narrowed to only
+    `search_page_size` + `max_search_pages`; `max_search_page_size` (limit cap
+    200) and `max_page` (10000) stay hardcoded backend constants and are neither
+    config nor served. `max_comment_body_chars` moved from a hardcoded constant
+    into config and wired into `logic/comment.rs`.
+  - §8.3 gate: equal-or-better. Typed `RuntimeLimits` replaces the legacy
+    `api/meta.rs` `json!` (which also leaked the dead `max_page`); logging drops
+    `chrono::Local` for the already-present `time` crate + config offset (#19);
+    config sheds the dead/backend-internal fields. `thermo-nuclear-code-quality-
+    review` skill still unavailable — manual §8.3 gate stands in; 512-line bar
+    holds.
+
 ### Owner decisions (2026-08-13)
 
 - **#26 closed**: `intent` is a query parameter, not a body field.
@@ -262,6 +296,15 @@ constitution); this document records state and process only.
   `repository/authorization.rs`). Do not widen the member role's seed grants
   (that would be non-owner-scoped). Slice 6's 5 tests asserting the denial are
   to be flipped back to owner-allow.
+- **Responses are fixed data structures, not `json!` (owner, 2026-08-14)**.
+  Frontend/backend response payloads are typed DTOs shared through `common`
+  (data structures first, README §7). `/config/read` returns
+  `common::response::RuntimeLimits`. Pagination config holds only the
+  frontend-facing `search_page_size` + `max_search_pages`; the backend clamp
+  caps `max_search_page_size` (200) and `max_page` (10000) stay hardcoded
+  constants and are neither config fields nor served. (The slices 1-6 responses
+  still use `serde_json::Value`/`json!`; sweeping those to typed DTOs is a
+  Phase 5 cleanup candidate.)
 
 ## Handover (2026-08-14) — current agent
 
@@ -269,8 +312,13 @@ Personnel change: agent F completed **slice 5 (download/PDF)** and **slice 6
 (role/authorization)**; a new agent (G) takes over with the **#33 owner-bypass
 patch**, then **slice 7 (config/email/infrastructure)**.
 
-- ✅ Slices 1-6 are done. **back 241 tests green** (common 104), `cargo check`
+- ✅ Slices 1-7 are done. **back 245 tests green** (common 104), `cargo check`
   zero warnings, working tree clean.
+
+- ✅ **Slice 7 (config/email/infrastructure) done**: `/config/read` with typed
+  `RuntimeLimits`, config validation matrix, main.rs bootstrap (fail-fast +
+  `startup-errors.log` + exit 1, logging init + prune loop, graceful shutdown).
+  #13/#19/#22/#26 verified, #32 recorded for Phase 5. See Current state.
 
 - ✅ Slice 3 (article + version) is done: TDD rewrite of slices 1-3 under the
   CRUD-only vocabulary (commits `8de3490` archive + `6747cad` rewrite),
@@ -310,14 +358,14 @@ patch**, then **slice 7 (config/email/infrastructure)**.
   owner in `repository/authorization.rs` (no assembly fix needed); slice 6's 5
   denial tests were flipped to owner-allow and a comment-author ≠ article-owner
   assembly test was added. The member role's seed grants were NOT widened.
-- ⏳ **Slice 7 (config/email/infrastructure)** — #13 (dead config fields),
+- ✅ **Slice 7 (config/email/infrastructure)** — #13 (dead config fields),
   #19 (timezone from toml via `/config/read`), #22 (multipart read-then-validate,
-  K), #26 (email service with explicit intent — check convergence with
-  ADR-0002), #32 (e2e flag; test tree in Phase 5). FR-1..8 leftovers: config
-  validation matrix (`startup-errors.log`, exit 1), `/config/read` route
-  (README §11), per-minute log rotation + retention prune, graceful shutdown
-  (close wiring already in). §8.2 pre-study: legacy `other/conf.rs`,
-  `other/log.rs`, `api/meta.rs`.
+  K), #26 (email service with explicit intent — convergence with ADR-0002
+  verified), #32 (e2e flag; test tree in Phase 5). FR-1..8 leftovers landed:
+  config validation matrix (`startup-errors.log`, exit 1), `/config/read` route
+  (README §11, typed `RuntimeLimits`), per-minute log rotation + retention prune
+  (wired + 2 tests), graceful shutdown (search-index close verified). §8.2
+  pre-study done against legacy `other/conf.rs`, `other/log.rs`, `api/meta.rs`.
 - All prior handover items (a)-(d) and the slice 2 deferred items (search
   re-sync, hard-delete cascade + PDF cleanup, recycler least-loaded selection)
   are ✅ done.
@@ -364,7 +412,7 @@ binding:
 
 ## Remaining steps
 
-### Phase 3 — backend migration, one domain per slice (in progress)
+### Phase 3 — backend migration, one domain per slice (done)
 
 Per domain: read the PRD slice → write failing tests first (red) → implement
 (green) → commit. Order:
@@ -383,9 +431,10 @@ Per domain: read the PRD slice → write failing tests first (red) → implement
 6. ✅ Role/authorization — #5 (visibility deleted; policy 2 rewritten to the
    owner-confirmed read-open semantics), #7 (member_count), #8 (REQUIRED_ROLES
    protected), #9 (duplicate role → 400) — done (see Current state).
-7. Config/email/infrastructure — #13 (dead config fields), #19 (timezone from
+7. ✅ Config/email/infrastructure — #13 (dead config fields), #19 (timezone from
    toml via `/config/read`), #22 (multipart read-then-validate), #26 (email
-   service with explicit intent), #32 (e2e flag; test tree in Phase 5).
+   service with explicit intent), #32 (e2e flag; test tree in Phase 5) — done
+   (see Current state; typed `RuntimeLimits` DTO per owner correction).
 
 Layering per ARCHITECTURE.md: interface = HTTP + envelope + session-token +
 PoW placement; logic = business rules (near-pure); repository = agdb + moka +

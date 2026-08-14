@@ -21,8 +21,6 @@ use crate::repository::role::{
 use crate::repository::transfer::{TransferTargetError, transfer_article};
 use crate::repository::version::{VersionDraft, content_hash_owner, read_version};
 
-const MAX_SEARCH_PAGES: u64 = 1024;
-const DEFAULT_PAGE_SIZE: u64 = 8;
 const MAX_PAGE_SIZE: u64 = 200;
 const MAX_PAGE: u64 = 10_000;
 
@@ -119,7 +117,10 @@ pub async fn read_articles(
             .map_err(|error| LogicError::internal(format!("failed to serialize search page: {error}")));
     }
 
-    let limit = params.limit.unwrap_or(DEFAULT_PAGE_SIZE).clamp(1, MAX_PAGE_SIZE);
+    let limit = params
+        .limit
+        .unwrap_or(state.config.server.search_page_size)
+        .clamp(1, MAX_PAGE_SIZE);
     let page = params.page.unwrap_or(1).clamp(1, MAX_PAGE);
     let offset = page.saturating_sub(1).saturating_mul(limit);
     let (items, total) = read_article_nodes(&state.graph, limit, offset)
@@ -143,7 +144,7 @@ pub async fn read_articles(
         .collect();
 
     let total_pages = total.div_ceil(limit);
-    let truncated = total_pages > MAX_SEARCH_PAGES;
+    let truncated = total_pages > state.config.server.max_search_pages;
     Ok(serde_json::json!({
         "article_list": article_list,
         "page": page,

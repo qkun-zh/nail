@@ -19,9 +19,12 @@ pub struct ServerConfig {
     pub max_tags_per_article: usize,
     pub max_title_chars: u64,
     pub max_summary_chars: u64,
+    pub max_comment_body_chars: u64,
     pub max_version_note_chars: u64,
     pub max_text_field_bytes: u64,
     pub max_search_query_chars: u64,
+    pub search_page_size: u64,
+    pub max_search_pages: u64,
     pub log_dir: String,
     pub log_retention_days: u64,
     pub log_max_file_count: usize,
@@ -80,9 +83,12 @@ impl ServerConfig {
             ("max_tags_per_article", self.max_tags_per_article as u64),
             ("max_title_chars", self.max_title_chars),
             ("max_summary_chars", self.max_summary_chars),
+            ("max_comment_body_chars", self.max_comment_body_chars),
             ("max_version_note_chars", self.max_version_note_chars),
             ("max_text_field_bytes", self.max_text_field_bytes),
             ("max_search_query_chars", self.max_search_query_chars),
+            ("search_page_size", self.search_page_size),
+            ("max_search_pages", self.max_search_pages),
         ] {
             if value == 0 {
                 bail!("config: {name} must be > 0");

@@ -62,7 +62,7 @@ pub async fn read_comments(
     Path(version_id): Path<String>,
     Query(params): Query<CommentsReadParams>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let limit = params.limit.unwrap_or(8).clamp(1, 200);
+    let limit = params.limit.unwrap_or(state.config.server.search_page_size).clamp(1, 200);
     let page = params.page.unwrap_or(1).clamp(1, 10_000);
     let data = crate::logic::comment::read_comments(
         &state,

@@ -64,6 +64,7 @@ fn server_config_rejects_zero_content_limits() {
     assert_invalid_server(|server| server.max_tags_per_article = 0);
     assert_invalid_server(|server| server.max_title_chars = 0);
     assert_invalid_server(|server| server.max_summary_chars = 0);
+    assert_invalid_server(|server| server.max_comment_body_chars = 0);
     assert_invalid_server(|server| server.max_version_note_chars = 0);
     assert_invalid_server(|server| server.max_text_field_bytes = 0);
     assert_invalid_server(|server| server.max_search_query_chars = 0);
@@ -75,6 +76,12 @@ fn server_config_rejects_text_field_bytes_exceeding_pdf_size() {
         server.max_pdf_size_bytes = 100;
         server.max_text_field_bytes = 101;
     });
+}
+
+#[test]
+fn server_config_rejects_zero_pagination_limits() {
+    assert_invalid_server(|server| server.search_page_size = 0);
+    assert_invalid_server(|server| server.max_search_pages = 0);
 }
 
 #[test]
@@ -150,9 +157,12 @@ max_pdf_size_bytes = 33554432
 max_tags_per_article = 8
 max_title_chars = 200
 max_summary_chars = 2000
+max_comment_body_chars = 1024
 max_version_note_chars = 1024
 max_text_field_bytes = 1048576
 max_search_query_chars = 512
+search_page_size = 8
+max_search_pages = 1024
 log_dir = "log/back"
 log_retention_days = 7
 log_max_file_count = 10080
