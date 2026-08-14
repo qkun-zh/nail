@@ -12,11 +12,12 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
   `--check`; PRD `features/02-code/PRD.md` = the domain spec; INTERFACES /
   DATA-MODEL / ARCHITECTURE under `document/reconstruction/architecture/`.
 - **Phase 3 backend: DONE (slices 1-7); typed-DTO sweep: DONE.** back **245
-  tests green** (common 108), `cargo check` zero warnings, working tree clean
-  at `13156b8`. No git remote. History + per-slice §8.3 gates:
-  `document/progress-log.md`. Personnel: agent G completed Phase 3 (slice 7 +
-  #33), agent H completed the typed-DTO sweep (+ #34); a new agent takes over
-  at Phase 4.
+  tests green** (common 108), `cargo check` zero warnings. History:
+  `document/progress-log.md`.
+- **Phase 4 frontend (Leptos CSR): DONE.** nail_front **61 unit tests green**,
+  `cargo check --target wasm32-unknown-unknown` and host `cargo check` both
+  **zero warnings**; back 245 + common 108 still green (no regression). Working
+  tree clean at `b7312b1`. No git remote. Details below.
 - Backend layering per ADR-0001; `intent` per ADR-0002; glossary
   `document/context.md`; Cedar engine landed (slice 6); `/config/read` returns
   the typed `common::response::RuntimeLimits` (slice 7).
@@ -29,23 +30,61 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
 
 ## Pending — current agent
 
-1. **Typed-DTO sweep (owner-ordered FIRST, before Phase 4)** — DONE.
-   Every response family now returns typed `common::response` DTOs instead of
-   `serde_json::Value`/`json!`; the wire stays byte-identical (the
-   `test/unit/back/http/*` assertions are green). Submodules: `search`,
-   `session`, `email`, `content`, `user`, `article`, `version`, `comment`,
-   `role` + `EmptyView`. `SearchPage.has_more` renamed to `has_next` (#34,
-   FR-46). Backend-local untagged enums (`ArticleReadPage`, `UserUpdateView`,
-   `UserDeleteView`, `EmailReadView`) cover one-of-N response unions. Common
-   108 + back 245 green.
-2. **Phase 4 — frontend migration** (next). Layering per README
-   §4.2 (router → page → request → infrastructure); Leptos CSR, no CSS
-   (README §10); runtime config from `/config/read` (reuse `RuntimeLimits` as
-   the limits signal) with compile-time fallback. Items: #14 (English UI),
-   #24 (page size from config), #25 (has_next = page < total_pages), #3 (no
-   per-comment pre-check), #12 (drop `/private/email/check` link), #4 (delete
-   `pow-worker.js`). Gate: `cargo check --target wasm32-unknown-unknown` on
-   `nail_front`.
+1. **Phase 4 — frontend migration: DONE.** Layering per README §4.2; Leptos
+   CSR, no CSS; runtime config from `/config/read` (typed `RuntimeLimits` as
+   the limits signal) with compile-time fallback; all adjudication items for
+   the frontend implemented (#14 English UI, #24 page size from config, #25
+   `has_next = page < total_pages` from the server flag, #3 no per-comment
+   pre-check with the backend authoritative, #12 no `/private/email/check`, #4
+   no worker file — PoW runs in-wasm on the main thread, #19 timezone via
+   `RuntimeLimits.timezone_offset_seconds`). Gate met: `cargo check --target
+   wasm32-unknown-unknown` zero warnings on `nail_front`.
+2. **Phase 5 — remaining: tests + e2e + cleanup** (next). Rebuild the remaining
+   test tree per README §12; e2e strategy (#32) with the owner; final batch
+   dead-code cleanup (README §5.4) in one pass, then zero-warning gate.
+
+## Phase 4 — what was built
+
+Composition root `code/front/src/main.rs` (config fail-fast on invalid
+compile-time scheme → limits signal + notification system + session state →
+mount `AppRouter` + `ToastContainer`). Module layout (each module = same-named
+`.rs` + folder; no `mod.rs`):
+
+- `infrastructure/` — `config` (embedded `configuration/front.toml`,
+  `api_base_url`; empty = same-origin), `limits` (RuntimeLimits signal,
+  compile-time defaults, per-field zero fallback; timezone 0 = UTC kept),
+  `storage` (localStorage read/write/remove), `pow` (in-wasm
+  `common::pow::prove` adapter).
+- `request/` — `error`, `url` (encodeURIComponent-equivalent path/query
+  building), `envelope` (parse + unwrap), `session` (token
+  get/set/clear + 401 invalidation hook), `http` (fetch core: 30 s abort,
+  session-token header, envelope unwrap, 401 clears token + notifies),
+  `pow` (prove_pow = fresh challenge + prove), `auth`, `user`, `article`,
+  `version`, `comment`, `download` (mint + same-origin-guarded consume +
+  blob/anchor save + Content-Disposition filename). All 21 reached routes are
+  exercised; responses deserialize the `common::response` DTOs directly.
+- `page/` — `session_gate` (checking/authenticated/anon; `RootGate` renders
+  `<Outlet/>` or "who are you?" — applied at the router root, `/private/
+  authenticate` exempt), `author_gate` (is_author re-check with sequence
+  guard), `notify` (toasts 5 s/3 s, countdown, dismiss, history cap 100),
+  `pagination` (page clamp + server-`has_next`-driven prev/next), `validation`
+  (mirrors common name/tag/text rules + PDF MIME/name/size sniff),
+  `time_format` (#19 via limits offset), `draft` (FR-66 query-param draft
+  persistence), `index`, `not_found`, `public/` (index, article
+  index/search/create/detail/update/delete, version list/create/detail,
+  comment index/reply/delete), `private/` (index, authenticate, name,
+  name/update, email, email/update, logout, deregister).
+- `router.rs` — path → page map only (FR-60), ParentRoute nesting, fallback
+  NotFound; leptos_router matches first-declared route first (static before
+  param by declaration).
+
+Frontend unit tests (61) live at `test/unit/front/<module>/tests.rs` wired via
+`#[path]` from each module: envelope unwrap, 401 session invalidation, url
+encoding, download same-origin guard, content-disposition filename,
+pagination clamping, client validation parity, draft query building, timezone
+formatting, notify durations/countdown/history cap, limits fallbacks, config
+scheme validation, PoW prove adapter. Leptos view components stay thin; pure
+logic is host-testable.
 
 ## Owner decisions (details: adjudication.md + git log)
 
@@ -61,27 +100,16 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
   comment author and `Version.owner` = article owner confirmed in
   `repository/authorization.rs` (no assembly fix needed); 5 denial tests
   flipped to owner-allow; member seed grants NOT widened.
-- **Responses are fixed data structures, not `json!` (owner, 2026-08-14)**.
-  **Order changed (owner, 2026-08-14): the typed-DTO sweep is done FIRST,**
-  before Phase 4 — the backend emits typed response DTOs from `common`
-  (response payloads shared through common, README §7), the wire stays
-  byte-identical (the `test/unit/back/http/*` assertions are the guard), and
-  the Phase 4 frontend then consumes the shared DTOs directly. The slices 1-6
-  `serde_json::Value`/`json!` responses are swept now, not in Phase 5.
-- **Search split into request/response (owner, 2026-08-14)**: `common::search`
-  was not a special case — it is request + response like everything else.
-  `ArticleSearchParams` moves to `common::request`; `SearchHit`/
-  `SearchArticleItem`/`SearchPage` move to `common::response/search.rs` (the
-  first response submodule); the shared enums `SearchRange`/
-  `SearchSortField`/`SearchSortDirection` stay in `common::search` as the
-  vocabulary home. The 9-module list and the README §3 skeleton are
-  unchanged; wire shapes unchanged. **#34**: the search response's pagination
-  flag was `has_more`, contradicting FR-46/#25 — renamed to `has_next`
-  (owner, 2026-08-14).
+- **Responses are fixed data structures, not `json!` (owner, 2026-08-14)** —
+  done before Phase 4; the Phase 4 frontend consumes the shared DTOs directly.
+- **Search split into request/response (owner, 2026-08-14)** — done:
+  `ArticleSearchParams` in `common::request`; `SearchHit`/`SearchArticleItem`/
+  `SearchPage` in `common::response/search`; shared enums stay in
+  `common::search`. **#34**: `has_more` → `has_next`.
 - **Pagination config scope (owner, 2026-08-14)**: config holds only
   frontend-facing `search_page_size` + `max_search_pages`; the backend clamp
   caps `max_search_page_size` (200) and `max_page` (10000) stay hardcoded
-  constants, neither config nor served.
+  constants.
 - Common contracts: `now_ms() -> Result<u64, SystemTimeError>`; `uuidv7_*`
   return `None` for non-v7 ids; `format_rfc3339_with_offset` whole-minute
   offsets only.
@@ -109,26 +137,11 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
 
 ## Remaining steps
 
-### Phase 3 — backend migration (DONE, 2026-08-14)
-
-Slices 1-7 complete, back 245 tests green. Details per slice:
-`document/progress-log.md`.
-
-### Phase 4 — frontend migration (next, after the typed-DTO sweep)
-
-Layering per README §4.2 (router → page → request → infrastructure); Leptos
-CSR, no CSS (README §10); runtime config from `/config/read` with
-compile-time fallback. Items: #14 (English UI), #24 (page size from config),
-#25 (has_next = page < total_pages), #3 (no per-comment pre-check), #12 (drop
-`/private/email/check` link), #4 (delete `pow-worker.js`). Gate:
-`cargo check --target wasm32-unknown-unknown` on `nail_front`.
-
 ### Phase 5 — remaining: tests + e2e + cleanup
 
 After Phase 4: rebuild the remaining test tree per README §12; e2e strategy
 (#32) with the owner; final batch dead-code cleanup (README §5.4) in one
-pass, then zero-warning gate. (The typed-DTO sweep, formerly Phase 5's first
-item, is done before Phase 4 per the owner decision above.)
+pass, then zero-warning gate.
 
 **E2E tooling facts (owner, 2026-08-14)**: the legacy e2e stack is back
 process + pingap + chromium with an in-process SMTP sink
