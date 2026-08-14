@@ -99,7 +99,8 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
 
 - `README.md` — constitution. `document/adjudication.md` — 34 verdicts.
   `document/context.md` — glossary. `document/adr/` — 0001, 0002.
-  `document/progress-log.md` — history + §8.3 gates.
+  `document/progress-log.md` — history + §8.3 gates. `document/dsh-cli.md` —
+  the agent runner (DeepSeek Harness CLI) setup, config, commands.
 - `document/reconstruction/features/02-code/PRD.md` — the spec (FR-1..66).
 - `document/reconstruction/architecture/` — INTERFACES (31 routes),
   DATA-MODEL, ARCHITECTURE.
