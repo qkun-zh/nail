@@ -249,6 +249,15 @@ constitution); this document records state and process only.
   the interface layer still stays strict (`read_content` for the route).
   Together with `consume_if`/`consume` in `repository/cache.rs` this is the
   sanctioned token vocabulary, extending §5.2.
+- **Owner-bypass scope widened (owner, 2026-08-14, adjudication #33)**: the
+  legacy policy 1 owner bypass (FR-52) was judged wrong — it excludes
+  `Version::Update` / `Version::Delete` / `Comment::Update`, contradicting the
+  FR-20/FR-21 author stories. Amend policy 1 to add those three actions to the
+  owner bypass (`resource.owner == principal`); `Comment.owner` is the comment
+  author and `Version.owner` is the article owner (both already assembled in
+  `repository/authorization.rs`). Do not widen the member role's seed grants
+  (that would be non-owner-scoped). Slice 6's 5 tests asserting the denial are
+  to be flipped back to owner-allow.
 
 ## Handover (2026-08-14) — current agent
 
