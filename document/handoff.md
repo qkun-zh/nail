@@ -31,7 +31,12 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
    `common::response` (submodules per domain), refactor the backend handlers
    to return them instead of `serde_json::Value`/`json!`; the wire stays
    byte-identical (the `test/unit/back/http/*` assertions are the guard).
-   Then Phase 4.
+   **Progress:** search split done (`9923ea9`) — `ArticleSearchParams` →
+   `common::request`, `SearchHit`/`SearchArticleItem`/`SearchPage` →
+   `common::response/search.rs`, shared enums stay in `common::search`;
+   `SearchPage.has_more` renamed to `has_next` (#34, FR-46). Common 104 +
+   back 245 green. Next: add the remaining `common::response` domain
+   submodules and refactor handlers family by family. Then Phase 4.
 2. **Phase 4 — frontend migration** (after the sweep). Layering per README
    §4.2 (router → page → request → infrastructure); Leptos CSR, no CSS
    (README §10); runtime config from `/config/read` (reuse `RuntimeLimits` as
@@ -72,7 +77,9 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
   first response submodule); the shared enums `SearchRange`/
   `SearchSortField`/`SearchSortDirection` stay in `common::search` as the
   vocabulary home. The 9-module list and the README §3 skeleton are
-  unchanged; wire shapes unchanged.
+  unchanged; wire shapes unchanged. **#34**: the search response's pagination
+  flag was `has_more`, contradicting FR-46/#25 — renamed to `has_next`
+  (owner, 2026-08-14).
 - **Pagination config scope (owner, 2026-08-14)**: config holds only
   frontend-facing `search_page_size` + `max_search_pages`; the backend clamp
   caps `max_search_page_size` (200) and `max_page` (10000) stay hardcoded

@@ -45,6 +45,7 @@ Verdict legend: **F** = fix/implement in nail_new · **R** = remove dead code ·
 | 31 | Admin list returns cleartext email hashes | **K** | Deliberate admin capability (matches auth-cache hashes); document it. |
 | 32 | e2e scaffolding referenced but absent | **K** | The nail_new test tree is rebuilt from scratch (README §12 + TDD); e2e strategy decided at Phase 5. |
 | 33 | FR-52 policy 1 owner bypass excludes Version::Update / Version::Delete / Comment::Update, contradicting the FR-20/FR-21 author stories (update any version's note, hard-delete a version, edit my comment content) | **F** | Owner confirmed (2026-08-14): the design is wrong and unreasonable. Amend policy 1 to add the three actions to the owner bypass (`resource.owner == principal`); the Comment entity owner is the comment author, the Version entity owner is the article owner (both already assembled). Do NOT grant the actions to the member role via seed data — that would be non-owner-scoped and broaden access beyond the owner. Slice 1-4's transitional Rust gate already allowed owners these actions; the slice 6 convergence to legacy policy 1 re-introduced the defect and is reverted per this verdict. |
+| 34 | Search response uses `has_more` while FR-46 and the uniform pagination flag are `has_next` | **F** | Rename `SearchPage.has_more` → `has_next` in `common::response::search` + `logic/search.rs`. No test asserted the old name; the wire contract is corrected to match FR-46/#25. |
 
 ## Owner confirmations (2026-08-13) — Phase 2 (common crate)
 
