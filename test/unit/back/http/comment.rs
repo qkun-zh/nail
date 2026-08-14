@@ -219,3 +219,149 @@ async fn create_comment_requires_a_session_over_http() {
         .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED, "body: {body}");
 }
+
+#[tokio::test]
+async fn create_comment_reports_a_missing_version() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+
+    let (status, body) = context
+        .post(
+            &format!("/version/{}/comments/create", Uuid::now_v7()),
+            json!({ "content": "hello" }),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
+    assert_eq!(
+        body["message"].as_str(),
+        Some("comment target not found (the version may have been removed)")
+    );
+}
+
+#[tokio::test]
+async fn create_reply_reports_a_missing_parent() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+
+    let (status, body) = context
+        .post(
+            &format!("/comments/{}/replies/create", Uuid::now_v7()),
+            json!({ "content": "reply" }),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
+    assert_eq!(
+        body["message"].as_str(),
+        Some("reply target not found (the parent comment may have been removed)")
+    );
+}
+
+#[tokio::test]
+async fn create_reply_reports_a_thread_too_deep() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, token) = member_session(&context, "alice@example.com").await;
+    let version_id = version_fixture(&context, &user_id).await;
+
+    let (_, created) = context
+        .post(
+            &format!("/version/{version_id}/comments/create"),
+            json!({ "content": "root" }),
+            Some(&token),
+        )
+        .await;
+    let mut parent_id = created["data"]["comment_id"].as_str().expect("root id").to_string();
+
+    for _ in 0..64 {
+        let (status, body) = context
+            .post(
+                &format!("/comments/{parent_id}/replies/create"),
+                json!({ "content": "reply" }),
+                Some(&token),
+            )
+            .await;
+        assert_eq!(status, StatusCode::CREATED, "body: {body}");
+        parent_id = body["data"]["comment_id"].as_str().expect("reply id").to_string();
+    }
+
+    let (status, body) = context
+        .post(
+            &format!("/comments/{parent_id}/replies/create"),
+            json!({ "content": "overflow" }),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(
+        body["message"].as_str(),
+        Some("comment thread too deep (max 64 reply layers)")
+    );
+}
+
+#[tokio::test]
+async fn update_comment_reports_a_missing_comment() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+
+    let (status, body) = context
+        .post(
+            &format!("/comment/{}/update", Uuid::now_v7()),
+            json!({ "content": "edited" }),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("comment not found"));
+}
+
+#[tokio::test]
+async fn delete_comment_hard_removes_the_comment() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, token) = member_session(&context, "alice@example.com").await;
+    let version_id = version_fixture(&context, &user_id).await;
+    let (_, created) = context
+        .post(
+            &format!("/version/{version_id}/comments/create"),
+            json!({ "content": "hello" }),
+            Some(&token),
+        )
+        .await;
+    let comment_id = created["data"]["comment_id"].as_str().expect("comment id");
+
+    let (status, body) = context
+        .post(
+            &format!("/comment/{comment_id}/delete"),
+            json!({ "mode": "hard" }),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("deleted"));
+}
+
+#[tokio::test]
+async fn delete_comment_is_forbidden_for_a_non_owner() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, token) = member_session(&context, "alice@example.com").await;
+    let (_, stranger_token) = member_session(&context, "bob@example.com").await;
+    let version_id = version_fixture(&context, &user_id).await;
+    let (_, created) = context
+        .post(
+            &format!("/version/{version_id}/comments/create"),
+            json!({ "content": "hello" }),
+            Some(&token),
+        )
+        .await;
+    let comment_id = created["data"]["comment_id"].as_str().expect("comment id");
+
+    let (status, body) = context
+        .post(
+            &format!("/comment/{comment_id}/delete"),
+            json!({ "mode": "hard" }),
+            Some(&stranger_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("you are denied"));
+}

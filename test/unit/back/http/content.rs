@@ -223,3 +223,19 @@ async fn read_content_reports_a_missing_pdf_file() {
     assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("PDF file not found"));
 }
+
+#[tokio::test]
+async fn read_content_reports_a_missing_version() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (article_id, _) = create_article_over_http(&context, &token).await;
+
+    let (status, body) = context
+        .get(
+            &format!("/article/{article_id}/version/{}/content/read", Uuid::now_v7()),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("article version not found"));
+}

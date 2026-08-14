@@ -2,9 +2,11 @@ use axum::http::StatusCode;
 use serde_json::json;
 use uuid::Uuid;
 
-use super::context::{TestCtx, valid_pdf};
+use super::context::{TestCtx, test_config, unique_pdf, valid_pdf};
+use crate::repository::article::{ArticleDraft, create_article};
 use crate::repository::cache::{SessionTokenEntry, token_key};
 use crate::repository::role::{ROLE_MEMBER, hold_role};
+use crate::repository::version::VersionDraft;
 
 async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
@@ -30,6 +32,31 @@ async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
         .await
         .expect("member role");
     (user_id, token)
+}
+fn article_fields<'a>(title: &'a str, tags: &'a str) -> Vec<(&'a str, &'a str)> {
+    vec![
+        ("title", title),
+        ("summary", "summary"),
+        ("tags", tags),
+        ("version", "1.0.0"),
+        ("note", "note"),
+    ]
+}
+
+async fn create_article_fixture(context: &TestCtx, token: &str, title: &str) -> String {
+    let fields = article_fields(title, "#rust");
+    let (status, body) = context
+        .post_multipart(
+            "/article/create",
+            Some(token),
+            &fields,
+            "file",
+            "article.pdf",
+            &valid_pdf(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "body: {body}");
+    body["data"]["article_id"].as_str().expect("article id").to_string()
 }
 
 #[tokio::test]
@@ -220,4 +247,259 @@ async fn delete_article_rejects_missing_mode() {
         .post(&format!("/article/{article_id}/delete"), json!({}), Some(&token))
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+}
+
+#[tokio::test]
+async fn create_article_rejects_a_duplicate_title() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let fields = article_fields("Twin Title", "#rust");
+    let (status, _) = context.post_multipart("/article/create", Some(&token), &fields, "file", "a.pdf", &valid_pdf()).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let (status, body) = context.post_multipart("/article/create", Some(&token), &fields, "file", "b.pdf", &unique_pdf("other-pdf")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("title already exists"));
+}
+
+#[tokio::test]
+async fn create_article_rejects_a_duplicate_content_hash() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let first = article_fields("First Upload", "#rust");
+    let (status, _) = context.post_multipart("/article/create", Some(&token), &first, "file", "a.pdf", &valid_pdf()).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let second = article_fields("Second Upload", "#rust");
+    let (status, body) = context.post_multipart("/article/create", Some(&token), &second, "file", "b.pdf", &valid_pdf()).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    let message = body["message"].as_str().expect("message");
+    assert!(message.contains("identical PDF already exists"), "message: {message}");
+}
+
+#[tokio::test]
+async fn create_article_rejects_invalid_tags() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let fields = article_fields("Bad Tags", "rust");
+    let (status, body) = context.post_multipart("/article/create", Some(&token), &fields, "file", "a.pdf", &valid_pdf()).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("tag name must start with '#'"));
+}
+
+#[tokio::test]
+async fn create_article_rejects_an_empty_note() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let mut fields = article_fields("No Note", "#rust");
+    fields[4] = ("note", "");
+    let (status, body) = context.post_multipart("/article/create", Some(&token), &fields, "file", "a.pdf", &valid_pdf()).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("text cannot be empty"));
+}
+
+#[tokio::test]
+async fn create_article_rejects_a_non_pdf_file() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let fields = article_fields("Not A Pdf", "#rust");
+    let (status, body) = context.post_multipart("/article/create", Some(&token), &fields, "file", "a.txt", b"this is definitely not a pdf").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("Invalid PDF header: must start with %PDF-"));
+}
+
+#[tokio::test]
+async fn create_article_reports_an_oversized_text_field() {
+    let mut config = test_config();
+    config.server.max_text_field_bytes = 8;
+    let context = TestCtx::with_config(config).await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let fields = article_fields("My Article", "#rust");
+    let (status, body) = context.post_multipart("/article/create", Some(&token), &fields, "file", "a.pdf", &valid_pdf()).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("text field too large"));
+}
+
+#[tokio::test]
+async fn create_article_reports_body_too_large() {
+    let mut config = test_config();
+    config.server.max_pdf_size_bytes = 4096;
+    config.server.max_text_field_bytes = 64;
+    let context = TestCtx::with_config(config).await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let fields = article_fields("Huge Body", "#rust");
+    let (status, body) = context.post_multipart("/article/create", Some(&token), &fields, "file", &"x".repeat(100_000), &valid_pdf()).await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("Request payload is too large"));
+}
+
+#[tokio::test]
+async fn read_articles_clamps_page_and_limit() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, token) = member_session(&context, "alice@example.com").await;
+    for index in 0..201 {
+        let article_id = Uuid::now_v7().to_string();
+        let version_id = Uuid::now_v7().to_string();
+        let title = format!("Clamp Article {index}");
+        create_article(
+            &context.state.graph,
+            &ArticleDraft {
+                article_id: article_id.clone(),
+                author_id: user_id.clone(),
+                title: title.clone(),
+                summary: "summary".to_string(),
+                tags: vec!["#rust".to_string()],
+                first_version: VersionDraft {
+                    version_id: version_id.clone(),
+                    version_number: "1.0.0".to_string(),
+                    content_hash: nail_common::hash::pdf(&unique_pdf(&title)),
+                    note: "note".to_string(),
+                },
+            },
+        )
+        .await
+        .expect("create article");
+    }
+    let (status, body) = context.get("/article/read?page=0&limit=9999", Some(&token)).await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["data"]["page"].as_u64(), Some(1));
+    assert_eq!(body["data"]["article_list"].as_array().map(Vec::len), Some(200));
+    assert_eq!(body["data"]["total_pages"].as_u64(), Some(2));
+    assert_eq!(body["data"]["has_next"].as_bool(), Some(true));
+    assert_eq!(body["data"]["has_prev"].as_bool(), Some(false));
+}
+
+#[tokio::test]
+async fn read_article_returns_is_author_for_the_owner() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let article_id = create_article_fixture(&context, &token, "Owned Article").await;
+    let (status, body) = context.get(&format!("/article/{article_id}/read?check_if_is_author=true"), Some(&token)).await;
+    assert_eq!(status, StatusCode::OK, "body: {body}"); assert_eq!(body["data"]["is_author"].as_bool(), Some(true));
+}
+
+#[tokio::test]
+async fn read_article_reports_a_missing_article() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (status, body) = context.get(&format!("/article/{}/read", Uuid::now_v7()), Some(&token)).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("article not found"));
+}
+
+#[tokio::test]
+async fn update_article_is_forbidden_for_a_non_owner() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, owner_token) = member_session(&context, "alice@example.com").await;
+    let (_, stranger_token) = member_session(&context, "bob@example.com").await;
+    let article_id = create_article_fixture(&context, &owner_token, "Private Article").await;
+    let (status, body) = context
+        .post(
+            &format!("/article/{article_id}/update"),
+            json!({ "title": "Stolen", "summary": "summary", "tags": "#rust" }),
+            Some(&stranger_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("you are denied"));
+}
+
+#[tokio::test]
+async fn update_article_reconciles_tags() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let article_id = create_article_fixture(&context, &token, "Retagged").await;
+    let (status, body) = context
+        .post(
+            &format!("/article/{article_id}/update"),
+            json!({ "title": "Retagged", "summary": "summary", "tags": "#go #cpp" }),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["data"]["article_id"].as_str(), Some(article_id.as_str()));
+    let (status, body) = context.get(&format!("/article/{article_id}/read"), Some(&token)).await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    let tags: Vec<&str> = body["data"]["tags"]
+        .as_array()
+        .expect("tags")
+        .iter()
+        .filter_map(|tag| tag["name"].as_str())
+        .collect();
+    assert_eq!(tags, vec!["#go", "#cpp"]);
+}
+
+#[tokio::test]
+async fn delete_article_transfer_repoints_to_the_recycler() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let article_id = create_article_fixture(&context, &token, "Transferable").await;
+    let (status, body) = context
+        .post(&format!("/article/{article_id}/delete"), json!({ "mode": "transfer" }), Some(&token))
+        .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("deleted"));
+    let recycler_id = crate::repository::user::read_user_by_email_address_hash(
+        &context.state.graph,
+        &nail_common::hash::email("user-zero@example.com"),
+    )
+    .await
+    .expect("user zero")
+    .expect("recycler");
+    let (status, body) = context.get(&format!("/article/{article_id}/read"), Some(&token)).await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["data"]["author_id"].as_str(), Some(recycler_id.as_str()));
+}
+
+#[tokio::test]
+async fn delete_article_hard_cascades() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let article_id = create_article_fixture(&context, &token, "Hard Deletable").await;
+    let (status, body) = context
+        .post(&format!("/article/{article_id}/delete"), json!({ "mode": "hard" }), Some(&token))
+        .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("deleted"));
+    let (status, body) = context.get(&format!("/article/{article_id}/read"), Some(&token)).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("article not found"));
+}
+
+#[tokio::test]
+async fn search_rejects_an_unknown_range() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (status, body) = context.get("/article/read?ranges=title,frobnicate", Some(&token)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("unknown search range: frobnicate"));
+}
+
+#[tokio::test]
+async fn search_rejects_from_greater_than_to() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (status, body) = context.get("/article/read?from=10&to=5", Some(&token)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("from must not be greater than to"));
+}
+
+#[tokio::test]
+async fn search_rejects_an_overlong_query() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let long_query = "a".repeat(513);
+    let (status, body) = context.get(&format!("/article/read?q={long_query}"), Some(&token)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("search query too long (max 512 chars)"));
+}
+
+#[tokio::test]
+async fn search_returns_hits_for_a_keyword() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    create_article_fixture(&context, &token, "Needle In A Haystack").await;
+    let (status, body) = context.get("/article/read?q=needle", Some(&token)).await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    let list = body["data"]["article_list"].as_array().expect("article_list");
+    assert!(list.iter().any(|item| item["title"].as_str() == Some("Needle In A Haystack")));
+    assert!(list[0]["hits"].is_array());
 }

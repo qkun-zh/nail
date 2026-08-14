@@ -185,3 +185,108 @@ async fn delete_version_hard_over_http() {
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("deleted"));
 }
+
+#[tokio::test]
+async fn create_version_rejects_an_older_version() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, token) = member_session(&context, "alice@example.com").await;
+    let (article_id, _) = article_fixture(&context, &user_id).await;
+    let fields: Vec<(&str, &str)> = vec![("version", "0.9.0"), ("note", "older")];
+    let (status, body) = context
+        .post_multipart(
+            &format!("/article/{article_id}/version/create"),
+            Some(&token),
+            &fields,
+            "file",
+            "older.pdf",
+            &unique_pdf("older-version"),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(
+        body["message"].as_str(),
+        Some("new version must be strictly greater than the latest version")
+    );
+}
+
+#[tokio::test]
+async fn create_version_rejects_a_duplicate_content_hash() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, token) = member_session(&context, "alice@example.com").await;
+    let (article_id, _) = article_fixture(&context, &user_id).await;
+    let title = format!("Versioned {article_id}");
+    let fields: Vec<(&str, &str)> = vec![("version", "1.1.0"), ("note", "duplicate")];
+    let (status, body) = context
+        .post_multipart(
+            &format!("/article/{article_id}/version/create"),
+            Some(&token),
+            &fields,
+            "file",
+            "dup.pdf",
+            &unique_pdf(&title),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    let message = body["message"].as_str().expect("message");
+    assert!(message.contains("identical PDF already exists"), "message: {message}");
+}
+
+#[tokio::test]
+async fn read_version_reports_a_missing_version() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (status, body) = context
+        .get(&format!("/version/{}/read", Uuid::now_v7()), Some(&token))
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("version not found"));
+}
+
+#[tokio::test]
+async fn update_version_is_forbidden_for_a_non_owner() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, _) = member_session(&context, "alice@example.com").await;
+    let (_, stranger_token) = member_session(&context, "bob@example.com").await;
+    let (_, version_id) = article_fixture(&context, &user_id).await;
+    let (status, body) = context
+        .post(
+            &format!("/version/{version_id}/update"),
+            json!({ "note": "hijacked" }),
+            Some(&stranger_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("you are denied"));
+}
+
+#[tokio::test]
+async fn delete_version_is_forbidden_for_a_non_owner() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, _) = member_session(&context, "alice@example.com").await;
+    let (_, stranger_token) = member_session(&context, "bob@example.com").await;
+    let (_, version_id) = article_fixture(&context, &user_id).await;
+    let (status, body) = context
+        .post(
+            &format!("/version/{version_id}/delete"),
+            json!({ "mode": "hard" }),
+            Some(&stranger_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("you are denied"));
+}
+
+#[tokio::test]
+async fn delete_version_reports_a_missing_version() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (status, body) = context
+        .post(
+            &format!("/version/{}/delete", Uuid::now_v7()),
+            json!({ "mode": "hard" }),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("version not found"));
+}

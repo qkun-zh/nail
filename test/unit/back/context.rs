@@ -68,6 +68,16 @@ impl TestCtx {
         })
     }
 
+    pub async fn with_config(config: AppConfig) -> anyhow::Result<Self> {
+        let (state, recorder) = build_state(&config, 0).await?;
+        let app = interface::router::build_router(state.clone());
+        Ok(Self {
+            state,
+            app,
+            recorder,
+        })
+    }
+
     pub fn difficulty(&self) -> u64 {
         self.state.config.server.pow_difficulty_iterations
     }
