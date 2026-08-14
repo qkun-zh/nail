@@ -186,6 +186,39 @@ constitution); this document records state and process only.
     list unchanged); the manual §8.3 gate above stands in, as in slice 4. The
     512-line bar (README §5.3) holds: every slice-5 file is ≤ 261 lines.
 
+- ✅ **Phase 3 slice 6 — role/authorization (Cedar)** (2026-08-14, commit
+  `34f4dfd`): the five role routes + Cedar authorization across the four layers.
+  **back 240 tests green** (common 104), `cargo check` zero warnings.
+  - Cedar landed: `cedar-policy 4.12.0`, `infrastructure/cedar.rs` (cached
+    `PolicySet` + `decide()`), `infrastructure/cedar/{schema,policy}.cedar`,
+    and `repository/authorization.rs` (principal/resource assembly).
+    `schema.cedar` = 7 entity types (User/Role/Tag/Article/Version/Comment/
+    System — #5 removed `Visibility`) + 16 actions; `policy.cedar` = 5 policies
+    with policy 2 rewritten to read-open (no visibility condition).
+  - #7: `member_count` is the real agdb count (`read_role_members().len()`).
+    #8: `delete_role` protects all `REQUIRED_ROLES` (admin/recycler/member).
+    #9: duplicate role name → 400 "role already exists" (verdict overrides
+    FR-47's idempotent 201).
+  - `logic/authorize.rs` converged fully to Cedar: `authorize` /
+    `authorize_or` / `authorize_create` / `is_allowed` / `is_author` (FR-54,
+    exactly one of article/version/comment ids else 400). The transitional
+    `require_permission` / `require_owner_or_permission_for_*` /
+    `is_article_author` are gone. `read_roles` replaces the forbidden `list_roles`.
+  - ⚠️ **Behavior correction (flag for owner)**: converging to the legacy
+    policy 1 (FR-52) means the owner bypass does NOT cover `Version::Update`,
+    `Version::Delete`, or `Comment::Update` (they need a role permission or
+    admin). The slice 1-4 transitional Rust gate had allowed owners to do
+    these; 5 tests were updated to the spec behavior. If the owner prefers the
+    slice 1-4 owner-bypass for those actions, policy 1 needs an amendment.
+  - §8.3 gate: equal-or-better on all five axes. Correctness: #5/#7/#8/#9 and
+    the owner-bypass scope now match FR-52/policy 1 (legacy strong reference).
+    Readability: engine/assembly/gate split across infrastructure/repository/
+    logic. Conciseness: `RoleView` single-sourced in `role.rs`; shared edge
+    helpers. Performance: `PolicySet` parsed once via `OnceLock` (legacy
+    re-parsed per request).
+  - `thermo-nuclear-code-quality-review` skill is still NOT available; manual
+    §8.3 gate stands in. 512-line bar holds (largest file 473 lines).
+
 ### Owner decisions (2026-08-13)
 
 - **#26 closed**: `intent` is a query parameter, not a body field.
@@ -222,7 +255,7 @@ constitution); this document records state and process only.
 Personnel change: agent E completed **slice 4 (comment domain)**; a new agent
 (F) took over at **slice 5 (download/PDF)** and completed it (see Current state).
 
-- ✅ Slices 1-5 are done. **back 224 tests green** (common 104), `cargo check`
+- ✅ Slices 1-6 are done. **back 240 tests green** (common 104), `cargo check`
   zero warnings, working tree clean.
 
 - ✅ Slice 3 (article + version) is done: TDD rewrite of slices 1-3 under the
@@ -253,17 +286,20 @@ Personnel change: agent E completed **slice 4 (comment domain)**; a new agent
 - ✅ **Slice 5 (download/PDF) done**: #1 (mint → `.../content/read?token={token}`,
   single-use 60s, user-bound), #28 (hash-based filenames only), #29 (mint-JSON
   contract documented). See Current state.
-- Next: **slice 6 (role/authorization)** — #5 (visibility deleted; policy 2
-  rewritten to the owner-confirmed read-open semantics), #7 (member_count), #8
-  (REQUIRED_ROLES protected), #9 (duplicate role → 400), then slice 7
-  (config/email/infrastructure, #13/#19/#22/#26/#32).
+- ✅ **Slice 6 (role/authorization) done**: #5 (visibility deleted; policy 2
+  read-open), #7 (member_count), #8 (REQUIRED_ROLES protected), #9 (duplicate
+  role → 400). Cedar engine landed; the Rust gate converged to Cedar. See
+  Current state — including the ⚠️ owner-bypass scope flag.
+- Next: **slice 7 (config/email/infrastructure)** — #13 (dead config fields),
+  #19 (timezone from toml via `/config/read`), #22 (multipart read-then-validate),
+  #26 (email service with explicit intent), #32 (e2e flag; test tree in Phase 5).
 - All prior handover items (a)-(d) and the slice 2 deferred items (search
   re-sync, hard-delete cascade + PDF cleanup, recycler least-loaded selection)
   are ✅ done.
 - `thermo-nuclear-code-quality-review` is NOT available to this session (the
   skill registry lists only create-skill/codebase-design/diagnosing-bugs/
   domain-modeling/grill-with-docs/grilling/handoff/improve-codebase-architecture/
-  setup-matt-pocock-skills/tdd/to-spec). Slice 4 used a manual §8.3 gate
+  setup-matt-pocock-skills/tdd/to-spec). Slices 4-6 used a manual §8.3 gate
   instead; the 512-line bar (README §5.3) still applies.
 
 ## Rules (non-negotiable; operational only)
@@ -319,9 +355,9 @@ Per domain: read the PRD slice → write failing tests first (red) → implement
 5. ✅ Download/PDF — #1 (mint → `.../content/read?token={token}`, single-use
    60s, user-bound), #28 (hash-based filenames only), #29 (mint-JSON contract
    documented) — done (see Current state).
-6. Role/authorization — #5 (visibility deleted; policy 2 rewritten to the
+6. ✅ Role/authorization — #5 (visibility deleted; policy 2 rewritten to the
    owner-confirmed read-open semantics), #7 (member_count), #8 (REQUIRED_ROLES
-   protected), #9 (duplicate role → 400).
+   protected), #9 (duplicate role → 400) — done (see Current state).
 7. Config/email/infrastructure — #13 (dead config fields), #19 (timezone from
    toml via `/config/read`), #22 (multipart read-then-validate), #26 (email
    service with explicit intent), #32 (e2e flag; test tree in Phase 5).
