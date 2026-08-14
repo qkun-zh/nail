@@ -1,5 +1,4 @@
-use axum::Json;
-use axum::extract::{Multipart, Path, Query, State};
+use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use nail_common::request::DeleteBody;
@@ -9,13 +8,14 @@ use serde::Deserialize;
 use crate::infrastructure::state::AppState;
 use crate::interface::article::{read_text_field, stream_pdf_field};
 use crate::interface::envelope::{ApiError, json_response};
+use crate::interface::extractor::{AppJson, AppMultipart, AppPath, AppQuery};
 use crate::interface::principal::Principal;
 
 pub async fn create_version(
     State(state): State<AppState>,
     principal: Principal,
-    Path(article_id): Path<String>,
-    mut multipart: Multipart,
+    AppPath(article_id): AppPath<String>,
+    AppMultipart(mut multipart): AppMultipart,
 ) -> Result<impl IntoResponse, ApiError> {
     let mut version = None;
     let mut note = None;
@@ -63,8 +63,8 @@ pub struct VersionsReadParams {
 pub async fn read_versions(
     State(state): State<AppState>,
     _principal: Principal,
-    Path(article_id): Path<String>,
-    Query(params): Query<VersionsReadParams>,
+    AppPath(article_id): AppPath<String>,
+    AppQuery(params): AppQuery<VersionsReadParams>,
 ) -> Result<impl IntoResponse, ApiError> {
     let (page, limit) = crate::logic::pagination::clamp_page_limit(
         params.page,
@@ -84,8 +84,8 @@ pub struct VersionReadParams {
 pub async fn read_version(
     State(state): State<AppState>,
     principal: Principal,
-    Path(version_id): Path<String>,
-    Query(params): Query<VersionReadParams>,
+    AppPath(version_id): AppPath<String>,
+    AppQuery(params): AppQuery<VersionReadParams>,
 ) -> Result<impl IntoResponse, ApiError> {
     let data = crate::logic::version::read_version(
         &state,
@@ -106,8 +106,8 @@ pub struct UpdateVersionNoteRequest {
 pub async fn update_version(
     State(state): State<AppState>,
     principal: Principal,
-    Path(version_id): Path<String>,
-    Json(payload): Json<UpdateVersionNoteRequest>,
+    AppPath(version_id): AppPath<String>,
+    AppJson(payload): AppJson<UpdateVersionNoteRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     let data = crate::logic::version::update_version(
         &state,
@@ -122,8 +122,8 @@ pub async fn update_version(
 pub async fn delete_version(
     State(state): State<AppState>,
     principal: Principal,
-    Path(version_id): Path<String>,
-    Json(payload): Json<DeleteBody>,
+    AppPath(version_id): AppPath<String>,
+    AppJson(payload): AppJson<DeleteBody>,
 ) -> Result<impl IntoResponse, ApiError> {
     let data = crate::logic::version::delete_version(
         &state,

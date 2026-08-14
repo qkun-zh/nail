@@ -4,6 +4,7 @@ pub mod comment;
 pub mod config;
 pub mod content;
 pub mod email;
+pub mod extractor;
 pub mod envelope;
 pub mod principal;
 pub mod role;

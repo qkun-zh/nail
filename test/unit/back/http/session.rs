@@ -4,6 +4,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::context::TestCtx;
+use crate::repository::cache::{SessionTokenEntry, token_key};
 
 async fn create_challenge_and_prove(context: &TestCtx, payload: &str) -> Pow {
     let (status, body) = context.get("/challenge/read", None).await;
@@ -129,3 +130,42 @@ async fn email_read_authenticate_requires_a_pow() {
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("pow is required"));
 }
+
+async fn insert_session(context: &TestCtx) -> String {
+    let token = Uuid::now_v7().to_string();
+    let key = token_key(&token).expect("token key");
+    context.state.caches.session.insert(
+        &key,
+        SessionTokenEntry {
+            user_id: Uuid::now_v7().to_string(),
+        },
+    );
+    token
+}
+
+#[tokio::test]
+async fn session_delete_with_malformed_json_returns_envelope() {
+    let context = TestCtx::new().await.expect("test context");
+    let token = insert_session(&context).await;
+
+    let (status, body) = context.post("/session/delete", json!({}), Some(&token)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(body["code"].as_u64(), Some(400));
+    assert!(body["data"].is_null());
+    assert_eq!(body["message"].as_str(), Some("invalid request body"));
+}
+
+#[tokio::test]
+async fn session_read_with_malformed_query_returns_envelope() {
+    let context = TestCtx::new().await.expect("test context");
+    let token = insert_session(&context).await;
+
+    let (status, body) = context
+        .get("/session/read?id=not-a-boolean", Some(&token))
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(body["code"].as_u64(), Some(400));
+    assert!(body["data"].is_null());
+    assert_eq!(body["message"].as_str(), Some("invalid query parameters"));
+}
+

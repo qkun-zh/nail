@@ -1,5 +1,4 @@
-use axum::Json;
-use axum::extract::{Query, State};
+use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use nail_common::request::EmailReadRequest;
@@ -7,6 +6,7 @@ use serde::Deserialize;
 
 use crate::infrastructure::state::AppState;
 use crate::interface::envelope::{ApiError, json_response};
+use crate::interface::extractor::{AppJson, AppQuery};
 use crate::interface::principal::SESSION_TOKEN_HEADER;
 
 #[derive(Debug, Deserialize)]
@@ -17,8 +17,8 @@ pub struct EmailReadQuery {
 pub async fn read_email(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Query(query): Query<EmailReadQuery>,
-    Json(payload): Json<EmailReadRequest>,
+    AppQuery(query): AppQuery<EmailReadQuery>,
+    AppJson(payload): AppJson<EmailReadRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     let Some(intent_value) = query.intent.as_deref() else {
         return Err(ApiError::bad_request("email intent is required"));

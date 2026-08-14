@@ -1,5 +1,4 @@
-use axum::Json;
-use axum::extract::{Multipart, Path, Query, State};
+use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use nail_common::request::{DeleteBody, UpdateArticleRequest};
@@ -11,12 +10,13 @@ use crate::infrastructure::pdf::{PdfStreamGuard, PdfUpload, TempPdf};
 use nail_common::hash::PdfHasher;
 use crate::infrastructure::state::AppState;
 use crate::interface::envelope::{ApiError, json_response};
+use crate::interface::extractor::{AppJson, AppMultipart, AppPath, AppQuery};
 use crate::interface::principal::Principal;
 
 pub async fn read_articles(
     State(state): State<AppState>,
     _principal: Principal,
-    Query(params): Query<nail_common::request::ArticleSearchParams>,
+    AppQuery(params): AppQuery<nail_common::request::ArticleSearchParams>,
 ) -> Result<impl IntoResponse, ApiError> {
     let data = crate::logic::article::read_articles(&state, &params).await?;
     Ok(json_response(StatusCode::OK, data, "ok"))
@@ -25,7 +25,7 @@ pub async fn read_articles(
 pub async fn create_article(
     State(state): State<AppState>,
     principal: Principal,
-    mut multipart: Multipart,
+    AppMultipart(mut multipart): AppMultipart,
 ) -> Result<impl IntoResponse, ApiError> {
     let mut title = None;
     let mut summary = None;
@@ -86,8 +86,8 @@ pub struct ArticleReadParams {
 pub async fn read_article(
     State(state): State<AppState>,
     principal: Principal,
-    Path(article_id): Path<String>,
-    Query(params): Query<ArticleReadParams>,
+    AppPath(article_id): AppPath<String>,
+    AppQuery(params): AppQuery<ArticleReadParams>,
 ) -> Result<impl IntoResponse, ApiError> {
     let data = crate::logic::article::read_article(
         &state,
@@ -102,8 +102,8 @@ pub async fn read_article(
 pub async fn update_article(
     State(state): State<AppState>,
     principal: Principal,
-    Path(article_id): Path<String>,
-    Json(payload): Json<UpdateArticleRequest>,
+    AppPath(article_id): AppPath<String>,
+    AppJson(payload): AppJson<UpdateArticleRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     let data = crate::logic::article::update_article(
         &state,
@@ -120,8 +120,8 @@ pub async fn update_article(
 pub async fn delete_article(
     State(state): State<AppState>,
     principal: Principal,
-    Path(article_id): Path<String>,
-    Json(payload): Json<DeleteBody>,
+    AppPath(article_id): AppPath<String>,
+    AppJson(payload): AppJson<DeleteBody>,
 ) -> Result<impl IntoResponse, ApiError> {
     let data = crate::logic::article::delete_article(
         &state,

@@ -1,5 +1,4 @@
-use axum::Json;
-use axum::extract::{Path, Query, State};
+use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use nail_common::request::{CreateCommentRequest, DeleteBody};
@@ -8,13 +7,14 @@ use serde::Deserialize;
 
 use crate::infrastructure::state::AppState;
 use crate::interface::envelope::{ApiError, json_response};
+use crate::interface::extractor::{AppJson, AppPath, AppQuery};
 use crate::interface::principal::Principal;
 
 pub async fn create_comment(
     State(state): State<AppState>,
     principal: Principal,
-    Path(version_id): Path<String>,
-    Json(payload): Json<CreateCommentRequest>,
+    AppPath(version_id): AppPath<String>,
+    AppJson(payload): AppJson<CreateCommentRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     let comment_id = crate::logic::comment::create_comment(
         &state,
@@ -33,8 +33,8 @@ pub async fn create_comment(
 pub async fn create_reply(
     State(state): State<AppState>,
     principal: Principal,
-    Path(parent_comment_id): Path<String>,
-    Json(payload): Json<CreateCommentRequest>,
+    AppPath(parent_comment_id): AppPath<String>,
+    AppJson(payload): AppJson<CreateCommentRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     let comment_id = crate::logic::comment::create_reply(
         &state,
@@ -60,8 +60,8 @@ pub struct CommentsReadParams {
 pub async fn read_comments(
     State(state): State<AppState>,
     principal: Principal,
-    Path(version_id): Path<String>,
-    Query(params): Query<CommentsReadParams>,
+    AppPath(version_id): AppPath<String>,
+    AppQuery(params): AppQuery<CommentsReadParams>,
 ) -> Result<impl IntoResponse, ApiError> {
     let (page, limit) = crate::logic::pagination::clamp_page_limit(
         params.page,
@@ -83,8 +83,8 @@ pub async fn read_comments(
 pub async fn update_comment(
     State(state): State<AppState>,
     principal: Principal,
-    Path(comment_id): Path<String>,
-    Json(payload): Json<CreateCommentRequest>,
+    AppPath(comment_id): AppPath<String>,
+    AppJson(payload): AppJson<CreateCommentRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     let data = crate::logic::comment::update_comment(
         &state,
@@ -99,8 +99,8 @@ pub async fn update_comment(
 pub async fn delete_comment(
     State(state): State<AppState>,
     principal: Principal,
-    Path(comment_id): Path<String>,
-    Json(payload): Json<DeleteBody>,
+    AppPath(comment_id): AppPath<String>,
+    AppJson(payload): AppJson<DeleteBody>,
 ) -> Result<impl IntoResponse, ApiError> {
     let data = crate::logic::comment::delete_comment(
         &state,

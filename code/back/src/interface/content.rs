@@ -1,4 +1,4 @@
-use axum::extract::{Path, Query, State};
+use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::Response;
 use serde::Deserialize;
@@ -6,6 +6,7 @@ use serde::Deserialize;
 use crate::infrastructure::pdf::sanitize_attachment_filename;
 use crate::infrastructure::state::AppState;
 use crate::interface::envelope::{ApiError, json_response};
+use crate::interface::extractor::{AppPath, AppQuery};
 use crate::interface::principal::Principal;
 use crate::logic::error::LogicError;
 use nail_common::response::content::MintUrl;
@@ -19,8 +20,8 @@ pub struct ContentReadParams {
 pub async fn read_content(
     State(state): State<AppState>,
     principal: Principal,
-    Path((article_id, version_id)): Path<(String, String)>,
-    Query(params): Query<ContentReadParams>,
+    AppPath((article_id, version_id)): AppPath<(String, String)>,
+    AppQuery(params): AppQuery<ContentReadParams>,
 ) -> Result<Response, ApiError> {
     if matches!(params.download.as_deref(), Some("1") | Some("true")) {
         let url = crate::logic::download::mint_download_token(

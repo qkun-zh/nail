@@ -1,5 +1,4 @@
-use axum::Json;
-use axum::extract::{Query, State};
+use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use nail_common::request::LogoutRequest;
@@ -9,6 +8,7 @@ use serde::Deserialize;
 
 use crate::infrastructure::state::AppState;
 use crate::interface::envelope::{ApiError, json_response};
+use crate::interface::extractor::{AppJson, AppQuery};
 use crate::interface::principal::Principal;
 
 #[derive(Debug, Default, Deserialize)]
@@ -20,7 +20,7 @@ pub struct SessionReadParams {
 pub async fn read_session(
     State(state): State<AppState>,
     principal: Principal,
-    Query(params): Query<SessionReadParams>,
+    AppQuery(params): AppQuery<SessionReadParams>,
 ) -> Result<impl IntoResponse, ApiError> {
     let mut view = SessionView::default();
     if params.id.unwrap_or(false) {
@@ -35,7 +35,7 @@ pub async fn read_session(
 pub async fn delete_session(
     State(state): State<AppState>,
     principal: Principal,
-    Json(payload): Json<LogoutRequest>,
+    AppJson(payload): AppJson<LogoutRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     crate::logic::session::delete_session(&state, &payload.pow, &principal.token).await?;
     Ok(json_response(StatusCode::OK, EmptyView {}, "deleted"))
