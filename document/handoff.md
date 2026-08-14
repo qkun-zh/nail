@@ -17,7 +17,7 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
 - **Phase 4 frontend (Leptos CSR): DONE.** nail_front **61 unit tests green**,
   `cargo check --target wasm32-unknown-unknown` and host `cargo check` both
   **zero warnings**; back 245 + common 108 still green (no regression). Working
-  tree clean at `b7312b1`. No git remote. Details below.
+  tree clean at `99b83c7`. No git remote. Details below.
 - Backend layering per ADR-0001; `intent` per ADR-0002; glossary
   `document/context.md`; Cedar engine landed (slice 6); `/config/read` returns
   the typed `common::response::RuntimeLimits` (slice 7).
@@ -75,8 +75,8 @@ mount `AppRouter` + `ToastContainer`). Module layout (each module = same-named
   comment index/reply/delete), `private/` (index, authenticate, name,
   name/update, email, email/update, logout, deregister).
 - `router.rs` — path → page map only (FR-60), ParentRoute nesting, fallback
-  NotFound; leptos_router matches first-declared route first (static before
-  param by declaration).
+  NotFound. `/private/authenticate` is declared outside the root `RootGate`
+  `ParentRoute`, so it always renders ungated (FR-61).
 
 Frontend unit tests (61) live at `test/unit/front/<module>/tests.rs` wired via
 `#[path]` from each module: envelope unwrap, 401 session invalidation, url

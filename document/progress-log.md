@@ -194,6 +194,21 @@ warnings.
   `time` crate + config offset (#19); config sheds dead/backend-internal
   fields.
 
+## Phase 4 — frontend migration (2026-08-14, commits `46fa23e`..`99b83c7`)
+
+Leptos CSR frontend, layered per README §4.2 (main → router → page → request
+→ infrastructure). **front 61 unit tests green**, `cargo check --target
+wasm32-unknown-unknown` + host `cargo check` zero warnings; back 245 + common
+108 green (no regression). Module layout: `infrastructure` (config/limits/
+storage/pow), `request` (error/url/envelope/session/http/pow/auth/user/article/
+version/comment/download), `page` (session_gate/author_gate/notify/pagination/
+validation/draft/time_format + public/private sections), `router` (FR-60 route
+table). All 21 reached routes exercised; responses deserialize the typed
+`common::response` DTOs. Adjudication: #14 (English UI), #24 (page size from
+config), #25 (server `has_next`), #3 (no per-comment pre-check), #12 (no
+`/private/email/check`), #4 (PoW in-wasm, no worker), #19 (timezone from
+limits).
+
 ## Personnel history
 
 - Agent A/B: Phase 2 (common) + slice 1.
@@ -203,3 +218,4 @@ warnings.
 - Agent F: slice 5 (download/PDF) + slice 6 (role/authorization, Cedar).
 - Agent G: #33 owner-bypass patch (`efe8cfe`) + slice 7
   (config/email/infrastructure, `06c72f4`) — Phase 3 backend complete.
+- Agent I: Phase 4 (frontend) — complete.
