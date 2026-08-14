@@ -1,5 +1,5 @@
 use nail_common::request::DeleteMode;
-use nail_common::search::ArticleSearchParams;
+use nail_common::request::ArticleSearchParams;
 use uuid::Uuid;
 
 use crate::infrastructure::pdf::PdfUpload;

@@ -118,6 +118,24 @@ pub struct RoleUpdateRequest {
     pub users: Option<ChangeList>,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ArticleSearchParams {
+    #[serde(default)]
+    pub q: Option<String>,
+    #[serde(default)]
+    pub ranges: Option<String>,
+    #[serde(default)]
+    pub sort: Option<String>,
+    #[serde(default)]
+    pub from: Option<u64>,
+    #[serde(default)]
+    pub to: Option<u64>,
+    #[serde(default)]
+    pub limit: Option<u64>,
+    #[serde(default)]
+    pub page: Option<u64>,
+}
+
 #[cfg(test)]
 #[path = "../../../test/unit/common/request/tests.rs"]
 mod tests;

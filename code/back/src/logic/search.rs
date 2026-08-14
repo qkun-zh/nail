@@ -1,7 +1,6 @@
-use nail_common::search::{
-    ArticleSearchParams, SearchArticleItem, SearchHit, SearchPage, SearchRange, SearchSortDirection,
-    SearchSortField,
-};
+use nail_common::request::ArticleSearchParams;
+use nail_common::response::search::{SearchArticleItem, SearchHit, SearchPage};
+use nail_common::search::{SearchRange, SearchSortDirection, SearchSortField};
 
 use crate::infrastructure::state::AppState;
 use crate::logic::error::LogicError;
@@ -102,7 +101,7 @@ pub async fn search_articles(
         total: outcome.total,
         page,
         total_pages,
-        has_more: page < total_pages,
+        has_next: page < total_pages,
         has_prev: page > 1,
         truncated,
     })

@@ -15,7 +15,7 @@ use crate::interface::principal::Principal;
 pub async fn read_articles(
     State(state): State<AppState>,
     _principal: Principal,
-    Query(params): Query<nail_common::search::ArticleSearchParams>,
+    Query(params): Query<nail_common::request::ArticleSearchParams>,
 ) -> Result<impl IntoResponse, ApiError> {
     let data = crate::logic::article::read_articles(&state, &params).await?;
     Ok(json_response::<serde_json::Value>(StatusCode::OK, data, "ok"))

@@ -43,3 +43,56 @@ fn envelope_round_trips_through_json() {
     assert_eq!(decoded.data, original.data);
     assert_eq!(decoded.message, original.message);
 }
+
+#[test]
+fn search_hit_round_trips_with_lowercase_field() -> anyhow::Result<()> {
+    let hit = crate::response::search::SearchHit {
+        field: crate::search::SearchRange::Title,
+        label: "Title".to_string(),
+        snippet: "Rust <mark>borrow</mark> checker".to_string(),
+    };
+    let json = serde_json::to_string(&hit)?;
+    assert_eq!(
+        json,
+        r##"{"field":"title","label":"Title","snippet":"Rust <mark>borrow</mark> checker"}"##
+    );
+    let decoded: crate::response::search::SearchHit = serde_json::from_str(&json)?;
+    assert_eq!(decoded, hit);
+    Ok(())
+}
+
+#[test]
+fn search_article_item_round_trips_with_hits() -> anyhow::Result<()> {
+    let item = crate::response::search::SearchArticleItem {
+        id: "0197c0b0-1234-7000-8000-000000000001".to_string(),
+        title: "Rust borrow checker".to_string(),
+        author: "alice".to_string(),
+        time: "2023-11-15T06:13:20+08:00".to_string(),
+        hits: vec![crate::response::search::SearchHit {
+            field: crate::search::SearchRange::Summary,
+            label: "Summary".to_string(),
+            snippet: "A <mark>summary</mark>".to_string(),
+        }],
+    };
+    let json = serde_json::to_string(&item)?;
+    let decoded: crate::response::search::SearchArticleItem = serde_json::from_str(&json)?;
+    assert_eq!(decoded, item);
+    Ok(())
+}
+
+#[test]
+fn search_page_round_trips_with_paging_fields() -> anyhow::Result<()> {
+    let page = crate::response::search::SearchPage {
+        article_list: Vec::new(),
+        total: 0,
+        page: 1,
+        total_pages: 1,
+        has_next: false,
+        has_prev: false,
+        truncated: false,
+    };
+    let json = serde_json::to_string(&page)?;
+    let decoded: crate::response::search::SearchPage = serde_json::from_str(&json)?;
+    assert_eq!(decoded, page);
+    Ok(())
+}

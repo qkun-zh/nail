@@ -288,3 +288,27 @@ fn role_update_request_round_trips_change_lists() -> anyhow::Result<()> {
     assert_eq!(empty, crate::request::RoleUpdateRequest::default());
     Ok(())
 }
+
+#[test]
+fn article_search_params_round_trip_all_fields() -> anyhow::Result<()> {
+    let params = crate::request::ArticleSearchParams {
+        q: Some("rust".to_string()),
+        ranges: Some("title,author".to_string()),
+        sort: Some("time:desc".to_string()),
+        from: Some(1_700_000_000),
+        to: Some(1_700_100_000),
+        limit: Some(8),
+        page: Some(1),
+    };
+    let json = serde_json::to_string(&params)?;
+    let decoded: crate::request::ArticleSearchParams = serde_json::from_str(&json)?;
+    assert_eq!(decoded, params);
+    Ok(())
+}
+
+#[test]
+fn article_search_params_default_to_all_none() -> anyhow::Result<()> {
+    let decoded: crate::request::ArticleSearchParams = serde_json::from_str("{}")?;
+    assert_eq!(decoded, crate::request::ArticleSearchParams::default());
+    Ok(())
+}

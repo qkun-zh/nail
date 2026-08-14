@@ -1,4 +1,4 @@
-use nail_common::search::ArticleSearchParams;
+use nail_common::request::ArticleSearchParams;
 
 use super::context::{TestCtx, valid_pdf};
 use crate::logic::error::LogicError;
