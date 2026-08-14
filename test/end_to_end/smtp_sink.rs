@@ -106,13 +106,16 @@ fn extract_address(line: &str) -> String {
 }
 
 pub fn extract_token(mail_body: &str) -> String {
-    mail_body
+    let tokens: Vec<String> = mail_body
         .split_whitespace()
         .filter(|word| {
             word.len() == 36 && uuid::Uuid::parse_str(word).is_ok() && word.as_bytes()[14] == b'7'
         })
         .map(str::to_string)
-        .last()
+        .collect();
+    tokens
+        .into_iter()
+        .next_back()
         .expect("mail must contain a UUID v7 token")
 }
 

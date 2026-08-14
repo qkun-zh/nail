@@ -8,3 +8,6 @@ mod context;
 
 #[path = "../../../test/end_to_end/flows.rs"]
 mod flows;
+
+#[path = "../../../test/end_to_end/pages.rs"]
+mod pages;

@@ -29,7 +29,7 @@ fn repo_root() -> PathBuf {
 }
 
 fn write_config(
-    conf_dir: &PathBuf,
+    conf_dir: &std::path::Path,
     backend_port: u16,
     smtp_port: u16,
 ) -> (PathBuf, PathBuf, PathBuf) {
@@ -418,7 +418,7 @@ impl Drop for BrowserContext {
     fn drop(&mut self) {
         let _ = self.trunk.kill();
         let _ = self.trunk.wait();
-        let _ = self.browser.kill();
+        std::mem::drop(self.browser.kill());
     }
 }
 
