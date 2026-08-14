@@ -87,6 +87,32 @@ dsh --help
 - Interactive mode (`dsh chat`, `dsh doctor`) comes from a separate Python
   supplement package (`deepseek-harness-cli`) per the vendor docs; it is NOT
   installed or verified here.
+- **`headless` prints nothing until it exits** (its contract is "answer one
+  task, print the final assistant message, and exit"). A long task therefore
+  looks frozen even when it is actively working. Use the monitor below to watch
+  live progress.
+
+## Monitoring a running headless agent
+
+`headless` writes its real activity to a session file as it goes; the terminal
+stays silent until the final answer.
+
+- **Location**: `~/.dsh/sessions/--home-qkun-nail_new--/<session-uuid>/session.jsonl.zstd`
+  (one directory per run, keyed by the workspace root). The file is
+  zstd-compressed JSONL; each line is an event: `step/start`, `tool/call`
+  (`name` + `arguments`), `tool/result`, `assistant`, `step/end`, each carrying
+  a monotonically increasing `seq`.
+- **Decoding needs `zstandard`**: the `zstd` CLI is not installed on this
+  machine and `sudo` requires a password, so install the Python binding once:
+  `pip3 install --user --break-system-packages zstandard`.
+- **Live viewer**: `document/tools/watch-session.py` follows the newest session
+  file and prints each step and tool call (zero API cost — it only reads the
+  local file). Run it in a second terminal while `dsh` is running:
+
+  ```bash
+  python3 document/tools/watch-session.py
+  # or target one session: python3 document/tools/watch-session.py ~/.dsh/sessions/<key>/<id>/session.jsonl.zstd
+  ```
 
 ## Verification
 
