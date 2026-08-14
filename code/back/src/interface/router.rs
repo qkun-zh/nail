@@ -3,7 +3,7 @@ use axum::extract::DefaultBodyLimit;
 use axum::routing::{get, post};
 
 use crate::infrastructure::state::AppState;
-use crate::interface::{article, challenge, comment, email, session, user, version};
+use crate::interface::{article, challenge, comment, content, email, session, user, version};
 
 pub fn build_router(state: AppState) -> Router {
     let body_limit = state
@@ -36,6 +36,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/article/{id}/delete", post(article::delete_article))
         .route("/article/{id}/version/create", post(version::create_version))
         .route("/article/{id}/version/read", get(version::read_versions))
+        .route("/article/{id}/version/{version_id}/content/read", get(content::read_content))
         .route("/version/{id}/read", get(version::read_version))
         .route("/version/{id}/update", post(version::update_version))
         .route("/version/{id}/delete", post(version::delete_version))

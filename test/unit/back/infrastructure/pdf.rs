@@ -1,5 +1,6 @@
 use crate::infrastructure::pdf::{
-    PdfGuardError, PdfStreamGuard, content_hash_rel_path, valid_content_hash,
+    PdfGuardError, PdfStreamGuard, content_hash_rel_path, sanitize_attachment_filename,
+    valid_content_hash,
 };
 
 fn feed(guard: &mut PdfStreamGuard, chunks: &[&[u8]]) -> Result<(), PdfGuardError> {
@@ -89,6 +90,32 @@ fn content_hash_rel_path_rejects_an_invalid_hash() {
     assert_eq!(content_hash_rel_path("zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"), None);
     assert!(valid_content_hash("abcdef1234567890abcdef1234567890"));
     assert!(!valid_content_hash("ABCDEF1234567890abcdef1234567890"));
+}
+
+#[test]
+fn sanitize_attachment_filename_keeps_hash_derived_names() {
+    assert_eq!(
+        sanitize_attachment_filename("abcdef1234567890abcdef1234567890.pdf"),
+        "abcdef1234567890abcdef1234567890.pdf"
+    );
+}
+
+#[test]
+fn sanitize_attachment_filename_strips_unsafe_characters() {
+    assert_eq!(
+        sanitize_attachment_filename("my file (1).pdf"),
+        "myfile1.pdf"
+    );
+    assert_eq!(
+        sanitize_attachment_filename("../../etc/passwd.pdf"),
+        "....etcpasswd.pdf"
+    );
+}
+
+#[test]
+fn sanitize_attachment_filename_falls_back_when_empty() {
+    assert_eq!(sanitize_attachment_filename(""), "article.pdf");
+    assert_eq!(sanitize_attachment_filename("()/\\"), "article.pdf");
 }
 
 #[tokio::test]

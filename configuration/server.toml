@@ -6,6 +6,7 @@ pow_difficulty_iterations = 8192
 token_ttl_seconds = 8000
 session_ttl_seconds = 8000
 challenge_ttl_seconds = 300
+download_token_ttl_seconds = 60
 token_cache_capacity = 100000
 email_cooldown_seconds = 60
 timezone_offset_seconds = 28800

@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use crate::repository::cache::{
-    CacheEntry, ChallengeEntry, CreateUserTokenEntry, DeleteUserTokenEntry, EmailUpdateTokenEntry,
-    SessionTokenEntry, TokenCache, token_key,
+    token_key, CacheEntry, ChallengeEntry, CreateUserTokenEntry, DeleteUserTokenEntry,
+    DownloadTokenEntry, EmailUpdateTokenEntry, SessionTokenEntry, TokenCache,
 };
 
 fn cache<E: crate::repository::cache::CacheEntry>() -> TokenCache<E> {
@@ -138,4 +138,52 @@ fn token_key_is_the_ascon_hash_of_the_token() {
     assert_eq!(key.len(), 64);
     assert_ne!(key, "token");
     assert_eq!(key, token_key("token").expect("token key"));
+}
+
+#[test]
+fn download_token_is_single_use() {
+    let cache: TokenCache<DownloadTokenEntry> = cache();
+    let key = token_key("download-token").expect("token key");
+    cache.insert(
+        &key,
+        DownloadTokenEntry {
+            version_id: "version-1".to_string(),
+            user_id: "user-1".to_string(),
+        },
+    );
+
+    let consumed = cache.consume(&key).expect("first consume");
+    assert_eq!(consumed.version_id, "version-1");
+    assert_eq!(consumed.user_id, "user-1");
+    assert!(cache.consume(&key).is_none());
+}
+
+#[test]
+fn download_token_consume_if_removes_only_the_matching_user() {
+    let cache: TokenCache<DownloadTokenEntry> = cache();
+    let key = token_key("download-token").expect("token key");
+    cache.insert(
+        &key,
+        DownloadTokenEntry {
+            version_id: "version-1".to_string(),
+            user_id: "user-1".to_string(),
+        },
+    );
+
+    let mismatched = cache.consume_if(&key, |entry| entry.user_id == "someone-else");
+    assert!(mismatched.is_none());
+    assert_eq!(cache.read(&key).expect("still present").user_id, "user-1");
+
+    let matched = cache.consume_if(&key, |entry| entry.user_id == "user-1");
+    assert_eq!(matched.expect("consumed").version_id, "version-1");
+    assert!(cache.read(&key).is_none());
+}
+
+#[test]
+fn download_token_has_no_reverse_key() {
+    let entry = DownloadTokenEntry {
+        version_id: "version-1".to_string(),
+        user_id: "user-1".to_string(),
+    };
+    assert_eq!(entry.reverse_key(), None);
 }

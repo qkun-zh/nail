@@ -2,6 +2,7 @@ pub mod article;
 pub mod authorize;
 pub mod challenge;
 pub mod comment;
+pub mod download;
 pub mod email;
 pub mod error;
 pub mod pow;

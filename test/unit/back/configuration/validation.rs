@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
-use crate::infrastructure::config::AppConfig;
 use crate::infrastructure::config::server::ServerConfig;
 use crate::infrastructure::config::smtp::SmtpConfig;
+use crate::infrastructure::config::AppConfig;
 
 use super::context::test_config;
 
@@ -39,6 +39,7 @@ fn server_config_rejects_zero_ttls_and_capacity() {
     assert_invalid_server(|server| server.token_ttl_seconds = 0);
     assert_invalid_server(|server| server.session_ttl_seconds = 0);
     assert_invalid_server(|server| server.challenge_ttl_seconds = 0);
+    assert_invalid_server(|server| server.download_token_ttl_seconds = 0);
     assert_invalid_server(|server| server.token_cache_capacity = 0);
     assert_invalid_server(|server| server.email_cooldown_seconds = 0);
     assert_invalid_server(|server| server.log_prune_interval_secs = 0);
@@ -140,6 +141,7 @@ pow_difficulty_iterations = 8192
 token_ttl_seconds = 8000
 session_ttl_seconds = 8000
 challenge_ttl_seconds = 300
+download_token_ttl_seconds = 60
 token_cache_capacity = 100000
 email_cooldown_seconds = 60
 timezone_offset_seconds = 28800

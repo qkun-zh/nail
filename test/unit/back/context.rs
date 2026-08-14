@@ -124,6 +124,25 @@ impl TestCtx {
         self.json("POST", uri, Some(body), token).await
     }
 
+    pub async fn get_bytes(
+        &self,
+        uri: &str,
+        token: Option<&str>,
+    ) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
+        let mut builder = Request::builder().method("GET").uri(uri);
+        if let Some(token) = token {
+            builder = builder.header("session-token", token);
+        }
+        let request = builder.body(Body::empty()).expect("build request");
+        let response = self.app.clone().oneshot(request).await.expect("oneshot");
+        let status = response.status();
+        let headers = response.headers().clone();
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("read body");
+        (status, headers, bytes.to_vec())
+    }
+
     pub async fn json(
         &self,
         method: &str,
@@ -222,6 +241,7 @@ pub async fn build_state(
         Duration::from_secs(config.server.token_ttl_seconds),
         Duration::from_secs(config.server.session_ttl_seconds),
         Duration::from_secs(config.server.challenge_ttl_seconds),
+        Duration::from_secs(config.server.download_token_ttl_seconds),
         config.server.token_cache_capacity,
     );
     let recorder = RecordingSender::default();
@@ -247,6 +267,7 @@ pub fn test_config() -> AppConfig {
             token_ttl_seconds: 8000,
             session_ttl_seconds: 8000,
             challenge_ttl_seconds: 300,
+            download_token_ttl_seconds: 60,
             token_cache_capacity: 100,
             email_cooldown_seconds: 60,
             timezone_offset_seconds: 0,

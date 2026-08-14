@@ -99,6 +99,18 @@ pub fn valid_content_hash(hash: &str) -> bool {
             .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
 }
 
+pub fn sanitize_attachment_filename(filename: &str) -> String {
+    let safe: String = filename
+        .chars()
+        .filter(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.'))
+        .collect();
+    if safe.is_empty() {
+        "article.pdf".to_string()
+    } else {
+        safe
+    }
+}
+
 pub fn content_hash_rel_path(hash: &str) -> Option<String> {
     if !valid_content_hash(hash) {
         return None;

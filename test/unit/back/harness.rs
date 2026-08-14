@@ -61,6 +61,9 @@ pub mod logic_article;
 #[path = "logic/version.rs"]
 pub mod logic_version;
 
+#[path = "logic/download.rs"]
+pub mod logic_download;
+
 #[path = "logic/search.rs"]
 pub mod logic_search;
 
@@ -75,6 +78,9 @@ pub mod http_article;
 
 #[path = "http/version.rs"]
 pub mod http_version;
+
+#[path = "http/content.rs"]
+pub mod http_content;
 
 #[path = "repository/comment.rs"]
 pub mod repository_comment;

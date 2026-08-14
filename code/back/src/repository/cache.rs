@@ -179,6 +179,14 @@ impl CacheEntry for DeleteUserTokenEntry {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DownloadTokenEntry {
+    pub version_id: String,
+    pub user_id: String,
+}
+
+impl CacheEntry for DownloadTokenEntry {}
+
 #[derive(Clone)]
 pub struct TokenCaches {
     pub create_user: TokenCache<CreateUserTokenEntry>,
@@ -186,6 +194,7 @@ pub struct TokenCaches {
     pub email_update: TokenCache<EmailUpdateTokenEntry>,
     pub delete_user: TokenCache<DeleteUserTokenEntry>,
     pub challenge: TokenCache<ChallengeEntry>,
+    pub download: TokenCache<DownloadTokenEntry>,
 }
 
 impl TokenCaches {
@@ -193,6 +202,7 @@ impl TokenCaches {
         token_ttl: Duration,
         session_ttl: Duration,
         challenge_ttl: Duration,
+        download_token_ttl: Duration,
         capacity: u64,
     ) -> Self {
         Self {
@@ -201,6 +211,7 @@ impl TokenCaches {
             email_update: TokenCache::new(token_ttl, capacity),
             delete_user: TokenCache::new(token_ttl, capacity),
             challenge: TokenCache::new(challenge_ttl, capacity),
+            download: TokenCache::new(download_token_ttl, capacity),
         }
     }
 }

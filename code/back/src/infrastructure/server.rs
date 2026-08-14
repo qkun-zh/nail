@@ -18,6 +18,7 @@ pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
         Duration::from_secs(config.server.token_ttl_seconds),
         Duration::from_secs(config.server.session_ttl_seconds),
         Duration::from_secs(config.server.challenge_ttl_seconds),
+        Duration::from_secs(config.server.download_token_ttl_seconds),
         config.server.token_cache_capacity,
     );
 
