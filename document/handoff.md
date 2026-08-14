@@ -37,6 +37,15 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
   rejection-envelope, +4 AC10), common **108**, front **61**; all crates zero
   warnings (host + wasm32). E2E: 2 tests green under `--features end_to_end`.
 
+- **Code hygiene + proxy (2026-08-14): hygiene DONE (b7c1ebe); pingap
+  downloaded + config written (ee6bf76), full-stack integration pending.**
+  All comments stripped (incl. rustdoc) via comment-stripper-rs; cargo fmt +
+  clippy zero warnings on all crates. pingap 0.13.9 (linux-gnu-x86-full) at
+  `code/proxy/` (gitignored); `configuration/proxy/` (servers/locations/
+  plugins/upstreams.toml) written per the official docs and validated with
+  `pingap -t`. TODO: commit the proxy config, run pingap + back + front
+  integration, confirm `client_max_body_size` field for 32 MiB PDF uploads.
+
 ## Pending — current agent
 
 1. **Phase 4 — frontend migration: DONE.** Layering per README §4.2; Leptos
@@ -159,6 +168,9 @@ logic is host-testable.
 - [x] Identity/admin HTTP tests (74d7e78).
 - [x] Dead-code cleanup + drop #![allow(dead_code)] (43858ac).
 - [x] e2e (#32): app-only core + chromiumoxide 0.9.1 (74fb893).
+- [ ] Proxy integration: commit `configuration/proxy/`; run pingap + back +
+      front end-to-end on localhost:8080 (reverse proxy, static hosting, SPA
+      fallback, PDF upload); confirm `client_max_body_size`; update handoff.
 
 **E2E tooling facts (owner, 2026-08-14)**: the legacy e2e stack is back
 process + pingap + chromium with an in-process SMTP sink
