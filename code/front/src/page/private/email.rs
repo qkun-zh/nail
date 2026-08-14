@@ -70,7 +70,9 @@ pub fn EmailIndex() -> impl IntoView {
         <form on:submit=submit>
             <input type="text" prop:value=old_email on:input=move |event| old_email.set(event_target_value(&event)) placeholder="email(old)"/>
             <input type="text" prop:value=new_email on:input=move |event| new_email.set(event_target_value(&event)) placeholder="email(new)"/>
-            <button type="submit" disabled=move || working.get()>send</button>
+            <button type="submit" disabled=move || working.get()>
+                {move || if working.get() { "sending..." } else { "send" }}
+            </button>
         </form>
     }
 }

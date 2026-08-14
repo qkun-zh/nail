@@ -21,6 +21,7 @@ pub fn CreateVersion() -> impl IntoView {
     let version = RwSignal::new(query.get_untracked().get("version").unwrap_or_default());
     let note = RwSignal::new(query.get_untracked().get("note").unwrap_or_default());
     let file_ref = NodeRef::<Input>::new();
+    let working = RwSignal::new(false);
 
     let article_id = move || params.get().get("article_id");
     let (denied, checked) = use_author_gate(article_id);
@@ -35,6 +36,9 @@ pub fn CreateVersion() -> impl IntoView {
 
     let submit = move |event: SubmitEvent| {
         event.prevent_default();
+        if working.get() {
+            return;
+        }
         let Some(article_id) = params.get().get("article_id") else {
             return;
         };
@@ -75,10 +79,13 @@ pub fn CreateVersion() -> impl IntoView {
                 return;
             }
         };
+        working.set(true);
         let notifications = notifications.clone();
         let navigate = navigate.clone();
         leptos::task::spawn_local(async move {
-            match crate::request::version::create_version(&article_id, form).await {
+            let result = crate::request::version::create_version(&article_id, form).await;
+            working.set(false);
+            match result {
                 Ok(_) => {
                     notify_success(&notifications, "version created");
                     navigate(
@@ -104,10 +111,12 @@ pub fn CreateVersion() -> impl IntoView {
         }
         view! {
             <form on:submit=submit>
-                <div><input type="text" placeholder="version" prop:value=version on:input=move |event| version.set(event_target_value(&event)) /></div>
-                <div><textarea placeholder="note: what changed in this version" rows="4" prop:value=note on:input=move |event| note.set(event_target_value(&event))></textarea></div>
-                <div><input type="file" accept="application/pdf" node_ref=file_ref /></div>
-                <button type="submit">create version</button>
+                <div><label><input type="text" placeholder="version" prop:value=version on:input=move |event| version.set(event_target_value(&event)) /></label></div>
+                <div><label><textarea rows="4" cols="60" placeholder="note: what changed in this version" prop:value=note on:input=move |event| note.set(event_target_value(&event))></textarea></label></div>
+                <div><label><input type="file" accept="application/pdf" node_ref=file_ref /></label></div>
+                <button type="submit" disabled=move || working.get()>
+                    {move || if working.get() { "uploading..." } else { "create version" }}
+                </button>
             </form>
         }
         .into_any()

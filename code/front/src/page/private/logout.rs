@@ -44,6 +44,8 @@ pub fn Logout() -> impl IntoView {
     };
 
     view! {
-        <button on:click=move |_| logout() disabled=move || working.get()>logout</button>
+        <button on:click=move |_| logout() disabled=move || working.get()>
+            {move || if working.get() { "logout..." } else { "logout" }}
+        </button>
     }
 }

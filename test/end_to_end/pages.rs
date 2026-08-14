@@ -249,7 +249,7 @@ async fn anonymous_pages_and_gates() {
     wait_for_text(&context, "who are you", 20).await;
 
     goto(&context, "/no/such/page").await;
-    wait_for_text(&context, "page not found", 20).await;
+    wait_for_text(&context, "not found", 20).await;
 }
 
 #[tokio::test]
@@ -284,12 +284,9 @@ async fn authenticate_form_and_session() {
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
 
-    goto(&context, "/private/authenticate").await;
-    wait_for_text(&context, "you are already signed in", 20).await;
-
-    click_link_with_text(&context, "private area").await;
-    wait_for_href(&context, "/private", 20).await;
-    wait_for_text(&context, "email hash", 20).await;
+    goto(&context, "/private").await;
+    wait_for_text(&context, "name", 20).await;
+    wait_for_text(&context, "logout", 20).await;
 }
 
 #[tokio::test]
@@ -300,11 +297,11 @@ async fn private_name_and_email_flows() {
 
     click_link_with_text(&context, "name").await;
     wait_for_href(&context, "/private/name", 20).await;
-    wait_for_text(&context, "update name", 20).await;
+    wait_for_text(&context, "hi,", 20).await;
 
-    click_link_with_text(&context, "update name").await;
+    click_link_with_text(&context, "update").await;
     wait_for_href(&context, "/private/name/update", 20).await;
-    wait_for_text(&context, "update", 20).await;
+    wait_for_text(&context, "update name", 20).await;
 
     click_submit(&context, 1).await;
     wait_for_text(&context, "name cannot be empty", 20).await;
@@ -319,33 +316,33 @@ async fn private_name_and_email_flows() {
     click_submit(&context, 1).await;
     wait_for_text(&context, "enter both the old and the new email", 20).await;
 
-    fill_input(&context, "input[placeholder=\"old_email\"]", "same@example.com").await;
-    fill_input(&context, "input[placeholder=\"new_email\"]", "same@example.com").await;
+    fill_input(&context, "input[placeholder=\"email(old)\"]", "same@example.com").await;
+    fill_input(&context, "input[placeholder=\"email(new)\"]", "same@example.com").await;
     click_submit(&context, 1).await;
     wait_for_text(&context, "the new email must differ from the old one", 20).await;
 
     tokio::time::sleep(Duration::from_secs(2)).await;
-    fill_input(&context, "input[placeholder=\"old_email\"]", "alice@example.com").await;
-    fill_input(&context, "input[placeholder=\"new_email\"]", "alice-new@example.com").await;
+    fill_input(&context, "input[placeholder=\"email(old)\"]", "alice@example.com").await;
+    fill_input(&context, "input[placeholder=\"email(new)\"]", "alice-new@example.com").await;
     click_submit(&context, 1).await;
     let old_mail = context.backend.wait_for_mail("alice@example.com", 20).await;
     let new_mail = context.backend.wait_for_mail("alice-new@example.com", 20).await;
     let old_token = smtp_sink::extract_token(&old_mail);
     let new_token = smtp_sink::extract_token(&new_mail);
 
-    wait_for_text(&context, "confirm email change", 20).await;
+    wait_for_text(&context, "update", 20).await;
 
     click_submit(&context, 1).await;
     wait_for_text(&context, "paste both emailed tokens", 20).await;
 
-    fill_input(&context, "input[placeholder=\"old_token\"]", &old_token).await;
-    fill_input(&context, "input[placeholder=\"new_token\"]", &old_token).await;
+    fill_input(&context, "input[placeholder=\"token(old)\"]", &old_token).await;
+    fill_input(&context, "input[placeholder=\"token(new)\"]", &old_token).await;
     click_submit(&context, 1).await;
     wait_for_text(&context, "the two tokens must differ", 20).await;
 
-    fill_input(&context, "input[placeholder=\"new_token\"]", &new_token).await;
+    fill_input(&context, "input[placeholder=\"token(new)\"]", &new_token).await;
     click_submit(&context, 1).await;
-    wait_for_text(&context, "email hash", 20).await;
+    wait_for_text(&context, "logout", 20).await;
 
     logout_via_button(&context).await;
 
@@ -361,40 +358,40 @@ async fn article_version_comment_flows() {
     assert!(!session.is_empty());
 
     goto(&context, "/public/article/create").await;
-    wait_for_text(&context, "publish", 20).await;
+    wait_for_text(&context, "create article", 20).await;
 
     click_submit(&context, 1).await;
     wait_for_text(&context, "text cannot be empty", 20).await;
 
     let pdf_a = unique_pdf("seed-a").await;
-    fill_input(&context, "form input[type=text]:nth-of-type(1)", "probe title").await;
-    fill_input(&context, "form textarea:nth-of-type(1)", "probe summary").await;
-    fill_input(&context, "form input[type=text]:nth-of-type(2)", "#probe").await;
-    fill_input(&context, "form input[type=text]:nth-of-type(3)", "1.0.0").await;
-    fill_input(&context, "form textarea:nth-of-type(2)", "initial note").await;
+    fill_input(&context, "input[placeholder=\"title\"]", "probe title").await;
+    fill_input(&context, "textarea[placeholder=\"summary\"]", "probe summary").await;
+    fill_input(&context, "textarea[placeholder=\"tag (#a #b)\"]", "#probe").await;
+    fill_input(&context, "input[placeholder=\"version\"]", "1.0.0").await;
+    fill_input(&context, "textarea[placeholder=\"note: what changed in this version\"]", "initial note").await;
     click_submit(&context, 1).await;
     wait_for_text(&context, "select a PDF file", 20).await;
 
     upload_pdf(&context, &pdf_a).await;
     click_submit(&context, 1).await;
     wait_for_text(&context, "probe title", 20).await;
-    wait_for_text(&context, "versions", 20).await;
+    wait_for_text(&context, "version", 20).await;
     let article_href = pathname(&context).await;
     assert!(article_href.starts_with("/public/article/"), "{article_href}");
 
-    click_link_with_text(&context, "versions").await;
+    click_link_with_text(&context, "version").await;
     wait_for_href(&context, "/version", 20).await;
-    wait_for_text(&context, "add version", 20).await;
+    wait_for_text(&context, "create", 20).await;
 
-    click_link_with_text(&context, "add version").await;
-    wait_for_text(&context, "publish", 20).await;
+    click_link_with_text(&context, "create").await;
+    wait_for_text(&context, "create version", 20).await;
 
     click_submit(&context, 1).await;
     wait_for_text(&context, "version is required", 20).await;
 
     let pdf_b = unique_pdf("seed-b").await;
-    fill_input(&context, "form input[type=text]:nth-of-type(1)", "2.0.0").await;
-    fill_input(&context, "form textarea:nth-of-type(1)", "second note").await;
+    fill_input(&context, "input[placeholder=\"version\"]", "2.0.0").await;
+    fill_input(&context, "textarea[placeholder=\"note: what changed in this version\"]", "second note").await;
     upload_pdf(&context, &pdf_b).await;
     click_submit(&context, 1).await;
     wait_for_text(&context, "2.0.0", 20).await;
@@ -404,10 +401,10 @@ async fn article_version_comment_flows() {
     wait_for_text(&context, "second note", 20).await;
     let version_2_detail = pathname(&context).await;
 
-    click_button_with_text(&context, "download").await;
-    wait_for_text(&context, "download started", 20).await;
+    click_link_with_text(&context, "download").await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
 
-    click_link_with_text(&context, "comments").await;
+    click_link_with_text(&context, "comment").await;
     wait_for_text(&context, "comment", 20).await;
 
     click_submit(&context, 1).await;
@@ -421,7 +418,8 @@ async fn article_version_comment_flows() {
     wait_for_text(&context, "first comment", 20).await;
 
     click_link_with_text(&context, "reply").await;
-    wait_for_text(&context, "reply to comment", 20).await;
+    wait_for_href(&context, "/comment/", 20).await;
+    wait_for_text(&context, "reply", 20).await;
     fill_input(&context, "form textarea:nth-of-type(1)", "a reply").await;
     click_submit(&context, 1).await;
     wait_for_text(&context, "reply created", 20).await;
@@ -430,7 +428,7 @@ async fn article_version_comment_flows() {
     let reply_delete_href = reply_delete_href(&context).await;
     assert!(!reply_delete_href.is_empty());
     goto(&context, &reply_delete_href).await;
-    wait_for_text(&context, "delete comment", 20).await;
+    wait_for_text(&context, "delete", 20).await;
     click_button_with_text(&context, "delete").await;
     wait_for_text(&context, "comment deleted", 20).await;
     wait_for_text(&context, "first comment", 20).await;
@@ -444,7 +442,7 @@ async fn reply_delete_href(context: &BrowserContext) -> String {
     let raw: String = context
         .page
         .evaluate(
-            "(() => { const del = Array.from(document.querySelectorAll('a[href$=\"/delete\"]')).find(a => a.parentElement && a.parentElement.innerText.includes('a reply')); return del ? del.getAttribute('href') : ''; })()",
+            "(() => { const del = Array.from(document.querySelectorAll('a[href$=\"/delete\"]')).find(a => a.parentElement && a.parentElement.parentElement && a.parentElement.parentElement.innerText.includes('a reply')); return del ? del.getAttribute('href') : ''; })()",
         )
         .await
         .expect("evaluate reply delete link")
@@ -475,15 +473,15 @@ async fn search_pagination_and_author_gate() {
     .await;
     std::fs::remove_file(&bulk_pdf).ok();
 
-    goto(&context, "/public/article").await;
+    goto(&context, "/public/article/search").await;
     wait_for_text(&context, "probe unique searchable title", 20).await;
     wait_for_text(&context, "next", 20).await;
 
-    click_link_with_text(&context, "next").await;
+    click_button_with_text(&context, "next").await;
     wait_for_href(&context, "page=2", 20).await;
-    wait_for_text(&context, "previous", 20).await;
+    wait_for_text(&context, "prev", 20).await;
 
-    click_link_with_text(&context, "previous").await;
+    click_button_with_text(&context, "prev").await;
     wait_for_href(&context, "page=1", 20).await;
 
     fill_input(&context, "form input[type=text]:nth-of-type(1)", "searchable").await;
@@ -500,7 +498,7 @@ async fn search_pagination_and_author_gate() {
     goto(&context, &format!("/public/article/{article_id}/delete")).await;
     wait_for_text(&context, "delete", 20).await;
     click_button_with_text(&context, "delete").await;
-    wait_for_text(&context, "publish article", 20).await;
+    wait_for_text(&context, "create", 20).await;
     wait_absent(&context, "probe unique searchable title", 20).await;
 }
 
@@ -547,7 +545,7 @@ async fn deregister_flow() {
     assert!(!session.is_empty());
 
     goto(&context, "/private/deregister").await;
-    wait_for_text(&context, "deregister your account", 20).await;
+    wait_for_text(&context, "deregister", 20).await;
 
     click_submit(&context, 1).await;
     wait_for_text(&context, "enter your account email", 20).await;

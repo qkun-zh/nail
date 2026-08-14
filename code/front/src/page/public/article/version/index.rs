@@ -1,11 +1,12 @@
 use leptos::prelude::*;
+use leptos_router::NavigateOptions;
 use leptos_router::components::A;
-use leptos_router::hooks::{use_params_map, use_query_map};
+use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
 use nail_common::response::version::VersionListPage;
 
 use crate::infrastructure::limits::use_limits;
 use crate::page::notify::{notify_error, use_notifications};
-use crate::page::pagination::{clamp_page_size, pagination_state};
+use crate::page::pagination::{Pagination, clamp_page_size};
 
 #[derive(Clone)]
 enum VersionPage {
@@ -20,6 +21,7 @@ pub fn VersionList() -> impl IntoView {
     let notifications = use_notifications();
     let limits = use_limits();
     let query = use_query_map();
+    let navigate = use_navigate();
     let state = RwSignal::new(VersionPage::Loading);
 
     Effect::new(move |_| {
@@ -55,7 +57,9 @@ pub fn VersionList() -> impl IntoView {
                 .and_then(|value| value.parse::<u64>().ok())
                 .unwrap_or(1)
                 .max(1);
-            let pagination = pagination_state(current_page, view.has_next);
+            let limit = clamp_page_size(limits.get().search_page_size, 8);
+            let total_pages = view.total.div_ceil(limit);
+            let has_next = view.has_next;
             let rows = view
                 .version_list
                 .into_iter()
@@ -67,20 +71,29 @@ pub fn VersionList() -> impl IntoView {
                     }
                 })
                 .collect_view();
-            let previous = pagination.previous_page.map(|previous| {
-                let href = format!("/public/article/{article_id}/version?page={previous}");
-                view! { <div><A href=href.clone()>previous</A></div> }.into_any()
+            let navigate = navigate.clone();
+            let on_go = Callback::new(move |target: u64| {
+                navigate(
+                    &format!("/public/article/{article_id}/version?page={target}"),
+                    NavigateOptions {
+                        resolve: false,
+                        ..Default::default()
+                    },
+                );
             });
-            let next = pagination.next_page.map(|next| {
-                let href = format!("/public/article/{article_id}/version?page={next}");
-                view! { <div><A href=href.clone()>next</A></div> }.into_any()
-            });
+            let pagination = view! {
+                <Pagination
+                    current=move || current_page
+                    total_pages=move || total_pages
+                    has_more=move || has_next
+                    on_go=on_go
+                />
+            };
             view! {
                 <div>
                     <div><A href=create_href>create</A></div>
                     {rows}
-                    {previous}
-                    {next}
+                    {pagination}
                 </div>
             }
             .into_any()

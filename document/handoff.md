@@ -18,6 +18,16 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
   `cargo check --target wasm32-unknown-unknown` and host `cargo check` both
   **zero warnings**; back 245 + common 108 still green (no regression). Working
   tree clean at `99b83c7`. No git remote. Details below.
+- **Frontend UI transplanted to the legacy presentation/behavior (owner
+  directive 2026-08-14)**: pages now copy the legacy markup and interactions
+  (per-line links, label-wrapped forms with placeholders and in-flight button
+  labels, legacy `Pagination` prev/input/next component, rich `/public/
+  article/search` page with ranges/sort/from-to/highlight, legacy field rows
+  on detail/version pages, comment seq + char counter) wired onto the KEPT new
+  `request`/`infrastructure` layers; adjudicated fixes stay (English UI,
+  intent, delete mode, has_next, page size from config, timezone, no email/
+  check, no comment pre-check, no worker). Full e2e suite (8 browser tests)
+  green; front 61 unit tests green; zero warnings (host + wasm32 + clippy).
 - Backend layering per ADR-0001; `intent` per ADR-0002; glossary
   `document/context.md`; Cedar engine landed (slice 6); `/config/read` returns
   the typed `common::response::RuntimeLimits` (slice 7).

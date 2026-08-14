@@ -14,6 +14,7 @@ pub fn DeleteArticle() -> impl IntoView {
 
     let title = RwSignal::new(String::new());
     let loaded = RwSignal::new(false);
+    let working = RwSignal::new(false);
 
     let article_id = move || params.get().get("article_id");
     let (denied, checked) = use_author_gate(article_id);
@@ -37,13 +38,19 @@ pub fn DeleteArticle() -> impl IntoView {
 
     let delete_notifications = notifications.clone();
     let delete = move |mode: DeleteMode| {
+        if working.get() {
+            return;
+        }
         let Some(id) = params.get().get("article_id") else {
             return;
         };
+        working.set(true);
         let notifications = delete_notifications.clone();
         let navigate = navigate.clone();
         leptos::task::spawn_local(async move {
-            match crate::request::article::delete_article(&id, mode).await {
+            let result = crate::request::article::delete_article(&id, mode).await;
+            working.set(false);
+            match result {
                 Ok(_) => {
                     notify_success(&notifications, "article deleted");
                     navigate(
@@ -78,8 +85,8 @@ pub fn DeleteArticle() -> impl IntoView {
         view! {
             <div>
                 <p>{title}</p>
-                <div><button on:click=move |_| on_transfer.run(())>transfer</button></div>
-                <div><button on:click=move |_| on_hard.run(())>delete</button></div>
+                <div><button on:click=move |_| on_transfer.run(()) disabled=move || working.get()>{move || if working.get() { "deleting..." } else { "transfer" }}</button></div>
+                <div><button on:click=move |_| on_hard.run(()) disabled=move || working.get()>{move || if working.get() { "deleting..." } else { "delete" }}</button></div>
             </div>
         }
         .into_any()

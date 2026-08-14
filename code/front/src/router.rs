@@ -18,6 +18,7 @@ use crate::page::public::article::create::CreateArticle;
 use crate::page::public::article::delete::DeleteArticle;
 use crate::page::public::article::detail::ArticleDetail;
 use crate::page::public::article::index::ArticleIndex;
+use crate::page::public::article::search::Search;
 use crate::page::public::article::update::UpdateArticle;
 use crate::page::public::article::version::comment::delete::CommentDelete;
 use crate::page::public::article::version::comment::index::CommentIndex;
@@ -39,6 +40,7 @@ pub fn AppRouter() -> impl IntoView {
                     <ParentRoute path=path!("/public") view=PublicLayout>
                         <Route path=path!("") view=PublicIndex/>
                         <Route path=path!("/article") view=ArticleIndex/>
+                        <Route path=path!("/article/search") view=Search/>
                         <Route path=path!("/article/create") view=CreateArticle/>
                         <Route path=path!("/article/:article_id") view=ArticleDetail/>
                         <Route path=path!("/article/:article_id/update") view=UpdateArticle/>

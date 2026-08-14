@@ -68,7 +68,9 @@ pub fn NameUpdate() -> impl IntoView {
             <div>
                 <form on:submit=submit>
                     <input type="text" prop:value=name on:input=move |event| name.set(event_target_value(&event)) placeholder="name"/>
-                    <button type="submit" disabled=move || working.get()>update</button>
+                    <button type="submit" disabled=move || working.get()>
+                        {move || if working.get() { "updating..." } else { "update name" }}
+                    </button>
                 </form>
             </div>
     }

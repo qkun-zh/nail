@@ -5,6 +5,7 @@ use nail_common::response::article::ArticleView;
 
 use crate::infrastructure::limits::use_limits;
 use crate::page::notify::{notify_error, use_notifications};
+use crate::page::session_gate::{SessionStatus, use_session_status};
 use crate::page::time_format::format_timestamp;
 
 #[component]
@@ -12,6 +13,7 @@ pub fn ArticleDetail() -> impl IntoView {
     let params = use_params_map();
     let notifications = use_notifications();
     let limits = use_limits();
+    let session_status = use_session_status();
     let article = RwSignal::new(None::<ArticleView>);
     let error = RwSignal::new(None::<String>);
 
@@ -47,15 +49,37 @@ pub fn ArticleDetail() -> impl IntoView {
         let update_href = format!("/public/article/{article_id}/update");
         let delete_href = format!("/public/article/{article_id}/delete");
         let versions_href = format!("/public/article/{article_id}/version");
+        let has_session = matches!(session_status.get(), SessionStatus::Authenticated(_));
         view! {
             <div>
-                <h2>{article.title}</h2>
-                <p>{article.author_name}{" · "}{created_at}</p>
-                <p>{tags}</p>
-                <p>{article.summary}</p>
+                <hr/>
+                <p>{"title: "}{article.title}</p>
+                <hr/>
+                <p>{"author: "}{article.author_name}</p>
+                <hr/>
+                <p>{"publish time: "}{created_at}</p>
+                <hr/>
+                <p>{"summary: "}{article.summary}</p>
+                <hr/>
+                {if tags.is_empty() {
+                    ().into_any()
+                } else {
+                    view! { <p>{"tags: "}{tags}</p> }.into_any()
+                }}
+                <hr/>
                 <div><A href=versions_href>version</A></div>
-                <div><A href=update_href>update</A></div>
-                <div><A href=delete_href>delete</A></div>
+                <hr/>
+                {if has_session {
+                    view! {
+                        <div><A href=update_href>update</A></div>
+                        <hr/>
+                        <div><A href=delete_href>delete</A></div>
+                        <hr/>
+                    }
+                    .into_any()
+                } else {
+                    ().into_any()
+                }}
             </div>
         }
         .into_any()

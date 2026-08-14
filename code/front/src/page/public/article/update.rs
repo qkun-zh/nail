@@ -21,6 +21,7 @@ pub fn UpdateArticle() -> impl IntoView {
     let summary = RwSignal::new(query.get_untracked().get("summary").unwrap_or_default());
     let tags = RwSignal::new(query.get_untracked().get("tags").unwrap_or_default());
     let loaded = RwSignal::new(false);
+    let working = RwSignal::new(false);
 
     let article_id = move || params.get().get("article_id");
     let (denied, checked) = use_author_gate(article_id);
@@ -74,6 +75,9 @@ pub fn UpdateArticle() -> impl IntoView {
     let submit_notifications = notifications.clone();
     let submit = move |event: SubmitEvent| {
         event.prevent_default();
+        if working.get() {
+            return;
+        }
         let Some(id) = params.get().get("article_id") else {
             return;
         };
@@ -97,17 +101,19 @@ pub fn UpdateArticle() -> impl IntoView {
             return;
         }
         let tags_value = tags.get();
+        working.set(true);
         let notifications = submit_notifications.clone();
         let navigate = navigate.clone();
         leptos::task::spawn_local(async move {
-            match crate::request::article::update_article(
+            let result = crate::request::article::update_article(
                 &id,
                 &title_value,
                 &summary_value,
                 &tags_value,
             )
-            .await
-            {
+            .await;
+            working.set(false);
+            match result {
                 Ok(_) => {
                     notify_success(&notifications, "article updated");
                     navigate(
@@ -133,10 +139,12 @@ pub fn UpdateArticle() -> impl IntoView {
         }
         view! {
             <form on:submit=submit>
-                <div><input type="text" placeholder="title" prop:value=title on:input=move |event| title.set(event_target_value(&event)) /></div>
-                <div><textarea placeholder="summary" rows="6" prop:value=summary on:input=move |event| summary.set(event_target_value(&event))></textarea></div>
-                <div><input type="text" placeholder="tag (#a #b)" prop:value=tags on:input=move |event| tags.set(event_target_value(&event)) /></div>
-                <button type="submit">save</button>
+                <div><label><input type="text" placeholder="title" prop:value=title on:input=move |event| title.set(event_target_value(&event)) /></label></div>
+                <div><label><textarea rows="6" cols="60" placeholder="summary" prop:value=summary on:input=move |event| summary.set(event_target_value(&event))></textarea></label></div>
+                <div><label><textarea rows="6" cols="60" placeholder="tag (#a #b)" prop:value=tags on:input=move |event| tags.set(event_target_value(&event))></textarea></label></div>
+                <button type="submit" disabled=move || working.get()>
+                    {move || if working.get() { "saving..." } else { "save" }}
+                </button>
             </form>
         }
         .into_any()

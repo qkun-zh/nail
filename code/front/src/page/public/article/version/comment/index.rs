@@ -27,6 +27,7 @@ pub fn CommentIndex() -> impl IntoView {
     let limits = use_limits();
     let state = RwSignal::new(CommentPage::Loading);
     let body = RwSignal::new(query.get_untracked().get("body").unwrap_or_default());
+    let posting = RwSignal::new(false);
 
     let version_id = move || params.get().get("version_id").unwrap_or_default();
     let article_id = move || params.get().get("article_id").unwrap_or_default();
@@ -72,6 +73,9 @@ pub fn CommentIndex() -> impl IntoView {
     let submit_notifications = notifications.clone();
     let submit = move |event: SubmitEvent| {
         event.prevent_default();
+        if posting.get() {
+            return;
+        }
         let version_id = version_id();
         let limits = limits.get();
         let content = match validate_comment_content(&body.get(), limits.max_comment_body_chars) {
@@ -81,10 +85,13 @@ pub fn CommentIndex() -> impl IntoView {
                 return;
             }
         };
+        posting.set(true);
         let notifications = submit_notifications.clone();
         let reload = reload.get_value();
         leptos::task::spawn_local(async move {
-            match crate::request::comment::create_comment(&version_id, &content).await {
+            let result = crate::request::comment::create_comment(&version_id, &content).await;
+            posting.set(false);
+            match result {
                 Ok(_) => {
                     notify_success(&notifications, "comment created");
                     reload(version_id);
@@ -112,7 +119,9 @@ pub fn CommentIndex() -> impl IntoView {
                 let rows = view
                     .comments
                     .iter()
-                    .map(|comment| {
+                    .enumerate()
+                    .map(|(index, comment)| {
+                        let seq = index as u64 + 1;
                         let id = comment.id.clone();
                         let reply_href = format!(
                             "/public/article/{article_id}/version/{version_id}/comment/{id}"
@@ -129,7 +138,7 @@ pub fn CommentIndex() -> impl IntoView {
                         };
                         view! {
                             <div>
-                                <p>{indent}{comment.user_name.clone()}{" · "}{created_at}</p>
+                                <p>{seq}{") "}{indent}{comment.user_name.clone()}{" · "}{created_at}</p>
                                 <p>{comment.content.clone()}</p>
                                 <div><A href=reply_href>reply</A></div>
                                 <div><A href=delete_href>delete</A></div>
@@ -152,8 +161,11 @@ pub fn CommentIndex() -> impl IntoView {
                 view! {
                 <div>
                     <form on:submit=submit>
-                        <textarea prop:value=body on:input=move |event| body.set(event_target_value(&event))></textarea>
-                        <button type="submit">comment</button>
+                        <textarea placeholder="comment" prop:value=body on:input=move |event| body.set(event_target_value(&event))></textarea>
+                        <span>{move || format!("{}/{}", body.get().chars().count(), limits.get().max_comment_body_chars)}</span>
+                        <button type="submit" disabled=move || posting.get()>
+                            {move || if posting.get() { "posting..." } else { "comment" }}
+                        </button>
                     </form>
                     {rows}
                     {previous}

@@ -24,6 +24,7 @@ pub fn CreateArticle() -> impl IntoView {
     let version = RwSignal::new(query.get_untracked().get("version").unwrap_or_default());
     let note = RwSignal::new(query.get_untracked().get("note").unwrap_or_default());
     let file_ref = NodeRef::<Input>::new();
+    let working = RwSignal::new(false);
 
     persist_draft(
         navigate.clone(),
@@ -41,6 +42,9 @@ pub fn CreateArticle() -> impl IntoView {
 
     let submit = move |event: SubmitEvent| {
         event.prevent_default();
+        if working.get() {
+            return;
+        }
         let limits = limits.get();
         let title_value = match validate_title(&title.get(), limits.max_title_chars) {
             Ok(value) => value,
@@ -100,10 +104,13 @@ pub fn CreateArticle() -> impl IntoView {
             }
         };
 
+        working.set(true);
         let notifications = notifications.clone();
         let navigate = navigate.clone();
         leptos::task::spawn_local(async move {
-            match crate::request::article::create_article(form).await {
+            let result = crate::request::article::create_article(form).await;
+            working.set(false);
+            match result {
                 Ok(view) => {
                     notify_success(&notifications, "article created");
                     navigate(
@@ -121,13 +128,15 @@ pub fn CreateArticle() -> impl IntoView {
 
     view! {
         <form on:submit=submit>
-            <div><input type="text" placeholder="title" prop:value=title on:input=move |event| title.set(event_target_value(&event)) /></div>
-            <div><textarea placeholder="summary" rows="6" prop:value=summary on:input=move |event| summary.set(event_target_value(&event))></textarea></div>
-            <div><input type="text" placeholder="tag (#a #b)" prop:value=tags on:input=move |event| tags.set(event_target_value(&event)) /></div>
-            <div><input type="text" placeholder="version" prop:value=version on:input=move |event| version.set(event_target_value(&event)) /></div>
-            <div><textarea placeholder="note: what changed in this version" rows="4" prop:value=note on:input=move |event| note.set(event_target_value(&event))></textarea></div>
-            <div><input type="file" accept="application/pdf" node_ref=file_ref /></div>
-            <button type="submit">create article</button>
+            <div><label><input type="text" placeholder="title" prop:value=title on:input=move |event| title.set(event_target_value(&event)) /></label></div>
+            <div><label><textarea rows="6" cols="60" placeholder="summary" prop:value=summary on:input=move |event| summary.set(event_target_value(&event))></textarea></label></div>
+            <div><label><textarea rows="6" cols="60" placeholder="tag (#a #b)" prop:value=tags on:input=move |event| tags.set(event_target_value(&event))></textarea></label></div>
+            <div><label><input type="text" placeholder="version" prop:value=version on:input=move |event| version.set(event_target_value(&event)) /></label></div>
+            <div><label><textarea rows="4" cols="60" placeholder="note: what changed in this version" prop:value=note on:input=move |event| note.set(event_target_value(&event))></textarea></label></div>
+            <div><label><input type="file" accept="application/pdf" node_ref=file_ref /></label></div>
+            <button type="submit" disabled=move || working.get()>
+                {move || if working.get() { "creating..." } else { "create article" }}
+            </button>
         </form>
     }
 }

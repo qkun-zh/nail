@@ -86,7 +86,9 @@ pub fn EmailUpdate() -> impl IntoView {
         <form on:submit=submit>
             <input type="text" prop:value=old_token on:input=move |event| old_token.set(event_target_value(&event)) placeholder="token(old)"/>
             <input type="text" prop:value=new_token on:input=move |event| new_token.set(event_target_value(&event)) placeholder="token(new)"/>
-            <button type="submit" disabled=move || working.get()>update</button>
+            <button type="submit" disabled=move || working.get()>
+                {move || if working.get() { "updating..." } else { "update" }}
+            </button>
         </form>
     }
 }

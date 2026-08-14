@@ -93,11 +93,15 @@ pub fn Deregister() -> impl IntoView {
     view! {
         <form on:submit=send_confirmation>
             <input type="text" prop:value=email on:input=move |event| email.set(event_target_value(&event)) placeholder="email"/>
-            <button type="submit" disabled=move || working.get()>send</button>
+            <button type="submit" disabled=move || working.get()>
+                {move || if working.get() { "sending..." } else { "send" }}
+            </button>
         </form>
         <form on:submit=confirm>
             <input type="text" prop:value=token on:input=move |event| token.set(event_target_value(&event)) placeholder="token"/>
-            <button type="submit" disabled=move || working.get()>deregister</button>
+            <button type="submit" disabled=move || working.get()>
+                {move || if working.get() { "deregistering..." } else { "deregister" }}
+            </button>
         </form>
     }
 }

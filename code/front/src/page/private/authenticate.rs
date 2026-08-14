@@ -93,11 +93,15 @@ pub fn Authenticate() -> impl IntoView {
     view! {
         <form on:submit=send_email>
             <input type="text" prop:value=email on:input=move |event| email.set(event_target_value(&event)) placeholder="email"/>
-            <button type="submit" disabled=move || working.get()>send</button>
+            <button type="submit" disabled=move || working.get()>
+                {move || if working.get() { "sending..." } else { "send" }}
+            </button>
         </form>
         <form on:submit=redeem>
             <input type="text" prop:value=token on:input=move |event| token.set(event_target_value(&event)) placeholder="token"/>
-            <button type="submit" disabled=move || working.get()>authenticate</button>
+            <button type="submit" disabled=move || working.get()>
+                {move || if working.get() { "authenticating..." } else { "authenticate" }}
+            </button>
         </form>
     }
 }
