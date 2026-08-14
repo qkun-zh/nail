@@ -154,7 +154,7 @@ logic is host-testable.
 - [x] Content-domain HTTP tests (ec60539).
 - [x] Identity/admin HTTP tests (74d7e78).
 - [x] Dead-code cleanup + drop #![allow(dead_code)] (43858ac).
-- [ ] e2e (#32): strategy requires owner confirmation.
+- [ ] e2e (#32): app-only core + chromiumoxide 0.9.1 (owner confirmed).
 
 **E2E tooling facts (owner, 2026-08-14)**: the legacy e2e stack is back
 process + pingap + chromium with an in-process SMTP sink
@@ -165,20 +165,18 @@ feature-gated (`end_to_end`) dependency when Phase 5 starts — its crates are
 already cached in the local registry. **pingap is NOT installed on this
 machine**; it has a GitHub repository with released binaries — obtain the
 release binary from GitHub when the e2e phase starts.
-
-
-**Discovered issues (owner to adjudicate; not changed):**
-- Rejection-envelope gap: malformed JSON/query/path request bodies return
-  axum raw empty-body rejections (400/422/415), NOT the constitution-11
-  {code, data, message} envelope. A proper fix needs a custom extractor
-  wrapper across the ~20 Json handlers (invasive, deferred).
-- Email-change two-token flow (AC10) is covered at logic level
-  (logic/email.rs) but has no tower-oneshot HTTP test.
-- chromiumoxide: the local registry only holds 0.9.1 and cargo search reports
-  0.9.1 as latest, contradicting the handoff note to avoid 0.9.1; verify the
-  intended version before adding the end_to_end dependency.
-
-## Skills — mandatory usage
+**Remaining Phase 5 tasks (owner decisions, 2026-08-14):**
+1. Rejection-envelope gap: FIX THOROUGHLY. Add AppJson/AppQuery/AppPath/
+   AppMultipart extractors (Rejection = ApiError) so malformed bodies return the
+   constitution-11 envelope (400 'invalid request body' etc.). Then add an HTTP
+   test: POST {} to /session/delete -> 400 envelope. (axum handler macro returns
+   extractor rejections via rejection.into_response(); verified in axum-0.8.9
+   src/handler/mod.rs impl_handler.)
+2. AC10 email-change two-token flow: COVER with a tower-oneshot HTTP test in
+   test/unit/back/http/user.rs; flow and messages mirror logic/email.rs tests.
+3. E2E: APP-ONLY CORE (back process + chromium + in-process SMTP sink; no pingap).
+   chromiumoxide = 0.9.1 (owner confirmed; only version in the local registry).
+   trunk IS installed (/home/qkun/.cargo/bin/trunk) to build/serve the frontend.
 
 Invoke the matching skill via the `skill` tool before each covered task; the
 README outranks any skill. Do not grill routine work.
