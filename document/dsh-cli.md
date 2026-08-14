@@ -106,11 +106,13 @@ stays silent until the final answer.
   machine and `sudo` requires a password, so install the Python binding once:
   `pip3 install --user --break-system-packages zstandard`.
 - **Live viewer**: `document/tools/watch-session.py` follows the newest session
-  file and prints the full picture as it happens — per-step markers, the
-  model's `[think]` reasoning, its `[text]`, every `[call]` (name + arguments),
-  every `[result]` (tool output), and any `llm/retry` — truncated at sane
-  limits (tunable at the top of the script). Zero API cost: it only reads the
-  local file. Run it in a second terminal while `dsh` is running:
+  file and prints the full, untruncated picture as it happens — per-step
+  markers, the model's `[think]` reasoning, its `[text]`, every `[call]` (name
+  + arguments), every `[result]` (tool output), and any `llm/retry`. Zero API
+  cost: it only reads the local file. Output is never truncated, so clear the
+  terminal scrollback periodically, and prune the accumulating session files
+  under `~/.dsh/sessions/` from time to time. Run it in a second terminal while
+  `dsh` is running:
 
   ```bash
   python3 document/tools/watch-session.py

@@ -3,8 +3,8 @@
 
 `headless` prints nothing until it exits, so it looks frozen. Its real activity
 is written as zstd-compressed JSONL under ~/.dsh/sessions/. This script follows
-the newest session file and prints the full picture — the model's reasoning,
-its text, every tool call, and every tool result — as it happens.
+the newest session file and prints the full, untruncated picture — the model's
+reasoning, its text, every tool call, and every tool result — as it happens.
 
 Usage:
     python3 document/tools/watch-session.py            # follow the newest session
@@ -13,6 +13,10 @@ Usage:
 Requires the `zstandard` Python package (zstd CLI is not installed on this
 machine and sudo needs a password):
     pip3 install --user --break-system-packages zstandard
+
+Output is never truncated; the terminal scrollback grows, so clear it
+periodically. The session files under ~/.dsh/sessions/ also accumulate and
+should be pruned from time to time.
 """
 
 import glob
@@ -20,11 +24,6 @@ import json
 import os
 import sys
 import time
-
-THINK = 800   # max chars of reasoning shown per step
-TEXT = 400    # max chars of assistant text shown per step
-RESULT = 500  # max chars of a tool result shown
-ARGS = 200    # max chars of a tool-call argument list shown
 
 
 def _decoder():
@@ -53,13 +52,6 @@ def read_all(path, decoder):
         return ""
 
 
-def clip(text, limit):
-    text = " ".join(text.split())
-    if len(text) > limit:
-        return text[:limit] + f"... <+{len(text) - limit} chars>"
-    return text
-
-
 def result_text(event):
     """Pull the human text out of a tool/result event."""
     try:
@@ -73,21 +65,29 @@ def result_text(event):
     return ""
 
 
-def render_message(event, last_seq):
+def print_block(prefix, text):
+    if text is None:
+        return
+    text = str(text).rstrip("\n")
+    for line in text.splitlines() or [""]:
+        print(f"{prefix} {line}", flush=True)
+
+
+def render_message(event):
     data = event.get("data", {})
     step = data.get("step", "?")
     print(f"\n=== step {step} ===  (seq {event.get('seq')})", flush=True)
     for block in data.get("message", {}).get("content", []):
         kind = block.get("type")
         if kind == "reasoning":
-            print(f"  [think] {clip(block.get('text', ''), THINK)}", flush=True)
+            print_block("  [think]", block.get("text"))
         elif kind == "text" and block.get("text", "").strip():
-            print(f"  [text]  {clip(block['text'], TEXT)}", flush=True)
+            print_block("  [text]", block["text"])
         elif kind in ("tool-call", "tool_use"):
             args = block.get("arguments", block.get("input", ""))
-            if isinstance(args, dict):
-                args = json.dumps(args)
-            print(f"  [call]  {block.get('name', '?')} {clip(str(args), ARGS)}", flush=True)
+            if isinstance(args, (dict, list)):
+                args = json.dumps(args, indent=2)
+            print_block("  [call]", f"{block.get('name', '?')} {args}")
 
 
 def main():
@@ -119,12 +119,11 @@ def main():
                 kind = event.get("type", "?")
                 data = event.get("data", {})
                 if kind == "assistant/message":
-                    render_message(event, last_seq)
+                    render_message(event)
                 elif kind == "tool/result":
-                    text = result_text(event)
-                    print(f"  [result] {clip(text, RESULT)}", flush=True)
+                    print_block("  [result]", result_text(event))
                 elif kind in ("llm/retry", "llm/retry-started"):
-                    print(f"  !! {kind} {clip(json.dumps(data), ARGS)}", flush=True)
+                    print_block("  !!", f"{kind} {json.dumps(data, indent=2)}")
         time.sleep(1)
 
 
