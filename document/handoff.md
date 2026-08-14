@@ -209,6 +209,13 @@ constitution); this document records state and process only.
   matches the wire route (`POST /comments/{id}/replies/create`); it is the
   only interface-layer name beyond the strict `create/read/update/delete`
   resource set and is sanctioned.
+- **`mint`/`consume` accepted for tokens (owner, 2026-08-14)**: the download-
+  token flow uses `mint_download_token` / `consume_download_token` as the
+  domain verbs — `mint` = create a single-use token, `consume` = its one-time
+  redemption (read with side effect). They apply to token resources generally;
+  the interface layer still stays strict (`read_content` for the route).
+  Together with `consume_if`/`consume` in `repository/cache.rs` this is the
+  sanctioned token vocabulary, extending §5.2.
 
 ## Handover (2026-08-14) — current agent
 
