@@ -14,6 +14,9 @@ log/*
 .env
 configuration/smtp.toml
 
+# --- downloaded tooling ---
+code/proxy/pingap-linux-gnu-x86-full
+
 # --- editor / misc ---
 .vscode/
 .idea/
