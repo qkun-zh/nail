@@ -108,3 +108,24 @@ async fn session_read_requires_a_session() {
     assert_eq!(status, StatusCode::UNAUTHORIZED, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("missing session-token header"));
 }
+
+#[tokio::test]
+async fn user_create_rejects_an_unknown_token() {
+    let context = TestCtx::new().await.expect("test context");
+    let token_pow = create_challenge_and_prove(&context, &Uuid::now_v7().to_string()).await;
+    let (status, body) = context
+        .post("/user/create", json!({ "pow": token_pow }), None)
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("invalid or expired token"));
+}
+
+#[tokio::test]
+async fn email_read_authenticate_requires_a_pow() {
+    let context = TestCtx::new().await.expect("test context");
+    let (status, body) = context
+        .post("/email/read?intent=authenticate", json!({}), None)
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("pow is required"));
+}
