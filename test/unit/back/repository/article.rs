@@ -258,3 +258,75 @@ async fn concurrent_identical_content_hashes_are_serialized_by_the_write_lock() 
     assert_eq!(accepted, 1, "exactly one identical content hash must be accepted");
     assert_eq!(deduplicated, 1, "the racing duplicate must be rejected as ContentHashTaken");
 }
+
+async fn tag_node_ids_by_name(
+    state: &crate::infrastructure::state::AppState,
+    name: &str,
+) -> Vec<agdb::DbId> {
+    let guard = state.graph.read().await;
+    crate::repository::graph::find_by_index_sync(
+        &guard,
+        crate::repository::schema::KEY_TAG_NAME,
+        name,
+    )
+    .expect("tag name index lookup")
+}
+
+#[tokio::test]
+async fn update_article_removes_orphan_tags_and_keeps_shared_tags() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let first_draft = article_draft(
+        &author_id,
+        "Shared First",
+        &pdf_hash(11),
+        vec!["#shared".to_string(), "#one".to_string()],
+    );
+    let first_id = first_draft.article_id.clone();
+    create_article(&state.graph, &first_draft).await.expect("create first");
+    let second_draft = article_draft(
+        &author_id,
+        "Shared Second",
+        &pdf_hash(12),
+        vec!["#shared".to_string(), "#two".to_string()],
+    );
+    let second_id = second_draft.article_id.clone();
+    create_article(&state.graph, &second_draft).await.expect("create second");
+    assert_eq!(tag_node_ids_by_name(&state, "#shared").await.len(), 1);
+
+    update_article(
+        &state.graph,
+        &first_id,
+        &ArticleUpdate {
+            title: "Shared First".to_string(),
+            summary: "a summary".to_string(),
+            tags: vec!["#one".to_string()],
+        },
+    )
+    .await
+    .expect("update first");
+
+    let second_view = read_article(&state.graph, &second_id)
+        .await
+        .expect("read second")
+        .expect("second article");
+    assert!(second_view.tags.iter().any(|tag| tag.name == "#shared"));
+    assert_eq!(tag_node_ids_by_name(&state, "#shared").await.len(), 1);
+
+    update_article(
+        &state.graph,
+        &second_id,
+        &ArticleUpdate {
+            title: "Shared Second".to_string(),
+            summary: "a summary".to_string(),
+            tags: vec!["#two".to_string()],
+        },
+    )
+    .await
+    .expect("update second");
+
+    assert!(tag_node_ids_by_name(&state, "#shared").await.is_empty());
+    assert_eq!(tag_node_ids_by_name(&state, "#one").await.len(), 1);
+    assert_eq!(tag_node_ids_by_name(&state, "#two").await.len(), 1);
+}
+
