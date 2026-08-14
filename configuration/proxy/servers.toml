@@ -1,5 +1,5 @@
 [servers.nail]
-access_log = "combined"
+access_log = "/home/qkun/nail_new/log/proxy/access.log?rolling=daily {when} {client_ip} {method} {uri} {proto} {status} {latency_human}"
 addr = "127.0.0.1:8080"
 locations = [
     "back_api",
