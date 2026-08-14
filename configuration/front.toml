@@ -1,0 +1,4 @@
+# Compile-time frontend configuration, embedded via include_str!.
+# api_base_url: empty string means same-origin (the SPA is served behind the
+# same reverse proxy as the API); otherwise a full http(s) origin.
+api_base_url = ""
