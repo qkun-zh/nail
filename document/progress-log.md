@@ -219,3 +219,36 @@ limits).
 - Agent G: #33 owner-bypass patch (`efe8cfe`) + slice 7
   (config/email/infrastructure, `06c72f4`) — Phase 3 backend complete.
 - Agent I: Phase 4 (frontend) — complete.
+
+## Phase 5 - tests + e2e + cleanup (2026-08-14, in progress)
+
+### Keep-behavior refactors (commit 06d58a3)
+
+Applied the two remaining PRD [keep-behavior] improvements: (a) a single
+logic/pagination.rs clamp_page_limit now serves all five route handlers
+(was duplicated in interface/comment+role+user+version and logic/article, with
+two duplicated MAX_PAGE_SIZE/MAX_PAGE constant pairs); (b)
+logic/error.rs::database_error centralizes the 42 duplicated
+"database query failed: {error}" strings across 8 logic files. Behavior
+preserved; **back 245 tests green**, zero warnings.
+
+### Repository + Cedar test fill (commit 1bdd644)
+
+Added 12 tests (+484/-5, 4 files): recycler selection (least-loaded, tie-break
+by larger id, author-exclude, no-recycler), tag orphan cleanup, role tag-scope
+apply/read/remove, and six Cedar-matrix cells (global-role grant,
+non-intersecting-scope deny, admin-console wrong-resource deny,
+authorize_create deny, version-owner, read-open non-owner). **back 257 tests
+green**, zero warnings.
+
+### Bug fix: role tag removal (commit 6365170)
+
+A T1 probe found repository::role::remove_tag_from_role resolved the tag by
+its business-id alias tag:{uuid} instead of by name, so the FR-50
+tags.remove API path 500'd on every tag removal. Fixed to resolve by the
+KEY_TAG_NAME index (mirroring apply_tag_to_role); the repository test was
+corrected to assert the name-based contract. **back 257 tests green**, zero
+warnings.
+
+Next: HTTP/API branch coverage (content domain, then identity/admin), e2e (#32,
+owner strategy pending), final dead-code cleanup.

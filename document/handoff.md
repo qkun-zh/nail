@@ -28,6 +28,13 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
   known harness bug; the flag was removed). Use it for §8.3 gates; its 1k-line
   default bar is superseded by README §5.3 (512 lines).
 
+- **Phase 5 (tests + e2e + cleanup): IN PROGRESS.** Keep-behavior refactors
+  done (06d58a3: shared pagination clamp + single db-error mapping); repo +
+  Cedar tests added (1bdd644, +12); role tag-removal bug fixed (6365170).
+  Back **257 tests green**, cargo check zero warnings. HTTP/API branch
+  coverage next, then e2e (#32, owner decision pending), then dead-code
+  cleanup.
+
 ## Pending — current agent
 
 1. **Phase 4 — frontend migration: DONE.** Layering per README §4.2; Leptos
@@ -39,9 +46,11 @@ and probe findings: `document/progress-log.md`. Adjudication verdicts:
    no worker file — PoW runs in-wasm on the main thread, #19 timezone via
    `RuntimeLimits.timezone_offset_seconds`). Gate met: `cargo check --target
    wasm32-unknown-unknown` zero warnings on `nail_front`.
-2. **Phase 5 — remaining: tests + e2e + cleanup** (next). Rebuild the remaining
-   test tree per README §12; e2e strategy (#32) with the owner; final batch
-   dead-code cleanup (README §5.4) in one pass, then zero-warning gate.
+2. **Phase 5 - tests + e2e + cleanup: IN PROGRESS.** Done: keep-behavior
+   refactors (06d58a3), repository + Cedar tests (1bdd644), role
+   tag-removal fix (6365170). In flight: HTTP/API branch coverage (content
+   domain). Next: identity/admin HTTP tests, e2e (#32, owner strategy still
+   pending), final dead-code cleanup in one pass, then the zero-warning gate.
 
 ## Phase 4 — what was built
 
@@ -137,11 +146,15 @@ logic is host-testable.
 
 ## Remaining steps
 
-### Phase 5 — remaining: tests + e2e + cleanup
+### Phase 5 - tests + e2e + cleanup (in progress)
 
-After Phase 4: rebuild the remaining test tree per README §12; e2e strategy
-(#32) with the owner; final batch dead-code cleanup (README §5.4) in one
-pass, then zero-warning gate.
+- [x] Keep-behavior refactors: pagination clamp helper + single db-error
+  mapping (06d58a3).
+- [x] Repository + Cedar tests: recycler selection, tag cleanup, role scopes,
+  Cedar matrix (1bdd644); role tag-removal fix (6365170).
+- [~] HTTP/API branch coverage: content domain (in flight), then identity/admin.
+- [ ] e2e (#32): strategy requires owner confirmation (asked, unanswered).
+- [ ] Dead-code cleanup: remove #![allow(dead_code)], zero-warning gate.
 
 **E2E tooling facts (owner, 2026-08-14)**: the legacy e2e stack is back
 process + pingap + chromium with an in-process SMTP sink
