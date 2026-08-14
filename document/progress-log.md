@@ -252,3 +252,28 @@ warnings.
 
 Next: HTTP/API branch coverage (content domain, then identity/admin), e2e (#32,
 owner strategy pending), final dead-code cleanup.
+
+### HTTP/API test fill + dead-code cleanup (commits ec60539, 74d7e78, 43858ac)
+
+Content-domain HTTP tests (ec60539): 25 branches across article/version/
+comment/content + search - duplicate title/hash, invalid tags, empty note,
+non-PDF, oversized text field, 413 body limit, page/limit clamps, is_author,
+404s, non-owner 403s, tag reconcile, transfer/hard delete, search range/sort/
+query validation and hits, version strict-greater/duplicate-hash, comment
+missing-version/missing-parent/thread-too-deep/404/403, content missing-version.
+
+Identity/admin HTTP tests (74d7e78): user-create unknown token, email-read
+missing pow, role tag add/remove (locks the 6365170 fix), required-role
+destructive-update guard, role hold/unhold, role 404.
+
+Dead-code cleanup (43858ac): removed #![allow(dead_code)] from all three crate
+roots; removed interface/pow.rs, TokenCache::run_pending_tasks, the
+CreateUserTokenEntry.email_subject and AccountTransferOutcome.
+transferred_comment_ids fields; marked test-only helpers (SCHEMA, owner_of,
+user_holds_role, user_holds_permission) #[cfg(test)]; kept FR-64 info-toast
+variants with targeted allows. **back 294 + common 108 + front 61 tests green,
+all crates zero warnings (host + wasm32).**
+
+Two discovered issues deferred to the owner: the rejection-envelope gap
+(malformed bodies return raw empty-body rejections, not the 11 envelope) and
+the chromiumoxide 0.9.1 registry discrepancy (see handoff.md).
