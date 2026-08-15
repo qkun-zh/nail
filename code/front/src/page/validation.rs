@@ -3,23 +3,39 @@ pub fn validate_name(raw: &str) -> Result<String, String> {
 }
 
 pub fn validate_title(raw: &str, max_chars: u64) -> Result<String, String> {
-    nail_common::text::validate_ascii_text(raw, usize::try_from(max_chars).unwrap_or(usize::MAX), false)
-        .map_err(|error| error.to_string())
+    nail_common::text::validate_ascii_text(
+        raw,
+        usize::try_from(max_chars).unwrap_or(usize::MAX),
+        false,
+    )
+    .map_err(|error| error.to_string())
 }
 
 pub fn validate_summary(raw: &str, max_chars: u64) -> Result<String, String> {
-    nail_common::text::validate_ascii_text(raw, usize::try_from(max_chars).unwrap_or(usize::MAX), true)
-        .map_err(|error| error.to_string())
+    nail_common::text::validate_ascii_text(
+        raw,
+        usize::try_from(max_chars).unwrap_or(usize::MAX),
+        true,
+    )
+    .map_err(|error| error.to_string())
 }
 
 pub fn validate_note(raw: &str, max_chars: u64) -> Result<String, String> {
-    nail_common::text::validate_ascii_text(raw, usize::try_from(max_chars).unwrap_or(usize::MAX), true)
-        .map_err(|error| error.to_string())
+    nail_common::text::validate_ascii_text(
+        raw,
+        usize::try_from(max_chars).unwrap_or(usize::MAX),
+        true,
+    )
+    .map_err(|error| error.to_string())
 }
 
 pub fn validate_comment_content(raw: &str, max_chars: u64) -> Result<String, String> {
-    nail_common::text::validate_ascii_text(raw, usize::try_from(max_chars).unwrap_or(usize::MAX), true)
-        .map_err(|error| error.to_string())
+    nail_common::text::validate_ascii_text(
+        raw,
+        usize::try_from(max_chars).unwrap_or(usize::MAX),
+        true,
+    )
+    .map_err(|error| error.to_string())
 }
 
 pub fn validate_tags(raw: &str, max_count: usize) -> Result<Vec<String>, String> {

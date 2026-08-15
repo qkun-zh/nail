@@ -54,7 +54,7 @@ fn next_toast_id() -> u64 {
 }
 
 fn current_time_ms() -> u64 {
-    u64::try_from(js_sys::Date::now()).unwrap_or(u64::MAX)
+    crate::infrastructure::js::js_number_to_u64(js_sys::Date::now())
 }
 
 #[derive(Clone)]

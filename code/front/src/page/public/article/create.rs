@@ -84,7 +84,7 @@ pub fn CreateArticle() -> impl IntoView {
         if let Err(error) = validate_pdf_selection(
             &file.type_(),
             &file.name(),
-            u64::try_from(file.size()).unwrap_or(u64::MAX),
+            crate::infrastructure::js::js_number_to_u64(file.size()),
             limits.max_pdf_size_bytes,
         ) {
             notify_error(&notifications, &error);
