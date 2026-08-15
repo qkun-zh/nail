@@ -73,6 +73,21 @@ Search page is live and healthy: backend `:3000`, proxy `:8080`, SPA all `200`.
   `#[cfg(test)]` modules are neither compiled nor linted. The earlier clippy
   fixes inside test files were left in place (harmless).
 
+- Notification refactor (committed `5757b73`): `page/notify.rs` rebuilt as a
+  fixed top-center toast overlay. Four kinds map to four accent colours
+  (Info=blue, Success=green, Warning=yellow/amber, Error=red) via
+  `toast--{kind}` classes; every kind auto-dismisses after a uniform 4s
+  (`TOAST_DURATION_MS`, one gloo `Timeout` per toast). History storage,
+  the 1s countdown ticker, the dismiss/history buttons and `remaining_seconds`/
+  `toast_duration_ms`/`capped_insert` are gone. CSS lives as a namespaced
+  `toast-*` `<style>` block in `code/front/index.html` (the toast overlay is
+  global infrastructure, not a page, so the README §8 no-CSS-on-pages rule
+  does not apply); the container is `position: fixed` with `pointer-events:
+  none` and high `z-index`, so it neither reflows nor blocks page interaction.
+  Notify call sites unchanged. Tests rewritten to cover the 4s constant and
+  the kind→class mapping; all 74 front tests green, clippy clean, `trunk
+  build` succeeds.
+
 ## Known behaviour (user-accepted, documented here)
 
 - Single-character queries (e.g. "9") are handled via `query_terms`
