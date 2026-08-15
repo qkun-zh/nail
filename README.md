@@ -1,7 +1,6 @@
-# nail_new
+# nail
 
-`nail_new` is a from-scratch rewrite of the `nail` project (the original is kept
-for reference only at `document/legacy/`). It is a versioned-article knowledge
+`nail` is a versioned-article knowledge
 base: authors publish articles as versioned revisions, attach notes and
 comments, tag content, and search across the whole tree — protected by
 email-challenge authentication with proof-of-work, Cedar policy authorization,

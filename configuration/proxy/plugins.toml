@@ -1,7 +1,7 @@
 [plugins.forFront]
 category = "directory"
 index = "index.html"
-path = "/home/qkun/nail_new/code/front/dist"
+path = "/home/qkun/nail/code/front/dist"
 step = "request"
 
 [plugins.rateLimit]

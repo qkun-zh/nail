@@ -4,7 +4,7 @@
 Analysis complete. No decision made yet. Fixes pending owner review.
 
 ## Context
-The new Rust workspace (`nail_new`) reimplements search across three layers:
+The new Rust workspace (`nail`) reimplements search across three layers:
 common data contracts (`code/common`), backend axum handlers (`code/back`),
 and Leptos CSR frontend (`code/front`). This report compares the two sides
 end-to-end via source reading + backend test probes. Legacy code at
