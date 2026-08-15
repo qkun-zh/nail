@@ -47,6 +47,18 @@ fn empty_request(limit: u64) -> SearchRequest {
     }
 }
 
+fn query_request(query: &str, ranges: Vec<nail_common::search::SearchRange>) -> SearchRequest {
+    SearchRequest {
+        query: Some(query.to_string()),
+        ranges,
+        sort: Vec::new(),
+        from_seconds: None,
+        to_seconds: None,
+        offset: 0,
+        limit: 10,
+    }
+}
+
 fn version_articles(
     outcome: &crate::repository::search::SearchOutcome,
 ) -> Vec<&crate::repository::search::SearchVersionOutcome> {
@@ -78,13 +90,16 @@ async fn sync_and_read_round_trips_an_article() {
     index.sync(&state.graph, &article_id).await.expect("sync");
 
     let outcome = index
-        .read(&state.graph, empty_request(10))
+        .read(
+            &state.graph,
+            query_request("unique", vec![nail_common::search::SearchRange::Title]),
+        )
         .await
         .expect("read");
     let versions = version_articles(&outcome);
     assert_eq!(versions.len(), 1);
     assert_eq!(versions[0].article_id, article_id);
-    assert_eq!(versions[0].title, "A Unique Title");
+    assert!(versions[0].title.contains("Unique"));
 
     index.close().await;
     let _ = std::fs::remove_dir_all(&directory);
@@ -156,7 +171,10 @@ async fn sync_user_refreshes_the_author_name() {
     assert_eq!(synced, 1);
 
     let outcome = index
-        .read(&state.graph, empty_request(10))
+        .read(
+            &state.graph,
+            query_request("article", vec![nail_common::search::SearchRange::Title]),
+        )
         .await
         .expect("read");
     assert_eq!(version_articles(&outcome)[0].author_name, "renamed-author");
@@ -284,7 +302,10 @@ async fn sync_removes_documents_for_a_deleted_article() {
         .expect("sync after delete");
 
     let outcome = index
-        .read(&state.graph, empty_request(10))
+        .read(
+            &state.graph,
+            query_request("article", vec![nail_common::search::SearchRange::Title]),
+        )
         .await
         .expect("read");
     assert!(version_articles(&outcome).is_empty());
@@ -313,7 +334,10 @@ async fn sync_all_and_incremental_sync_agree_on_document_count() {
         .expect("sync second");
     let incremental_versions = version_articles(
         &index
-            .read(&state.graph, empty_request(10))
+            .read(
+                &state.graph,
+                query_request("article", vec![nail_common::search::SearchRange::Title]),
+            )
             .await
             .expect("read"),
     )
@@ -324,7 +348,10 @@ async fn sync_all_and_incremental_sync_agree_on_document_count() {
     assert_eq!(rebuilt, 2, "one version document per article");
     let after_rebuild_versions = version_articles(
         &index
-            .read(&state.graph, empty_request(10))
+            .read(
+                &state.graph,
+                query_request("article", vec![nail_common::search::SearchRange::Title]),
+            )
             .await
             .expect("read"),
     )
@@ -343,7 +370,10 @@ async fn sync_all_and_incremental_sync_agree_on_document_count() {
         .expect("sync after delete");
     let after_delete_versions = version_articles(
         &index
-            .read(&state.graph, empty_request(10))
+            .read(
+                &state.graph,
+                query_request("article", vec![nail_common::search::SearchRange::Title]),
+            )
             .await
             .expect("read"),
     )
@@ -492,7 +522,7 @@ async fn probe_live_data_58() {
     };
     let params = nail_common::request::ArticleSearchParams {
         q: Some("58".to_string()),
-        ranges: None,
+        ranges: Some("title,summary,author_name,comment,note,tag,version_number".to_string()),
         sort: None,
         from: None,
         to: None,
@@ -510,3 +540,4 @@ async fn probe_live_data_58() {
         );
     }
 }
+

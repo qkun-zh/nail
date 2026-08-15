@@ -80,7 +80,9 @@ fn consume_if_removes_the_entry_only_when_the_predicate_matches() {
     };
     cache.insert("user-1", entry.clone());
 
-    let mismatched = cache.consume_if("user-1", |current| current.token_hash_from_old_email == "wrong");
+    let mismatched = cache.consume_if("user-1", |current| {
+        current.token_hash_from_old_email == "wrong"
+    });
     assert!(mismatched.is_none());
     assert_eq!(cache.read("user-1"), Some(entry.clone()));
 

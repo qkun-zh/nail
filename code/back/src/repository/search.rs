@@ -246,9 +246,13 @@ impl SearchIndex {
         db: &DbHandle,
         request: SearchRequest,
     ) -> anyhow::Result<SearchOutcome> {
-        let enable_empty_query = request.query.is_none();
-        let query_string = request.query.unwrap_or_default();
+        let Some(query_string) = request.query else {
+            return Ok(SearchOutcome { docs: Vec::new() });
+        };
         let effective_ranges = effective_ranges(&request.ranges);
+        if effective_ranges.is_empty() {
+            return Ok(SearchOutcome { docs: Vec::new() });
+        }
         let field_names = request_field_names(&effective_ranges);
 
         let mut facet_filter: Vec<FacetFilter> = Vec::new();
@@ -292,7 +296,7 @@ impl SearchIndex {
                 None,
                 QueryType::Intersection,
                 SearchMode::Lexical,
-                enable_empty_query,
+                false,
                 0,
                 top_k,
                 ResultType::Topk,
@@ -323,6 +327,7 @@ impl SearchIndex {
         } else {
             Some(highlighter(&self.index, highlight_fields, query_terms).await)
         };
+        let query_terms = result.query_terms;
 
         let mut version_hits = Vec::new();
         let mut comment_hits = Vec::new();
@@ -335,13 +340,11 @@ impl SearchIndex {
                 .await
                 .map_err(|error| anyhow::anyhow!("fetch search document failed: {error}"))?;
             if document.contains_key(FIELD_COMMENT_ID) {
-                if enable_empty_query {
-                    continue;
-                }
                 let comment = document::read_comment_outcome(&document, &effective_ranges);
                 comment_hits.push(comment);
             } else {
-                let version = document::read_version_outcome(&document, &effective_ranges);
+                let version =
+                    document::read_version_outcome(&document, &effective_ranges, &query_terms);
                 version_hits.push(version);
             }
         }
@@ -400,18 +403,6 @@ fn write_schema_version(marker: &Path) -> anyhow::Result<()> {
 }
 
 fn effective_ranges(ranges: &[SearchRange]) -> Vec<SearchRange> {
-    if ranges.is_empty() {
-        return [
-            SearchRange::Title,
-            SearchRange::Summary,
-            SearchRange::AuthorName,
-            SearchRange::Note,
-            SearchRange::Tag,
-            SearchRange::Comment,
-            SearchRange::VersionNumber,
-        ]
-        .to_vec();
-    }
     ranges.to_vec()
 }
 

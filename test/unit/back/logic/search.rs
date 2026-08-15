@@ -17,10 +17,12 @@ async fn member(context: &TestCtx, email: &str) -> String {
     user_id
 }
 
+const ALL_RANGES: &str = "title,summary,author_name,comment,note,tag,version_number";
+
 fn params(q: Option<&str>) -> ArticleSearchParams {
     ArticleSearchParams {
         q: q.map(str::to_string),
-        ranges: None,
+        ranges: Some(ALL_RANGES.to_string()),
         sort: None,
         from: None,
         to: None,
@@ -94,7 +96,7 @@ async fn search_articles_rejects_multibyte_query_over_char_limit() {
 }
 
 #[tokio::test]
-async fn search_articles_returns_articles_for_an_empty_query() {
+async fn search_articles_returns_nothing_for_an_empty_query() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
     let _ = crate::logic::article::create_article(
@@ -115,14 +117,8 @@ async fn search_articles_returns_articles_for_an_empty_query() {
     let page = crate::logic::search::search_articles(&context.state, &params(None))
         .await
         .expect("search");
-    assert!(page.total >= 1);
-    assert!(
-        page.article_list
-            .iter()
-            .any(|item| item.title == "Searchable Title")
-    );
-    assert_eq!(page.page, 1);
-    assert!(!page.has_prev);
+    assert_eq!(page.total, 0, "empty query must return no articles");
+    assert!(page.article_list.is_empty());
 }
 
 #[tokio::test]
@@ -161,6 +157,7 @@ async fn search_filters_by_iso8601_time_range_and_renders_utc_times() {
     let from = nail_common::time::format_rfc3339_utc(now - 150 * 60_000).expect("from");
     let to = nail_common::time::format_rfc3339_utc(now - 90 * 60_000).expect("to");
     let request = ArticleSearchParams {
+        q: Some("summary".to_string()),
         from: Some(from),
         to: Some(to),
         ..params(None)
@@ -228,7 +225,7 @@ async fn search_combines_keyword_range_time_author_tag_and_sort() {
         &alice,
         "Quantum Index",
         "Solar store notes",
-        vec!["rust", "database"],
+        vec!["rust", "database", "shared"],
         "neural pipeline design",
         now - 2 * 3_600_000,
     )
@@ -239,7 +236,7 @@ async fn search_combines_keyword_range_time_author_tag_and_sort() {
         &bob,
         "Lunar Cache",
         "Quantum pipeline analysis",
-        vec!["web", "api"],
+        vec!["web", "api", "shared"],
         "bob note",
         now - 5 * 3_600_000,
     )
@@ -250,7 +247,7 @@ async fn search_combines_keyword_range_time_author_tag_and_sort() {
         &alice,
         "Neural Store",
         "Atomic journal",
-        vec!["rust", "search"],
+        vec!["rust", "search", "shared"],
         "lunar filter",
         now - 10 * 3_600_000,
     )
@@ -294,6 +291,7 @@ async fn search_combines_keyword_range_time_author_tag_and_sort() {
     let page = crate::logic::search::search_articles(
         &context.state,
         &ArticleSearchParams {
+            q: Some("shared".to_string()),
             from: Some(from),
             ..params(None)
         },
@@ -307,6 +305,7 @@ async fn search_combines_keyword_range_time_author_tag_and_sort() {
     let page = crate::logic::search::search_articles(
         &context.state,
         &ArticleSearchParams {
+            q: Some("shared".to_string()),
             to: Some(to),
             ..params(None)
         },
@@ -390,7 +389,7 @@ async fn search_sorts_by_time_title_and_author_and_paginates() {
     .await;
 
     // time desc: newest first
-    let mut sort_time = params(None);
+    let mut sort_time = params(Some("rust"));
     sort_time.sort = Some("time:desc".to_string());
     let page = crate::logic::search::search_articles(&context.state, &sort_time)
         .await
@@ -399,7 +398,7 @@ async fn search_sorts_by_time_title_and_author_and_paginates() {
     assert_eq!(titles, vec!["Banana", "Apple", "Cherry"], "time desc");
 
     // time asc: oldest first
-    let mut sort_time_asc = params(None);
+    let mut sort_time_asc = params(Some("rust"));
     sort_time_asc.sort = Some("time:asc".to_string());
     let page = crate::logic::search::search_articles(&context.state, &sort_time_asc)
         .await
@@ -408,7 +407,7 @@ async fn search_sorts_by_time_title_and_author_and_paginates() {
     assert_eq!(titles, vec!["Cherry", "Apple", "Banana"], "time asc");
 
     // title asc
-    let mut sort_title = params(None);
+    let mut sort_title = params(Some("rust"));
     sort_title.sort = Some("title:asc".to_string());
     let page = crate::logic::search::search_articles(&context.state, &sort_title)
         .await
@@ -417,7 +416,7 @@ async fn search_sorts_by_time_title_and_author_and_paginates() {
     assert_eq!(titles, vec!["Apple", "Banana", "Cherry"], "title asc");
 
     // author asc: alice articles then bob
-    let mut sort_author = params(None);
+    let mut sort_author = params(Some("rust"));
     sort_author.sort = Some("author:asc".to_string());
     let page = crate::logic::search::search_articles(&context.state, &sort_author)
         .await
@@ -439,7 +438,7 @@ async fn search_sorts_by_time_title_and_author_and_paginates() {
         &ArticleSearchParams {
             limit: Some(2),
             page: Some(1),
-            ..params(None)
+            ..params(Some("rust"))
         },
     )
     .await
@@ -452,7 +451,7 @@ async fn search_sorts_by_time_title_and_author_and_paginates() {
         &ArticleSearchParams {
             limit: Some(2),
             page: Some(2),
-            ..params(None)
+            ..params(Some("rust"))
         },
     )
     .await
@@ -495,10 +494,50 @@ async fn bare_tag_search_matches_tag_field() {
 }
 
 #[tokio::test]
-async fn empty_query_does_not_surface_version_or_comment_cards() {
+async fn single_char_query_reports_field_hits() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
-    let (article_id, version_id) = crate::logic::article::create_article(
+    let _ = crate::logic::article::create_article(
+        &context.state,
+        &actor,
+        crate::logic::article::ArticleCreateInput {
+            title: "Sample 9 for scheduler",
+            summary: "Releases for version 9.",
+            tags: "rust",
+            version: "9.0.0",
+            note: "note",
+            upload: context.upload(&valid_pdf()),
+        },
+    )
+    .await
+    .expect("create");
+
+    let page = crate::logic::search::search_articles(&context.state, &params(Some("9")))
+        .await
+        .expect("search 9");
+    assert!(page.total >= 1, "single-char query must find the article");
+    let item = page
+        .article_list
+        .iter()
+        .find(|item| item.title == "Sample 9 for scheduler")
+        .expect("article present");
+    assert!(
+        item.article_hits.iter().any(|hit| hit.label == "summary"),
+        "single-char query must report a summary hit, got: {:?}",
+        item.article_hits
+    );
+    assert!(
+        item.title.contains('9'),
+        "title must render the raw value for a single-char query: {:?}",
+        item.title
+    );
+}
+
+#[tokio::test]
+async fn search_articles_returns_nothing_for_empty_ranges() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let _ = crate::logic::article::create_article(
         &context.state,
         &actor,
         crate::logic::article::ArticleCreateInput {
@@ -512,28 +551,16 @@ async fn empty_query_does_not_surface_version_or_comment_cards() {
     )
     .await
     .expect("create");
-    crate::logic::comment::create_comment(&context.state, &actor, &version_id, "a comment")
-        .await
-        .expect("comment");
 
-    let page = crate::logic::search::search_articles(&context.state, &params(None))
+    let request = ArticleSearchParams {
+        ranges: Some(String::new()),
+        ..params(Some("searchable"))
+    };
+    let page = crate::logic::search::search_articles(&context.state, &request)
         .await
         .expect("search");
-    let item = page
-        .article_list
-        .iter()
-        .find(|item| item.article_id == article_id)
-        .expect("article present");
-    assert!(
-        item.article_hits.is_empty(),
-        "empty query must not report any field hits, got: {:?}",
-        item.article_hits
-    );
-    assert!(
-        item.versions.is_empty(),
-        "empty query must not surface version or comment cards, got: {:?}",
-        item.versions
-    );
+    assert_eq!(page.total, 0, "empty ranges must return no articles");
+    assert!(page.article_list.is_empty());
 }
 
 #[tokio::test]

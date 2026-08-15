@@ -684,7 +684,12 @@ async fn search_returns_hits_for_a_keyword() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = member_session(&context, "alice@example.com").await;
     create_article_fixture(&context, &token, "Needle In A Haystack").await;
-    let (status, body) = context.get("/article/read?q=needle", Some(&token)).await;
+    let (status, body) = context
+        .get(
+            "/article/read?q=needle&ranges=title,summary,author_name,comment,note,tag,version_number",
+            Some(&token),
+        )
+        .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     let list = body["data"]["article_list"]
         .as_array()

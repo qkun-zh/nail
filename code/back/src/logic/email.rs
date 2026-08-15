@@ -146,10 +146,9 @@ pub async fn send_update_user_email(
     }
 
     let new_email_hash = nail_common::hash::email(&new_email);
-    if let Some(existing_user_id) =
-        read_user_by_email_address_hash(&state.graph, &new_email_hash)
-            .await
-            .map_err(database_error)?
+    if let Some(existing_user_id) = read_user_by_email_address_hash(&state.graph, &new_email_hash)
+        .await
+        .map_err(database_error)?
         && existing_user_id != user_id
     {
         return Err(LogicError::bad_request(
@@ -218,17 +217,17 @@ pub async fn update_user_email(
         .map_err(|error| LogicError::internal(format!("failed to hash email token: {error}")))?;
     let new_token_hash = token_key(&new_email_token)
         .map_err(|error| LogicError::internal(format!("failed to hash email token: {error}")))?;
-    if entry.token_hash_from_old_email != old_token_hash || entry.token_hash_from_new_email != new_token_hash
+    if entry.token_hash_from_old_email != old_token_hash
+        || entry.token_hash_from_new_email != new_token_hash
     {
         return Err(LogicError::bad_request("token mismatch"));
     }
 
     let old_email_hash = entry.old_email_hash;
     let new_email_hash = entry.new_email_hash;
-    if let Some(existing_user_id) =
-        read_user_by_email_address_hash(&state.graph, &new_email_hash)
-            .await
-            .map_err(database_error)?
+    if let Some(existing_user_id) = read_user_by_email_address_hash(&state.graph, &new_email_hash)
+        .await
+        .map_err(database_error)?
         && existing_user_id != user_id
     {
         return Err(LogicError::bad_request(
@@ -236,23 +235,20 @@ pub async fn update_user_email(
         ));
     }
 
-    write_user_email(
-        &state.graph,
-        user_id,
-        &old_email_hash,
-        &new_email_hash,
-    )
-    .await
-    .map_err(|error| match error {
-        UserWriteError::AlreadyTaken => {
-            LogicError::bad_request("new email is already used by another account")
-        }
-        UserWriteError::UserMissing => LogicError::unauthorized("user not found"),
-        UserWriteError::EmailMismatch => LogicError::bad_request("email has already been changed"),
-        UserWriteError::Db(error) => {
-            LogicError::internal(format!("failed to update email: {error}"))
-        }
-    })?;
+    write_user_email(&state.graph, user_id, &old_email_hash, &new_email_hash)
+        .await
+        .map_err(|error| match error {
+            UserWriteError::AlreadyTaken => {
+                LogicError::bad_request("new email is already used by another account")
+            }
+            UserWriteError::UserMissing => LogicError::unauthorized("user not found"),
+            UserWriteError::EmailMismatch => {
+                LogicError::bad_request("email has already been changed")
+            }
+            UserWriteError::Db(error) => {
+                LogicError::internal(format!("failed to update email: {error}"))
+            }
+        })?;
 
     state.caches.email_update.consume_if(user_id, |current| {
         current.token_hash_from_old_email == old_token_hash

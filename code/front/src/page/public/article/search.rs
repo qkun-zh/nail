@@ -587,16 +587,14 @@ pub fn Search() -> impl IntoView {
                 pairs.push(format!("q={}", encode_component(q.trim())));
             }
             let checked = ranges.get();
-            if !checked.iter().all(|&is_checked| is_checked) {
-                let subset = RANGE_KEYS
-                    .iter()
-                    .enumerate()
-                    .filter(|(index, _)| checked[*index])
-                    .map(|(_, key)| *key)
-                    .collect::<Vec<_>>()
-                    .join(",");
-                pairs.push(format!("ranges={}", encode_component(&subset)));
-            }
+            let subset = RANGE_KEYS
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| checked[*index])
+                .map(|(_, key)| *key)
+                .collect::<Vec<_>>()
+                .join(",");
+            pairs.push(format!("ranges={}", encode_component(&subset)));
             let order = sort_order.get();
             if !order.is_empty() {
                 let serialized = order
@@ -692,16 +690,14 @@ pub fn Search() -> impl IntoView {
             }
             pairs.push(("q".to_string(), q));
             let checked = ranges.get_untracked();
-            if !checked.iter().all(|&is_checked| is_checked) {
-                let subset = RANGE_KEYS
-                    .iter()
-                    .enumerate()
-                    .filter(|(index, _)| checked[*index])
-                    .map(|(_, key)| *key)
-                    .collect::<Vec<_>>()
-                    .join(",");
-                pairs.push(("ranges".to_string(), subset));
-            }
+            let subset = RANGE_KEYS
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| checked[*index])
+                .map(|(_, key)| *key)
+                .collect::<Vec<_>>()
+                .join(",");
+            pairs.push(("ranges".to_string(), subset));
             let order = sort_order.get_untracked();
             if !order.is_empty() {
                 let serialized = order

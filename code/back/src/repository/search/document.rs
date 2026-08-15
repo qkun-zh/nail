@@ -43,17 +43,23 @@ fn read_highlighted_or_raw(document: &Document, field: &str) -> String {
     }
 }
 
-/// True when an enabled range actually matched this field: the highlighted
-/// rendering differs from the raw stored value (no literal `<mark>` scanning).
-fn field_hit(document: &Document, field: &str) -> bool {
-    let highlighted = read_string_field(document, &highlight_name(field));
+/// True when an enabled range actually matched this field: the raw stored value
+/// contains one of the folded query terms. `SeekStorm` exposes no per-field
+/// match API; the official hook for custom highlighting is
+/// `ResultObject.query_terms` and the highlighter matches with a
+/// case-insensitive substring scan, so this mirrors that same semantics.
+/// Highlight markup alone is unreliable: a single-character query skips `<mark>`
+/// insertion entirely.
+fn field_hit(document: &Document, field: &str, query_terms: &[String]) -> bool {
     let raw = read_string_field(document, field);
-    !highlighted.is_empty() && highlighted != raw
+    let folded = raw.to_lowercase();
+    query_terms.iter().any(|term| folded.contains(term))
 }
 
 pub(super) fn read_version_outcome(
     document: &Document,
     effective_ranges: &[SearchRange],
+    query_terms: &[String],
 ) -> SearchVersionOutcome {
     let mut article_hits = Vec::new();
     let mut version_hits = Vec::new();
@@ -61,7 +67,7 @@ pub(super) fn read_version_outcome(
     for range in effective_ranges {
         match range {
             SearchRange::Summary => {
-                if field_hit(document, FIELD_SUMMARY) {
+                if field_hit(document, FIELD_SUMMARY, query_terms) {
                     article_hits.push(SearchHitOutcome {
                         range: SearchRange::Summary,
                         snippet: read_highlighted_or_raw(document, FIELD_SUMMARY),
@@ -69,7 +75,7 @@ pub(super) fn read_version_outcome(
                 }
             }
             SearchRange::Tag => {
-                if field_hit(document, FIELD_TAGS) {
+                if field_hit(document, FIELD_TAGS, query_terms) {
                     article_hits.push(SearchHitOutcome {
                         range: SearchRange::Tag,
                         snippet: read_highlighted_or_raw(document, FIELD_TAGS),
@@ -77,7 +83,7 @@ pub(super) fn read_version_outcome(
                 }
             }
             SearchRange::Note => {
-                if field_hit(document, FIELD_NOTE) {
+                if field_hit(document, FIELD_NOTE, query_terms) {
                     version_hits.push(SearchHitOutcome {
                         range: SearchRange::Note,
                         snippet: read_highlighted_or_raw(document, FIELD_NOTE),
@@ -85,7 +91,7 @@ pub(super) fn read_version_outcome(
                 }
             }
             SearchRange::VersionNumber => {
-                version_number_hit = field_hit(document, FIELD_VERSION_NUMBER);
+                version_number_hit = field_hit(document, FIELD_VERSION_NUMBER, query_terms);
             }
             _ => {}
         }

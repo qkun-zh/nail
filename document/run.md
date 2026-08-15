@@ -1,5 +1,17 @@
-This single command restarts the full stack — kills old backend and proxy processes, rebuilds the frontend, starts backend and proxy, waits for health checks, and prints status (three `200` outputs mean everything is up):
+1. Frontend
+   Path: `/home/qkun/nail_new/code/front`
+   Build: `cd /home/qkun/nail_new/code/front && env -u NO_COLOR trunk build`
 
-```bash
-NL=/home/qkun/nail_new; cd "$NL" && pkill -f 'target/debug/nail_back' 2>/dev/null; pkill -f 'pingap-linux-gnu-x86-full' 2>/dev/null; sleep 1; (cd "$NL/code/front" && env -u NO_COLOR trunk build) || exit 1; (cd "$NL/code/back" && setsid nohup cargo run --bin nail_back > "$NL/log/back/run.log" 2>&1 < /dev/null & disown); (cd "$NL" && setsid nohup ./code/proxy/pingap-linux-gnu-x86-full -c "$NL/configuration/proxy" > "$NL/log/proxy/run.log" 2>&1 < /dev/null & disown); i=0; while [ $i -lt 60 ]; do curl -sf http://127.0.0.1:3000/config/read >/dev/null 2>&1 && break; sleep 1; i=$((i+1)); done; i=0; while [ $i -lt 60 ]; do code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/config/read); [ "$code" = "200" ] && break; sleep 1; i=$((i+1)); done; ss -ltn | grep -E ':3000|:8080'; curl -s -o /dev/null -w 'spa=%{http_code}\n' http://127.0.0.1:8080/; curl -s -o /dev/null -w 'proxy_api=%{http_code}\n' http://127.0.0.1:8080/api/config/read; curl -s -o /dev/null -w 'backend=%{http_code}\n' http://127.0.0.1:3000/config/read
-```
+2. Backend
+   Path: `/home/qkun/nail_new/code/back`
+   Run: `cd /home/qkun/nail_new/code/back && cargo run --bin nail_back`
+   Background: `cd /home/qkun/nail_new/code/back && setsid nohup cargo run --bin nail_back > /home/qkun/nail_new/log/back/run.log 2>&1 < /dev/null &`
+
+3. Proxy
+   Path: `/home/qkun/nail_new/code/proxy/pingap-linux-gnu-x86-full`
+   Run: `/home/qkun/nail_new/code/proxy/pingap-linux-gnu-x86-full -c /home/qkun/nail_new/configuration/proxy`
+   Background: `setsid nohup /home/qkun/nail_new/code/proxy/pingap-linux-gnu-x86-full -c /home/qkun/nail_new/configuration/proxy > /home/qkun/nail_new/log/proxy/run.log 2>&1 < /dev/null &`
+
+Health checks: 
+`curl -sf http://127.0.0.1:3000/config/read` for the backend
+`curl -sf http://127.0.0.1:8080/api/config/read` for the stack via the proxy.
