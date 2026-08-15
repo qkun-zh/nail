@@ -2,9 +2,12 @@
 
 ## Current state
 
-All three crates (`common`, `back`, `front`) pass `cargo clippy --all-targets`
-with **zero warnings** under the strictest gate: `clippy::pedantic` denied at
-crate level, `clippy::too_many_lines` exempted, plus `cargo fmt --check` clean.
+All three crates (`common`, `back`, `front`) pass `cargo clippy` with
+**zero warnings** under the strictest gate: `clippy::pedantic` denied at crate
+level, `clippy::too_many_lines` exempted, plus `cargo fmt --check` clean.
+Test code is deliberately **outside** the clippy gate: run plain `cargo clippy`
+(no `--all-targets`), so `#[cfg(test)]` modules are not compiled and not
+linted (an in-code `#![allow]` cannot override the Cargo.toml `deny`).
 Search page is live and healthy: backend `:3000`, proxy `:8080`, SPA all `200`.
 
 ## What was done
@@ -30,6 +33,10 @@ Search page is live and healthy: backend `:3000`, proxy `:8080`, SPA all `200`.
   `try_from`.
 - Test crates are included in the clippy gate (`--all-targets`); tests are not
   run as part of this pass (user: "test不必管").
+- Per user request ("test不要clippy介入"), test code is exempt from the clippy
+  gate: the gate command is plain `cargo clippy` (no `--all-targets`), so
+  `#[cfg(test)]` modules are neither compiled nor linted. The earlier clippy
+  fixes inside test files were left in place (harmless).
 
 ## Known behaviour (user-accepted, documented here)
 
@@ -43,6 +50,6 @@ Search page is live and healthy: backend `:3000`, proxy `:8080`, SPA all `200`.
 
 ## Next steps
 
-- User verification: `cargo clippy --all-targets` (zero warnings) and
+- User verification: `cargo clippy` (zero warnings) and
   `cargo fmt --all -- --check` inside `code/{common,back,front}`.
 - Restart procedure lives in `document/run.md` (three `200`s).
