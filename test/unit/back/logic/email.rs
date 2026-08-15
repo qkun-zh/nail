@@ -172,8 +172,8 @@ async fn change_email_sends_two_emails_and_caches_the_token_hashes() {
         .expect("entry");
     let old_hash = nail_common::hash::email("alice@example.com");
     let new_hash = nail_common::hash::email("alice-new@example.com");
-    assert_eq!(entry.old_email_address, old_hash);
-    assert_eq!(entry.new_email_address, new_hash);
+    assert_eq!(entry.old_email_hash, old_hash);
+    assert_eq!(entry.new_email_hash, new_hash);
 }
 
 #[tokio::test]
@@ -223,10 +223,10 @@ async fn update_user_email_updates_email_and_returns_a_new_session() {
     context.state.caches.email_update.insert(
         &user_id,
         crate::repository::cache::EmailUpdateTokenEntry {
-            old_email_address: nail_common::hash::email("alice@example.com"),
-            new_email_address: nail_common::hash::email("alice-new@example.com"),
-            token_from_old_email: token_key(&old_token).expect("old hash"),
-            token_from_new_email: token_key(&new_token).expect("new hash"),
+            old_email_hash: nail_common::hash::email("alice@example.com"),
+            new_email_hash: nail_common::hash::email("alice-new@example.com"),
+            token_hash_from_old_email: token_key(&old_token).expect("old hash"),
+            token_hash_from_new_email: token_key(&new_token).expect("new hash"),
         },
     );
 

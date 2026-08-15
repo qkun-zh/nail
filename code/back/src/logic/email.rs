@@ -132,8 +132,8 @@ pub async fn send_update_user_email(
         .await
         .map_err(database_error)?
         .ok_or_else(|| LogicError::unauthorized("user not found"))?;
-    let old_email_address = nail_common::hash::email(&old_email);
-    if user_entry.email_address_hash != old_email_address {
+    let old_email_hash = nail_common::hash::email(&old_email);
+    if user_entry.email_address_hash != old_email_hash {
         return Err(LogicError::bad_request(
             "old email does not match your current email",
         ));
@@ -145,9 +145,9 @@ pub async fn send_update_user_email(
         return Err(LogicError::bad_request("email domain not allowed"));
     }
 
-    let new_email_address = nail_common::hash::email(&new_email);
+    let new_email_hash = nail_common::hash::email(&new_email);
     if let Some(existing_user_id) =
-        read_user_by_email_address_hash(&state.graph, &new_email_address)
+        read_user_by_email_address_hash(&state.graph, &new_email_hash)
             .await
             .map_err(database_error)?
         && existing_user_id != user_id
@@ -165,17 +165,17 @@ pub async fn send_update_user_email(
     let new_email_subject = Uuid::now_v7().to_string();
     send_confirmation_email(state, &new_email, &new_email_subject, &new_token).await?;
 
-    let token_from_old_email = token_key(&old_token)
+    let token_hash_from_old_email = token_key(&old_token)
         .map_err(|error| LogicError::internal(format!("failed to hash email token: {error}")))?;
-    let token_from_new_email = token_key(&new_token)
+    let token_hash_from_new_email = token_key(&new_token)
         .map_err(|error| LogicError::internal(format!("failed to hash email token: {error}")))?;
     state.caches.email_update.insert(
         user_id,
         EmailUpdateTokenEntry {
-            old_email_address: old_email_address.clone(),
-            new_email_address: new_email_address.clone(),
-            token_from_old_email,
-            token_from_new_email,
+            old_email_hash: old_email_hash.clone(),
+            new_email_hash: new_email_hash.clone(),
+            token_hash_from_old_email,
+            token_hash_from_new_email,
         },
     );
     Ok((old_email_subject, new_email_subject))
@@ -218,15 +218,15 @@ pub async fn update_user_email(
         .map_err(|error| LogicError::internal(format!("failed to hash email token: {error}")))?;
     let new_token_hash = token_key(&new_email_token)
         .map_err(|error| LogicError::internal(format!("failed to hash email token: {error}")))?;
-    if entry.token_from_old_email != old_token_hash || entry.token_from_new_email != new_token_hash
+    if entry.token_hash_from_old_email != old_token_hash || entry.token_hash_from_new_email != new_token_hash
     {
         return Err(LogicError::bad_request("token mismatch"));
     }
 
-    let old_email_address = entry.old_email_address;
-    let new_email_address = entry.new_email_address;
+    let old_email_hash = entry.old_email_hash;
+    let new_email_hash = entry.new_email_hash;
     if let Some(existing_user_id) =
-        read_user_by_email_address_hash(&state.graph, &new_email_address)
+        read_user_by_email_address_hash(&state.graph, &new_email_hash)
             .await
             .map_err(database_error)?
         && existing_user_id != user_id
@@ -239,8 +239,8 @@ pub async fn update_user_email(
     write_user_email(
         &state.graph,
         user_id,
-        &old_email_address,
-        &new_email_address,
+        &old_email_hash,
+        &new_email_hash,
     )
     .await
     .map_err(|error| match error {
@@ -255,14 +255,14 @@ pub async fn update_user_email(
     })?;
 
     state.caches.email_update.consume_if(user_id, |current| {
-        current.token_from_old_email == old_token_hash
-            && current.token_from_new_email == new_token_hash
+        current.token_hash_from_old_email == old_token_hash
+            && current.token_hash_from_new_email == new_token_hash
     });
     state.caches.session.delete_by_reverse_key(user_id);
     state
         .caches
         .create_user
-        .delete_by_reverse_key(&old_email_address);
+        .delete_by_reverse_key(&old_email_hash);
     state.caches.delete_user.delete_by_reverse_key(user_id);
 
     let new_session_token = create_session(state, user_id)?;

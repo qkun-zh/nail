@@ -149,10 +149,10 @@ impl CacheEntry for ChallengeEntry {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmailUpdateTokenEntry {
-    pub old_email_address: String,
-    pub new_email_address: String,
-    pub token_from_old_email: String,
-    pub token_from_new_email: String,
+    pub old_email_hash: String,
+    pub new_email_hash: String,
+    pub token_hash_from_old_email: String,
+    pub token_hash_from_new_email: String,
 }
 
 impl CacheEntry for EmailUpdateTokenEntry {}
