@@ -10,10 +10,10 @@ pub enum DeleteMode {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum EmailReadIntent {
-    Authenticate,
-    ChangeEmail,
-    Deregister,
+pub enum TokenPurpose {
+    CreateUser,
+    UpdateUserEmail,
+    DeleteUser,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -29,8 +29,9 @@ pub struct UserDeleteRequest {
     pub pow: Pow,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub struct EmailReadRequest {
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CreateTokenRequest {
+    pub purpose: TokenPurpose,
     #[serde(default)]
     pub pow: Option<Pow>,
     #[serde(default)]
@@ -39,7 +40,8 @@ pub struct EmailReadRequest {
     pub new_email_pow: Option<Pow>,
 }
 
-impl EmailReadRequest {
+impl CreateTokenRequest {
+    #[must_use]
     pub fn has_consistent_email_pow_pair(&self) -> bool {
         self.old_email_pow.is_some() == self.new_email_pow.is_some()
     }
@@ -127,9 +129,9 @@ pub struct ArticleSearchParams {
     #[serde(default)]
     pub sort: Option<String>,
     #[serde(default)]
-    pub from: Option<u64>,
+    pub from: Option<String>,
     #[serde(default)]
-    pub to: Option<u64>,
+    pub to: Option<String>,
     #[serde(default)]
     pub limit: Option<u64>,
     #[serde(default)]

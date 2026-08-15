@@ -193,8 +193,8 @@ async fn user_delete_transfer_after_email_confirmation() {
     let pow = context.issued_pow("alice@example.com");
     let (status, body) = context
         .post(
-            "/email/read?intent=deregister",
-            json!({ "pow": pow }),
+            "/token/create",
+            json!({ "purpose": "delete_user", "pow": pow }),
             Some(&token),
         )
         .await;
@@ -230,8 +230,9 @@ async fn email_change_two_step_flow_updates_email_and_rotates_session() {
 
     let (status, body) = context
         .post(
-            "/email/read?intent=change_email",
+            "/token/create",
             json!({
+                "purpose": "update_user_email",
                 "old_email_pow": context.issued_pow("alice@example.com"),
                 "new_email_pow": context.issued_pow("alice-new@example.com"),
             }),
@@ -302,8 +303,9 @@ async fn email_change_rejects_same_old_and_new_email() {
 
     let (status, body) = context
         .post(
-            "/email/read?intent=change_email",
+            "/token/create",
             json!({
+                "purpose": "update_user_email",
                 "old_email_pow": context.issued_pow("alice@example.com"),
                 "new_email_pow": context.issued_pow("alice@example.com"),
             }),
@@ -325,8 +327,9 @@ async fn email_change_rejects_a_taken_new_email() {
 
     let (status, body) = context
         .post(
-            "/email/read?intent=change_email",
+            "/token/create",
             json!({
+                "purpose": "update_user_email",
                 "old_email_pow": context.issued_pow("alice@example.com"),
                 "new_email_pow": context.issued_pow("bob@example.com"),
             }),
@@ -347,8 +350,9 @@ async fn email_change_rejects_a_pow_payload_mismatch() {
 
     let (status, _) = context
         .post(
-            "/email/read?intent=change_email",
+            "/token/create",
             json!({
+                "purpose": "update_user_email",
                 "old_email_pow": context.issued_pow("alice@example.com"),
                 "new_email_pow": context.issued_pow("alice-new@example.com"),
             }),

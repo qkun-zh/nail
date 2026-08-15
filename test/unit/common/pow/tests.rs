@@ -15,7 +15,7 @@ fn challenge_round_trips_on_the_wire() -> anyhow::Result<()> {
     let json = serde_json::to_string(&challenge)?;
     assert_eq!(
         json,
-        r##"{"id":"0197c0b0-1234-7000-8000-000000000001","difficulty":1}"##
+        r#"{"id":"0197c0b0-1234-7000-8000-000000000001","difficulty":1}"#
     );
     let decoded: Challenge = serde_json::from_str(&json)?;
     assert_eq!(decoded, challenge);
@@ -108,9 +108,13 @@ fn verify_rejects_solution_with_wrong_byte_length() -> anyhow::Result<()> {
 
 #[test]
 fn verify_rejects_random_solution_bytes() -> anyhow::Result<()> {
-    let random_solution: String = (0..96)
-        .map(|index| format!("{:02x}", (index * 7) % 256))
-        .collect();
+    let mut random_solution = String::with_capacity(192);
+    for index in 0..96 {
+        let _ = std::fmt::Write::write_fmt(
+            &mut random_solution,
+            format_args!("{:02x}", (index * 7) % 256),
+        );
+    }
     let pow = Pow {
         challenge: sample_challenge()?,
         solution: random_solution,

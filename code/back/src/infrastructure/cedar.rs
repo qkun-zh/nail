@@ -38,7 +38,10 @@ pub fn decide(
         .iter()
         .any(|entity| entity.uid() == action_uid.clone())
     {
-        entities.push(Entity::new_no_attrs(action_uid.clone(), Default::default()));
+        entities.push(Entity::new_no_attrs(
+            action_uid.clone(),
+            std::collections::HashSet::default(),
+        ));
     }
     let entities = Entities::from_entities(entities, None)
         .map_err(|error| anyhow::anyhow!("invalid authorization entities: {error}"))?;

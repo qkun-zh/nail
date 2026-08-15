@@ -155,3 +155,75 @@ fn accepts_the_extreme_valid_offsets() {
     let min = crate::time::format_rfc3339_with_offset(0, -86_340).expect("min offset");
     assert_eq!(min, "1969-12-31T00:01:00-23:59");
 }
+
+#[test]
+fn parses_iso8601_year_to_second_precision_as_utc() {
+    assert_eq!(
+        crate::time::parse_iso8601_utc_secs("2024"),
+        Some(1_704_067_200)
+    );
+    assert_eq!(
+        crate::time::parse_iso8601_utc_secs("2024-01"),
+        Some(1_704_067_200)
+    );
+    assert_eq!(
+        crate::time::parse_iso8601_utc_secs("2024-01-15"),
+        Some(1_705_276_800)
+    );
+    assert_eq!(
+        crate::time::parse_iso8601_utc_secs("2024-01-15T10"),
+        Some(1_705_312_800)
+    );
+    assert_eq!(
+        crate::time::parse_iso8601_utc_secs("2024-01-15T10:30"),
+        Some(1_705_314_600)
+    );
+    assert_eq!(
+        crate::time::parse_iso8601_utc_secs("2024-01-15T10:30:00"),
+        Some(1_705_314_600)
+    );
+}
+
+#[test]
+fn parses_iso8601_with_offsets_into_utc() {
+    assert_eq!(
+        crate::time::parse_iso8601_utc_secs("2024-01-15T10:30:00Z"),
+        Some(1_705_314_600)
+    );
+    assert_eq!(
+        crate::time::parse_iso8601_utc_secs("2024-01-15T18:30:00+08:00"),
+        Some(1_705_314_600)
+    );
+    assert_eq!(
+        crate::time::parse_iso8601_utc_secs("2024-01-15T05:30:00-05:00"),
+        Some(1_705_314_600)
+    );
+}
+
+#[test]
+fn parses_iso8601_compact_offsets() {
+    assert_eq!(
+        crate::time::parse_iso8601_utc_secs("2024-01-15T10:30:00+0800"),
+        Some(1_705_285_800)
+    );
+    assert_eq!(
+        crate::time::parse_iso8601_utc_secs("2024-01-15T18:30:00+08"),
+        Some(1_705_314_600)
+    );
+}
+
+#[test]
+fn rejects_invalid_iso8601_inputs() {
+    assert_eq!(crate::time::parse_iso8601_utc_secs(""), None);
+    assert_eq!(crate::time::parse_iso8601_utc_secs("not-a-date"), None);
+    assert_eq!(crate::time::parse_iso8601_utc_secs("2024-13-01"), None);
+    assert_eq!(crate::time::parse_iso8601_utc_secs("2024-01-32"), None);
+    assert_eq!(
+        crate::time::parse_iso8601_utc_secs("2024-01-15T25:00"),
+        None
+    );
+    assert_eq!(
+        crate::time::parse_iso8601_utc_secs("2024-01-15T10:61"),
+        None
+    );
+}

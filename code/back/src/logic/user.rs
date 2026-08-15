@@ -13,7 +13,7 @@ use crate::logic::session::normalize_token;
 use crate::repository::authorization::Resource;
 use crate::repository::cache::token_key;
 use crate::repository::role::{
-    PERMISSION_USER_DELETE, PERMISSION_USER_READ, PERMISSION_USER_UPDATE, ROLE_MEMBER,
+    PERMISSION_USER_DELETE_HARD, PERMISSION_USER_READ, PERMISSION_USER_UPDATE, ROLE_MEMBER,
 };
 use crate::repository::transfer::TransferError;
 use crate::repository::user::{UserWriteError, read_user as read_user_node, update_user_name};
@@ -283,7 +283,13 @@ async fn handle_delete_user_hard(
     actor_id: &str,
     target_id: &str,
 ) -> Result<(), LogicError> {
-    authorize(state, actor_id, PERMISSION_USER_DELETE, &admin_console()).await?;
+    authorize(
+        state,
+        actor_id,
+        PERMISSION_USER_DELETE_HARD,
+        &admin_console(),
+    )
+    .await?;
     let outcome = crate::repository::delete::delete_user(&state.graph, target_id)
         .await
         .map_err(|error| LogicError::internal(format!("failed to delete user: {error}")))?;

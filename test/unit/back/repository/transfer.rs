@@ -6,7 +6,7 @@ use crate::repository::transfer::{TransferTargetError, transfer_account_assets, 
 use crate::repository::version::VersionDraft;
 
 fn pdf_hash(seed: u8) -> String {
-    (0..32).map(|_| format!("{seed:x}")).collect()
+    format!("{seed:x}").repeat(32)
 }
 
 async fn create_user(state: &crate::infrastructure::state::AppState, email: &str) -> String {
@@ -53,7 +53,7 @@ async fn transfer_article_repoints_the_owner_edge_to_the_recycler() {
             author_id: author_id.clone(),
             title: "Article".to_string(),
             summary: "summary".to_string(),
-            tags: vec!["#rust".to_string()],
+            tags: vec!["rust".to_string()],
             first_version: VersionDraft {
                 version_id: uuid::Uuid::now_v7().to_string(),
                 version_number: "1.0.0".to_string(),
@@ -104,7 +104,7 @@ async fn create_article_for(
             author_id: author_id.to_string(),
             title: title.to_string(),
             summary: "summary".to_string(),
-            tags: vec!["#rust".to_string()],
+            tags: vec!["rust".to_string()],
             first_version: VersionDraft {
                 version_id: version_id.clone(),
                 version_number: "1.0.0".to_string(),

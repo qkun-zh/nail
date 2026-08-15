@@ -25,11 +25,10 @@ struct OffsetTime {
 }
 
 impl OffsetTime {
-    fn new(offset_seconds: i32) -> Result<Self> {
-        Ok(Self {
-            offset: UtcOffset::from_whole_seconds(offset_seconds)
-                .context("invalid timezone offset")?,
-        })
+    fn new() -> Self {
+        Self {
+            offset: UtcOffset::UTC,
+        }
     }
 }
 
@@ -55,12 +54,9 @@ pub fn init(config: &ServerConfig) -> Result<()> {
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.log_filter));
     tracing_subscriber::fmt()
         .with_env_filter(filter)
-        .with_writer(spawn_writer_thread(
-            dir.to_path_buf(),
-            config.timezone_offset_seconds,
-        )?)
+        .with_writer(spawn_writer_thread(dir.to_path_buf())?)
         .with_ansi(false)
-        .with_timer(OffsetTime::new(config.timezone_offset_seconds)?)
+        .with_timer(OffsetTime::new())
         .try_init()
         .map_err(|error| anyhow::anyhow!("failed to init tracing: {error}"))?;
     install_panic_hook();
@@ -68,9 +64,10 @@ pub fn init(config: &ServerConfig) -> Result<()> {
 }
 
 pub fn record_startup_failure(error: &anyhow::Error) {
-    let dir = crate::infrastructure::config::AppConfig::load()
-        .map(|config| PathBuf::from(config.server.log_dir))
-        .unwrap_or_else(|_| PathBuf::from("log/back"));
+    let dir = crate::infrastructure::config::AppConfig::load().map_or_else(
+        |_| PathBuf::from("log/back"),
+        |config| PathBuf::from(config.server.log_dir),
+    );
     if fs::create_dir_all(&dir).is_err() {
         return;
     }
@@ -121,16 +118,15 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for ChannelWriter {
     }
 }
 
-fn spawn_writer_thread(dir: PathBuf, offset_seconds: i32) -> Result<ChannelWriter> {
-    let offset =
-        UtcOffset::from_whole_seconds(offset_seconds).context("invalid timezone offset")?;
+fn spawn_writer_thread(dir: PathBuf) -> Result<ChannelWriter> {
+    let offset = UtcOffset::UTC;
     let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<u8>>(1024);
     std::thread::Builder::new()
         .name("nail-log-writer".to_string())
         .spawn(move || {
             let mut writer = MinuteLogWriter::new(dir, offset);
             while let Ok(line) = rx.recv() {
-                if let Err(error) = writer.write_all(&line).and_then(|_| writer.flush()) {
+                if let Err(error) = writer.write_all(&line).and_then(|()| writer.flush()) {
                     eprintln!("[nail_log] log write failed: {error}");
                 }
             }

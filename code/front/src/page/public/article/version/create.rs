@@ -1,7 +1,6 @@
 use leptos::ev::SubmitEvent;
 use leptos::html::Input;
 use leptos::prelude::*;
-use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
 
 use crate::infrastructure::limits::use_limits;
@@ -66,7 +65,7 @@ pub fn CreateVersion() -> impl IntoView {
         if let Err(error) = validate_pdf_selection(
             &file.type_(),
             &file.name(),
-            file.size() as u64,
+            u64::try_from(file.size()).unwrap_or(u64::MAX),
             limits.max_pdf_size_bytes,
         ) {
             notify_error(&notifications, &error);
@@ -81,21 +80,11 @@ pub fn CreateVersion() -> impl IntoView {
         };
         working.set(true);
         let notifications = notifications.clone();
-        let navigate = navigate.clone();
         leptos::task::spawn_local(async move {
             let result = crate::request::version::create_version(&article_id, form).await;
             working.set(false);
             match result {
-                Ok(_) => {
-                    notify_success(&notifications, "version created");
-                    navigate(
-                        &format!("/public/article/{article_id}/version"),
-                        NavigateOptions {
-                            resolve: false,
-                            ..Default::default()
-                        },
-                    );
-                }
+                Ok(_) => notify_success(&notifications, "version created"),
                 Err(error) => notify_error(&notifications, error.to_string()),
             }
         });

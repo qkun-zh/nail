@@ -75,6 +75,11 @@ fn pow_prove_internal(id: &str, raw_data: &str, difficulty: u64) -> anyhow::Resu
     Ok(hex::encode(out))
 }
 
+/// Computes a proof of work for the given challenge and payload.
+///
+/// # Errors
+/// Returns an error when the payload exceeds [`MAX_PAYLOAD_BYTES`] or the
+/// underlying VDF/CXOF primitives fail.
 pub fn prove(input: ProveInput) -> anyhow::Result<Pow> {
     let id_str = input.challenge.id.to_string();
     let solution_hex = pow_prove_internal(&id_str, &input.payload, input.challenge.difficulty)?;
@@ -92,22 +97,21 @@ fn pow_verify_internal(id: &str, raw_data: &str, difficulty: u64, solution_hex: 
     if raw_data.len() > MAX_PAYLOAD_BYTES {
         return false;
     }
-    let bytes = match hex::decode(solution_hex) {
-        Ok(bytes) => bytes,
-        Err(_) => return false,
+    let Ok(bytes) = hex::decode(solution_hex) else {
+        return false;
     };
     if bytes.len() != 96 {
         return false;
     }
     let output = &bytes[..48];
     let proof = &bytes[48..];
-    let cxof_bytes = match pow_cxof(raw_data, id) {
-        Ok(cxof_bytes) => cxof_bytes,
-        Err(_) => return false,
+    let Ok(cxof_bytes) = pow_cxof(raw_data, id) else {
+        return false;
     };
     pow_vdf_verify(cxof_bytes, difficulty, output, proof)
 }
 
+#[must_use]
 pub fn verify(pow: &Pow, server_difficulty: u64) -> bool {
     if pow.challenge.difficulty != server_difficulty {
         return false;

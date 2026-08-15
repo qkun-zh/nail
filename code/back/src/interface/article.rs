@@ -3,7 +3,6 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use nail_common::request::{DeleteBody, UpdateArticleRequest};
 use nail_common::response::article::CreateArticleView;
-use serde::Deserialize;
 use tokio::io::AsyncWriteExt;
 
 use crate::infrastructure::pdf::{PdfStreamGuard, PdfUpload, TempPdf};
@@ -34,7 +33,11 @@ pub async fn create_article(
     let mut note = None;
     let mut upload = None;
 
-    while let Some(field) = multipart.next_field().await.map_err(map_multipart_error)? {
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|error| map_multipart_error(&error))?
+    {
         let name = field.name().unwrap_or_default().to_string();
         match name.as_str() {
             "file" => upload = Some(stream_pdf_field(&state, field).await?),
@@ -77,24 +80,12 @@ pub async fn create_article(
     ))
 }
 
-#[derive(Debug, Default, Deserialize)]
-pub struct ArticleReadParams {
-    pub check_if_is_author: Option<bool>,
-}
-
 pub async fn read_article(
     State(state): State<AppState>,
-    principal: Principal,
+    _principal: Principal,
     AppPath(article_id): AppPath<String>,
-    AppQuery(params): AppQuery<ArticleReadParams>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data = crate::logic::article::read_article(
-        &state,
-        &principal.user_id,
-        &article_id,
-        params.check_if_is_author.unwrap_or(false),
-    )
-    .await?;
+    let data = crate::logic::article::read_article(&state, &article_id).await?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
@@ -136,7 +127,10 @@ pub(crate) async fn read_text_field(
     state: &AppState,
     field: axum::extract::multipart::Field<'_>,
 ) -> Result<String, ApiError> {
-    let bytes = field.bytes().await.map_err(map_multipart_error)?;
+    let bytes = field
+        .bytes()
+        .await
+        .map_err(|error| map_multipart_error(&error))?;
     if bytes.len() as u64 > state.config.server.max_text_field_bytes {
         return Err(ApiError::bad_request("text field too large"));
     }
@@ -159,7 +153,11 @@ pub(crate) async fn stream_pdf_field(
     let mut guard = PdfStreamGuard::new(state.config.server.max_pdf_size_bytes);
     let mut hasher = PdfHasher::new();
 
-    while let Some(chunk) = field.chunk().await.map_err(map_multipart_error)? {
+    while let Some(chunk) = field
+        .chunk()
+        .await
+        .map_err(|error| map_multipart_error(&error))?
+    {
         guard
             .update(&chunk)
             .map_err(|error| ApiError::bad_request(error.to_string()))?;
@@ -183,7 +181,7 @@ pub(crate) async fn stream_pdf_field(
     Ok(PdfUpload::received(hasher.finalize(), temp))
 }
 
-pub(crate) fn map_multipart_error(error: axum::extract::multipart::MultipartError) -> ApiError {
+pub(crate) fn map_multipart_error(error: &axum::extract::multipart::MultipartError) -> ApiError {
     ApiError {
         status: error.status(),
         message: error.body_text(),

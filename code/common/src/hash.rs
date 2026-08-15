@@ -1,5 +1,6 @@
 use ascon_xof128::{AsconXof128, ExtendableOutput, Update, XofReader};
 
+#[must_use]
 pub fn email(email_address: &str) -> String {
     let mut xof = AsconXof128::default();
     xof.update(email_address.as_bytes());
@@ -8,6 +9,9 @@ pub fn email(email_address: &str) -> String {
     hex::encode(output)
 }
 
+/// # Errors
+/// Returns an error if the Ascon CXOF cannot be initialized with the
+/// "token-hash" customization string.
 pub fn token(token: &str) -> anyhow::Result<String> {
     use ascon_xof128::{AsconCxof128, TryCustomizedInit};
     let mut cxof = AsconCxof128::try_new_customized(b"token-hash")?;
@@ -28,6 +32,7 @@ impl Default for PdfHasher {
 }
 
 impl PdfHasher {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             xof: AsconXof128::default(),
@@ -38,6 +43,7 @@ impl PdfHasher {
         self.xof.update(data);
     }
 
+    #[must_use]
     pub fn finalize(self) -> String {
         let mut output = [0u8; 16];
         self.xof.finalize_xof().read(&mut output);
@@ -45,6 +51,7 @@ impl PdfHasher {
     }
 }
 
+#[must_use]
 pub fn pdf(data: &[u8]) -> String {
     let mut hasher = PdfHasher::new();
     for chunk in data.chunks(64 * 1024) {

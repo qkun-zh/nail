@@ -1,7 +1,6 @@
 use leptos::ev::SubmitEvent;
 use leptos::html::Input;
 use leptos::prelude::*;
-use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_query_map};
 
 use crate::infrastructure::limits::use_limits;
@@ -60,7 +59,10 @@ pub fn CreateArticle() -> impl IntoView {
                 return;
             }
         };
-        if let Err(error) = validate_tags(&tags.get(), limits.max_tags_per_article as usize) {
+        if let Err(error) = validate_tags(
+            &tags.get(),
+            usize::try_from(limits.max_tags_per_article).unwrap_or(usize::MAX),
+        ) {
             notify_error(&notifications, &error);
             return;
         }
@@ -82,7 +84,7 @@ pub fn CreateArticle() -> impl IntoView {
         if let Err(error) = validate_pdf_selection(
             &file.type_(),
             &file.name(),
-            file.size() as u64,
+            u64::try_from(file.size()).unwrap_or(u64::MAX),
             limits.max_pdf_size_bytes,
         ) {
             notify_error(&notifications, &error);
@@ -106,20 +108,20 @@ pub fn CreateArticle() -> impl IntoView {
 
         working.set(true);
         let notifications = notifications.clone();
-        let navigate = navigate.clone();
         leptos::task::spawn_local(async move {
             let result = crate::request::article::create_article(form).await;
             working.set(false);
             match result {
                 Ok(view) => {
-                    notify_success(&notifications, "article created");
-                    navigate(
-                        &format!("/public/article/{}", view.article_id),
-                        NavigateOptions {
-                            resolve: false,
-                            ..Default::default()
-                        },
-                    );
+                    let message = if view.version_id.is_empty() {
+                        format!("article created: {}", view.article_id)
+                    } else {
+                        format!(
+                            "article created: {} (version {})",
+                            view.article_id, view.version_id
+                        )
+                    };
+                    notify_success(&notifications, message);
                 }
                 Err(error) => notify_error(&notifications, error.to_string()),
             }
@@ -130,7 +132,7 @@ pub fn CreateArticle() -> impl IntoView {
         <form on:submit=submit>
             <div><label><input type="text" placeholder="title" prop:value=title on:input=move |event| title.set(event_target_value(&event)) /></label></div>
             <div><label><textarea rows="6" cols="60" placeholder="summary" prop:value=summary on:input=move |event| summary.set(event_target_value(&event))></textarea></label></div>
-            <div><label><textarea rows="6" cols="60" placeholder="tag (#a #b)" prop:value=tags on:input=move |event| tags.set(event_target_value(&event))></textarea></label></div>
+            <div><label><textarea rows="6" cols="60" placeholder="tag (space separated)" prop:value=tags on:input=move |event| tags.set(event_target_value(&event))></textarea></label></div>
             <div><label><input type="text" placeholder="version" prop:value=version on:input=move |event| version.set(event_target_value(&event)) /></label></div>
             <div><label><textarea rows="4" cols="60" placeholder="note: what changed in this version" prop:value=note on:input=move |event| note.set(event_target_value(&event))></textarea></label></div>
             <div><label><input type="file" accept="application/pdf" node_ref=file_ref /></label></div>

@@ -11,7 +11,6 @@ fn limits() -> RuntimeLimits {
         max_pdf_size_bytes: 33_554_432,
         max_text_field_bytes: 1_048_576,
         download_token_ttl_seconds: 60,
-        timezone_offset_seconds: 28_800,
         search_page_size: 8,
         max_search_pages: 1024,
     }
@@ -29,19 +28,9 @@ fn zero_numeric_limits_fall_back_to_defaults() {
         max_pdf_size_bytes: 0,
         ..limits()
     };
-    let merged = apply_fallbacks(server);
+    let merged = apply_fallbacks(&server);
     assert_eq!(merged.search_page_size, 8);
     assert_eq!(merged.max_pdf_size_bytes, 33_554_432);
-}
-
-#[test]
-fn zero_timezone_offset_is_utc_and_kept() {
-    let server = RuntimeLimits {
-        timezone_offset_seconds: 0,
-        ..limits()
-    };
-    let merged = apply_fallbacks(server);
-    assert_eq!(merged.timezone_offset_seconds, 0);
 }
 
 #[test]
@@ -55,11 +44,10 @@ fn fully_populated_server_values_are_kept() {
         max_pdf_size_bytes: 1_000_000,
         max_text_field_bytes: 50_000,
         download_token_ttl_seconds: 30,
-        timezone_offset_seconds: -3_600,
         search_page_size: 20,
         max_search_pages: 500,
     };
-    assert_eq!(apply_fallbacks(server.clone()), server);
+    assert_eq!(apply_fallbacks(&server), server);
 }
 
 #[test]
@@ -73,11 +61,10 @@ fn every_zero_numeric_field_falls_back_individually() {
         max_pdf_size_bytes: 0,
         max_text_field_bytes: 0,
         download_token_ttl_seconds: 0,
-        timezone_offset_seconds: 0,
         search_page_size: 0,
         max_search_pages: 0,
     };
-    let merged = apply_fallbacks(server);
+    let merged = apply_fallbacks(&server);
     assert_eq!(merged.max_tags_per_article, 8);
     assert_eq!(merged.max_comment_body_chars, 1024);
     assert_eq!(merged.max_version_note_chars, 1024);
@@ -86,7 +73,6 @@ fn every_zero_numeric_field_falls_back_individually() {
     assert_eq!(merged.max_pdf_size_bytes, 33_554_432);
     assert_eq!(merged.max_text_field_bytes, 1_048_576);
     assert_eq!(merged.download_token_ttl_seconds, 60);
-    assert_eq!(merged.timezone_offset_seconds, 0);
     assert_eq!(merged.search_page_size, 8);
     assert_eq!(merged.max_search_pages, 1024);
 }

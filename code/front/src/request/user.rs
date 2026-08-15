@@ -1,5 +1,7 @@
 use nail_common::pow::Pow;
-use nail_common::request::{DeleteMode, EmailReadRequest, UserDeleteRequest, UserUpdateRequest};
+use nail_common::request::{
+    CreateTokenRequest, DeleteMode, TokenPurpose, UserDeleteRequest, UserUpdateRequest,
+};
 use nail_common::response::EmptyView;
 use nail_common::response::email::{EmailSubjectView, EmailSubjectsView};
 use nail_common::response::session::SessionTokenView;
@@ -34,22 +36,31 @@ pub async fn confirm_email_change(
 }
 
 pub async fn send_change_email(old_pow: Pow, new_pow: Pow) -> RequestResult<EmailSubjectsView> {
-    let path = url::build_path_with_query(&["email", "read"], &[("intent", "change_email")]);
-    let body = EmailReadRequest {
+    let body = update_user_email_token_request(old_pow, new_pow);
+    http::post_json("/token/create", &body, true).await
+}
+
+fn update_user_email_token_request(old_pow: Pow, new_pow: Pow) -> CreateTokenRequest {
+    CreateTokenRequest {
+        purpose: TokenPurpose::UpdateUserEmail,
+        pow: None,
         old_email_pow: Some(old_pow),
         new_email_pow: Some(new_pow),
-        ..EmailReadRequest::default()
-    };
-    http::post_json(&path, &body, true).await
+    }
 }
 
 pub async fn send_deregister_email(pow: Pow) -> RequestResult<EmailSubjectView> {
-    let path = url::build_path_with_query(&["email", "read"], &[("intent", "deregister")]);
-    let body = EmailReadRequest {
+    let body = delete_user_token_request(pow);
+    http::post_json("/token/create", &body, true).await
+}
+
+fn delete_user_token_request(pow: Pow) -> CreateTokenRequest {
+    CreateTokenRequest {
+        purpose: TokenPurpose::DeleteUser,
         pow: Some(pow),
-        ..EmailReadRequest::default()
-    };
-    http::post_json(&path, &body, true).await
+        old_email_pow: None,
+        new_email_pow: None,
+    }
 }
 
 pub async fn deregister_self(user_id: &str, pow: Pow) -> RequestResult<EmptyView> {
@@ -60,3 +71,7 @@ pub async fn deregister_self(user_id: &str, pow: Pow) -> RequestResult<EmptyView
     };
     http::post_json(&path, &body, true).await
 }
+
+#[cfg(test)]
+#[path = "../../../../test/unit/front/request/user/tests.rs"]
+mod tests;

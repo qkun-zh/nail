@@ -11,11 +11,29 @@ pub struct SearchHit {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SearchArticleItem {
-    pub id: String,
+    pub article_id: String,
     pub title: String,
-    pub author: String,
+    pub author_name: String,
     pub time: String,
-    pub hits: Vec<SearchHit>,
+    pub article_hits: Vec<SearchHit>,
+    pub versions: Vec<SearchVersionItem>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SearchVersionItem {
+    pub version_id: String,
+    pub version_number: String,
+    pub time: String,
+    pub version_hits: Vec<SearchHit>,
+    pub comments: Vec<SearchCommentItem>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SearchCommentItem {
+    pub comment_id: String,
+    pub author_name: String,
+    pub time: String,
+    pub content: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -20,9 +20,6 @@ use crate::page::public::article::detail::ArticleDetail;
 use crate::page::public::article::index::ArticleIndex;
 use crate::page::public::article::search::Search;
 use crate::page::public::article::update::UpdateArticle;
-use crate::page::public::article::version::comment::delete::CommentDelete;
-use crate::page::public::article::version::comment::index::CommentIndex;
-use crate::page::public::article::version::comment::reply::CommentReply;
 use crate::page::public::article::version::create::CreateVersion;
 use crate::page::public::article::version::detail::VersionDetail;
 use crate::page::public::article::version::index::VersionList;
@@ -47,18 +44,9 @@ pub fn AppRouter() -> impl IntoView {
                         <Route path=path!("/article/:article_id/delete") view=DeleteArticle/>
                         <Route path=path!("/article/:article_id/version") view=VersionList/>
                         <Route path=path!("/article/:article_id/version/create") view=CreateVersion/>
-                        <Route path=path!("/article/:article_id/version/:version_id") view=VersionDetail/>
                         <Route
-                            path=path!("/article/:article_id/version/:version_id/comment")
-                            view=CommentIndex
-                        />
-                        <Route
-                            path=path!("/article/:article_id/version/:version_id/comment/:comment_id")
-                            view=CommentReply
-                        />
-                        <Route
-                            path=path!("/article/:article_id/version/:version_id/comment/:comment_id/delete")
-                            view=CommentDelete
+                            path=path!("/article/:article_id/version/:version_id/*comment_path")
+                            view=VersionDetail
                         />
                     </ParentRoute>
                     <ParentRoute path=path!("/private") view=PrivateLayout>

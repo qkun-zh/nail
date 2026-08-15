@@ -27,7 +27,7 @@ async fn create_article_writes_the_article_and_version() {
         crate::logic::article::ArticleCreateInput {
             title: "My Article",
             summary: "A summary.",
-            tags: "#rust",
+            tags: "rust",
             version: "1.0.0",
             note: "note",
             upload,
@@ -61,7 +61,7 @@ async fn create_article_requires_article_create_permission() {
         crate::logic::article::ArticleCreateInput {
             title: "Title",
             summary: "Summary",
-            tags: "#rust",
+            tags: "rust",
             version: "1.0.0",
             note: "note",
             upload: context.upload(&valid_pdf()),
@@ -82,7 +82,7 @@ async fn create_article_rejects_an_empty_title() {
         crate::logic::article::ArticleCreateInput {
             title: "",
             summary: "Summary",
-            tags: "#rust",
+            tags: "rust",
             version: "1.0.0",
             note: "note",
             upload: context.upload(&valid_pdf()),
@@ -103,7 +103,7 @@ async fn create_article_rejects_a_duplicate_title() {
         crate::logic::article::ArticleCreateInput {
             title: "Duplicated",
             summary: "Summary",
-            tags: "#rust",
+            tags: "rust",
             version: "1.0.0",
             note: "note",
             upload: context.upload(&unique_pdf("first")),
@@ -118,7 +118,7 @@ async fn create_article_rejects_a_duplicate_title() {
         crate::logic::article::ArticleCreateInput {
             title: "Duplicated",
             summary: "Summary",
-            tags: "#rust",
+            tags: "rust",
             version: "1.0.0",
             note: "note",
             upload: context.upload(&unique_pdf("second")),
@@ -140,7 +140,7 @@ async fn create_article_rejects_a_duplicate_content_hash() {
         crate::logic::article::ArticleCreateInput {
             title: "First",
             summary: "Summary",
-            tags: "#rust",
+            tags: "rust",
             version: "1.0.0",
             note: "note",
             upload: context.upload(&pdf),
@@ -155,7 +155,7 @@ async fn create_article_rejects_a_duplicate_content_hash() {
         crate::logic::article::ArticleCreateInput {
             title: "Second",
             summary: "Summary",
-            tags: "#rust",
+            tags: "rust",
             version: "1.0.0",
             note: "note",
             upload: context.upload(&pdf),
@@ -171,7 +171,7 @@ async fn create_article_rejects_a_duplicate_content_hash() {
 }
 
 #[tokio::test]
-async fn read_article_returns_detail_and_is_author() {
+async fn read_article_returns_detail() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
     let (article_id, _) = crate::logic::article::create_article(
@@ -180,7 +180,7 @@ async fn read_article_returns_detail_and_is_author() {
         crate::logic::article::ArticleCreateInput {
             title: "Titled",
             summary: "Summary",
-            tags: "#rust",
+            tags: "rust",
             version: "1.0.0",
             note: "note",
             upload: context.upload(&valid_pdf()),
@@ -189,18 +189,17 @@ async fn read_article_returns_detail_and_is_author() {
     .await
     .expect("create");
 
-    let data = crate::logic::article::read_article(&context.state, &actor, &article_id, true)
+    let data = crate::logic::article::read_article(&context.state, &article_id)
         .await
         .expect("read");
     assert_eq!(data.title, "Titled");
-    assert_eq!(data.is_author, Some(true));
+    assert_eq!(data.author_id, actor);
 }
 
 #[tokio::test]
 async fn read_article_missing_is_not_found() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let error = crate::logic::article::read_article(&context.state, &actor, "missing", false)
+    let error = crate::logic::article::read_article(&context.state, "missing")
         .await
         .unwrap_err();
     assert_eq!(error, LogicError::not_found("article not found"));

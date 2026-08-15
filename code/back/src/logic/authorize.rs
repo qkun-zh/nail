@@ -1,7 +1,6 @@
 use crate::infrastructure::state::AppState;
 use crate::logic::error::LogicError;
 use crate::repository::authorization::{AssemblyError, Resource, assemble, assemble_principal};
-use crate::repository::role::{PERMISSION_ARTICLE_UPDATE, PERMISSION_COMMENT_DELETE};
 
 pub async fn authorize(
     state: &AppState,
@@ -53,7 +52,7 @@ pub async fn authorize_create(
         .map_err(|error| LogicError::internal(format!("invalid create resource uid: {error}")))?;
     entities.push(cedar_policy::Entity::new_no_attrs(
         resource_uid.clone(),
-        Default::default(),
+        std::collections::HashSet::default(),
     ));
     let allowed = crate::infrastructure::cedar::decide(&principal, action, &resource_uid, entities)
         .map_err(|error| {
@@ -64,53 +63,6 @@ pub async fn authorize_create(
     } else {
         Err(LogicError::forbidden("you are denied"))
     }
-}
-
-pub async fn is_allowed(
-    state: &AppState,
-    actor_id: &str,
-    action: &str,
-    resource: &Resource,
-) -> bool {
-    match assemble(&state.graph, actor_id, resource.clone()).await {
-        Ok(assembly) => crate::infrastructure::cedar::decide(
-            &assembly.principal,
-            action,
-            &assembly.resource,
-            assembly.entities,
-        )
-        .unwrap_or(false),
-        Err(_) => false,
-    }
-}
-
-pub async fn is_author(
-    state: &AppState,
-    actor_id: &str,
-    article_id: Option<&str>,
-    version_id: Option<&str>,
-    comment_id: Option<&str>,
-) -> Result<bool, LogicError> {
-    let (action, resource) = match (article_id, version_id, comment_id) {
-        (Some(article_id), None, None) => (
-            PERMISSION_ARTICLE_UPDATE,
-            Resource::Article(article_id.to_string()),
-        ),
-        (None, Some(version_id), None) => (
-            PERMISSION_ARTICLE_UPDATE,
-            Resource::Version(version_id.to_string()),
-        ),
-        (None, None, Some(comment_id)) => (
-            PERMISSION_COMMENT_DELETE,
-            Resource::Comment(comment_id.to_string()),
-        ),
-        _ => {
-            return Err(LogicError::bad_request(
-                "exactly one of article_id, version_id or comment_id is required",
-            ));
-        }
-    };
-    Ok(is_allowed(state, actor_id, action, &resource).await)
 }
 
 fn map_assembly_error(error: AssemblyError) -> LogicError {

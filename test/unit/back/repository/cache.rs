@@ -6,7 +6,7 @@ use crate::repository::cache::{
 };
 
 fn cache<E: crate::repository::cache::CacheEntry>() -> TokenCache<E> {
-    TokenCache::new(Duration::from_secs(60), 100)
+    TokenCache::new(Duration::from_mins(1), 100)
 }
 
 #[test]
@@ -73,21 +73,19 @@ fn consume_removes_the_reverse_member() {
 fn consume_if_removes_the_entry_only_when_the_predicate_matches() {
     let cache: TokenCache<EmailUpdateTokenEntry> = cache();
     let entry = EmailUpdateTokenEntry {
-        old_email_address_hash: "old-hash".to_string(),
-        new_email_address_hash: "new-hash".to_string(),
-        token_from_old_email_hash: "old-token-hash".to_string(),
-        token_from_new_email_hash: "new-token-hash".to_string(),
+        old_email_address: "old-hash".to_string(),
+        new_email_address: "new-hash".to_string(),
+        token_from_old_email: "old-token-hash".to_string(),
+        token_from_new_email: "new-token-hash".to_string(),
     };
     cache.insert("user-1", entry.clone());
 
-    let mismatched = cache.consume_if("user-1", |current| {
-        current.token_from_old_email_hash == "wrong"
-    });
+    let mismatched = cache.consume_if("user-1", |current| current.token_from_old_email == "wrong");
     assert!(mismatched.is_none());
     assert_eq!(cache.read("user-1"), Some(entry.clone()));
 
     let matched = cache.consume_if("user-1", |current| {
-        current.token_from_old_email_hash == "old-token-hash"
+        current.token_from_old_email == "old-token-hash"
     });
     assert_eq!(matched, Some(entry));
     assert!(cache.read("user-1").is_none());
@@ -107,10 +105,10 @@ fn entry_reverse_keys_are_wired_to_the_right_fields() {
     assert_eq!(delete_user.reverse_key(), Some("user-1"));
 
     let email_update = EmailUpdateTokenEntry {
-        old_email_address_hash: "old".to_string(),
-        new_email_address_hash: "new".to_string(),
-        token_from_old_email_hash: "old-token".to_string(),
-        token_from_new_email_hash: "new-token".to_string(),
+        old_email_address: "old".to_string(),
+        new_email_address: "new".to_string(),
+        token_from_old_email: "old-token".to_string(),
+        token_from_new_email: "new-token".to_string(),
     };
     assert_eq!(email_update.reverse_key(), None);
 }

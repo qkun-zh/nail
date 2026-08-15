@@ -109,20 +109,8 @@ async fn read_role_returns_members_and_permissions() {
     let (status, body) = context.get("/role/admin/read", Some(&token)).await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["data"]["name"].as_str(), Some("admin"));
-    assert!(
-        body["data"]["members"]
-            .as_array()
-            .map(Vec::len)
-            .unwrap_or(0)
-            >= 1
-    );
-    assert!(
-        body["data"]["permissions"]
-            .as_array()
-            .map(Vec::len)
-            .unwrap_or(0)
-            > 0
-    );
+    assert!(body["data"]["members"].as_array().map_or(0, Vec::len) >= 1);
+    assert!(body["data"]["permissions"].as_array().map_or(0, Vec::len) > 0);
 }
 
 #[tokio::test]
@@ -229,7 +217,7 @@ async fn update_role_applies_and_removes_tag_scopes() {
     let (status, body) = context
         .post(
             "/role/editor/update",
-            json!({ "tags": { "add": ["#rust", "#db"] } }),
+            json!({ "tags": { "add": ["rust", "db"] } }),
             Some(&token),
         )
         .await;
@@ -237,13 +225,13 @@ async fn update_role_applies_and_removes_tag_scopes() {
 
     let (_, detail) = context.get("/role/editor/read", Some(&token)).await;
     let scopes = detail["data"]["scopes"].as_array().expect("scopes");
-    assert!(scopes.iter().any(|s| s.as_str() == Some("#rust")));
-    assert!(scopes.iter().any(|s| s.as_str() == Some("#db")));
+    assert!(scopes.iter().any(|s| s.as_str() == Some("rust")));
+    assert!(scopes.iter().any(|s| s.as_str() == Some("db")));
 
     let (status, body) = context
         .post(
             "/role/editor/update",
-            json!({ "tags": { "remove": ["#rust"] } }),
+            json!({ "tags": { "remove": ["rust"] } }),
             Some(&token),
         )
         .await;
@@ -251,8 +239,8 @@ async fn update_role_applies_and_removes_tag_scopes() {
 
     let (_, detail) = context.get("/role/editor/read", Some(&token)).await;
     let scopes = detail["data"]["scopes"].as_array().expect("scopes");
-    assert!(!scopes.iter().any(|s| s.as_str() == Some("#rust")));
-    assert!(scopes.iter().any(|s| s.as_str() == Some("#db")));
+    assert!(!scopes.iter().any(|s| s.as_str() == Some("rust")));
+    assert!(scopes.iter().any(|s| s.as_str() == Some("db")));
 }
 
 #[tokio::test]

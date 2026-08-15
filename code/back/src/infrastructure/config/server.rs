@@ -13,7 +13,6 @@ pub struct ServerConfig {
     pub download_token_ttl_seconds: u64,
     pub token_cache_capacity: u64,
     pub email_cooldown_seconds: u64,
-    pub timezone_offset_seconds: i32,
     pub user_zero_email: String,
     pub max_pdf_size_bytes: u64,
     pub max_tags_per_article: usize,
@@ -59,13 +58,6 @@ impl ServerConfig {
         }
         if !(1..=10_000).contains(&self.pow_difficulty_iterations) {
             bail!("config: pow_difficulty_iterations must be in 1..=10_000");
-        }
-        if self.timezone_offset_seconds % 60 != 0
-            || !(-86_340..=86_340).contains(&self.timezone_offset_seconds)
-        {
-            bail!(
-                "config: timezone_offset_seconds must be a whole number of minutes within -23:59..=+23:59"
-            );
         }
         for (name, value) in [
             ("token_ttl_seconds", self.token_ttl_seconds),

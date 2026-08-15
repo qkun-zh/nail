@@ -239,7 +239,7 @@ pub async fn build_state(
         .join(format!("nail_test_pdf_{}", uuid::Uuid::now_v7()))
         .to_string_lossy()
         .to_string();
-    let graph = repository::graph::open("memory").await?;
+    let graph = repository::graph::open("memory")?;
     repository::seed::init_graph(&graph, &config.server.user_zero_email).await?;
     let search_dir =
         std::env::temp_dir().join(format!("nail_state_search_{}", uuid::Uuid::now_v7()));
@@ -282,7 +282,6 @@ pub fn test_config() -> AppConfig {
             download_token_ttl_seconds: 60,
             token_cache_capacity: 100,
             email_cooldown_seconds: 60,
-            timezone_offset_seconds: 0,
             user_zero_email: "user-zero@example.com".to_string(),
             max_pdf_size_bytes: 32 * 1024 * 1024,
             max_tags_per_article: 8,

@@ -1,7 +1,7 @@
 use agdb::{DbError, QueryBuilder};
 
 use crate::repository::graph::{
-    DbHandle, read_rows_in_txn, resolve_node_id_in_txn, resolve_node_id_sync,
+    DbHandle, read_node_sync, read_rows_in_txn, resolve_node_id_in_txn, resolve_node_id_sync,
 };
 use crate::repository::role::{ROLE_RECYCLER, users_holding_role};
 use crate::repository::schema::{
@@ -39,6 +39,7 @@ impl std::error::Error for TransferError {}
 #[derive(Debug)]
 pub enum TransferTargetError {
     TargetMissing,
+    TargetOwnerMissing,
     NoRecycler,
     Db(DbError),
 }
@@ -53,6 +54,7 @@ impl std::fmt::Display for TransferTargetError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::TargetMissing => formatter.write_str("transfer target not found"),
+            Self::TargetOwnerMissing => formatter.write_str("transfer target has no owner edge"),
             Self::NoRecycler => formatter.write_str("no recycler available"),
             Self::Db(error) => write!(formatter, "database query failed: {error}"),
         }
@@ -65,7 +67,7 @@ pub async fn transfer_account_assets(
     db: &DbHandle,
     author_id: &str,
 ) -> Result<AccountTransferOutcome, TransferError> {
-    let target = pick_recycler_target(db, &[author_id])
+    let target = pick_recycler_target(db, &[author_id.to_string()])
         .await?
         .ok_or(TransferError::NoRecycler)?;
     let mut guard = db.write().await;
@@ -104,7 +106,31 @@ async fn transfer_target_ownership(
     edge_type: &str,
     target_id: &str,
 ) -> Result<(), TransferTargetError> {
-    let target = pick_recycler_target(db, &[])
+    let mut exclude: Vec<String> = Vec::new();
+    {
+        let guard = db.read().await;
+        let Some(target_node) = resolve_node_id_sync(&guard, target_kind, target_id)? else {
+            return Err(TransferTargetError::TargetMissing);
+        };
+        let owner_edges = guard.exec(
+            QueryBuilder::search()
+                .to(target_node)
+                .where_()
+                .distance(agdb::CountComparison::Equal(1))
+                .and()
+                .edge()
+                .and()
+                .key(KEY_TYPE)
+                .value(edge_type)
+                .query(),
+        )?;
+        if let Some(edge) = owner_edges.elements.first()
+            && let Some(row) = read_node_sync::<IdRow>(&guard, edge.from)?
+        {
+            exclude.push(row.id);
+        }
+    }
+    let target = pick_recycler_target(db, &exclude)
         .await?
         .ok_or(TransferTargetError::NoRecycler)?;
     let mut guard = db.write().await;
@@ -125,10 +151,11 @@ async fn transfer_target_ownership(
                 .value(edge_type)
                 .query(),
         )?;
-        if edges.elements.is_empty() {
-            return Ok(());
-        }
-        let edge_ids: Vec<agdb::DbId> = edges.elements.iter().map(|edge| edge.id).collect();
+        let edge = edges
+            .elements
+            .first()
+            .ok_or(TransferTargetError::TargetOwnerMissing)?;
+        let edge_ids = [edge.id];
         transaction.exec_mut(QueryBuilder::remove().ids(edge_ids).query())?;
         transaction.exec_mut(
             QueryBuilder::insert()
@@ -186,12 +213,15 @@ fn repoint_from_user(
     Ok(target_ids)
 }
 
-async fn pick_recycler_target(db: &DbHandle, exclude: &[&str]) -> Result<Option<String>, DbError> {
+async fn pick_recycler_target(
+    db: &DbHandle,
+    exclude: &[String],
+) -> Result<Option<String>, DbError> {
     let recyclers = users_holding_role(db, ROLE_RECYCLER).await?;
     let guard = db.read().await;
     let mut best: Option<(String, u64)> = None;
     for user_id in recyclers {
-        if exclude.contains(&user_id.as_str()) {
+        if exclude.contains(&user_id) {
             continue;
         }
         let Some(node) = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, &user_id)? else {

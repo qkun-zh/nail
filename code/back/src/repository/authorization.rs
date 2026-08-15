@@ -237,29 +237,29 @@ pub async fn assemble_resource(
                 .map_err(|error| AssemblyError::Internal(error.to_string()))?
                 .unwrap_or_default();
 
-            let article_uid = article_uid(&article_id)?;
-            let version_uid = version_uid(&version_id)?;
-            let comment_uid = comment_uid(&comment_id)?;
+            let article_entity_uid = article_uid(&article_id)?;
+            let version_entity_uid = version_uid(&version_id)?;
+            let comment_entity_uid = comment_uid(&comment_id)?;
             let article_entity = Entity::new(
-                article_uid.clone(),
+                article_entity_uid.clone(),
                 resource_attrs(&authorization.owner_id, &authorization.tag_names)?,
                 HashSet::new(),
             )
             .map_err(|error| AssemblyError::Internal(error.to_string()))?;
             let version_entity = Entity::new(
-                version_uid.clone(),
+                version_entity_uid.clone(),
                 resource_attrs(&authorization.owner_id, &authorization.tag_names)?,
-                HashSet::from([article_uid]),
+                HashSet::from([article_entity_uid]),
             )
             .map_err(|error| AssemblyError::Internal(error.to_string()))?;
             let comment_entity = Entity::new(
-                comment_uid.clone(),
+                comment_entity_uid.clone(),
                 resource_attrs(&comment_owner, &authorization.tag_names)?,
-                HashSet::from([version_uid]),
+                HashSet::from([version_entity_uid]),
             )
             .map_err(|error| AssemblyError::Internal(error.to_string()))?;
             Ok((
-                comment_uid,
+                comment_entity_uid,
                 vec![article_entity, version_entity, comment_entity],
             ))
         }
@@ -302,21 +302,21 @@ async fn assemble_version_chain(
         .await
         .map_err(|error| AssemblyError::Internal(error.to_string()))?
         .ok_or(AssemblyError::ResourceNotFound)?;
-    let article_uid = article_uid(article_id)?;
-    let version_uid = version_uid(version_id)?;
+    let article_entity_uid = article_uid(article_id)?;
+    let version_entity_uid = version_uid(version_id)?;
     let article_entity = Entity::new(
-        article_uid.clone(),
+        article_entity_uid.clone(),
         resource_attrs(&authorization.owner_id, &authorization.tag_names)?,
         HashSet::new(),
     )
     .map_err(|error| AssemblyError::Internal(error.to_string()))?;
     let version_entity = Entity::new(
-        version_uid.clone(),
+        version_entity_uid.clone(),
         resource_attrs(&authorization.owner_id, &authorization.tag_names)?,
-        HashSet::from([article_uid]),
+        HashSet::from([article_entity_uid]),
     )
     .map_err(|error| AssemblyError::Internal(error.to_string()))?;
-    Ok((version_uid, vec![article_entity, version_entity]))
+    Ok((version_entity_uid, vec![article_entity, version_entity]))
 }
 
 fn read_edges<T>(guard: &agdb::DbAny, from: agdb::DbId, edge_type: &str) -> Result<Vec<T>, DbError>

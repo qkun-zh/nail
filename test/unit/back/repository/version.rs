@@ -7,7 +7,7 @@ use crate::repository::version::{
 };
 
 fn pdf_hash(seed: u8) -> String {
-    (0..32).map(|_| format!("{seed:x}")).collect()
+    format!("{seed:x}").repeat(32)
 }
 
 fn draft(number: &str, hash: &str) -> VersionDraft {
@@ -40,7 +40,7 @@ async fn create_article_fixture(
             author_id: author_id.to_string(),
             title: title.to_string(),
             summary: "a summary".to_string(),
-            tags: vec!["#rust".to_string()],
+            tags: vec!["rust".to_string()],
             first_version: VersionDraft {
                 version_id: version_id.clone(),
                 version_number: "1.0.0".to_string(),

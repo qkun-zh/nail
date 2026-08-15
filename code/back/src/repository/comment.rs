@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use agdb::{DbError, QueryBuilder};
 
 use crate::repository::graph::{
@@ -18,6 +16,7 @@ pub struct CommentTreeItem {
     pub content: String,
     pub author_id: String,
     pub parent_id: Option<String>,
+    pub child_count: u64,
 }
 
 #[derive(Debug)]
@@ -219,97 +218,123 @@ pub async fn owner_of_comment(db: &DbHandle, comment_id: &str) -> Result<Option<
 pub async fn read_comments_page_by_version(
     db: &DbHandle,
     version_id: &str,
-    max_tree_depth: usize,
     limit: u64,
     offset: u64,
 ) -> Result<(Vec<CommentTreeItem>, u64), DbError> {
     let guard = db.read().await;
-    let mut out: Vec<CommentTreeItem> = Vec::new();
-    let mut seen: HashSet<String> = HashSet::new();
-
     let Some(version) = resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, version_id)? else {
-        return Ok((out, 0));
+        return Ok((Vec::new(), 0));
     };
-    let top_edges = guard.exec(
+    let mut top_ids: Vec<String> = incoming_comment_ids(&guard, version, EDGE_COMMENT_TO_VERSION)?;
+    top_ids.sort_by(|left, right| right.cmp(left));
+    let total = top_ids.len() as u64;
+    let page_ids: Vec<String> = top_ids
+        .into_iter()
+        .skip(usize::try_from(offset).unwrap_or(usize::MAX))
+        .take(usize::try_from(limit).unwrap_or(usize::MAX))
+        .collect();
+    let items = read_comment_items(&guard, &page_ids)?;
+    Ok((items, total))
+}
+
+pub async fn read_comment_children_page(
+    db: &DbHandle,
+    parent_comment_id: &str,
+    limit: u64,
+    offset: u64,
+) -> Result<(Vec<CommentTreeItem>, u64), DbError> {
+    let guard = db.read().await;
+    let Some(parent) = resolve_node_id_sync(&guard, ENTITY_TYPE_COMMENT, parent_comment_id)? else {
+        return Ok((Vec::new(), 0));
+    };
+    let mut child_ids: Vec<String> = incoming_comment_ids(&guard, parent, EDGE_COMMENT_TO_COMMENT)?;
+    child_ids.sort();
+    let total = child_ids.len() as u64;
+    let page_ids: Vec<String> = child_ids
+        .into_iter()
+        .skip(usize::try_from(offset).unwrap_or(usize::MAX))
+        .take(usize::try_from(limit).unwrap_or(usize::MAX))
+        .collect();
+    let items = read_comment_items(&guard, &page_ids)?;
+    Ok((items, total))
+}
+
+pub async fn read_comment_item(
+    db: &DbHandle,
+    comment_id: &str,
+) -> Result<Option<CommentTreeItem>, DbError> {
+    let guard = db.read().await;
+    read_comment_item_sync(&guard, comment_id)
+}
+
+fn incoming_comment_ids(
+    guard: &agdb::DbAny,
+    node: agdb::DbId,
+    edge_type: &str,
+) -> Result<Vec<String>, DbError> {
+    let edges = guard.exec(
         QueryBuilder::search()
-            .to(version)
+            .to(node)
             .where_()
             .distance(agdb::CountComparison::Equal(1))
             .and()
             .edge()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_COMMENT_TO_VERSION)
+            .value(edge_type)
             .query(),
     )?;
-    let mut top_ids: Vec<String> = top_edges
-        .elements
-        .iter()
-        .filter_map(|edge| {
-            read_rows_sync::<IdRow>(&guard, &[edge.from])
-                .ok()
-                .and_then(|rows| rows.into_iter().next())
-                .map(|row| row.id)
-        })
-        .collect();
-    top_ids.sort_by(|left, right| right.cmp(left));
-    let total = top_ids.len() as u64;
-    let page_ids: Vec<String> = top_ids
+    let mut ids = Vec::with_capacity(edges.elements.len());
+    for edge in &edges.elements {
+        if let Some(id) = read_rows_sync::<IdRow>(guard, &[edge.from])?
+            .into_iter()
+            .next()
+            .map(|row| row.id)
+        {
+            ids.push(id);
+        }
+    }
+    Ok(ids)
+}
+
+fn child_count_sync(guard: &agdb::DbAny, comment: agdb::DbId) -> Result<u64, DbError> {
+    let edges = guard.exec(
+        QueryBuilder::search()
+            .to(comment)
+            .where_()
+            .distance(agdb::CountComparison::Equal(1))
+            .and()
+            .edge()
+            .and()
+            .key(KEY_TYPE)
+            .value(EDGE_COMMENT_TO_COMMENT)
+            .query(),
+    )?;
+    Ok(edges.elements.len() as u64)
+}
+
+fn read_comment_item_sync(
+    guard: &agdb::DbAny,
+    comment_id: &str,
+) -> Result<Option<CommentTreeItem>, DbError> {
+    let Some(comment) = resolve_node_id_sync(guard, ENTITY_TYPE_COMMENT, comment_id)? else {
+        return Ok(None);
+    };
+    let content = read_rows_sync::<CommentRow>(guard, &[comment])?
         .into_iter()
-        .skip(offset as usize)
-        .take(limit as usize)
-        .collect();
-    if page_ids.is_empty() {
-        return Ok((out, total));
-    }
-
-    let top_rows = read_comment_items(&guard, &page_ids)?;
-    for item in &top_rows {
-        seen.insert(item.id.clone());
-    }
-    out.extend(top_rows);
-
-    let mut depth = 0usize;
-    let mut parents: Vec<String> = page_ids;
-    while !parents.is_empty() {
-        if depth > max_tree_depth {
-            break;
-        }
-        depth += 1;
-        let mut kids: Vec<String> = Vec::new();
-        for parent_id in &parents {
-            let Some(parent) = resolve_node_id_sync(&guard, ENTITY_TYPE_COMMENT, parent_id)? else {
-                continue;
-            };
-            let reply_edges = guard.exec(
-                QueryBuilder::search()
-                    .to(parent)
-                    .where_()
-                    .distance(agdb::CountComparison::Equal(1))
-                    .and()
-                    .edge()
-                    .and()
-                    .key(KEY_TYPE)
-                    .value(EDGE_COMMENT_TO_COMMENT)
-                    .query(),
-            )?;
-            for edge in &reply_edges.elements {
-                if let Some(kid_id) = read_rows_sync::<IdRow>(&guard, &[edge.from])?
-                    .into_iter()
-                    .next()
-                    .map(|row| row.id)
-                    && seen.insert(kid_id.clone())
-                {
-                    kids.push(kid_id);
-                }
-            }
-        }
-        kids.sort();
-        let rows = read_comment_items(&guard, &kids)?;
-        out.extend(rows);
-        parents = kids;
-    }
-    Ok((out, total))
+        .next()
+        .map(|row| row.content)
+        .unwrap_or_default();
+    let author_id = read_incoming_node_id(guard, comment, EDGE_USER_TO_COMMENT)?;
+    let parent_id = read_outgoing_node_id(guard, comment, EDGE_COMMENT_TO_COMMENT)?;
+    let child_count = child_count_sync(guard, comment)?;
+    Ok(Some(CommentTreeItem {
+        id: comment_id.to_string(),
+        content,
+        author_id,
+        parent_id,
+        child_count,
+    }))
 }
 
 fn read_comment_items(
@@ -318,22 +343,9 @@ fn read_comment_items(
 ) -> Result<Vec<CommentTreeItem>, DbError> {
     let mut items = Vec::with_capacity(comment_ids.len());
     for comment_id in comment_ids {
-        let Some(comment) = resolve_node_id_sync(guard, ENTITY_TYPE_COMMENT, comment_id)? else {
-            continue;
-        };
-        let content = read_rows_sync::<CommentRow>(guard, &[comment])?
-            .into_iter()
-            .next()
-            .map(|row| row.content)
-            .unwrap_or_default();
-        let author_id = read_incoming_node_id(guard, comment, EDGE_USER_TO_COMMENT)?;
-        let parent_id = read_outgoing_node_id(guard, comment, EDGE_COMMENT_TO_COMMENT)?;
-        items.push(CommentTreeItem {
-            id: comment_id.clone(),
-            content,
-            author_id,
-            parent_id,
-        });
+        if let Some(item) = read_comment_item_sync(guard, comment_id)? {
+            items.push(item);
+        }
     }
     Ok(items)
 }

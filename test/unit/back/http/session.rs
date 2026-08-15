@@ -7,7 +7,7 @@ use super::context::TestCtx;
 use crate::repository::cache::{SessionTokenEntry, token_key};
 
 async fn create_challenge_and_prove(context: &TestCtx, payload: &str) -> Pow {
-    let (status, body) = context.get("/challenge/read", None).await;
+    let (status, body) = context.post("/challenge/create", json!({}), None).await;
     assert_eq!(status, StatusCode::OK, "challenge body: {body}");
     let id = body["data"]["id"]
         .as_str()
@@ -32,8 +32,8 @@ async fn session_lifecycle_over_http() {
     let pow = create_challenge_and_prove(&context, "alice@example.com").await;
     let (status, body) = context
         .post(
-            "/email/read?intent=authenticate",
-            json!({ "pow": pow }),
+            "/token/create",
+            json!({ "purpose": "create_user", "pow": pow }),
             None,
         )
         .await;
@@ -85,26 +85,30 @@ async fn session_lifecycle_over_http() {
 }
 
 #[tokio::test]
-async fn email_read_with_missing_or_invalid_intent_is_rejected() {
+async fn token_create_with_missing_or_invalid_purpose_is_rejected() {
     let context = TestCtx::new().await.expect("test context");
-    let (status, _) = context.post("/email/read", json!({}), None).await;
+    let (status, _) = context.post("/token/create", json!({}), None).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
     let pow = create_challenge_and_prove(&context, "alice@example.com").await;
     let (status, _) = context
-        .post("/email/read?intent=bogus", json!({ "pow": pow }), None)
+        .post(
+            "/token/create",
+            json!({ "purpose": "bogus", "pow": pow }),
+            None,
+        )
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]
-async fn email_read_rejects_a_disallowed_domain() {
+async fn token_create_rejects_a_disallowed_domain() {
     let context = TestCtx::new().await.expect("test context");
     let pow = create_challenge_and_prove(&context, "alice@other.org").await;
     let (status, body) = context
         .post(
-            "/email/read?intent=authenticate",
-            json!({ "pow": pow }),
+            "/token/create",
+            json!({ "purpose": "create_user", "pow": pow }),
             None,
         )
         .await;
@@ -136,16 +140,16 @@ async fn user_create_rejects_an_unknown_token() {
 }
 
 #[tokio::test]
-async fn email_read_authenticate_requires_a_pow() {
+async fn token_create_authenticate_requires_a_pow() {
     let context = TestCtx::new().await.expect("test context");
     let (status, body) = context
-        .post("/email/read?intent=authenticate", json!({}), None)
+        .post("/token/create", json!({ "purpose": "create_user" }), None)
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("pow is required"));
 }
 
-async fn insert_session(context: &TestCtx) -> String {
+fn insert_session(context: &TestCtx) -> String {
     let token = Uuid::now_v7().to_string();
     let key = token_key(&token).expect("token key");
     context.state.caches.session.insert(
@@ -160,7 +164,7 @@ async fn insert_session(context: &TestCtx) -> String {
 #[tokio::test]
 async fn session_delete_with_malformed_json_returns_envelope() {
     let context = TestCtx::new().await.expect("test context");
-    let token = insert_session(&context).await;
+    let token = insert_session(&context);
 
     let (status, body) = context
         .post("/session/delete", json!({}), Some(&token))
@@ -174,7 +178,7 @@ async fn session_delete_with_malformed_json_returns_envelope() {
 #[tokio::test]
 async fn session_read_with_malformed_query_returns_envelope() {
     let context = TestCtx::new().await.expect("test context");
-    let token = insert_session(&context).await;
+    let token = insert_session(&context);
 
     let (status, body) = context
         .get("/session/read?id=not-a-boolean", Some(&token))

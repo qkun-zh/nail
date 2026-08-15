@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::infrastructure::pdf::PdfUpload;
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::{authorize_create, authorize_or, is_author};
+use crate::logic::authorize::{authorize_create, authorize_or};
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::search::{search_articles, sync_article_best_effort};
 use crate::logic::version::{
@@ -21,7 +21,8 @@ use crate::repository::article::{
 };
 use crate::repository::authorization::Resource;
 use crate::repository::role::{
-    PERMISSION_ARTICLE_CREATE, PERMISSION_ARTICLE_DELETE, PERMISSION_ARTICLE_UPDATE,
+    PERMISSION_ARTICLE_CREATE, PERMISSION_ARTICLE_DELETE_HARD, PERMISSION_ARTICLE_DELETE_TRANSFER,
+    PERMISSION_ARTICLE_UPDATE,
 };
 use crate::repository::transfer::{TransferTargetError, transfer_article};
 use crate::repository::version::{VersionDraft, content_hash_owner, read_version};
@@ -96,19 +97,14 @@ pub async fn create_article(
     }
 }
 
-pub async fn read_article(
-    state: &AppState,
-    actor_id: &str,
-    article_id: &str,
-    check_if_is_author: bool,
-) -> Result<ArticleView, LogicError> {
+pub async fn read_article(state: &AppState, article_id: &str) -> Result<ArticleView, LogicError> {
     let article = read_article_node(&state.graph, article_id)
         .await
         .map_err(database_error)?
         .ok_or_else(|| LogicError::not_found("article not found"))?;
 
     let created_at = nail_common::time::uuidv7_timestamp_secs(&article.id).unwrap_or(0);
-    let mut view = ArticleView {
+    let view = ArticleView {
         id: article.id,
         author_id: article.author_id,
         author_name: article.author_name,
@@ -116,11 +112,7 @@ pub async fn read_article(
         summary: article.summary,
         created_at,
         tags: article.tags,
-        is_author: None,
     };
-    if check_if_is_author {
-        view.is_author = Some(is_author(state, actor_id, Some(article_id), None, None).await?);
-    }
     Ok(view)
 }
 
@@ -157,8 +149,9 @@ pub async fn read_articles(
         })
         .collect();
 
-    let total_pages = total.div_ceil(limit);
-    let truncated = total_pages > state.config.server.max_search_pages;
+    let raw_total_pages = total.div_ceil(limit);
+    let total_pages = raw_total_pages.min(state.config.server.max_search_pages);
+    let truncated = raw_total_pages > state.config.server.max_search_pages;
     Ok(ArticleReadPage::List(ArticleListPage {
         article_list,
         page,
@@ -217,7 +210,7 @@ pub async fn delete_article(
             authorize_or(
                 state,
                 actor_id,
-                PERMISSION_ARTICLE_DELETE,
+                PERMISSION_ARTICLE_DELETE_TRANSFER,
                 &Resource::Article(article_id.to_string()),
                 "article not found",
             )
@@ -227,6 +220,9 @@ pub async fn delete_article(
                 .map_err(|error| match error {
                     TransferTargetError::TargetMissing => {
                         LogicError::not_found("article not found")
+                    }
+                    TransferTargetError::TargetOwnerMissing => {
+                        LogicError::internal("article has no owner")
                     }
                     TransferTargetError::NoRecycler => {
                         LogicError::internal("no recycler available")
@@ -242,7 +238,7 @@ pub async fn delete_article(
             authorize_or(
                 state,
                 actor_id,
-                PERMISSION_ARTICLE_DELETE,
+                PERMISSION_ARTICLE_DELETE_HARD,
                 &Resource::Article(article_id.to_string()),
                 "article not found",
             )
@@ -289,17 +285,25 @@ fn is_search_request(params: &ArticleSearchParams) -> bool {
 }
 
 fn validate_title(raw: &str, max_chars: u64) -> Result<String, LogicError> {
-    nail_common::text::validate_ascii_text(raw, max_chars as usize, false)
-        .map_err(|error| LogicError::bad_request(error.to_string()))
+    nail_common::text::validate_ascii_text(
+        raw,
+        usize::try_from(max_chars).unwrap_or(usize::MAX),
+        false,
+    )
+    .map_err(|error| LogicError::bad_request(error.to_string()))
 }
 
 fn validate_summary(raw: &str, max_chars: u64) -> Result<String, LogicError> {
-    nail_common::text::validate_ascii_text(raw, max_chars as usize, true)
-        .map_err(|error| LogicError::bad_request(error.to_string()))
+    nail_common::text::validate_ascii_text(
+        raw,
+        usize::try_from(max_chars).unwrap_or(usize::MAX),
+        true,
+    )
+    .map_err(|error| LogicError::bad_request(error.to_string()))
 }
 
 fn validate_tags(raw: &str, max_tags: usize) -> Result<Vec<String>, LogicError> {
-    let tags = nail_common::tag::parse_hashtag_tags(raw, max_tags)
+    let tags = nail_common::tag::parse_tags(raw, max_tags)
         .map_err(|error| LogicError::bad_request(error.to_string()))?;
     if tags.is_empty() {
         return Err(LogicError::bad_request("at least one tag is required"));

@@ -6,10 +6,9 @@ use nail_common::search::{SearchRange, SearchSortDirection, SearchSortField};
 use seekstorm::commit::Commit;
 use seekstorm::highlighter::{Highlight, highlighter};
 use seekstorm::index::{
-    AccessType, Close, Clustering, DeleteDocuments, DocumentCompression, FieldType, FileType,
-    FrequentwordType, IndexArc, IndexDocument, IndexDocuments, IndexMetaObject, LexicalSimilarity,
-    NgramSet, SchemaField, StemmerType, StopwordType, TokenizerType, UpdateDocument, create_index,
-    open_index,
+    AccessType, Close, Clustering, DeleteDocuments, DocumentCompression, FieldType,
+    FrequentwordType, IndexArc, IndexDocuments, IndexMetaObject, LexicalSimilarity, NgramSet,
+    SchemaField, StemmerType, StopwordType, TokenizerType, create_index, open_index,
 };
 use seekstorm::search::{
     FacetFilter, FacetValue, QueryRewriting, QueryType, ResultSort, ResultType, Search, SearchMode,
@@ -19,19 +18,35 @@ use seekstorm::vector::Inference;
 
 use crate::repository::graph::{DbHandle, read_rows_sync, resolve_node_id_sync};
 use crate::repository::schema::{
-    EDGE_USER_TO_ARTICLE, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_USER, IdRow, KEY_TYPE,
+    ArticleRow, EDGE_ARTICLE_TO_VERSION, EDGE_COMMENT_TO_VERSION, EDGE_USER_TO_ARTICLE,
+    EDGE_USER_TO_COMMENT, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, IdRow,
+    KEY_TYPE, UserRow, VersionRow,
 };
 
 pub mod document;
 
-const FIELD_ID: &str = "id";
+const FIELD_DOC_TYPE: &str = "doc_type";
+const FIELD_VERSION_ID: &str = "version_id";
+const FIELD_ARTICLE_ID: &str = "article_id";
+const FIELD_COMMENT_ID: &str = "comment_id";
+const FIELD_VERSION_NUMBER: &str = "version_number";
 const FIELD_TITLE: &str = "title";
 const FIELD_SUMMARY: &str = "summary";
-const FIELD_AUTHOR: &str = "author";
+const FIELD_AUTHOR_NAME: &str = "author_name";
 const FIELD_NOTE: &str = "note";
-const FIELD_TAG: &str = "tag";
-const FIELD_COMMENT: &str = "comment";
+const FIELD_TAGS: &str = "tags";
+const FIELD_CONTENT: &str = "content";
 const FIELD_TS: &str = "ts";
+
+/// Upper bound on documents (versions + comments) a single article contributes,
+/// used to size the top-k fetch so the logic layer can fold enough hits for a page.
+const MAX_DOCS_PER_ARTICLE: u64 = 32;
+
+/// Bump when the `SeekStorm` schema (`schema_fields`) or document shapes change so
+/// the index is rebuilt from the graph on next start. Stored as a marker file
+/// inside the index directory.
+const INDEX_SCHEMA_VERSION: &str = "2";
+const SCHEMA_VERSION_FILENAME: &str = "nail_schema_version";
 
 #[derive(Debug, Clone)]
 pub struct SearchSort {
@@ -56,24 +71,50 @@ pub struct SearchHitOutcome {
     pub snippet: String,
 }
 
+/// A version document hit. Carries the always-shown fields (which may carry
+/// `<mark>` when the term matched) plus the hit-only field cards.
 #[derive(Debug, Clone)]
-pub struct SearchArticleOutcome {
-    pub id: String,
+pub struct SearchVersionOutcome {
+    pub article_id: String,
+    pub version_id: String,
+    pub version_number: String,
     pub title: String,
-    pub author: String,
-    pub timestamp_seconds: i64,
-    pub hits: Vec<SearchHitOutcome>,
+    pub author_name: String,
+    pub article_hits: Vec<SearchHitOutcome>,
+    pub version_hits: Vec<SearchHitOutcome>,
+    pub version_number_hit: bool,
+}
+
+/// A comment document hit. Carries the comment card plus enough parent context
+/// (enriched from the DB) to render the version + article headers even when the
+/// version document did not itself match.
+#[derive(Debug, Clone)]
+pub struct SearchCommentOutcome {
+    pub article_id: String,
+    pub version_id: String,
+    pub comment_id: String,
+    pub author_name: String,
+    pub content: String,
+    pub article_title: String,
+    pub article_author_name: String,
+    pub version_number: String,
+}
+
+#[derive(Debug, Clone)]
+pub enum SearchDocOutcome {
+    Version(SearchVersionOutcome),
+    Comment(SearchCommentOutcome),
 }
 
 #[derive(Debug, Clone)]
 pub struct SearchOutcome {
-    pub articles: Vec<SearchArticleOutcome>,
-    pub total: u64,
+    pub docs: Vec<SearchDocOutcome>,
 }
 
 #[derive(Clone)]
 pub struct SearchIndex {
     index: IndexArc,
+    recreated: bool,
 }
 
 impl SearchIndex {
@@ -86,6 +127,17 @@ impl SearchIndex {
         segment_number_bits: usize,
     ) -> anyhow::Result<Self> {
         let directory = Path::new(path);
+        let marker = directory.join(SCHEMA_VERSION_FILENAME);
+
+        let mut recreated = false;
+        if directory.exists()
+            && read_schema_version(&marker).as_deref() != Some(INDEX_SCHEMA_VERSION)
+        {
+            tracing::warn!(path, "search index schema mismatch; rebuilding from graph");
+            std::fs::remove_dir_all(directory)?;
+            recreated = true;
+        }
+
         let index = if directory.exists() {
             open_index(directory)
                 .await
@@ -104,7 +156,14 @@ impl SearchIndex {
             .await
             .map_err(|error| anyhow::anyhow!("create search index {path}: {error}"))?
         };
-        Ok(Self { index })
+        write_schema_version(&marker)?;
+        Ok(Self { index, recreated })
+    }
+
+    /// True when the index was recreated this start because its schema was out of
+    /// date. Callers that populated the graph should then run `sync_all` to rebuild.
+    pub fn was_recreated(&self) -> bool {
+        self.recreated
     }
 
     pub async fn close(&self) {
@@ -112,16 +171,13 @@ impl SearchIndex {
     }
 
     pub async fn sync(&self, db: &DbHandle, article_id: &str) -> anyhow::Result<()> {
-        match document::build_document(db, article_id).await? {
-            Some(document) => match self.find_document_id(article_id).await? {
-                Some(document_id) => self.index.update_document((document_id, document)).await,
-                None => self.index.index_document(document, FileType::None).await,
-            },
-            None => {
-                if let Some(document_id) = self.find_document_id(article_id).await? {
-                    self.index.delete_documents(vec![document_id]).await;
-                }
-            }
+        let documents = document::build_documents(db, article_id).await?;
+        let existing = self.find_document_ids_by_article(article_id).await?;
+        if !existing.is_empty() {
+            self.index.delete_documents(existing).await;
+        }
+        if !documents.is_empty() {
+            self.index.index_documents(documents).await;
         }
         self.index.commit().await;
         Ok(())
@@ -171,14 +227,12 @@ impl SearchIndex {
         }
 
         let article_ids = all_article_ids(db).await?;
-        let mut documents = Vec::with_capacity(article_ids.len());
+        let mut documents = Vec::new();
         let mut count = 0u64;
         for article_id in &article_ids {
-            let Some(document) = document::build_document(db, article_id).await? else {
-                continue;
-            };
-            documents.push(document);
-            count += 1;
+            let built = document::build_documents(db, article_id).await?;
+            count += built.len() as u64;
+            documents.extend(built);
         }
         if !documents.is_empty() {
             self.index.index_documents(documents).await;
@@ -187,7 +241,11 @@ impl SearchIndex {
         Ok(count)
     }
 
-    pub async fn read(&self, request: SearchRequest) -> anyhow::Result<SearchOutcome> {
+    pub async fn read(
+        &self,
+        db: &DbHandle,
+        request: SearchRequest,
+    ) -> anyhow::Result<SearchOutcome> {
         let enable_empty_query = request.query.is_none();
         let query_string = request.query.unwrap_or_default();
         let effective_ranges = effective_ranges(&request.ranges);
@@ -195,12 +253,16 @@ impl SearchIndex {
 
         let mut facet_filter: Vec<FacetFilter> = Vec::new();
         if request.from_seconds.is_some() || request.to_seconds.is_some() {
-            let from = request.from_seconds.unwrap_or(0).min(i64::MAX as u64) as i64;
-            let to = request
-                .to_seconds
-                .unwrap_or(u64::MAX)
-                .saturating_add(1)
-                .min(i64::MAX as u64) as i64;
+            let from =
+                i64::try_from(request.from_seconds.unwrap_or(0).min(i64::MAX as u64)).unwrap_or(0);
+            let to = i64::try_from(
+                request
+                    .to_seconds
+                    .unwrap_or(u64::MAX)
+                    .saturating_add(1)
+                    .min(i64::MAX as u64),
+            )
+            .unwrap_or(i64::MAX);
             facet_filter.push(FacetFilter::Timestamp {
                 field: FIELD_TS.to_string(),
                 filter: from..to,
@@ -220,6 +282,9 @@ impl SearchIndex {
             })
             .collect();
 
+        let top_k = usize::try_from((request.offset + request.limit * MAX_DOCS_PER_ARTICLE).max(1))
+            .unwrap_or(usize::MAX);
+
         let result = self
             .index
             .search(
@@ -228,9 +293,9 @@ impl SearchIndex {
                 QueryType::Intersection,
                 SearchMode::Lexical,
                 enable_empty_query,
-                request.offset as usize,
-                request.limit as usize,
-                ResultType::TopkCount,
+                0,
+                top_k,
+                ResultType::Topk,
                 true,
                 field_names.clone(),
                 Vec::new(),
@@ -259,46 +324,39 @@ impl SearchIndex {
             Some(highlighter(&self.index, highlight_fields, query_terms).await)
         };
 
-        let mut articles = Vec::with_capacity(result.results.len());
+        let mut version_hits = Vec::new();
+        let mut comment_hits = Vec::new();
         for hit in &result.results {
             let document = self
                 .index
                 .read()
                 .await
-                .get_document(hit.doc_id, true, &highlights, &HashSet::new(), &Vec::new())
+                .get_document(hit.doc_id, false, &highlights, &HashSet::new(), &Vec::new())
                 .await
                 .map_err(|error| anyhow::anyhow!("fetch search document failed: {error}"))?;
-            let id = document::read_string_field(&document, FIELD_ID);
-            let title = document::read_string_field(&document, FIELD_TITLE);
-            let author = document::read_string_field(&document, FIELD_AUTHOR);
-            let timestamp_seconds = document::read_i64_field(&document, FIELD_TS);
-
-            let mut hits = Vec::new();
-            for range in &effective_ranges {
-                let snippet = document::read_string_field(&document, &highlight_name(range));
-                if snippet.contains("<mark>") {
-                    hits.push(SearchHitOutcome {
-                        range: *range,
-                        snippet,
-                    });
+            if document.contains_key(FIELD_COMMENT_ID) {
+                if enable_empty_query {
+                    continue;
                 }
+                let comment = document::read_comment_outcome(&document, &effective_ranges);
+                comment_hits.push(comment);
+            } else {
+                let version = document::read_version_outcome(&document, &effective_ranges);
+                version_hits.push(version);
             }
-            articles.push(SearchArticleOutcome {
-                id,
-                title,
-                author,
-                timestamp_seconds,
-                hits,
-            });
         }
 
-        Ok(SearchOutcome {
-            articles,
-            total: result.result_count_total as u64,
-        })
+        let mut enriched = comment_hits;
+        enrich_comment_headers(db, &mut enriched).await?;
+
+        let mut docs = Vec::with_capacity(version_hits.len() + enriched.len());
+        docs.extend(version_hits.into_iter().map(SearchDocOutcome::Version));
+        docs.extend(enriched.into_iter().map(SearchDocOutcome::Comment));
+
+        Ok(SearchOutcome { docs })
     }
 
-    async fn find_document_id(&self, article_id: &str) -> anyhow::Result<Option<u64>> {
+    async fn find_document_ids_by_article(&self, article_id: &str) -> anyhow::Result<Vec<u64>> {
         let result = self
             .index
             .search(
@@ -308,21 +366,37 @@ impl SearchIndex {
                 SearchMode::Lexical,
                 true,
                 0,
-                1,
+                u32::MAX as usize,
                 ResultType::TopkCount,
                 true,
                 Vec::new(),
                 Vec::new(),
-                vec![FacetFilter::String16 {
-                    field: FIELD_ID.to_string(),
+                vec![FacetFilter::String32 {
+                    field: FIELD_ARTICLE_ID.to_string(),
                     filter: vec![article_id.to_string()],
                 }],
                 Vec::new(),
                 QueryRewriting::SearchOnly,
             )
             .await;
-        Ok(result.results.first().map(|result| result.doc_id as u64))
+        Ok(result
+            .results
+            .iter()
+            .map(|result| result.doc_id as u64)
+            .collect())
     }
+}
+
+fn read_schema_version(marker: &Path) -> Option<String> {
+    std::fs::read_to_string(marker)
+        .ok()
+        .map(|content| content.trim().to_string())
+}
+
+fn write_schema_version(marker: &Path) -> anyhow::Result<()> {
+    std::fs::write(marker, INDEX_SCHEMA_VERSION).map_err(|error| {
+        anyhow::anyhow!("write search schema marker {}: {error}", marker.display())
+    })
 }
 
 fn effective_ranges(ranges: &[SearchRange]) -> Vec<SearchRange> {
@@ -330,10 +404,11 @@ fn effective_ranges(ranges: &[SearchRange]) -> Vec<SearchRange> {
         return [
             SearchRange::Title,
             SearchRange::Summary,
-            SearchRange::Author,
+            SearchRange::AuthorName,
             SearchRange::Note,
             SearchRange::Tag,
             SearchRange::Comment,
+            SearchRange::VersionNumber,
         ]
         .to_vec();
     }
@@ -351,23 +426,89 @@ fn range_field_name(range: SearchRange) -> &'static str {
     match range {
         SearchRange::Title => FIELD_TITLE,
         SearchRange::Summary => FIELD_SUMMARY,
-        SearchRange::Author => FIELD_AUTHOR,
-        SearchRange::Comment => FIELD_COMMENT,
+        SearchRange::AuthorName => FIELD_AUTHOR_NAME,
+        SearchRange::Comment => FIELD_CONTENT,
         SearchRange::Note => FIELD_NOTE,
-        SearchRange::Tag => FIELD_TAG,
+        SearchRange::Tag => FIELD_TAGS,
+        SearchRange::VersionNumber => FIELD_VERSION_NUMBER,
     }
-}
-
-fn highlight_name(range: &SearchRange) -> String {
-    format!("{}_highlight", range_field_name(*range))
 }
 
 fn sort_field_name(field: SearchSortField) -> &'static str {
     match field {
         SearchSortField::Time => FIELD_TS,
         SearchSortField::Title => FIELD_TITLE,
-        SearchSortField::Author => FIELD_AUTHOR,
+        SearchSortField::Author => FIELD_AUTHOR_NAME,
     }
+}
+
+async fn enrich_comment_headers(
+    db: &DbHandle,
+    comments: &mut [SearchCommentOutcome],
+) -> anyhow::Result<()> {
+    if comments.is_empty() {
+        return Ok(());
+    }
+    let guard = db.read().await;
+    for comment in comments.iter_mut() {
+        let article_title = read_article_title(&guard, &comment.article_id)?;
+        let article_author = read_article_author(&guard, &comment.article_id)?;
+        let version_number = read_version_number(&guard, &comment.version_id)?;
+        comment.article_title = article_title;
+        comment.article_author_name = article_author;
+        comment.version_number = version_number;
+    }
+    Ok(())
+}
+
+fn read_article_title(guard: &agdb::DbAny, article_id: &str) -> Result<String, DbError> {
+    let Some(article) = resolve_node_id_sync(guard, ENTITY_TYPE_ARTICLE, article_id)? else {
+        return Ok(String::new());
+    };
+    Ok(read_rows_sync::<ArticleRow>(guard, &[article])?
+        .into_iter()
+        .next()
+        .map(|row| row.title)
+        .unwrap_or_default())
+}
+
+fn read_article_author(guard: &agdb::DbAny, article_id: &str) -> Result<String, DbError> {
+    let Some(article) = resolve_node_id_sync(guard, ENTITY_TYPE_ARTICLE, article_id)? else {
+        return Ok(String::new());
+    };
+    let edges = guard.exec(
+        QueryBuilder::search()
+            .to(article)
+            .where_()
+            .distance(agdb::CountComparison::Equal(1))
+            .and()
+            .edge()
+            .and()
+            .key(KEY_TYPE)
+            .value(EDGE_USER_TO_ARTICLE)
+            .query(),
+    )?;
+    Ok(edges
+        .elements
+        .first()
+        .and_then(|edge| {
+            read_rows_sync::<UserRow>(guard, &[edge.from])
+                .ok()
+                .and_then(|rows| rows.into_iter().next())
+                .map(|row| row.name)
+        })
+        .unwrap_or_default())
+}
+
+fn read_version_number(guard: &agdb::DbAny, version_id: &str) -> Result<String, DbError> {
+    let Some(version) = resolve_node_id_sync(guard, ENTITY_TYPE_VERSION, version_id)? else {
+        return Ok(String::new());
+    };
+    Ok(read_rows_sync::<VersionRow>(guard, &[version])?
+        .into_iter()
+        .next()
+        .map(|row| row.version_number)
+        .unwrap_or_default())
 }
 
 async fn article_ids_of_user(db: &DbHandle, user_id: &str) -> Result<Vec<String>, DbError> {
@@ -375,6 +516,8 @@ async fn article_ids_of_user(db: &DbHandle, user_id: &str) -> Result<Vec<String>
     let Some(user) = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)? else {
         return Ok(Vec::new());
     };
+    let mut ids = Vec::new();
+    let mut seen = HashSet::new();
     let edges = guard.exec(
         QueryBuilder::search()
             .from(user)
@@ -387,16 +530,78 @@ async fn article_ids_of_user(db: &DbHandle, user_id: &str) -> Result<Vec<String>
             .value(EDGE_USER_TO_ARTICLE)
             .query(),
     )?;
-    let mut ids = Vec::with_capacity(edges.elements.len());
     for edge in &edges.elements {
         if let Some(row) = read_rows_sync::<IdRow>(&guard, &[edge.to])?
             .into_iter()
             .next()
+            && seen.insert(row.id.clone())
         {
             ids.push(row.id);
         }
     }
+
+    let comment_edges = guard.exec(
+        QueryBuilder::search()
+            .from(user)
+            .where_()
+            .distance(agdb::CountComparison::Equal(1))
+            .and()
+            .edge()
+            .and()
+            .key(KEY_TYPE)
+            .value(EDGE_USER_TO_COMMENT)
+            .query(),
+    )?;
+    for edge in &comment_edges.elements {
+        if let Some(article_id) = article_id_of_comment(&guard, edge.to)?
+            && seen.insert(article_id.clone())
+        {
+            ids.push(article_id);
+        }
+    }
     Ok(ids)
+}
+
+/// Walks a comment node up to its article: comment -> version (via
+/// `EDGE_COMMENT_TO_VERSION`) -> article (via the reverse of `EDGE_ARTICLE_TO_VERSION`).
+fn article_id_of_comment(
+    guard: &agdb::DbAny,
+    comment: agdb::DbId,
+) -> Result<Option<String>, DbError> {
+    let version_edges = guard.exec(
+        QueryBuilder::search()
+            .from(comment)
+            .where_()
+            .distance(agdb::CountComparison::Equal(1))
+            .and()
+            .edge()
+            .and()
+            .key(KEY_TYPE)
+            .value(EDGE_COMMENT_TO_VERSION)
+            .query(),
+    )?;
+    let Some(version_edge) = version_edges.elements.first() else {
+        return Ok(None);
+    };
+    let article_edges = guard.exec(
+        QueryBuilder::search()
+            .to(version_edge.to)
+            .where_()
+            .distance(agdb::CountComparison::Equal(1))
+            .and()
+            .edge()
+            .and()
+            .key(KEY_TYPE)
+            .value(EDGE_ARTICLE_TO_VERSION)
+            .query(),
+    )?;
+    let Some(article_edge) = article_edges.elements.first() else {
+        return Ok(None);
+    };
+    Ok(read_rows_sync::<IdRow>(guard, &[article_edge.from])?
+        .into_iter()
+        .next()
+        .map(|row| row.id))
 }
 
 async fn all_article_ids(db: &DbHandle) -> Result<Vec<String>, DbError> {
@@ -424,14 +629,62 @@ async fn all_article_ids(db: &DbHandle) -> Result<Vec<String>, DbError> {
 fn schema_fields() -> Vec<SchemaField> {
     vec![
         SchemaField::new(
-            FIELD_ID.to_string(),
-            true,
+            FIELD_DOC_TYPE.to_string(),
             false,
             false,
-            FieldType::String16,
+            false,
+            FieldType::StringSet16,
             true,
             false,
             1.0,
+            false,
+            false,
+        ),
+        SchemaField::new(
+            FIELD_VERSION_ID.to_string(),
+            true,
+            false,
+            false,
+            FieldType::String32,
+            true,
+            false,
+            1.0,
+            false,
+            false,
+        ),
+        SchemaField::new(
+            FIELD_ARTICLE_ID.to_string(),
+            true,
+            false,
+            false,
+            FieldType::String32,
+            true,
+            false,
+            1.0,
+            false,
+            false,
+        ),
+        SchemaField::new(
+            FIELD_COMMENT_ID.to_string(),
+            true,
+            false,
+            false,
+            FieldType::String32,
+            true,
+            false,
+            1.0,
+            false,
+            false,
+        ),
+        SchemaField::new(
+            FIELD_VERSION_NUMBER.to_string(),
+            true,
+            true,
+            false,
+            FieldType::Text,
+            false,
+            false,
+            2.0,
             false,
             false,
         ),
@@ -460,7 +713,7 @@ fn schema_fields() -> Vec<SchemaField> {
             false,
         ),
         SchemaField::new(
-            FIELD_AUTHOR.to_string(),
+            FIELD_AUTHOR_NAME.to_string(),
             true,
             true,
             false,
@@ -484,11 +737,11 @@ fn schema_fields() -> Vec<SchemaField> {
             false,
         ),
         SchemaField::new(
-            FIELD_TAG.to_string(),
+            FIELD_TAGS.to_string(),
             true,
             true,
             false,
-            FieldType::Json,
+            FieldType::StringSet16,
             false,
             false,
             1.0,
@@ -496,11 +749,11 @@ fn schema_fields() -> Vec<SchemaField> {
             false,
         ),
         SchemaField::new(
-            FIELD_COMMENT.to_string(),
+            FIELD_CONTENT.to_string(),
             true,
             true,
             false,
-            FieldType::Json,
+            FieldType::Text,
             false,
             false,
             1.0,

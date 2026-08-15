@@ -46,7 +46,6 @@ pub struct RuntimeLimits {
     pub max_pdf_size_bytes: u64,
     pub max_text_field_bytes: u64,
     pub download_token_ttl_seconds: u64,
-    pub timezone_offset_seconds: i32,
     pub search_page_size: u64,
     pub max_search_pages: u64,
 }

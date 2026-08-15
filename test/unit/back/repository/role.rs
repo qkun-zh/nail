@@ -173,10 +173,10 @@ async fn role_apply_tag_edge_count(
 async fn role_tag_scopes_apply_read_and_remove() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     create_role(&state.graph, "editor").await.expect("role");
-    apply_tag_to_role(&state.graph, "editor", "#rust")
+    apply_tag_to_role(&state.graph, "editor", "rust")
         .await
         .expect("apply rust");
-    apply_tag_to_role(&state.graph, "editor", "#db")
+    apply_tag_to_role(&state.graph, "editor", "db")
         .await
         .expect("apply db");
 
@@ -186,21 +186,21 @@ async fn role_tag_scopes_apply_read_and_remove() {
         .expect("role");
     let mut scopes = role.scopes.clone();
     scopes.sort();
-    assert_eq!(scopes, vec!["#db", "#rust"]);
+    assert_eq!(scopes, vec!["db", "rust"]);
     assert!(role.permissions.is_empty());
 
-    apply_tag_to_role(&state.graph, "editor", "#rust")
+    apply_tag_to_role(&state.graph, "editor", "rust")
         .await
         .expect("apply rust again");
     assert_eq!(role_apply_tag_edge_count(&state, "editor").await, 2);
 
-    remove_tag_from_role(&state.graph, "editor", "#rust")
+    remove_tag_from_role(&state.graph, "editor", "rust")
         .await
         .expect("remove rust");
     let role = read_role(&state.graph, "editor")
         .await
         .expect("read")
         .expect("role");
-    assert_eq!(role.scopes, vec!["#db"]);
+    assert_eq!(role.scopes, vec!["db"]);
     assert_eq!(role_apply_tag_edge_count(&state, "editor").await, 1);
 }

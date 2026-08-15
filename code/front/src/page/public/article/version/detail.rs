@@ -3,8 +3,8 @@ use leptos_router::components::A;
 use leptos_router::hooks::use_params_map;
 use nail_common::response::version::VersionView;
 
-use crate::infrastructure::limits::use_limits;
 use crate::page::notify::{notify_error, use_notifications};
+use crate::page::public::article::version::comment::CommentSection;
 use crate::page::time_format::format_timestamp;
 
 #[component]
@@ -34,7 +34,6 @@ fn DownloadLink(url: String) -> impl IntoView {
 pub fn VersionDetail() -> impl IntoView {
     let params = use_params_map();
     let notifications = use_notifications();
-    let limits = use_limits();
     let version = RwSignal::new(None::<VersionView>);
     let error = RwSignal::new(None::<String>);
     let download_url = RwSignal::new(None::<String>);
@@ -42,6 +41,10 @@ pub fn VersionDetail() -> impl IntoView {
 
     let effect_notifications = notifications.clone();
     Effect::new(move |_| {
+        let comment_path = params.get().get("comment_path").unwrap_or_default();
+        if !comment_path.is_empty() {
+            return;
+        }
         let version_id = params.get().get("version_id").unwrap_or_default();
         let article_id = params.get().get("article_id").unwrap_or_default();
         let notifications = effect_notifications.clone();
@@ -68,13 +71,17 @@ pub fn VersionDetail() -> impl IntoView {
     });
 
     let render = move || {
+        let comment_path = params.get().get("comment_path").unwrap_or_default();
+        if !comment_path.is_empty() {
+            return view! { <CommentSection/> }.into_any();
+        }
         if let Some(message) = error.get() {
             return view! { <p>{message}</p> }.into_any();
         }
         let Some(version) = version.get() else {
             return view! { <p>loading...</p> }.into_any();
         };
-        let created_at = format_timestamp(version.created_at, limits.get().timezone_offset_seconds);
+        let created_at = format_timestamp(version.created_at);
         let article_id = params.get().get("article_id").unwrap_or_default();
         let comments_href = format!(
             "/public/article/{article_id}/version/{}/comment",

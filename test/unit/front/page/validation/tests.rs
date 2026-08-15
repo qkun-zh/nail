@@ -49,17 +49,14 @@ fn comment_content_obeys_its_ascii_limit() {
 #[test]
 fn tags_mirror_the_backend_parser() {
     assert_eq!(
-        validate_tags("#a #b", 8),
-        Ok(vec!["#a".to_string(), "#b".to_string()])
+        validate_tags("a b", 8),
+        Ok(vec!["a".to_string(), "b".to_string()])
     );
-    assert!(validate_tags("no-hash", 8).is_err());
+    assert!(validate_tags("no-hash", 8).is_ok());
     assert!(validate_tags("", 8).is_err());
-    let nine = "#1 #2 #3 #4 #5 #6 #7 #8 #9";
+    let nine = "1 2 3 4 5 6 7 8 9";
     assert!(validate_tags(nine, 8).is_err());
-    assert_eq!(
-        validate_tags("#a#b", 8),
-        Ok(vec!["#a".to_string(), "#b".to_string()])
-    );
+    assert_eq!(validate_tags("ab", 8), Ok(vec!["ab".to_string()]));
 }
 
 #[test]

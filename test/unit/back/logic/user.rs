@@ -230,10 +230,10 @@ async fn delete_user_transfer_after_email_confirmation() {
     let (user_id, token) = session_for(&context, "alice@example.com").await;
 
     let pow = context.issued_pow("alice@example.com");
-    let _ = crate::logic::email::read_email(
+    let _ = crate::logic::email::create_token(
         &context.state,
-        nail_common::request::EmailReadIntent::Deregister,
-        nail_common::request::EmailReadRequest {
+        nail_common::request::CreateTokenRequest {
+            purpose: nail_common::request::TokenPurpose::DeleteUser,
             pow: Some(pow),
             old_email_pow: None,
             new_email_pow: None,

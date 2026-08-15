@@ -81,8 +81,7 @@ impl<E: CacheEntry> TokenCache<E> {
                 .entry(key.clone())
                 .and_compute_with(|maybe_entry| match maybe_entry {
                     Some(entry) if matches(entry.value()) => moka::ops::compute::Op::Remove,
-                    Some(_) => moka::ops::compute::Op::Nop,
-                    None => moka::ops::compute::Op::Nop,
+                    Some(_) | None => moka::ops::compute::Op::Nop,
                 });
         let moka::ops::compute::CompResult::Removed(entry) = result else {
             return None;
@@ -150,10 +149,10 @@ impl CacheEntry for ChallengeEntry {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EmailUpdateTokenEntry {
-    pub old_email_address_hash: String,
-    pub new_email_address_hash: String,
-    pub token_from_old_email_hash: String,
-    pub token_from_new_email_hash: String,
+    pub old_email_address: String,
+    pub new_email_address: String,
+    pub token_from_old_email: String,
+    pub token_from_new_email: String,
 }
 
 impl CacheEntry for EmailUpdateTokenEntry {}
@@ -223,9 +222,7 @@ fn reverse_add(
     cache
         .entry(key.to_string())
         .and_compute_with(|maybe_entry| {
-            let mut members = maybe_entry
-                .map(|entry| entry.into_value())
-                .unwrap_or_default();
+            let mut members = maybe_entry.map(moka::Entry::into_value).unwrap_or_default();
             let member = ReverseMember {
                 key: member_key.to_string(),
                 expires_at,

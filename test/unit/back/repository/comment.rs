@@ -3,7 +3,8 @@ use super::context::{build_state, test_config};
 use crate::repository::article::{ArticleDraft, create_article};
 use crate::repository::comment::{
     CommentTreeItem, CreateCommentError, create_reply_comment, create_top_level_comment,
-    owner_of_comment, read_comments_page_by_version, update_comment_content, version_of_comment,
+    owner_of_comment, read_comment_children_page, read_comment_item, read_comments_page_by_version,
+    update_comment_content, version_of_comment,
 };
 use crate::repository::version::VersionDraft;
 
@@ -28,7 +29,7 @@ async fn create_version_fixture(
             author_id: author_id.to_string(),
             title: format!("Article {article_id}"),
             summary: "summary".to_string(),
-            tags: vec!["#rust".to_string()],
+            tags: vec!["rust".to_string()],
             first_version: VersionDraft {
                 version_id: version_id.clone(),
                 version_number: "1.0.0".to_string(),
@@ -113,15 +114,30 @@ async fn create_reply_links_to_the_parent_and_is_not_top_level() {
         Some(version_id.clone())
     );
 
-    let (items, total) = read_comments_page_by_version(&state.graph, &version_id, MAX_DEPTH, 10, 0)
+    let (items, total) = read_comments_page_by_version(&state.graph, &version_id, 10, 0)
         .await
         .expect("read");
     assert_eq!(total, 1);
-    assert_eq!(items.len(), 2);
+    assert_eq!(items.len(), 1);
     assert_eq!(items[0].id, top_id);
     assert_eq!(items[0].parent_id, None);
-    assert_eq!(items[1].id, reply_id);
-    assert_eq!(items[1].parent_id.as_deref(), Some(top_id.as_str()));
+    assert_eq!(items[0].child_count, 1);
+
+    let (children, children_total) = read_comment_children_page(&state.graph, &top_id, 10, 0)
+        .await
+        .expect("children");
+    assert_eq!(children_total, 1);
+    assert_eq!(children.len(), 1);
+    assert_eq!(children[0].id, reply_id);
+    assert_eq!(children[0].parent_id.as_deref(), Some(top_id.as_str()));
+    assert_eq!(children[0].child_count, 0);
+
+    let item = read_comment_item(&state.graph, &reply_id)
+        .await
+        .expect("item")
+        .expect("exists");
+    assert_eq!(item.content, "reply");
+    assert_eq!(item.author_id, author_id);
 }
 
 #[tokio::test]
@@ -186,7 +202,7 @@ async fn read_comments_pages_top_level_comments_newest_first() {
             .expect("create");
     }
 
-    let (items, total) = read_comments_page_by_version(&state.graph, &version_id, MAX_DEPTH, 2, 0)
+    let (items, total) = read_comments_page_by_version(&state.graph, &version_id, 2, 0)
         .await
         .expect("read");
     assert_eq!(total, 3);
@@ -216,7 +232,7 @@ async fn update_comment_content_applies_the_new_text_and_reports_missing() {
             .expect("missing")
     );
 
-    let (items, _) = read_comments_page_by_version(&state.graph, &version_id, MAX_DEPTH, 10, 0)
+    let (items, _) = read_comments_page_by_version(&state.graph, &version_id, 10, 0)
         .await
         .expect("read");
     assert_eq!(items[0].content, "after");

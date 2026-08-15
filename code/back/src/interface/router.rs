@@ -4,7 +4,7 @@ use axum::routing::{get, post};
 
 use crate::infrastructure::state::AppState;
 use crate::interface::{
-    article, challenge, comment, config, content, email, role, session, user, version,
+    article, challenge, comment, config, content, role, session, token, user, version,
 };
 
 pub fn build_router(state: AppState) -> Router {
@@ -16,9 +16,9 @@ pub fn build_router(state: AppState) -> Router {
         .saturating_add(64 * 1024);
 
     Router::new()
-        .route("/challenge/read", get(challenge::create_challenge))
+        .route("/challenge/create", post(challenge::create_challenge))
         .route("/config/read", get(config::read_config))
-        .route("/email/read", post(email::read_email))
+        .route("/token/create", post(token::create_token))
         .route("/user/create", post(user::create_user))
         .route("/session/read", get(session::read_session))
         .route("/session/delete", post(session::delete_session))
@@ -49,6 +49,11 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route("/comments/{id}/replies/create", post(comment::create_reply))
         .route("/version/{id}/comments/read", get(comment::read_comments))
+        .route("/comment/{id}/read", get(comment::read_comment))
+        .route(
+            "/comment/{id}/replies/read",
+            get(comment::read_comment_children),
+        )
         .route("/comment/{id}/update", post(comment::update_comment))
         .route("/comment/{id}/delete", post(comment::delete_comment))
         .route("/role/create", post(role::create_role))
@@ -56,6 +61,8 @@ pub fn build_router(state: AppState) -> Router {
         .route("/role/{name}/read", get(role::read_role))
         .route("/role/{name}/update", post(role::update_role))
         .route("/role/{name}/delete", post(role::delete_role))
-        .layer(DefaultBodyLimit::max(body_limit as usize))
+        .layer(DefaultBodyLimit::max(
+            usize::try_from(body_limit).unwrap_or(usize::MAX),
+        ))
         .with_state(state)
 }

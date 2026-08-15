@@ -19,7 +19,6 @@ pub async fn read_config(State(state): State<AppState>) -> impl IntoResponse {
             max_pdf_size_bytes: server.max_pdf_size_bytes,
             max_text_field_bytes: server.max_text_field_bytes,
             download_token_ttl_seconds: server.download_token_ttl_seconds,
-            timezone_offset_seconds: server.timezone_offset_seconds,
             search_page_size: server.search_page_size,
             max_search_pages: server.max_search_pages,
         },

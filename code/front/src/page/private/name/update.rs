@@ -1,11 +1,12 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
-use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_query_map};
 
 use crate::page::draft::persist_draft;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
-use crate::page::session_gate::{authenticated_user_id, refresh_session};
+use crate::page::session_gate::{
+    SessionStatus, authenticated_user_id, refresh_session, use_session_status,
+};
 use crate::page::validation::validate_name;
 
 #[component]
@@ -13,6 +14,7 @@ pub fn NameUpdate() -> impl IntoView {
     let navigate = use_navigate();
     let notifications = use_notifications();
     let query = use_query_map();
+    let status = use_session_status();
     let name = RwSignal::new(query.get_untracked().get("name").unwrap_or_default());
     let working = RwSignal::new(false);
 
@@ -21,6 +23,18 @@ pub fn NameUpdate() -> impl IntoView {
         "/private/name/update".to_string(),
         move || vec![("name", name.get())],
     );
+
+    Effect::new(move |_| {
+        let SessionStatus::Authenticated(view) = status.get() else {
+            return;
+        };
+        if name.get_untracked().is_empty()
+            && let Some(current) = view.name
+            && !current.is_empty()
+        {
+            name.set(current);
+        }
+    });
 
     let submit = move |event: SubmitEvent| {
         event.prevent_default();
@@ -40,7 +54,6 @@ pub fn NameUpdate() -> impl IntoView {
         };
         working.set(true);
         let notifications = notifications.clone();
-        let navigate = navigate.clone();
         leptos::task::spawn_local(async move {
             let result = match crate::request::pow::prove_pow(new_name).await {
                 Ok(pow) => crate::request::user::update_self_name(&user_id, pow).await,
@@ -50,13 +63,6 @@ pub fn NameUpdate() -> impl IntoView {
                 Ok(_) => {
                     refresh_session();
                     notify_success(&notifications, "name updated");
-                    navigate(
-                        "/private/name",
-                        NavigateOptions {
-                            resolve: false,
-                            ..Default::default()
-                        },
-                    );
                 }
                 Err(error) => notify_error(&notifications, error.to_string()),
             }

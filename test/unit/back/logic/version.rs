@@ -17,6 +17,16 @@ async fn member(context: &TestCtx, email: &str) -> String {
     user_id
 }
 
+async fn admin(context: &TestCtx) -> String {
+    crate::repository::user::read_user_by_email_address_hash(
+        &context.state.graph,
+        &nail_common::hash::email("user-zero@example.com"),
+    )
+    .await
+    .expect("lookup user zero")
+    .expect("seeded user zero")
+}
+
 async fn article_fixture(context: &TestCtx, author_id: &str, title: &str) -> (String, String) {
     let article_id = uuid::Uuid::now_v7().to_string();
     let version_id = uuid::Uuid::now_v7().to_string();
@@ -27,7 +37,7 @@ async fn article_fixture(context: &TestCtx, author_id: &str, title: &str) -> (St
             author_id: author_id.to_string(),
             title: title.to_string(),
             summary: "summary".to_string(),
-            tags: vec!["#rust".to_string()],
+            tags: vec!["rust".to_string()],
             first_version: VersionDraft {
                 version_id: version_id.clone(),
                 version_number: "1.0.0".to_string(),
@@ -111,38 +121,28 @@ async fn read_version_cross_checks_the_parent_article() {
     let (article_id, version_id) = article_fixture(&context, &actor, "Article").await;
     let (other_article, _) = article_fixture(&context, &actor, "Other").await;
 
-    let data = crate::logic::version::read_version(
-        &context.state,
-        &actor,
-        &version_id,
-        Some(&article_id),
-        false,
-    )
-    .await
-    .expect("read");
+    let data = crate::logic::version::read_version(&context.state, &version_id, Some(&article_id))
+        .await
+        .expect("read");
     assert_eq!(data.version, "1.0.0");
 
-    let error = crate::logic::version::read_version(
-        &context.state,
-        &actor,
-        &version_id,
-        Some(&other_article),
-        false,
-    )
-    .await
-    .unwrap_err();
+    let error =
+        crate::logic::version::read_version(&context.state, &version_id, Some(&other_article))
+            .await
+            .unwrap_err();
     assert_eq!(error, LogicError::not_found("version not found"));
 }
 
 #[tokio::test]
-async fn delete_version_hard_removes_the_version() {
+async fn delete_version_hard_removes_the_version_as_admin() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
+    let admin_id = admin(&context).await;
     let (article_id, version_id) = article_fixture(&context, &actor, "Article").await;
 
     let data = crate::logic::version::delete_version(
         &context.state,
-        &actor,
+        &admin_id,
         &version_id,
         Some(nail_common::request::DeleteMode::Hard),
     )
@@ -156,6 +156,23 @@ async fn delete_version_hard_removes_the_version() {
             .is_none()
     );
     let _ = article_id;
+}
+
+#[tokio::test]
+async fn delete_version_hard_is_forbidden_for_a_member_owner() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let (_, version_id) = article_fixture(&context, &actor, "Article").await;
+
+    let error = crate::logic::version::delete_version(
+        &context.state,
+        &actor,
+        &version_id,
+        Some(nail_common::request::DeleteMode::Hard),
+    )
+    .await
+    .expect_err("member cannot hard delete");
+    assert!(matches!(error, LogicError::Forbidden(_)));
 }
 
 #[tokio::test]

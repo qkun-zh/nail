@@ -10,7 +10,7 @@ use crate::repository::version::{VersionDraft, versions_of};
 use agdb::QueryBuilder;
 
 fn pdf_hash(seed: u8) -> String {
-    (0..32).map(|_| format!("{seed:x}")).collect()
+    format!("{seed:x}").repeat(32)
 }
 
 async fn create_user(state: &crate::infrastructure::state::AppState, email: &str) -> String {
@@ -33,7 +33,7 @@ async fn create_article_fixture(
             author_id: author_id.to_string(),
             title: "Article".to_string(),
             summary: "summary".to_string(),
-            tags: vec!["#rust".to_string()],
+            tags: vec!["rust".to_string()],
             first_version: VersionDraft {
                 version_id: version_id.clone(),
                 version_number: "1.0.0".to_string(),

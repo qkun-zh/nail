@@ -214,8 +214,8 @@ pub async fn versions_of(
     list.sort_by(|left, right| right.id.cmp(&left.id));
     let page = list
         .into_iter()
-        .skip(offset as usize)
-        .take(limit as usize)
+        .skip(usize::try_from(offset).unwrap_or(usize::MAX))
+        .take(usize::try_from(limit).unwrap_or(usize::MAX))
         .collect();
     Ok((page, total))
 }

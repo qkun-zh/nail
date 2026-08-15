@@ -37,6 +37,6 @@ pub async fn delete_session(
     principal: Principal,
     AppJson(payload): AppJson<LogoutRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    crate::logic::session::delete_session(&state, &payload.pow, &principal.token).await?;
+    crate::logic::session::delete_session(&state, &payload.pow, &principal.token)?;
     Ok(json_response(StatusCode::OK, EmptyView {}, "deleted"))
 }

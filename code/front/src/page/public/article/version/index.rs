@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 use leptos_router::components::A;
-use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
+use leptos_router::hooks::{query_signal, use_navigate, use_params_map};
 use nail_common::response::version::VersionListPage;
 
 use crate::infrastructure::limits::use_limits;
@@ -20,19 +20,15 @@ pub fn VersionList() -> impl IntoView {
     let params = use_params_map();
     let notifications = use_notifications();
     let limits = use_limits();
-    let query = use_query_map();
     let navigate = use_navigate();
     let state = RwSignal::new(VersionPage::Loading);
+    let (page_signal, _set_page) = query_signal::<u64>("page");
+    let current_page = move || page_signal.get().unwrap_or(1).max(1);
 
     Effect::new(move |_| {
         let article_id = params.get().get("article_id").unwrap_or_default();
         let limit = clamp_page_size(limits.get().search_page_size, 8);
-        let page_value = query
-            .get()
-            .get("page")
-            .and_then(|value| value.parse::<u64>().ok())
-            .unwrap_or(1)
-            .max(1);
+        let page_value = current_page();
         let notifications = notifications.clone();
         leptos::task::spawn_local(async move {
             match crate::request::version::read_versions(&article_id, page_value, limit).await {
@@ -51,12 +47,7 @@ pub fn VersionList() -> impl IntoView {
         VersionPage::Loaded(view) => {
             let article_id = params.get().get("article_id").unwrap_or_default();
             let create_href = format!("/public/article/{article_id}/version/create");
-            let current_page = query
-                .get()
-                .get("page")
-                .and_then(|value| value.parse::<u64>().ok())
-                .unwrap_or(1)
-                .max(1);
+            let current_page = current_page();
             let limit = clamp_page_size(limits.get().search_page_size, 8);
             let total_pages = view.total.div_ceil(limit);
             let has_next = view.has_next;
@@ -77,6 +68,7 @@ pub fn VersionList() -> impl IntoView {
                     &format!("/public/article/{article_id}/version?page={target}"),
                     NavigateOptions {
                         resolve: false,
+                        replace: true,
                         ..Default::default()
                     },
                 );

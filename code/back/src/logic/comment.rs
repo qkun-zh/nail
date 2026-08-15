@@ -5,16 +5,18 @@ use nail_common::response::comment::{CommentIdView, CommentListPage, CommentView
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::{authorize_create, authorize_or, is_author};
+use crate::logic::authorize::{authorize_create, authorize_or};
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::search::sync_article_best_effort;
 use crate::repository::authorization::Resource;
 use crate::repository::comment::{
-    CreateCommentError, create_reply_comment, create_top_level_comment,
-    read_comments_page_by_version, update_comment_content, version_of_comment,
+    CommentTreeItem, CreateCommentError, create_reply_comment, create_top_level_comment,
+    read_comment_children_page, read_comment_item, read_comments_page_by_version,
+    update_comment_content, version_of_comment,
 };
 use crate::repository::role::{
-    PERMISSION_COMMENT_CREATE, PERMISSION_COMMENT_DELETE, PERMISSION_COMMENT_UPDATE,
+    PERMISSION_COMMENT_CREATE, PERMISSION_COMMENT_DELETE_HARD, PERMISSION_COMMENT_DELETE_TRANSFER,
+    PERMISSION_COMMENT_UPDATE,
 };
 use crate::repository::transfer::{TransferTargetError, transfer_comment};
 use crate::repository::version::{parent_article_of, read_version};
@@ -64,11 +66,9 @@ pub async fn create_reply(
 
 pub async fn read_comments(
     state: &AppState,
-    actor_id: &str,
     version_id: &str,
     page: u64,
     limit: u64,
-    check_if_is_author: bool,
 ) -> Result<CommentListPage, LogicError> {
     if read_version(&state.graph, version_id)
         .await
@@ -79,16 +79,66 @@ pub async fn read_comments(
     }
 
     let offset = page.saturating_sub(1).saturating_mul(limit);
-    let (items, total) = read_comments_page_by_version(
-        &state.graph,
-        version_id,
-        MAX_COMMENT_TREE_DEPTH,
-        limit,
-        offset,
-    )
-    .await
-    .map_err(database_error)?;
+    let (items, total) = read_comments_page_by_version(&state.graph, version_id, limit, offset)
+        .await
+        .map_err(database_error)?;
 
+    let comments = build_comment_views(state, items).await?;
+
+    let has_next = page < total.div_ceil(limit);
+    let view = CommentListPage {
+        comments,
+        has_next,
+        total,
+    };
+    Ok(view)
+}
+
+pub async fn read_comment(
+    state: &AppState,
+    actor_id: &str,
+    comment_id: &str,
+) -> Result<CommentView, LogicError> {
+    let _ = actor_id;
+    let item = read_comment_item(&state.graph, comment_id)
+        .await
+        .map_err(database_error)?
+        .ok_or_else(|| LogicError::not_found("comment not found"))?;
+    to_comment_view(state, item).await
+}
+
+pub async fn read_comment_children(
+    state: &AppState,
+    actor_id: &str,
+    parent_comment_id: &str,
+    page: u64,
+    limit: u64,
+) -> Result<CommentListPage, LogicError> {
+    let _ = actor_id;
+    if read_comment_item(&state.graph, parent_comment_id)
+        .await
+        .map_err(database_error)?
+        .is_none()
+    {
+        return Err(LogicError::not_found("comment not found"));
+    }
+    let offset = page.saturating_sub(1).saturating_mul(limit);
+    let (items, total) = read_comment_children_page(&state.graph, parent_comment_id, limit, offset)
+        .await
+        .map_err(database_error)?;
+    let comments = build_comment_views(state, items).await?;
+    let has_next = page < total.div_ceil(limit);
+    Ok(CommentListPage {
+        comments,
+        has_next,
+        total,
+    })
+}
+
+async fn build_comment_views(
+    state: &AppState,
+    items: Vec<CommentTreeItem>,
+) -> Result<Vec<CommentView>, LogicError> {
     let mut seen_users: HashSet<String> = HashSet::new();
     let mut user_ids: Vec<String> = Vec::new();
     for item in &items {
@@ -100,34 +150,41 @@ pub async fn read_comments(
         .await
         .map_err(database_error)?;
 
-    let comments: Vec<CommentView> = items
+    items
         .into_iter()
-        .map(|item| -> Result<CommentView, LogicError> {
-            let created_at = nail_common::time::uuidv7_timestamp_secs(&item.id)
-                .ok_or_else(|| LogicError::bad_request("invalid comment id"))?;
-            let user_name = user_names.get(&item.author_id).cloned().unwrap_or_default();
-            Ok(CommentView {
-                id: item.id,
-                content: item.content,
-                user_id: item.author_id,
-                parent_id: item.parent_id,
-                created_at,
-                user_name,
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+        .map(|item| to_comment_view_with_names(item, &user_names))
+        .collect()
+}
 
-    let has_next = page < total.div_ceil(limit);
-    let mut view = CommentListPage {
-        comments,
-        has_next,
-        total,
-        is_author: None,
-    };
-    if check_if_is_author {
-        view.is_author = Some(is_author(state, actor_id, None, Some(version_id), None).await?);
-    }
-    Ok(view)
+fn to_comment_view_with_names(
+    item: CommentTreeItem,
+    user_names: &std::collections::HashMap<String, String>,
+) -> Result<CommentView, LogicError> {
+    let created_at = nail_common::time::uuidv7_timestamp_secs(&item.id)
+        .ok_or_else(|| LogicError::bad_request("invalid comment id"))?;
+    let user_name = user_names.get(&item.author_id).cloned().unwrap_or_default();
+    Ok(CommentView {
+        id: item.id,
+        content: item.content,
+        user_id: item.author_id,
+        parent_id: item.parent_id,
+        created_at,
+        user_name,
+        child_count: item.child_count,
+    })
+}
+
+async fn to_comment_view(
+    state: &AppState,
+    item: CommentTreeItem,
+) -> Result<CommentView, LogicError> {
+    let user_names = crate::repository::user::read_user_names(
+        &state.graph,
+        std::slice::from_ref(&item.author_id),
+    )
+    .await
+    .map_err(database_error)?;
+    to_comment_view_with_names(item, &user_names)
 }
 
 pub async fn update_comment(
@@ -169,7 +226,7 @@ pub async fn delete_comment(
             authorize_or(
                 state,
                 actor_id,
-                PERMISSION_COMMENT_DELETE,
+                PERMISSION_COMMENT_DELETE_TRANSFER,
                 &Resource::Comment(comment_id.to_string()),
                 "comment not found",
             )
@@ -182,7 +239,7 @@ pub async fn delete_comment(
             authorize_or(
                 state,
                 actor_id,
-                PERMISSION_COMMENT_DELETE,
+                PERMISSION_COMMENT_DELETE_HARD,
                 &Resource::Comment(comment_id.to_string()),
                 "comment not found",
             )
@@ -204,8 +261,12 @@ pub async fn delete_comment(
 }
 
 fn validate_comment_content(raw: &str, max_chars: u64) -> Result<String, LogicError> {
-    nail_common::text::validate_ascii_text(raw, max_chars as usize, true)
-        .map_err(|error| LogicError::bad_request(error.to_string()))
+    nail_common::text::validate_ascii_text(
+        raw,
+        usize::try_from(max_chars).unwrap_or(usize::MAX),
+        true,
+    )
+    .map_err(|error| LogicError::bad_request(error.to_string()))
 }
 
 fn map_create_comment_error(error: CreateCommentError, is_reply: bool) -> LogicError {
@@ -227,6 +288,7 @@ fn map_create_comment_error(error: CreateCommentError, is_reply: bool) -> LogicE
 fn map_transfer_error(error: TransferTargetError) -> LogicError {
     match error {
         TransferTargetError::TargetMissing => LogicError::not_found("comment not found"),
+        TransferTargetError::TargetOwnerMissing => LogicError::internal("comment has no owner"),
         TransferTargetError::NoRecycler => LogicError::internal("no recycler available"),
         TransferTargetError::Db(error) => database_error(error),
     }

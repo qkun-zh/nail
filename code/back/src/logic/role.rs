@@ -75,8 +75,8 @@ pub async fn read_roles(
     let offset = page.saturating_sub(1).saturating_mul(limit);
     let page_roles: Vec<RepositoryRoleView> = roles
         .into_iter()
-        .skip(offset as usize)
-        .take(limit as usize)
+        .skip(usize::try_from(offset).unwrap_or(usize::MAX))
+        .take(usize::try_from(limit).unwrap_or(usize::MAX))
         .collect();
 
     let mut role_list = Vec::with_capacity(page_roles.len());

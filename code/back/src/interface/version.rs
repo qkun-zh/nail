@@ -24,7 +24,7 @@ pub async fn create_version(
     while let Some(field) = multipart
         .next_field()
         .await
-        .map_err(super::article::map_multipart_error)?
+        .map_err(|error| super::article::map_multipart_error(&error))?
     {
         let name = field.name().unwrap_or_default().to_string();
         match name.as_str() {
@@ -82,23 +82,17 @@ pub async fn read_versions(
 #[derive(Debug, Default, Deserialize)]
 pub struct VersionReadParams {
     pub article_id: Option<String>,
-    pub check_if_is_author: Option<bool>,
 }
 
 pub async fn read_version(
     State(state): State<AppState>,
-    principal: Principal,
+    _principal: Principal,
     AppPath(version_id): AppPath<String>,
     AppQuery(params): AppQuery<VersionReadParams>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data = crate::logic::version::read_version(
-        &state,
-        &principal.user_id,
-        &version_id,
-        params.article_id.as_deref(),
-        params.check_if_is_author.unwrap_or(false),
-    )
-    .await?;
+    let data =
+        crate::logic::version::read_version(&state, &version_id, params.article_id.as_deref())
+            .await?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 

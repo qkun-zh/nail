@@ -2,6 +2,12 @@ use std::fmt;
 
 pub const MAX_NAME_CHAR_COUNT: usize = 32;
 
+/// Validates and normalizes a display name.
+///
+/// # Errors
+/// Returns [`NameError::Empty`] when the trimmed name is empty,
+/// [`NameError::ContainsForbiddenChar`] for non-alphanumeric characters other
+/// than `-` and `_`, and [`NameError::TooLong`] past [`MAX_NAME_CHAR_COUNT`].
 pub fn validate_name(raw_name: &str) -> Result<String, NameError> {
     let trimmed = raw_name.trim();
     if trimmed.is_empty() {
@@ -29,12 +35,10 @@ impl fmt::Display for NameError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             NameError::Empty => write!(f, "name cannot be empty"),
-            NameError::TooLong => write!(
-                f,
-                "name too long (max {} unicode chars)",
-                MAX_NAME_CHAR_COUNT
-            ),
-            NameError::ContainsForbiddenChar(ch) => write!(f, "name cannot contain {:?}", ch),
+            NameError::TooLong => {
+                write!(f, "name too long (max {MAX_NAME_CHAR_COUNT} unicode chars)")
+            }
+            NameError::ContainsForbiddenChar(ch) => write!(f, "name cannot contain {ch:?}"),
         }
     }
 }

@@ -56,7 +56,7 @@ fn config_directory() -> Result<PathBuf> {
         if path.join("server.toml").is_file() {
             return Ok(path);
         }
-        bail!("CONF_DIR {path:?} does not contain server.toml");
+        bail!("CONF_DIR {} does not contain server.toml", path.display());
     }
     let current = env::current_dir().context("failed to read current directory")?;
     for ancestor in current.ancestors() {
@@ -65,5 +65,8 @@ fn config_directory() -> Result<PathBuf> {
             return Ok(candidate);
         }
     }
-    bail!("cannot locate configuration/ from {current:?} (set CONF_DIR to override)")
+    bail!(
+        "cannot locate configuration/ from {} (set CONF_DIR to override)",
+        current.display()
+    )
 }

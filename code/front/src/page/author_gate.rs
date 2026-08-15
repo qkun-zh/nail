@@ -31,12 +31,15 @@ pub fn use_author_gate(
         checked.set(false);
         let notification = notification.clone();
         leptos::task::spawn_local(async move {
-            let result = crate::request::article::read_article(&id, true).await;
+            let result = crate::request::article::read_article(&id).await;
             if sequence.get_value() != my_sequence {
                 return;
             }
             match result {
-                Ok(article) => denied.set(article.is_author != Some(true)),
+                Ok(article) => {
+                    let current_user = crate::page::session_gate::authenticated_user_id();
+                    denied.set(Some(article.author_id) != current_user);
+                }
                 Err(error) => {
                     notify_error(&notification, format!("author check failed: {error}"));
                 }

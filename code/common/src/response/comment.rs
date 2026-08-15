@@ -9,6 +9,8 @@ pub struct CommentView {
     pub parent_id: Option<String>,
     pub created_at: u64,
     pub user_name: String,
+    #[serde(default)]
+    pub child_count: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -16,8 +18,6 @@ pub struct CommentListPage {
     pub comments: Vec<CommentView>,
     pub has_next: bool,
     pub total: u64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub is_author: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

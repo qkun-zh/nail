@@ -5,21 +5,26 @@ use serde::{Deserialize, Serialize};
 pub enum SearchRange {
     Title,
     Summary,
-    Author,
+    #[serde(rename = "author_name")]
+    AuthorName,
     Comment,
     Note,
     Tag,
+    #[serde(rename = "version_number")]
+    VersionNumber,
 }
 
 impl SearchRange {
+    #[must_use]
     pub fn label(self) -> &'static str {
         match self {
-            SearchRange::Title => "Title",
-            SearchRange::Summary => "Summary",
-            SearchRange::Author => "Author",
-            SearchRange::Comment => "Comment",
-            SearchRange::Note => "Version note",
-            SearchRange::Tag => "Tag",
+            SearchRange::Title => "title",
+            SearchRange::Summary => "summary",
+            SearchRange::AuthorName => "author",
+            SearchRange::Comment => "comment",
+            SearchRange::Note => "note",
+            SearchRange::Tag => "tag",
+            SearchRange::VersionNumber => "version",
         }
     }
 }

@@ -29,6 +29,10 @@ async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
     (user_id, token)
 }
 
+async fn admin_session(context: &TestCtx) -> (String, String) {
+    member_session(context, "user-zero@example.com").await
+}
+
 async fn article_fixture(context: &TestCtx, author_id: &str) -> (String, String) {
     let article_id = Uuid::now_v7().to_string();
     let version_id = Uuid::now_v7().to_string();
@@ -40,7 +44,7 @@ async fn article_fixture(context: &TestCtx, author_id: &str) -> (String, String)
             author_id: author_id.to_string(),
             title: title.clone(),
             summary: "summary".to_string(),
-            tags: vec!["#rust".to_string()],
+            tags: vec!["rust".to_string()],
             first_version: VersionDraft {
                 version_id: version_id.clone(),
                 version_number: "1.0.0".to_string(),
@@ -184,6 +188,24 @@ async fn delete_version_rejects_transfer_mode() {
 #[tokio::test]
 async fn delete_version_hard_over_http() {
     let context = TestCtx::new().await.expect("test context");
+    let (user_id, _) = member_session(&context, "alice@example.com").await;
+    let (_, admin_token) = admin_session(&context).await;
+    let (_, version_id) = article_fixture(&context, &user_id).await;
+
+    let (status, body) = context
+        .post(
+            &format!("/version/{version_id}/delete"),
+            json!({ "mode": "hard" }),
+            Some(&admin_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("deleted"));
+}
+
+#[tokio::test]
+async fn delete_version_hard_is_forbidden_for_a_member_owner() {
+    let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = member_session(&context, "alice@example.com").await;
     let (_, version_id) = article_fixture(&context, &user_id).await;
 
@@ -194,8 +216,8 @@ async fn delete_version_hard_over_http() {
             Some(&token),
         )
         .await;
-    assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert_eq!(body["message"].as_str(), Some("deleted"));
+    assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("you are denied"));
 }
 
 #[tokio::test]

@@ -1,17 +1,29 @@
 use std::path::PathBuf;
 
 use crate::infrastructure::state::AppState;
+use crate::logic::authorize::authorize_or;
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::session::normalize_token;
 use crate::logic::version::pdf_final_path;
+use crate::repository::authorization::Resource;
 use crate::repository::cache::{DownloadTokenEntry, token_key};
+use crate::repository::role::PERMISSION_VERSION_READ;
 use crate::repository::version::{parent_article_of, read_version};
 
 pub async fn resolve_version_pdf_path(
     state: &AppState,
+    actor_id: &str,
     article_id: &str,
     version_id: &str,
 ) -> Result<PathBuf, LogicError> {
+    authorize_or(
+        state,
+        actor_id,
+        PERMISSION_VERSION_READ,
+        &Resource::Version(version_id.to_string()),
+        "article version not found",
+    )
+    .await?;
     let parent = parent_article_of(&state.graph, version_id)
         .await
         .map_err(database_error)?
@@ -33,7 +45,7 @@ pub async fn mint_download_token(
     article_id: &str,
     version_id: &str,
 ) -> Result<String, LogicError> {
-    resolve_version_pdf_path(state, article_id, version_id).await?;
+    resolve_version_pdf_path(state, actor_id, article_id, version_id).await?;
 
     let token = uuid::Uuid::now_v7().to_string();
     let key = token_key(&token)
@@ -81,5 +93,5 @@ pub async fn consume_download_token(
     if consumed.version_id != version_id {
         return Err(LogicError::not_found("article version not found"));
     }
-    resolve_version_pdf_path(state, article_id, version_id).await
+    resolve_version_pdf_path(state, actor_id, article_id, version_id).await
 }

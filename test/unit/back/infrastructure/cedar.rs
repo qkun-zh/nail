@@ -73,7 +73,7 @@ fn article_entity(id: &str, owner: &str, scopes: &[&str]) -> Entity {
 }
 
 #[test]
-fn schema_declares_exactly_the_sixteen_seeded_actions() {
+fn schema_declares_exactly_the_twenty_seeded_actions() {
     let schema: cedar_policy::Schema = SCHEMA.parse().expect("schema");
     let mut declared: Vec<String> = schema
         .actions()
@@ -83,7 +83,7 @@ fn schema_declares_exactly_the_sixteen_seeded_actions() {
 
     let mut seeded: Vec<String> = crate::repository::role::ALL_PERMISSIONS
         .iter()
-        .map(|name| name.to_string())
+        .map(std::string::ToString::to_string)
         .collect();
     seeded.sort();
 
@@ -144,10 +144,10 @@ fn role_permission_grants_only_when_the_scope_intersects() {
         "alice",
         HashSet::from([uid("Role::\"editor\"")]),
         false,
-        &["#rust"],
+        &["rust"],
     );
 
-    let matching = article_entity("article-1", "bob", &["#rust"]);
+    let matching = article_entity("article-1", "bob", &["rust"]);
     assert!(
         decide(
             &uid("User::\"alice\""),
@@ -158,7 +158,7 @@ fn role_permission_grants_only_when_the_scope_intersects() {
         .expect("matching scope")
     );
 
-    let non_matching = article_entity("article-2", "bob", &["#other"]);
+    let non_matching = article_entity("article-2", "bob", &["other"]);
     assert!(
         !decide(
             &uid("User::\"alice\""),
@@ -179,7 +179,7 @@ fn admin_role_allows_everything() {
     assert!(
         decide(
             &uid("User::\"alice\""),
-            "User::Delete",
+            "User::Delete::Hard",
             &uid("System::\"admin-console\""),
             vec![principal.clone(), admin.clone(), resource.clone()],
         )

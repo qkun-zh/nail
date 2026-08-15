@@ -23,7 +23,7 @@ pub async fn read_content(
     AppPath((article_id, version_id)): AppPath<(String, String)>,
     AppQuery(params): AppQuery<ContentReadParams>,
 ) -> Result<Response, ApiError> {
-    if matches!(params.download.as_deref(), Some("1") | Some("true")) {
+    if matches!(params.download.as_deref(), Some("1" | "true")) {
         let url = crate::logic::download::mint_download_token(
             &state,
             &principal.user_id,
@@ -34,18 +34,17 @@ pub async fn read_content(
         return Ok(json_response(StatusCode::OK, MintUrl { url }, "ok"));
     }
 
-    let path = if let Some(token) = params.token.as_deref() {
-        crate::logic::download::consume_download_token(
-            &state,
-            &principal.user_id,
-            &article_id,
-            &version_id,
-            token,
-        )
-        .await?
-    } else {
-        crate::logic::download::resolve_version_pdf_path(&state, &article_id, &version_id).await?
+    let Some(token) = params.token.as_deref() else {
+        return Err(ApiError::bad_request("missing download token"));
     };
+    let path = crate::logic::download::consume_download_token(
+        &state,
+        &principal.user_id,
+        &article_id,
+        &version_id,
+        token,
+    )
+    .await?;
 
     serve_pdf_file(&path).await
 }

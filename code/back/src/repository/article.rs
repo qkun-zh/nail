@@ -211,8 +211,8 @@ pub async fn read_articles(
     let page_ids: Vec<agdb::DbId> = result
         .elements
         .into_iter()
-        .skip(offset as usize)
-        .take(limit as usize)
+        .skip(usize::try_from(offset).unwrap_or(usize::MAX))
+        .take(usize::try_from(limit).unwrap_or(usize::MAX))
         .map(|element| element.id)
         .collect();
     let items = enrich_articles(&guard, &page_ids)?;

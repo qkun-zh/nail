@@ -9,13 +9,13 @@ use uuid::Uuid;
 
 use crate::infrastructure::pdf::{PdfUpload, content_hash_rel_path};
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::{authorize_or, is_author};
+use crate::logic::authorize::authorize_or;
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::search::sync_article_best_effort;
 use crate::repository::authorization::Resource;
 use crate::repository::delete::delete_version as delete_version_node;
 use crate::repository::role::{
-    PERMISSION_VERSION_CREATE, PERMISSION_VERSION_DELETE, PERMISSION_VERSION_UPDATE,
+    PERMISSION_VERSION_CREATE, PERMISSION_VERSION_DELETE_HARD, PERMISSION_VERSION_UPDATE,
 };
 use crate::repository::version::{
     CreateVersionError, VersionDraft, content_hash_owner, create_version as create_version_node,
@@ -128,10 +128,8 @@ pub async fn create_version(
 
 pub async fn read_version(
     state: &AppState,
-    actor_id: &str,
     version_id: &str,
     article_id: Option<&str>,
-    check_if_is_author: bool,
 ) -> Result<VersionView, LogicError> {
     let parent_article = parent_article_of(&state.graph, version_id)
         .await
@@ -149,16 +147,12 @@ pub async fn read_version(
         .ok_or_else(|| LogicError::not_found("version not found"))?;
 
     let created_at = nail_common::time::uuidv7_timestamp_secs(version_id).unwrap_or(0);
-    let mut view = VersionView {
+    let view = VersionView {
         id: version_id.to_string(),
         version: entry.version_number,
         created_at,
         note: entry.note,
-        is_author: None,
     };
-    if check_if_is_author {
-        view.is_author = Some(is_author(state, actor_id, None, Some(version_id), None).await?);
-    }
     Ok(view)
 }
 
@@ -226,7 +220,7 @@ pub async fn delete_version(
     authorize_or(
         state,
         actor_id,
-        PERMISSION_VERSION_DELETE,
+        PERMISSION_VERSION_DELETE_HARD,
         &Resource::Version(version_id.to_string()),
         "version not found",
     )
@@ -247,8 +241,12 @@ pub async fn delete_version(
 }
 
 pub(crate) fn validate_note(raw: &str, max_chars: u64) -> Result<String, LogicError> {
-    nail_common::text::validate_ascii_text(raw, max_chars as usize, true)
-        .map_err(|error| LogicError::bad_request(error.to_string()))
+    nail_common::text::validate_ascii_text(
+        raw,
+        usize::try_from(max_chars).unwrap_or(usize::MAX),
+        true,
+    )
+    .map_err(|error| LogicError::bad_request(error.to_string()))
 }
 
 fn map_create_version_error(error: CreateVersionError) -> LogicError {

@@ -1,6 +1,5 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
-use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_query_map};
 
 use crate::page::draft::persist_draft;
@@ -65,7 +64,6 @@ pub fn Authenticate() -> impl IntoView {
         }
         working.set(true);
         let notifications = redeem_notifications.clone();
-        let navigate = navigate.clone();
         leptos::task::spawn_local(async move {
             let result = match crate::request::pow::prove_pow(token_value).await {
                 Ok(pow) => crate::request::auth::redeem_token(pow).await,
@@ -76,13 +74,6 @@ pub fn Authenticate() -> impl IntoView {
                     crate::request::session::store_session_token(&view.session_token);
                     refresh_session();
                     notify_success(&notifications, "signed in");
-                    navigate(
-                        "/private",
-                        NavigateOptions {
-                            resolve: false,
-                            ..Default::default()
-                        },
-                    );
                 }
                 Err(error) => notify_error(&notifications, error.to_string()),
             }

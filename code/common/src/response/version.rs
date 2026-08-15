@@ -6,8 +6,6 @@ pub struct VersionView {
     pub version: String,
     pub created_at: u64,
     pub note: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub is_author: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

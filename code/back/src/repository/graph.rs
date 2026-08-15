@@ -9,7 +9,7 @@ use crate::repository::schema::alias_of;
 
 pub type DbHandle = Arc<RwLock<DbAny>>;
 
-pub async fn open(address: &str) -> anyhow::Result<DbHandle> {
+pub fn open(address: &str) -> anyhow::Result<DbHandle> {
     let database = match address.trim().to_ascii_lowercase().as_str() {
         "memory" | "mem" | ":memory:" | "in-memory" => DbAny::new_memory("nail_memory")?,
         path => {
@@ -20,7 +20,7 @@ pub async fn open(address: &str) -> anyhow::Result<DbHandle> {
                 && !parent.as_os_str().is_empty()
             {
                 std::fs::create_dir_all(parent).map_err(|error| {
-                    anyhow::anyhow!("create db_path parent {parent:?}: {error}")
+                    anyhow::anyhow!("create db_path parent {}: {error}", parent.display())
                 })?;
             }
             DbAny::new_mapped(path)?

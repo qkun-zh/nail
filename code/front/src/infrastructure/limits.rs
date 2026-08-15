@@ -15,13 +15,12 @@ pub fn compile_time_defaults() -> RuntimeLimits {
         max_pdf_size_bytes: 33_554_432,
         max_text_field_bytes: 1_048_576,
         download_token_ttl_seconds: 60,
-        timezone_offset_seconds: 28_800,
         search_page_size: 8,
         max_search_pages: 1024,
     }
 }
 
-pub fn apply_fallbacks(server: RuntimeLimits) -> RuntimeLimits {
+pub fn apply_fallbacks(server: &RuntimeLimits) -> RuntimeLimits {
     let defaults = compile_time_defaults();
     RuntimeLimits {
         max_tags_per_article: nonzero_or(
@@ -47,7 +46,6 @@ pub fn apply_fallbacks(server: RuntimeLimits) -> RuntimeLimits {
             server.download_token_ttl_seconds,
             defaults.download_token_ttl_seconds,
         ),
-        timezone_offset_seconds: server.timezone_offset_seconds,
         search_page_size: nonzero_or(server.search_page_size, defaults.search_page_size),
         max_search_pages: nonzero_or(server.max_search_pages, defaults.max_search_pages),
     }
@@ -63,7 +61,7 @@ pub fn provide_limits() -> RwSignal<RuntimeLimits> {
     let for_fetch = limits;
     leptos::task::spawn_local(async move {
         if let Ok(server) = fetch_runtime_limits(api_base_url()).await {
-            for_fetch.set(apply_fallbacks(server));
+            for_fetch.set(apply_fallbacks(&server));
         }
     });
     limits

@@ -1,30 +1,12 @@
-use nail_common::request::{EmailReadIntent, EmailReadRequest};
+use nail_common::request::{CreateTokenRequest, TokenPurpose};
 
 use super::context::TestCtx;
 use crate::logic::email::{
-    EmailReadView, normalize_email, parse_intent, send_delete_user_email, send_update_user_email,
+    CreateTokenView, normalize_email, send_delete_user_email, send_update_user_email,
     update_user_email, validate_email,
 };
 use crate::logic::error::LogicError;
 use crate::repository::cache::{SessionTokenEntry, token_key};
-
-#[test]
-fn parse_intent_maps_the_wire_values() {
-    assert_eq!(
-        parse_intent("authenticate"),
-        Some(EmailReadIntent::Authenticate)
-    );
-    assert_eq!(
-        parse_intent("change_email"),
-        Some(EmailReadIntent::ChangeEmail)
-    );
-    assert_eq!(
-        parse_intent("deregister"),
-        Some(EmailReadIntent::Deregister)
-    );
-    assert_eq!(parse_intent("bogus"), None);
-    assert_eq!(parse_intent(""), None);
-}
 
 #[test]
 fn normalize_email_trims_and_lowercases() {
@@ -71,25 +53,21 @@ async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
 }
 
 #[tokio::test]
-async fn create_user_intent_sends_and_caches_a_token() {
+async fn create_user_token_sends_and_caches_a_token() {
     let context = TestCtx::new().await.expect("test context");
     let pow = context.issued_pow("alice@example.com");
-    let request = EmailReadRequest {
+    let request = CreateTokenRequest {
+        purpose: TokenPurpose::CreateUser,
         pow: Some(pow),
         old_email_pow: None,
         new_email_pow: None,
     };
-    let data = crate::logic::email::read_email(
-        &context.state,
-        EmailReadIntent::Authenticate,
-        request,
-        None,
-    )
-    .await
-    .expect("email read");
+    let data = crate::logic::email::create_token(&context.state, request, None)
+        .await
+        .expect("create token");
     let subject = match data {
-        EmailReadView::Subject(view) => view.email_subject,
-        EmailReadView::Subjects(_) => panic!("unexpected subjects"),
+        CreateTokenView::Subject(view) => view.email_subject,
+        CreateTokenView::Subjects(_) => panic!("unexpected subjects"),
     };
     assert!(!subject.is_empty());
 
@@ -103,37 +81,33 @@ async fn create_user_intent_sends_and_caches_a_token() {
 }
 
 #[tokio::test]
-async fn create_user_intent_requires_a_pow() {
+async fn create_user_token_requires_a_pow() {
     let context = TestCtx::new().await.expect("test context");
-    let request = EmailReadRequest::default();
-    let error = crate::logic::email::read_email(
-        &context.state,
-        EmailReadIntent::Authenticate,
-        request,
-        None,
-    )
-    .await
-    .unwrap_err();
+    let request = CreateTokenRequest {
+        purpose: TokenPurpose::CreateUser,
+        pow: None,
+        old_email_pow: None,
+        new_email_pow: None,
+    };
+    let error = crate::logic::email::create_token(&context.state, request, None)
+        .await
+        .unwrap_err();
     assert_eq!(error, LogicError::bad_request("pow is required"));
 }
 
 #[tokio::test]
-async fn create_user_intent_rejects_a_disallowed_domain_without_burning_the_challenge() {
+async fn create_user_token_rejects_a_disallowed_domain_without_burning_the_challenge() {
     let context = TestCtx::new().await.expect("test context");
     let pow = context.issued_pow("alice@other.org");
-    let request = EmailReadRequest {
+    let request = CreateTokenRequest {
+        purpose: TokenPurpose::CreateUser,
         pow: Some(pow.clone()),
         old_email_pow: None,
         new_email_pow: None,
     };
-    let error = crate::logic::email::read_email(
-        &context.state,
-        EmailReadIntent::Authenticate,
-        request,
-        None,
-    )
-    .await
-    .unwrap_err();
+    let error = crate::logic::email::create_token(&context.state, request, None)
+        .await
+        .unwrap_err();
     assert_eq!(error, LogicError::bad_request("email domain not allowed"));
     assert!(context.emails().is_empty());
     assert!(
@@ -149,14 +123,15 @@ async fn create_user_intent_rejects_a_disallowed_domain_without_burning_the_chal
 #[tokio::test]
 async fn change_email_requires_a_session() {
     let context = TestCtx::new().await.expect("test context");
-    let error = crate::logic::email::read_email(
-        &context.state,
-        EmailReadIntent::ChangeEmail,
-        EmailReadRequest::default(),
-        None,
-    )
-    .await
-    .unwrap_err();
+    let request = CreateTokenRequest {
+        purpose: TokenPurpose::UpdateUserEmail,
+        pow: None,
+        old_email_pow: None,
+        new_email_pow: None,
+    };
+    let error = crate::logic::email::create_token(&context.state, request, None)
+        .await
+        .unwrap_err();
     assert_eq!(
         error,
         LogicError::unauthorized("missing session-token header")
@@ -169,20 +144,16 @@ async fn change_email_sends_two_emails_and_caches_the_token_hashes() {
     let (user_id, session_token) = session_for(&context, "alice@example.com").await;
     let old_pow = context.issued_pow("alice@example.com");
     let new_pow = context.issued_pow("alice-new@example.com");
-    let request = EmailReadRequest {
+    let request = CreateTokenRequest {
+        purpose: TokenPurpose::UpdateUserEmail,
         pow: None,
         old_email_pow: Some(old_pow),
         new_email_pow: Some(new_pow),
     };
-    let data = crate::logic::email::read_email(
-        &context.state,
-        EmailReadIntent::ChangeEmail,
-        request,
-        Some(session_token),
-    )
-    .await
-    .expect("email read");
-    let EmailReadView::Subjects(view) = data else {
+    let data = crate::logic::email::create_token(&context.state, request, Some(session_token))
+        .await
+        .expect("create token");
+    let CreateTokenView::Subjects(view) = data else {
         panic!("expected subjects");
     };
     assert!(!view.old_email_subject.is_empty());
@@ -201,27 +172,23 @@ async fn change_email_sends_two_emails_and_caches_the_token_hashes() {
         .expect("entry");
     let old_hash = nail_common::hash::email("alice@example.com");
     let new_hash = nail_common::hash::email("alice-new@example.com");
-    assert_eq!(entry.old_email_address_hash, old_hash);
-    assert_eq!(entry.new_email_address_hash, new_hash);
+    assert_eq!(entry.old_email_address, old_hash);
+    assert_eq!(entry.new_email_address, new_hash);
 }
 
 #[tokio::test]
 async fn change_email_rejects_a_mismatched_old_email() {
     let context = TestCtx::new().await.expect("test context");
     let (_, session_token) = session_for(&context, "alice@example.com").await;
-    let request = EmailReadRequest {
+    let request = CreateTokenRequest {
+        purpose: TokenPurpose::UpdateUserEmail,
         pow: None,
         old_email_pow: Some(context.issued_pow("someone@example.com")),
         new_email_pow: Some(context.issued_pow("alice-new@example.com")),
     };
-    let error = crate::logic::email::read_email(
-        &context.state,
-        EmailReadIntent::ChangeEmail,
-        request,
-        Some(session_token),
-    )
-    .await
-    .unwrap_err();
+    let error = crate::logic::email::create_token(&context.state, request, Some(session_token))
+        .await
+        .unwrap_err();
     assert_eq!(
         error,
         LogicError::bad_request("old email does not match your current email")
@@ -232,19 +199,15 @@ async fn change_email_rejects_a_mismatched_old_email() {
 async fn change_email_rejects_same_old_and_new_email() {
     let context = TestCtx::new().await.expect("test context");
     let (_, session_token) = session_for(&context, "alice@example.com").await;
-    let request = EmailReadRequest {
+    let request = CreateTokenRequest {
+        purpose: TokenPurpose::UpdateUserEmail,
         pow: None,
         old_email_pow: Some(context.issued_pow("alice@example.com")),
         new_email_pow: Some(context.issued_pow("alice@example.com")),
     };
-    let error = crate::logic::email::read_email(
-        &context.state,
-        EmailReadIntent::ChangeEmail,
-        request,
-        Some(session_token),
-    )
-    .await
-    .unwrap_err();
+    let error = crate::logic::email::create_token(&context.state, request, Some(session_token))
+        .await
+        .unwrap_err();
     assert_eq!(
         error,
         LogicError::bad_request("new email must be different from old email")
@@ -260,10 +223,10 @@ async fn update_user_email_updates_email_and_returns_a_new_session() {
     context.state.caches.email_update.insert(
         &user_id,
         crate::repository::cache::EmailUpdateTokenEntry {
-            old_email_address_hash: nail_common::hash::email("alice@example.com"),
-            new_email_address_hash: nail_common::hash::email("alice-new@example.com"),
-            token_from_old_email_hash: token_key(&old_token).expect("old hash"),
-            token_from_new_email_hash: token_key(&new_token).expect("new hash"),
+            old_email_address: nail_common::hash::email("alice@example.com"),
+            new_email_address: nail_common::hash::email("alice-new@example.com"),
+            token_from_old_email: token_key(&old_token).expect("old hash"),
+            token_from_new_email: token_key(&new_token).expect("new hash"),
         },
     );
 
@@ -285,7 +248,7 @@ async fn update_user_email_updates_email_and_returns_a_new_session() {
 }
 
 #[tokio::test]
-async fn deregister_intent_sends_and_caches_a_confirmation_token() {
+async fn delete_user_token_sends_and_caches_a_confirmation_token() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, session_token) = session_for(&context, "alice@example.com").await;
     let pow = context.issued_pow("alice@example.com");

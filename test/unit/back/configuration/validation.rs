@@ -46,13 +46,6 @@ fn server_config_rejects_zero_ttls_and_capacity() {
 }
 
 #[test]
-fn server_config_rejects_an_invalid_timezone_offset() {
-    assert_invalid_server(|server| server.timezone_offset_seconds = 90);
-    assert_invalid_server(|server| server.timezone_offset_seconds = 86_400);
-    assert_invalid_server(|server| server.timezone_offset_seconds = -86_400);
-}
-
-#[test]
 fn server_config_rejects_empty_search_and_pdf_paths() {
     assert_invalid_server(|server| server.search_index_path.clear());
     assert_invalid_server(|server| server.pdf_storage_path.clear());
@@ -153,7 +146,6 @@ challenge_ttl_seconds = 300
 download_token_ttl_seconds = 60
 token_cache_capacity = 100000
 email_cooldown_seconds = 60
-timezone_offset_seconds = 28800
 user_zero_email = "admin@example.com"
 max_pdf_size_bytes = 33554432
 max_tags_per_article = 8

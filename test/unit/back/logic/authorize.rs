@@ -1,5 +1,5 @@
 use super::context::TestCtx;
-use crate::logic::authorize::{authorize, authorize_create, authorize_or, is_author};
+use crate::logic::authorize::{authorize, authorize_create, authorize_or};
 use crate::logic::error::LogicError;
 use crate::repository::article::{ArticleDraft, create_article};
 use crate::repository::authorization::Resource;
@@ -30,7 +30,7 @@ async fn create_article_fixture(
             author_id: author_id.to_string(),
             title: title.to_string(),
             summary: "summary".to_string(),
-            tags: vec!["#rust".to_string()],
+            tags: vec!["rust".to_string()],
             first_version: VersionDraft {
                 version_id: version_id.clone(),
                 version_number: "1.0.0".to_string(),
@@ -158,63 +158,6 @@ async fn authorize_create_grants_a_member_article_create() {
 }
 
 #[tokio::test]
-async fn is_author_is_true_for_owner_and_article_update_holder() {
-    let context = TestCtx::new().await.expect("test context");
-    let owner = create_user(&context, "alice@example.com").await;
-    let admin = create_user(&context, "user-zero@example.com").await;
-    let (article_id, _) = create_article_fixture(&context, &owner, "Mine").await;
-
-    assert!(
-        is_author(&context.state, &owner, Some(&article_id), None, None)
-            .await
-            .expect("owner check")
-    );
-    assert!(
-        is_author(&context.state, &admin, Some(&article_id), None, None)
-            .await
-            .expect("admin check")
-    );
-
-    let stranger = create_user(&context, "bob@example.com").await;
-    crate::repository::role::hold_role(&context.state.graph, &stranger, "member")
-        .await
-        .expect("member");
-    assert!(
-        !is_author(&context.state, &stranger, Some(&article_id), None, None)
-            .await
-            .expect("stranger check")
-    );
-}
-
-#[tokio::test]
-async fn is_author_rejects_zero_or_multiple_ids() {
-    let context = TestCtx::new().await.expect("test context");
-    let actor = create_user(&context, "alice@example.com").await;
-
-    assert_eq!(
-        is_author(&context.state, &actor, None, None, None)
-            .await
-            .unwrap_err(),
-        LogicError::bad_request("exactly one of article_id, version_id or comment_id is required")
-    );
-
-    let article_id = uuid::Uuid::now_v7().to_string();
-    let version_id = uuid::Uuid::now_v7().to_string();
-    assert_eq!(
-        is_author(
-            &context.state,
-            &actor,
-            Some(&article_id),
-            Some(&version_id),
-            None
-        )
-        .await
-        .unwrap_err(),
-        LogicError::bad_request("exactly one of article_id, version_id or comment_id is required")
-    );
-}
-
-#[tokio::test]
 async fn comment_author_can_update_own_comment_but_article_owner_cannot() {
     let context = TestCtx::new().await.expect("test context");
     let article_owner = create_user(&context, "alice@example.com").await;
@@ -300,7 +243,7 @@ async fn scoped_role_denies_when_tags_do_not_intersect() {
     )
     .await
     .expect("grant");
-    crate::repository::role::apply_tag_to_role(&context.state.graph, "editor", "#go")
+    crate::repository::role::apply_tag_to_role(&context.state.graph, "editor", "go")
         .await
         .expect("scope");
     crate::repository::role::hold_role(&context.state.graph, &editor, "editor")

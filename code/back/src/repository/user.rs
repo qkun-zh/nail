@@ -144,8 +144,8 @@ pub async fn read_users(
     let total = users.len() as u64;
     let page = users
         .into_iter()
-        .skip(offset as usize)
-        .take(limit as usize)
+        .skip(usize::try_from(offset).unwrap_or(usize::MAX))
+        .take(usize::try_from(limit).unwrap_or(usize::MAX))
         .collect();
     Ok((page, total))
 }

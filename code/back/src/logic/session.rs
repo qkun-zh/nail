@@ -49,11 +49,7 @@ pub async fn read_user_name(state: &AppState, session_token: &str) -> Result<Str
     Ok(entry.name)
 }
 
-pub async fn delete_session(
-    state: &AppState,
-    pow: &Pow,
-    session_token: &str,
-) -> Result<(), LogicError> {
+pub fn delete_session(state: &AppState, pow: &Pow, session_token: &str) -> Result<(), LogicError> {
     let user_id = read_session(state, session_token)?;
     verify_issued_pow(state, pow)?;
     let key = token_key(session_token)

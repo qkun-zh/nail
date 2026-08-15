@@ -3,7 +3,6 @@ use leptos_router::components::A;
 use leptos_router::hooks::use_params_map;
 use nail_common::response::article::ArticleView;
 
-use crate::infrastructure::limits::use_limits;
 use crate::page::notify::{notify_error, use_notifications};
 use crate::page::session_gate::{SessionStatus, use_session_status};
 use crate::page::time_format::format_timestamp;
@@ -12,7 +11,6 @@ use crate::page::time_format::format_timestamp;
 pub fn ArticleDetail() -> impl IntoView {
     let params = use_params_map();
     let notifications = use_notifications();
-    let limits = use_limits();
     let session_status = use_session_status();
     let article = RwSignal::new(None::<ArticleView>);
     let error = RwSignal::new(None::<String>);
@@ -21,7 +19,7 @@ pub fn ArticleDetail() -> impl IntoView {
         let article_id = params.get().get("article_id").unwrap_or_default();
         let notifications = notifications.clone();
         leptos::task::spawn_local(async move {
-            match crate::request::article::read_article(&article_id, false).await {
+            match crate::request::article::read_article(&article_id).await {
                 Ok(view) => article.set(Some(view)),
                 Err(request_error) => {
                     notify_error(&notifications, request_error.to_string());
@@ -38,7 +36,7 @@ pub fn ArticleDetail() -> impl IntoView {
         let Some(article) = article.get() else {
             return view! { <p>loading...</p> }.into_any();
         };
-        let created_at = format_timestamp(article.created_at, limits.get().timezone_offset_seconds);
+        let created_at = format_timestamp(article.created_at);
         let tags = article
             .tags
             .iter()

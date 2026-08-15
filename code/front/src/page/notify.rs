@@ -54,7 +54,7 @@ fn next_toast_id() -> u64 {
 }
 
 fn current_time_ms() -> u64 {
-    js_sys::Date::now() as u64
+    u64::try_from(js_sys::Date::now()).unwrap_or(u64::MAX)
 }
 
 #[derive(Clone)]
@@ -96,9 +96,12 @@ impl Notifications {
 
         let id = toast.id;
         let toasts = self.toasts;
-        gloo_timers::callback::Timeout::new(toast_duration_ms(kind) as u32, move || {
-            toasts.update(|list| list.retain(|toast| toast.id != id));
-        })
+        gloo_timers::callback::Timeout::new(
+            u32::try_from(toast_duration_ms(kind)).unwrap_or(u32::MAX),
+            move || {
+                toasts.update(|list| list.retain(|toast| toast.id != id));
+            },
+        )
         .forget();
     }
 

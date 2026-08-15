@@ -8,7 +8,7 @@ use crate::repository::article::{ArticleDraft, create_article};
 use crate::repository::version::VersionDraft;
 
 fn pdf_hash(seed: u8) -> String {
-    (0..32).map(|_| format!("{seed:x}")).collect()
+    format!("{seed:x}").repeat(32)
 }
 
 async fn create_user(state: &crate::infrastructure::state::AppState, email: &str) -> String {
@@ -31,7 +31,7 @@ async fn create_article_fixture(
             author_id: author_id.to_string(),
             title: format!("Article {article_id}"),
             summary: "summary".to_string(),
-            tags: vec!["#rust".to_string()],
+            tags: vec!["rust".to_string()],
             first_version: VersionDraft {
                 version_id: version_id.clone(),
                 version_number: "1.0.0".to_string(),
@@ -132,12 +132,12 @@ async fn resolve_version_pdf_path_rejects_a_version_of_another_article() {
     let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
     let (other_article, _) = create_article_fixture(&state, &author_id, &pdf_hash(2)).await;
 
-    let error = resolve_version_pdf_path(&state, &other_article, &version_id)
+    let error = resolve_version_pdf_path(&state, &author_id, &other_article, &version_id)
         .await
         .expect_err("wrong article");
     assert!(matches!(error, LogicError::NotFound(_)));
 
-    let path = resolve_version_pdf_path(&state, &article_id, &version_id)
+    let path = resolve_version_pdf_path(&state, &author_id, &article_id, &version_id)
         .await
         .expect("right article");
     assert!(path.ends_with("11/11/11111111111111111111111111111111.pdf"));

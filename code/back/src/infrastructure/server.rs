@@ -8,10 +8,14 @@ use crate::interface;
 use crate::repository;
 
 pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
-    let graph = repository::graph::open(&config.server.db_path).await?;
+    let graph = repository::graph::open(&config.server.db_path)?;
     repository::seed::init_graph(&graph, &config.server.user_zero_email).await?;
     let search =
         repository::search::SearchIndex::open_or_create(&config.server.search_index_path).await?;
+    if search.was_recreated() {
+        tracing::info!("rebuilt search index; synchronizing from graph");
+        search.sync_all(&graph).await?;
+    }
     crate::infrastructure::pdf::prepare_pdf_storage(&config.server.pdf_storage_path).await?;
 
     let caches = repository::cache::TokenCaches::new(
@@ -71,8 +75,8 @@ async fn shutdown_signal() {
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
+        () = ctrl_c => {},
+        () = terminate => {},
     }
     tracing::info!("shutdown signal received, draining in-flight requests");
 }

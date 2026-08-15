@@ -1,31 +1,17 @@
 use nail_common::request::{DeleteBody, DeleteMode, UpdateArticleRequest};
-use nail_common::response::article::{
-    ArticleIdView, ArticleListPage, ArticleView, CreateArticleView,
-};
+use nail_common::response::article::{ArticleIdView, ArticleView, CreateArticleView};
 use nail_common::response::search::SearchPage;
 
 use crate::request::error::RequestResult;
 use crate::request::{http, url};
-
-pub async fn read_articles(page: u64, limit: u64) -> RequestResult<ArticleListPage> {
-    let path = url::build_path_with_query(
-        &["article", "read"],
-        &[("page", &page.to_string()), ("limit", &limit.to_string())],
-    );
-    http::get_json(&path, true).await
-}
 
 pub async fn search_articles(query: &[(&str, &str)]) -> RequestResult<SearchPage> {
     let path = url::build_path_with_query(&["article", "read"], query);
     http::get_json(&path, true).await
 }
 
-pub async fn read_article(article_id: &str, check_author: bool) -> RequestResult<ArticleView> {
-    let mut query = Vec::new();
-    if check_author {
-        query.push(("check_if_is_author", "true"));
-    }
-    let path = url::build_path_with_query(&["article", article_id, "read"], &query);
+pub async fn read_article(article_id: &str) -> RequestResult<ArticleView> {
+    let path = url::build_path_with_query(&["article", article_id, "read"], &[]);
     http::get_json(&path, true).await
 }
 

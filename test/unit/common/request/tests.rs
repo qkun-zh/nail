@@ -1,4 +1,4 @@
-use crate::request::{DeleteMode, EmailReadIntent};
+use crate::request::{DeleteMode, TokenPurpose};
 
 #[test]
 fn delete_mode_serializes_as_lowercase_strings() -> anyhow::Result<()> {
@@ -32,48 +32,48 @@ fn delete_mode_rejects_unknown_values() {
 }
 
 #[test]
-fn email_read_intent_serializes_as_snake_case_strings() -> anyhow::Result<()> {
+fn token_purpose_serializes_as_snake_case_strings() -> anyhow::Result<()> {
     assert_eq!(
-        serde_json::to_string(&EmailReadIntent::Authenticate)?,
-        r#""authenticate""#
+        serde_json::to_string(&TokenPurpose::CreateUser)?,
+        r#""create_user""#
     );
     assert_eq!(
-        serde_json::to_string(&EmailReadIntent::ChangeEmail)?,
-        r#""change_email""#
+        serde_json::to_string(&TokenPurpose::UpdateUserEmail)?,
+        r#""update_user_email""#
     );
     assert_eq!(
-        serde_json::to_string(&EmailReadIntent::Deregister)?,
-        r#""deregister""#
-    );
-    Ok(())
-}
-
-#[test]
-fn email_read_intent_deserializes_from_snake_case_strings() -> anyhow::Result<()> {
-    assert_eq!(
-        serde_json::from_str::<EmailReadIntent>(r#""authenticate""#)?,
-        EmailReadIntent::Authenticate
-    );
-    assert_eq!(
-        serde_json::from_str::<EmailReadIntent>(r#""change_email""#)?,
-        EmailReadIntent::ChangeEmail
-    );
-    assert_eq!(
-        serde_json::from_str::<EmailReadIntent>(r#""deregister""#)?,
-        EmailReadIntent::Deregister
+        serde_json::to_string(&TokenPurpose::DeleteUser)?,
+        r#""delete_user""#
     );
     Ok(())
 }
 
 #[test]
-fn email_read_intent_rejects_unknown_values() {
+fn token_purpose_deserializes_from_snake_case_strings() -> anyhow::Result<()> {
+    assert_eq!(
+        serde_json::from_str::<TokenPurpose>(r#""create_user""#)?,
+        TokenPurpose::CreateUser
+    );
+    assert_eq!(
+        serde_json::from_str::<TokenPurpose>(r#""update_user_email""#)?,
+        TokenPurpose::UpdateUserEmail
+    );
+    assert_eq!(
+        serde_json::from_str::<TokenPurpose>(r#""delete_user""#)?,
+        TokenPurpose::DeleteUser
+    );
+    Ok(())
+}
+
+#[test]
+fn token_purpose_rejects_unknown_values() {
     for value in [
-        r#""change-email""#,
-        r#""authenticate ""#,
-        r#""Deregister""#,
+        r#""create-user""#,
+        r#""updateUserEmail""#,
+        r#""CreateUser""#,
         r#""""#,
     ] {
-        let result = serde_json::from_str::<EmailReadIntent>(value);
+        let result = serde_json::from_str::<TokenPurpose>(value);
         assert!(result.is_err(), "value {value} must be rejected");
     }
 }
@@ -94,8 +94,8 @@ fn delete_body_round_trips_with_mode() -> anyhow::Result<()> {
     let body = crate::request::DeleteBody {
         mode: Some(DeleteMode::Transfer),
     };
-    assert_eq!(serde_json::to_string(&body)?, r##"{"mode":"transfer"}"##);
-    let decoded: crate::request::DeleteBody = serde_json::from_str(r##"{"mode":"transfer"}"##)?;
+    assert_eq!(serde_json::to_string(&body)?, r#"{"mode":"transfer"}"#);
+    let decoded: crate::request::DeleteBody = serde_json::from_str(r#"{"mode":"transfer"}"#)?;
     assert_eq!(decoded, body);
     Ok(())
 }
@@ -113,7 +113,7 @@ fn delete_body_round_trips_without_mode() -> anyhow::Result<()> {
 
 #[test]
 fn delete_body_rejects_invalid_mode_value() {
-    let result = serde_json::from_str::<crate::request::DeleteBody>(r##"{"mode":"soft"}"##);
+    let result = serde_json::from_str::<crate::request::DeleteBody>(r#"{"mode":"soft"}"#);
     assert!(result.is_err());
 }
 
@@ -130,61 +130,82 @@ fn user_delete_request_round_trips_with_mode_and_pow() -> anyhow::Result<()> {
 }
 
 #[test]
-fn email_read_request_round_trips_single_pow() -> anyhow::Result<()> {
-    let request = crate::request::EmailReadRequest {
+fn create_token_request_round_trips_single_pow() -> anyhow::Result<()> {
+    let request = crate::request::CreateTokenRequest {
+        purpose: TokenPurpose::CreateUser,
         pow: Some(sample_pow()?),
         old_email_pow: None,
         new_email_pow: None,
     };
     let json = serde_json::to_string(&request)?;
-    let decoded: crate::request::EmailReadRequest = serde_json::from_str(&json)?;
+    let decoded: crate::request::CreateTokenRequest = serde_json::from_str(&json)?;
     assert_eq!(decoded, request);
     Ok(())
 }
 
 #[test]
-fn email_read_request_round_trips_dual_pow_pair() -> anyhow::Result<()> {
-    let request = crate::request::EmailReadRequest {
+fn create_token_request_round_trips_dual_pow_pair() -> anyhow::Result<()> {
+    let request = crate::request::CreateTokenRequest {
+        purpose: TokenPurpose::UpdateUserEmail,
         pow: None,
         old_email_pow: Some(sample_pow()?),
         new_email_pow: Some(sample_pow()?),
     };
     let json = serde_json::to_string(&request)?;
-    let decoded: crate::request::EmailReadRequest = serde_json::from_str(&json)?;
+    let decoded: crate::request::CreateTokenRequest = serde_json::from_str(&json)?;
     assert_eq!(decoded, request);
     Ok(())
 }
 
 #[test]
-fn email_read_request_defaults_all_fields_to_none() -> anyhow::Result<()> {
-    let decoded: crate::request::EmailReadRequest = serde_json::from_str("{}")?;
-    assert_eq!(decoded.pow, None);
-    assert_eq!(decoded.old_email_pow, None);
-    assert_eq!(decoded.new_email_pow, None);
+fn create_token_request_requires_a_purpose() {
+    let result = serde_json::from_str::<crate::request::CreateTokenRequest>("{}");
+    assert!(result.is_err(), "a missing purpose must be rejected");
+}
+
+#[test]
+fn create_token_request_uses_purpose_as_the_wire_field_name() -> anyhow::Result<()> {
+    let request = crate::request::CreateTokenRequest {
+        purpose: TokenPurpose::CreateUser,
+        pow: Some(sample_pow()?),
+        old_email_pow: None,
+        new_email_pow: None,
+    };
+    let value = serde_json::to_value(&request)?;
+    assert_eq!(value["purpose"], serde_json::json!("create_user"));
+    assert!(value.get("pow").is_some());
+    assert!(
+        value.get("intent").is_none(),
+        "the legacy intent field must not appear on the wire"
+    );
     Ok(())
 }
 
 #[test]
-fn email_read_request_dual_pair_is_consistent_only_when_both_or_neither() -> anyhow::Result<()> {
-    let both = crate::request::EmailReadRequest {
+fn create_token_request_dual_pair_is_consistent_only_when_both_or_neither() -> anyhow::Result<()> {
+    let both = crate::request::CreateTokenRequest {
+        purpose: TokenPurpose::UpdateUserEmail,
         pow: None,
         old_email_pow: Some(sample_pow()?),
         new_email_pow: Some(sample_pow()?),
     };
     assert!(both.has_consistent_email_pow_pair());
-    let neither = crate::request::EmailReadRequest {
+    let neither = crate::request::CreateTokenRequest {
+        purpose: TokenPurpose::CreateUser,
         pow: Some(sample_pow()?),
         old_email_pow: None,
         new_email_pow: None,
     };
     assert!(neither.has_consistent_email_pow_pair());
-    let only_old = crate::request::EmailReadRequest {
+    let only_old = crate::request::CreateTokenRequest {
+        purpose: TokenPurpose::UpdateUserEmail,
         pow: None,
         old_email_pow: Some(sample_pow()?),
         new_email_pow: None,
     };
     assert!(!only_old.has_consistent_email_pow_pair());
-    let only_new = crate::request::EmailReadRequest {
+    let only_new = crate::request::CreateTokenRequest {
+        purpose: TokenPurpose::UpdateUserEmail,
         pow: None,
         old_email_pow: None,
         new_email_pow: Some(sample_pow()?),
@@ -248,13 +269,13 @@ fn article_comment_and_role_requests_round_trip() -> anyhow::Result<()> {
     let update_article = crate::request::UpdateArticleRequest {
         title: "Title".to_string(),
         summary: "Summary".to_string(),
-        tags: "#a #b".to_string(),
+        tags: "a b".to_string(),
     };
     let json = serde_json::to_string(&update_article)?;
     let decoded: crate::request::UpdateArticleRequest = serde_json::from_str(&json)?;
     assert_eq!(decoded, update_article);
     let no_tags: crate::request::UpdateArticleRequest =
-        serde_json::from_str(r##"{"title":"T","summary":"S"}"##)?;
+        serde_json::from_str(r#"{"title":"T","summary":"S"}"#)?;
     assert_eq!(no_tags.tags, "");
     let create_comment = crate::request::CreateCommentRequest {
         content: "A comment".to_string(),
@@ -279,8 +300,8 @@ fn role_update_request_round_trips_change_lists() -> anyhow::Result<()> {
             remove: Vec::new(),
         }),
         tags: Some(crate::request::ChangeList {
-            add: vec!["#rust".to_string()],
-            remove: vec!["#old".to_string()],
+            add: vec!["rust".to_string()],
+            remove: vec!["old".to_string()],
         }),
         users: None,
     };
@@ -298,8 +319,8 @@ fn article_search_params_round_trip_all_fields() -> anyhow::Result<()> {
         q: Some("rust".to_string()),
         ranges: Some("title,author".to_string()),
         sort: Some("time:desc".to_string()),
-        from: Some(1_700_000_000),
-        to: Some(1_700_100_000),
+        from: Some("2023-11-14T22:13:20Z".to_string()),
+        to: Some("2023-11-14T23:00:00Z".to_string()),
         limit: Some(8),
         page: Some(1),
     };

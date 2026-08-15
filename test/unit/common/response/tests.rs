@@ -20,7 +20,7 @@ fn err_constructor_carries_code_and_message_with_null_data() {
 fn ok_envelope_serializes_with_data_present() {
     let envelope = ResponseEnvelope::ok(200, 42u64, "ok");
     let json = serde_json::to_string(&envelope).expect("serialize ok envelope");
-    assert_eq!(json, r##"{"code":200,"data":42,"message":"ok"}"##);
+    assert_eq!(json, r#"{"code":200,"data":42,"message":"ok"}"#);
 }
 
 #[test]
@@ -29,7 +29,7 @@ fn err_envelope_serializes_with_null_data() {
     let json = serde_json::to_string(&envelope).expect("serialize err envelope");
     assert_eq!(
         json,
-        r##"{"code":404,"data":null,"message":"article not found"}"##
+        r#"{"code":404,"data":null,"message":"article not found"}"#
     );
 }
 
@@ -54,7 +54,7 @@ fn search_hit_round_trips_with_lowercase_field() -> anyhow::Result<()> {
     let json = serde_json::to_string(&hit)?;
     assert_eq!(
         json,
-        r##"{"field":"title","label":"Title","snippet":"Rust <mark>borrow</mark> checker"}"##
+        r#"{"field":"title","label":"Title","snippet":"Rust <mark>borrow</mark> checker"}"#
     );
     let decoded: crate::response::search::SearchHit = serde_json::from_str(&json)?;
     assert_eq!(decoded, hit);
@@ -64,14 +64,30 @@ fn search_hit_round_trips_with_lowercase_field() -> anyhow::Result<()> {
 #[test]
 fn search_article_item_round_trips_with_hits() -> anyhow::Result<()> {
     let item = crate::response::search::SearchArticleItem {
-        id: "0197c0b0-1234-7000-8000-000000000001".to_string(),
+        article_id: "0197c0b0-1234-7000-8000-000000000001".to_string(),
         title: "Rust borrow checker".to_string(),
-        author: "alice".to_string(),
-        time: "2023-11-15T06:13:20+08:00".to_string(),
-        hits: vec![crate::response::search::SearchHit {
+        author_name: "alice".to_string(),
+        time: "2023-11-15T06:13:20Z".to_string(),
+        article_hits: vec![crate::response::search::SearchHit {
             field: crate::search::SearchRange::Summary,
-            label: "Summary".to_string(),
+            label: "summary".to_string(),
             snippet: "A <mark>summary</mark>".to_string(),
+        }],
+        versions: vec![crate::response::search::SearchVersionItem {
+            version_id: "0197c0b0-5678-7000-8000-000000000002".to_string(),
+            version_number: "2.1.0".to_string(),
+            time: "2023-11-15T06:13:20Z".to_string(),
+            version_hits: vec![crate::response::search::SearchHit {
+                field: crate::search::SearchRange::Note,
+                label: "note".to_string(),
+                snippet: "fixes <mark>leak</mark>".to_string(),
+            }],
+            comments: vec![crate::response::search::SearchCommentItem {
+                comment_id: "0197c0b0-9abc-7000-8000-000000000003".to_string(),
+                author_name: "bob".to_string(),
+                time: "2023-11-15T06:13:20Z".to_string(),
+                content: "great <mark>fix</mark>".to_string(),
+            }],
         }],
     };
     let json = serde_json::to_string(&item)?;
@@ -104,7 +120,7 @@ fn session_view_omits_absent_fields() -> anyhow::Result<()> {
         name: None,
     };
     let json = serde_json::to_string(&view)?;
-    assert_eq!(json, r##"{"id":"0197c0b0-1234-7000-8000-000000000001"}"##);
+    assert_eq!(json, r#"{"id":"0197c0b0-1234-7000-8000-000000000001"}"#);
     let decoded: crate::response::session::SessionView = serde_json::from_str(&json)?;
     assert_eq!(decoded, view);
     Ok(())
@@ -120,25 +136,6 @@ fn empty_view_serializes_as_empty_object() -> anyhow::Result<()> {
 }
 
 #[test]
-fn article_view_omits_is_author_when_absent() -> anyhow::Result<()> {
-    let view = crate::response::article::ArticleView {
-        id: "a".to_string(),
-        author_id: "u".to_string(),
-        author_name: "alice".to_string(),
-        title: "Title".to_string(),
-        summary: "Summary".to_string(),
-        created_at: 1,
-        tags: Vec::new(),
-        is_author: None,
-    };
-    let json = serde_json::to_string(&view)?;
-    assert!(!json.contains("is_author"));
-    let decoded: crate::response::article::ArticleView = serde_json::from_str(&json)?;
-    assert_eq!(decoded.is_author, None);
-    Ok(())
-}
-
-#[test]
 fn comment_view_serializes_parent_id_as_null_when_top_level() -> anyhow::Result<()> {
     let view = crate::response::comment::CommentView {
         id: "c".to_string(),
@@ -147,10 +144,39 @@ fn comment_view_serializes_parent_id_as_null_when_top_level() -> anyhow::Result<
         parent_id: None,
         created_at: 1,
         user_name: "alice".to_string(),
+        child_count: 0,
     };
     let json = serde_json::to_string(&view)?;
     assert!(json.contains(r#""parent_id":null"#));
     let decoded: crate::response::comment::CommentView = serde_json::from_str(&json)?;
     assert_eq!(decoded.parent_id, None);
+    Ok(())
+}
+
+#[test]
+fn email_subject_view_serializes_its_single_field() -> anyhow::Result<()> {
+    let view = crate::response::email::EmailSubjectView {
+        email_subject: "abc".to_string(),
+    };
+    let json = serde_json::to_string(&view)?;
+    assert_eq!(json, r#"{"email_subject":"abc"}"#);
+    let decoded: crate::response::email::EmailSubjectView = serde_json::from_str(&json)?;
+    assert_eq!(decoded, view);
+    Ok(())
+}
+
+#[test]
+fn email_subjects_view_serializes_both_subjects() -> anyhow::Result<()> {
+    let view = crate::response::email::EmailSubjectsView {
+        old_email_subject: "old".to_string(),
+        new_email_subject: "new".to_string(),
+    };
+    let json = serde_json::to_string(&view)?;
+    assert_eq!(
+        json,
+        r#"{"old_email_subject":"old","new_email_subject":"new"}"#
+    );
+    let decoded: crate::response::email::EmailSubjectsView = serde_json::from_str(&json)?;
+    assert_eq!(decoded, view);
     Ok(())
 }

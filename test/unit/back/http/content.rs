@@ -32,7 +32,7 @@ async fn create_article_over_http(context: &TestCtx, token: &str) -> (String, St
     let fields: Vec<(&str, &str)> = vec![
         ("title", "Downloadable"),
         ("summary", "summary"),
-        ("tags", "#rust"),
+        ("tags", "rust"),
         ("version", "1.0.0"),
         ("note", "note"),
     ];
@@ -68,7 +68,7 @@ async fn article_without_pdf_file(context: &TestCtx, author_id: &str) -> (String
             author_id: author_id.to_string(),
             title: format!("Missing {article_id}"),
             summary: "summary".to_string(),
-            tags: vec!["#rust".to_string()],
+            tags: vec!["rust".to_string()],
             first_version: VersionDraft {
                 version_id: version_id.clone(),
                 version_number: "1.0.0".to_string(),
@@ -84,34 +84,6 @@ async fn article_without_pdf_file(context: &TestCtx, author_id: &str) -> (String
 
 fn token_from_url(url: &str) -> &str {
     url.split("?token=").nth(1).expect("token in minted url")
-}
-
-#[tokio::test]
-async fn read_content_serves_the_pdf_inline() {
-    let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
-    let (article_id, version_id) = create_article_over_http(&context, &token).await;
-
-    let (status, headers, bytes) = context
-        .get_bytes(
-            &format!("/article/{article_id}/version/{version_id}/content/read"),
-            Some(&token),
-        )
-        .await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(
-        headers
-            .get(axum::http::header::CONTENT_TYPE)
-            .and_then(|value| value.to_str().ok()),
-        Some("application/pdf")
-    );
-    assert_eq!(bytes, valid_pdf());
-    let disposition = headers
-        .get(axum::http::header::CONTENT_DISPOSITION)
-        .and_then(|value| value.to_str().ok())
-        .expect("content-disposition");
-    assert!(disposition.starts_with("attachment; filename=\""));
-    assert!(disposition.ends_with(".pdf\""));
 }
 
 #[tokio::test]
@@ -221,14 +193,40 @@ async fn read_content_requires_a_session() {
 }
 
 #[tokio::test]
+async fn read_content_requires_a_token() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (article_id, version_id) = create_article_over_http(&context, &token).await;
+
+    let (status, body) = context
+        .get(
+            &format!("/article/{article_id}/version/{version_id}/content/read"),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("missing download token"));
+}
+
+#[tokio::test]
 async fn read_content_reports_a_missing_pdf_file() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = member_session(&context, "alice@example.com").await;
     let (article_id, version_id) = article_without_pdf_file(&context, &user_id).await;
 
+    let (_, mint_body) = context
+        .get(
+            &format!("/article/{article_id}/version/{version_id}/content/read?download=1"),
+            Some(&token),
+        )
+        .await;
+    let download_token = token_from_url(mint_body["data"]["url"].as_str().expect("url"));
+
     let (status, body) = context
         .get(
-            &format!("/article/{article_id}/version/{version_id}/content/read"),
+            &format!(
+                "/article/{article_id}/version/{version_id}/content/read?token={download_token}"
+            ),
             Some(&token),
         )
         .await;
@@ -245,7 +243,7 @@ async fn read_content_reports_a_missing_version() {
     let (status, body) = context
         .get(
             &format!(
-                "/article/{article_id}/version/{}/content/read",
+                "/article/{article_id}/version/{}/content/read?download=1",
                 Uuid::now_v7()
             ),
             Some(&token),

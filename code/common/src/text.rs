@@ -1,5 +1,11 @@
 use std::fmt;
 
+/// Validates printable-ASCII text, optionally allowing newlines, and trims it.
+///
+/// # Errors
+/// Returns [`TextError::Empty`] for empty input,
+/// [`TextError::ContainsForbiddenChar`] for non-printable or non-ASCII
+/// characters, and [`TextError::TooLong`] past `max_chars`.
 pub fn validate_ascii_text(
     raw: &str,
     max_chars: usize,
@@ -36,13 +42,12 @@ impl fmt::Display for TextError {
         match self {
             TextError::Empty => write!(f, "text cannot be empty"),
             TextError::TooLong { max_chars } => {
-                write!(f, "text too long (max {} ascii chars)", max_chars)
+                write!(f, "text too long (max {max_chars} ascii chars)")
             }
             TextError::ContainsForbiddenChar(ch) => {
                 write!(
                     f,
-                    "text can only contain printable ASCII; forbidden: {:?}",
-                    ch
+                    "text can only contain printable ASCII; forbidden: {ch:?}"
                 )
             }
         }

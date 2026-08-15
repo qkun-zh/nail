@@ -29,6 +29,10 @@ async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
     (user_id, token)
 }
 
+async fn admin_session(context: &TestCtx) -> (String, String) {
+    member_session(context, "user-zero@example.com").await
+}
+
 async fn version_fixture(context: &TestCtx, author_id: &str) -> String {
     let article_id = Uuid::now_v7().to_string();
     let version_id = Uuid::now_v7().to_string();
@@ -39,7 +43,7 @@ async fn version_fixture(context: &TestCtx, author_id: &str) -> String {
             author_id: author_id.to_string(),
             title: format!("Article {article_id}"),
             summary: "summary".to_string(),
-            tags: vec!["#rust".to_string()],
+            tags: vec!["rust".to_string()],
             first_version: VersionDraft {
                 version_id: version_id.clone(),
                 version_number: "1.0.0".to_string(),
@@ -327,6 +331,32 @@ async fn update_comment_reports_a_missing_comment() {
 async fn delete_comment_hard_removes_the_comment() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = member_session(&context, "alice@example.com").await;
+    let (_, admin_token) = admin_session(&context).await;
+    let version_id = version_fixture(&context, &user_id).await;
+    let (_, created) = context
+        .post(
+            &format!("/version/{version_id}/comments/create"),
+            json!({ "content": "hello" }),
+            Some(&token),
+        )
+        .await;
+    let comment_id = created["data"]["comment_id"].as_str().expect("comment id");
+
+    let (status, body) = context
+        .post(
+            &format!("/comment/{comment_id}/delete"),
+            json!({ "mode": "hard" }),
+            Some(&admin_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("deleted"));
+}
+
+#[tokio::test]
+async fn delete_comment_hard_is_forbidden_for_a_member_owner() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, token) = member_session(&context, "alice@example.com").await;
     let version_id = version_fixture(&context, &user_id).await;
     let (_, created) = context
         .post(
@@ -344,8 +374,8 @@ async fn delete_comment_hard_removes_the_comment() {
             Some(&token),
         )
         .await;
-    assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert_eq!(body["message"].as_str(), Some("deleted"));
+    assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("you are denied"));
 }
 
 #[tokio::test]

@@ -2,7 +2,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use nail_common::request::{CreateCommentRequest, DeleteBody};
-use nail_common::response::comment::CommentIdView;
+use nail_common::response::comment::{CommentIdView, CommentListPage, CommentView};
 use serde::Deserialize;
 
 use crate::infrastructure::state::AppState;
@@ -54,12 +54,11 @@ pub async fn create_reply(
 pub struct CommentsReadParams {
     pub page: Option<u64>,
     pub limit: Option<u64>,
-    pub check_if_is_author: Option<bool>,
 }
 
 pub async fn read_comments(
     State(state): State<AppState>,
-    principal: Principal,
+    _principal: Principal,
     AppPath(version_id): AppPath<String>,
     AppQuery(params): AppQuery<CommentsReadParams>,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -68,13 +67,37 @@ pub async fn read_comments(
         params.limit,
         state.config.server.search_page_size,
     );
-    let data = crate::logic::comment::read_comments(
+    let data = crate::logic::comment::read_comments(&state, &version_id, page, limit).await?;
+    Ok(json_response(StatusCode::OK, data, "ok"))
+}
+
+pub async fn read_comment(
+    State(state): State<AppState>,
+    principal: Principal,
+    AppPath(comment_id): AppPath<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    let data: CommentView =
+        crate::logic::comment::read_comment(&state, &principal.user_id, &comment_id).await?;
+    Ok(json_response(StatusCode::OK, data, "ok"))
+}
+
+pub async fn read_comment_children(
+    State(state): State<AppState>,
+    principal: Principal,
+    AppPath(parent_comment_id): AppPath<String>,
+    AppQuery(params): AppQuery<CommentsReadParams>,
+) -> Result<impl IntoResponse, ApiError> {
+    let (page, limit) = crate::logic::pagination::clamp_page_limit(
+        params.page,
+        params.limit,
+        state.config.server.search_page_size,
+    );
+    let data: CommentListPage = crate::logic::comment::read_comment_children(
         &state,
         &principal.user_id,
-        &version_id,
+        &parent_comment_id,
         page,
         limit,
-        params.check_if_is_author.unwrap_or(false),
     )
     .await?;
     Ok(json_response(StatusCode::OK, data, "ok"))

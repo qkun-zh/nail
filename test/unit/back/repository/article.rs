@@ -7,7 +7,7 @@ use crate::repository::article::{
 use crate::repository::version::VersionDraft;
 
 fn pdf_hash(seed: u8) -> String {
-    (0..32).map(|_| format!("{seed:x}")).collect()
+    format!("{seed:x}").repeat(32)
 }
 
 fn version_draft(number: &str, hash: &str) -> VersionDraft {
@@ -51,7 +51,7 @@ async fn create_article_fixture(
             author_id: author_id.to_string(),
             title: title.to_string(),
             summary: "a summary".to_string(),
-            tags: vec!["#rust".to_string()],
+            tags: vec!["rust".to_string()],
             first_version: VersionDraft {
                 version_id: version_id.clone(),
                 version_number: "1.0.0".to_string(),
@@ -79,7 +79,7 @@ async fn create_article_writes_nodes_and_edges_and_reads_back() {
             author_id: author_id.clone(),
             title: "My Article".to_string(),
             summary: "A longer summary.".to_string(),
-            tags: vec!["#rust".to_string(), "#db".to_string()],
+            tags: vec!["rust".to_string(), "db".to_string()],
             first_version: VersionDraft {
                 version_id: version_id.clone(),
                 version_number: "1.0.0".to_string(),
@@ -98,7 +98,7 @@ async fn create_article_writes_nodes_and_edges_and_reads_back() {
     assert_eq!(detail.title, "My Article");
     assert_eq!(detail.author_id, author_id);
     assert_eq!(detail.tags.len(), 2);
-    assert!(detail.tags.iter().any(|tag| tag.name == "#rust"));
+    assert!(detail.tags.iter().any(|tag| tag.name == "rust"));
 
     let version = crate::repository::version::read_version(&state.graph, &version_id)
         .await
@@ -113,7 +113,7 @@ async fn create_article_rejects_a_missing_author() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let error = create_article(
         &state.graph,
-        &article_draft("missing", "Title", &pdf_hash(1), vec!["#go".to_string()]),
+        &article_draft("missing", "Title", &pdf_hash(1), vec!["go".to_string()]),
     )
     .await
     .expect_err("missing author");
@@ -132,7 +132,7 @@ async fn create_article_rejects_a_duplicate_title() {
             &author_id,
             "Duplicated",
             &pdf_hash(2),
-            vec!["#go".to_string()],
+            vec!["go".to_string()],
         ),
     )
     .await
@@ -148,7 +148,7 @@ async fn create_article_rejects_a_duplicate_content_hash() {
 
     let error = create_article(
         &state.graph,
-        &article_draft(&author_id, "Second", &pdf_hash(3), vec!["#go".to_string()]),
+        &article_draft(&author_id, "Second", &pdf_hash(3), vec!["go".to_string()]),
     )
     .await
     .expect_err("duplicate content hash");
@@ -187,7 +187,7 @@ async fn update_article_changes_fields_and_reconciles_tags() {
         &ArticleUpdate {
             title: "Renamed".to_string(),
             summary: "new summary".to_string(),
-            tags: vec!["#go".to_string()],
+            tags: vec!["go".to_string()],
         },
     )
     .await
@@ -200,7 +200,7 @@ async fn update_article_changes_fields_and_reconciles_tags() {
     assert_eq!(detail.title, "Renamed");
     assert_eq!(detail.summary, "new summary");
     assert_eq!(detail.tags.len(), 1);
-    assert_eq!(detail.tags[0].name, "#go");
+    assert_eq!(detail.tags[0].name, "go");
 }
 
 #[tokio::test]
@@ -216,7 +216,7 @@ async fn update_article_rejects_a_duplicate_title() {
         &ArticleUpdate {
             title: "Second".to_string(),
             summary: "summary".to_string(),
-            tags: vec!["#go".to_string()],
+            tags: vec!["go".to_string()],
         },
     )
     .await
@@ -233,7 +233,7 @@ async fn update_article_returns_missing_for_an_unknown_article() {
         &ArticleUpdate {
             title: "Title".to_string(),
             summary: "summary".to_string(),
-            tags: vec!["#go".to_string()],
+            tags: vec!["go".to_string()],
         },
     )
     .await
@@ -266,13 +266,13 @@ async fn concurrent_identical_content_hashes_are_serialized_by_the_write_lock() 
         &author_id,
         "Concurrent A",
         &shared_hash,
-        vec!["#a".to_string()],
+        vec!["a".to_string()],
     );
     let second_draft = article_draft(
         &author_id,
         "Concurrent B",
         &shared_hash,
-        vec!["#b".to_string()],
+        vec!["b".to_string()],
     );
     let first = create_article(&state.graph, &first_draft);
     let second = create_article(&state.graph, &second_draft);
@@ -318,7 +318,7 @@ async fn update_article_removes_orphan_tags_and_keeps_shared_tags() {
         &author_id,
         "Shared First",
         &pdf_hash(11),
-        vec!["#shared".to_string(), "#one".to_string()],
+        vec!["shared".to_string(), "one".to_string()],
     );
     let first_id = first_draft.article_id.clone();
     create_article(&state.graph, &first_draft)
@@ -328,13 +328,13 @@ async fn update_article_removes_orphan_tags_and_keeps_shared_tags() {
         &author_id,
         "Shared Second",
         &pdf_hash(12),
-        vec!["#shared".to_string(), "#two".to_string()],
+        vec!["shared".to_string(), "two".to_string()],
     );
     let second_id = second_draft.article_id.clone();
     create_article(&state.graph, &second_draft)
         .await
         .expect("create second");
-    assert_eq!(tag_node_ids_by_name(&state, "#shared").await.len(), 1);
+    assert_eq!(tag_node_ids_by_name(&state, "shared").await.len(), 1);
 
     update_article(
         &state.graph,
@@ -342,7 +342,7 @@ async fn update_article_removes_orphan_tags_and_keeps_shared_tags() {
         &ArticleUpdate {
             title: "Shared First".to_string(),
             summary: "a summary".to_string(),
-            tags: vec!["#one".to_string()],
+            tags: vec!["one".to_string()],
         },
     )
     .await
@@ -352,8 +352,8 @@ async fn update_article_removes_orphan_tags_and_keeps_shared_tags() {
         .await
         .expect("read second")
         .expect("second article");
-    assert!(second_view.tags.iter().any(|tag| tag.name == "#shared"));
-    assert_eq!(tag_node_ids_by_name(&state, "#shared").await.len(), 1);
+    assert!(second_view.tags.iter().any(|tag| tag.name == "shared"));
+    assert_eq!(tag_node_ids_by_name(&state, "shared").await.len(), 1);
 
     update_article(
         &state.graph,
@@ -361,13 +361,13 @@ async fn update_article_removes_orphan_tags_and_keeps_shared_tags() {
         &ArticleUpdate {
             title: "Shared Second".to_string(),
             summary: "a summary".to_string(),
-            tags: vec!["#two".to_string()],
+            tags: vec!["two".to_string()],
         },
     )
     .await
     .expect("update second");
 
-    assert!(tag_node_ids_by_name(&state, "#shared").await.is_empty());
-    assert_eq!(tag_node_ids_by_name(&state, "#one").await.len(), 1);
-    assert_eq!(tag_node_ids_by_name(&state, "#two").await.len(), 1);
+    assert!(tag_node_ids_by_name(&state, "shared").await.is_empty());
+    assert_eq!(tag_node_ids_by_name(&state, "one").await.len(), 1);
+    assert_eq!(tag_node_ids_by_name(&state, "two").await.len(), 1);
 }

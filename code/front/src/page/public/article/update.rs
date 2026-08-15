@@ -1,6 +1,5 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
-use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
 
 use crate::infrastructure::limits::use_limits;
@@ -48,7 +47,7 @@ pub fn UpdateArticle() -> impl IntoView {
         };
         let notifications = effect_notifications.clone();
         leptos::task::spawn_local(async move {
-            match crate::request::article::read_article(&id, false).await {
+            match crate::request::article::read_article(&id).await {
                 Ok(view) => {
                     if title.get_untracked().is_empty() {
                         title.set(view.title);
@@ -96,14 +95,16 @@ pub fn UpdateArticle() -> impl IntoView {
                 return;
             }
         };
-        if let Err(error) = validate_tags(&tags.get(), limits.max_tags_per_article as usize) {
+        if let Err(error) = validate_tags(
+            &tags.get(),
+            usize::try_from(limits.max_tags_per_article).unwrap_or(usize::MAX),
+        ) {
             notify_error(&submit_notifications, &error);
             return;
         }
         let tags_value = tags.get();
         working.set(true);
         let notifications = submit_notifications.clone();
-        let navigate = navigate.clone();
         leptos::task::spawn_local(async move {
             let result = crate::request::article::update_article(
                 &id,
@@ -114,16 +115,7 @@ pub fn UpdateArticle() -> impl IntoView {
             .await;
             working.set(false);
             match result {
-                Ok(_) => {
-                    notify_success(&notifications, "article updated");
-                    navigate(
-                        &format!("/public/article/{id}"),
-                        NavigateOptions {
-                            resolve: false,
-                            ..Default::default()
-                        },
-                    );
-                }
+                Ok(_) => notify_success(&notifications, "article updated"),
                 Err(error) => notify_error(&notifications, error.to_string()),
             }
         });
@@ -141,7 +133,7 @@ pub fn UpdateArticle() -> impl IntoView {
             <form on:submit=submit>
                 <div><label><input type="text" placeholder="title" prop:value=title on:input=move |event| title.set(event_target_value(&event)) /></label></div>
                 <div><label><textarea rows="6" cols="60" placeholder="summary" prop:value=summary on:input=move |event| summary.set(event_target_value(&event))></textarea></label></div>
-                <div><label><textarea rows="6" cols="60" placeholder="tag (#a #b)" prop:value=tags on:input=move |event| tags.set(event_target_value(&event))></textarea></label></div>
+                <div><label><textarea rows="6" cols="60" placeholder="tag (space separated)" prop:value=tags on:input=move |event| tags.set(event_target_value(&event))></textarea></label></div>
                 <button type="submit" disabled=move || working.get()>
                     {move || if working.get() { "saving..." } else { "save" }}
                 </button>

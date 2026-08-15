@@ -59,7 +59,7 @@ fn appends_encoded_query_parameters() {
 #[test]
 fn builds_path_without_query_when_none_given() {
     assert_eq!(
-        build_path_with_query(&["challenge", "read"], &[]),
-        "/challenge/read"
+        build_path_with_query(&["challenge", "create"], &[]),
+        "/challenge/create"
     );
 }

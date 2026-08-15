@@ -1,6 +1,6 @@
 use email_address::{EmailAddress, Options};
 use nail_common::pow::Pow;
-use nail_common::request::{EmailReadIntent, EmailReadRequest};
+use nail_common::request::{CreateTokenRequest, TokenPurpose};
 use nail_common::response::email::{EmailSubjectView, EmailSubjectsView};
 use uuid::Uuid;
 
@@ -21,15 +21,6 @@ pub fn normalize_email(raw: &str) -> String {
     raw.trim().to_lowercase()
 }
 
-pub fn parse_intent(value: &str) -> Option<EmailReadIntent> {
-    match value {
-        "authenticate" => Some(EmailReadIntent::Authenticate),
-        "change_email" => Some(EmailReadIntent::ChangeEmail),
-        "deregister" => Some(EmailReadIntent::Deregister),
-        _ => None,
-    }
-}
-
 pub fn validate_email(email: &str, allowed_domains: &[String]) -> bool {
     if email.len() > 254 {
         return false;
@@ -43,26 +34,25 @@ pub fn validate_email(email: &str, allowed_domains: &[String]) -> bool {
 
 #[derive(Debug, serde::Serialize)]
 #[serde(untagged)]
-pub enum EmailReadView {
+pub enum CreateTokenView {
     Subject(EmailSubjectView),
     Subjects(EmailSubjectsView),
 }
 
-pub async fn read_email(
+pub async fn create_token(
     state: &AppState,
-    intent: EmailReadIntent,
-    request: EmailReadRequest,
+    request: CreateTokenRequest,
     session_token: Option<String>,
-) -> Result<EmailReadView, LogicError> {
-    match intent {
-        EmailReadIntent::Authenticate => {
+) -> Result<CreateTokenView, LogicError> {
+    match request.purpose {
+        TokenPurpose::CreateUser => {
             let pow = request
                 .pow
                 .ok_or_else(|| LogicError::bad_request("pow is required"))?;
             let email_subject = send_create_user_email(state, &pow).await?;
-            Ok(EmailReadView::Subject(EmailSubjectView { email_subject }))
+            Ok(CreateTokenView::Subject(EmailSubjectView { email_subject }))
         }
-        EmailReadIntent::ChangeEmail => {
+        TokenPurpose::UpdateUserEmail => {
             let user_id = read_session_user(state, session_token)?;
             let old_email_pow = request
                 .old_email_pow
@@ -72,18 +62,18 @@ pub async fn read_email(
                 .ok_or_else(|| LogicError::bad_request("new_email_pow is required"))?;
             let (old_email_subject, new_email_subject) =
                 send_update_user_email(state, &user_id, &old_email_pow, &new_email_pow).await?;
-            Ok(EmailReadView::Subjects(EmailSubjectsView {
+            Ok(CreateTokenView::Subjects(EmailSubjectsView {
                 old_email_subject,
                 new_email_subject,
             }))
         }
-        EmailReadIntent::Deregister => {
+        TokenPurpose::DeleteUser => {
             let user_id = read_session_user(state, session_token)?;
             let pow = request
                 .pow
                 .ok_or_else(|| LogicError::bad_request("pow is required"))?;
             let email_subject = send_delete_user_email(state, &user_id, &pow).await?;
-            Ok(EmailReadView::Subject(EmailSubjectView { email_subject }))
+            Ok(CreateTokenView::Subject(EmailSubjectView { email_subject }))
         }
     }
 }
@@ -142,8 +132,8 @@ pub async fn send_update_user_email(
         .await
         .map_err(database_error)?
         .ok_or_else(|| LogicError::unauthorized("user not found"))?;
-    let old_email_address_hash = nail_common::hash::email(&old_email);
-    if user_entry.email_address_hash != old_email_address_hash {
+    let old_email_address = nail_common::hash::email(&old_email);
+    if user_entry.email_address_hash != old_email_address {
         return Err(LogicError::bad_request(
             "old email does not match your current email",
         ));
@@ -155,9 +145,9 @@ pub async fn send_update_user_email(
         return Err(LogicError::bad_request("email domain not allowed"));
     }
 
-    let new_email_address_hash = nail_common::hash::email(&new_email);
+    let new_email_address = nail_common::hash::email(&new_email);
     if let Some(existing_user_id) =
-        read_user_by_email_address_hash(&state.graph, &new_email_address_hash)
+        read_user_by_email_address_hash(&state.graph, &new_email_address)
             .await
             .map_err(database_error)?
         && existing_user_id != user_id
@@ -175,17 +165,17 @@ pub async fn send_update_user_email(
     let new_email_subject = Uuid::now_v7().to_string();
     send_confirmation_email(state, &new_email, &new_email_subject, &new_token).await?;
 
-    let token_from_old_email_hash = token_key(&old_token)
+    let token_from_old_email = token_key(&old_token)
         .map_err(|error| LogicError::internal(format!("failed to hash email token: {error}")))?;
-    let token_from_new_email_hash = token_key(&new_token)
+    let token_from_new_email = token_key(&new_token)
         .map_err(|error| LogicError::internal(format!("failed to hash email token: {error}")))?;
     state.caches.email_update.insert(
         user_id,
         EmailUpdateTokenEntry {
-            old_email_address_hash: old_email_address_hash.clone(),
-            new_email_address_hash: new_email_address_hash.clone(),
-            token_from_old_email_hash,
-            token_from_new_email_hash,
+            old_email_address: old_email_address.clone(),
+            new_email_address: new_email_address.clone(),
+            token_from_old_email,
+            token_from_new_email,
         },
     );
     Ok((old_email_subject, new_email_subject))
@@ -228,16 +218,15 @@ pub async fn update_user_email(
         .map_err(|error| LogicError::internal(format!("failed to hash email token: {error}")))?;
     let new_token_hash = token_key(&new_email_token)
         .map_err(|error| LogicError::internal(format!("failed to hash email token: {error}")))?;
-    if entry.token_from_old_email_hash != old_token_hash
-        || entry.token_from_new_email_hash != new_token_hash
+    if entry.token_from_old_email != old_token_hash || entry.token_from_new_email != new_token_hash
     {
         return Err(LogicError::bad_request("token mismatch"));
     }
 
-    let old_email_address_hash = entry.old_email_address_hash;
-    let new_email_address_hash = entry.new_email_address_hash;
+    let old_email_address = entry.old_email_address;
+    let new_email_address = entry.new_email_address;
     if let Some(existing_user_id) =
-        read_user_by_email_address_hash(&state.graph, &new_email_address_hash)
+        read_user_by_email_address_hash(&state.graph, &new_email_address)
             .await
             .map_err(database_error)?
         && existing_user_id != user_id
@@ -250,8 +239,8 @@ pub async fn update_user_email(
     write_user_email(
         &state.graph,
         user_id,
-        &old_email_address_hash,
-        &new_email_address_hash,
+        &old_email_address,
+        &new_email_address,
     )
     .await
     .map_err(|error| match error {
@@ -266,14 +255,14 @@ pub async fn update_user_email(
     })?;
 
     state.caches.email_update.consume_if(user_id, |current| {
-        current.token_from_old_email_hash == old_token_hash
-            && current.token_from_new_email_hash == new_token_hash
+        current.token_from_old_email == old_token_hash
+            && current.token_from_new_email == new_token_hash
     });
     state.caches.session.delete_by_reverse_key(user_id);
     state
         .caches
         .create_user
-        .delete_by_reverse_key(&old_email_address_hash);
+        .delete_by_reverse_key(&old_email_address);
     state.caches.delete_user.delete_by_reverse_key(user_id);
 
     let new_session_token = create_session(state, user_id)?;

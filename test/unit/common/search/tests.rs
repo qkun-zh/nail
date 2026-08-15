@@ -7,10 +7,11 @@ fn search_range_serializes_as_lowercase_strings() -> anyhow::Result<()> {
     for (range, expected) in [
         (SearchRange::Title, "title"),
         (SearchRange::Summary, "summary"),
-        (SearchRange::Author, "author"),
+        (SearchRange::AuthorName, "author_name"),
         (SearchRange::Comment, "comment"),
         (SearchRange::Note, "note"),
         (SearchRange::Tag, "tag"),
+        (SearchRange::VersionNumber, "version_number"),
     ] {
         assert_eq!(serde_json::to_string(&range)?, format!("\"{expected}\""));
     }
@@ -27,6 +28,14 @@ fn search_range_deserializes_from_lowercase_strings() -> anyhow::Result<()> {
         serde_json::from_str::<SearchRange>(r#""tag""#)?,
         SearchRange::Tag
     );
+    assert_eq!(
+        serde_json::from_str::<SearchRange>(r#""author_name""#)?,
+        SearchRange::AuthorName
+    );
+    assert_eq!(
+        serde_json::from_str::<SearchRange>(r#""version_number""#)?,
+        SearchRange::VersionNumber
+    );
     Ok(())
 }
 
@@ -41,12 +50,13 @@ fn search_range_rejects_unknown_values() {
 #[test]
 fn search_range_labels_are_english() {
     let expected = [
-        (SearchRange::Title, "Title"),
-        (SearchRange::Summary, "Summary"),
-        (SearchRange::Author, "Author"),
-        (SearchRange::Comment, "Comment"),
-        (SearchRange::Note, "Version note"),
-        (SearchRange::Tag, "Tag"),
+        (SearchRange::Title, "title"),
+        (SearchRange::Summary, "summary"),
+        (SearchRange::AuthorName, "author"),
+        (SearchRange::Comment, "comment"),
+        (SearchRange::Note, "note"),
+        (SearchRange::Tag, "tag"),
+        (SearchRange::VersionNumber, "version"),
     ];
     for (range, label) in expected {
         assert_eq!(range.label(), label);
