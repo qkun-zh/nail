@@ -842,7 +842,7 @@ pub fn Search() -> impl IntoView {
                     <div class="query-row">
                         <input
                             type="text"
-                            placeholder="search text (space separated words = AND)"
+                            placeholder="words = OR; +word = must, -word = exclude, \"a b\" = phrase"
                             prop:value=q_filter
                             on:input=move |event| q_filter.set(event_target_value(&event))
                         />

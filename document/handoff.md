@@ -21,6 +21,32 @@ Search page is live and healthy: backend `:3000`, proxy `:8080`, SPA all `200`.
   the previously-known single-character no-hit-card behaviour is fixed — "9"
   now reports Summary hit cards. All 312 back tests green, clippy clean.
   `document/run.md` rewritten into stepwise start/health-check instructions.
+- Union search slice (this working tree): default semantics switched from
+  Intersection (AND) to Union (OR) in the three `QueryType` call sites of
+  `repository/search.rs` (~202 sync_all, ~294 read, ~365
+  find_document_ids_by_article). Plain space now ORs; `+word` marks a term
+  required (AND), `-word` excludes, `"a b"` is a phrase. Frontend search box
+  placeholder updated with that syntax. New test
+  `space_separated_keywords_match_any_field_or` asserts result sets (total +
+  `<mark>`-stripped titles) for OR / `+` AND / single-`+` required / `-`
+  exclude. Live-verified on the real index: "scheduler parser" = 58 (OR),
+  "scheduler +parser" = 1 (AND), "async +queue" = 0.
+- **SeekStorm `+` query_terms caveat (investigated to the source, important
+  for future highlight work)**: `ResultObject.query_terms` is built per shard
+  inside `search_lexical_shard` (seekstorm `src/search.rs`), and an
+  Intersection-flagged term (`+word`) whose posting list is absent from a
+  shard hits `break 'fallback` (line ~3293), truncating the term loop so later
+  terms never reach the `query_terms` push. The top-level result then takes
+  the first shard's non-empty `query_terms` (line ~1885). With the default
+  shard count (CPU count; our test index runs 4 shards), `+`-prefixed terms
+  can therefore be missing from `query_terms` depending on shard layout —
+  empirically `+alpha +beta` yielded `["alpha"]` with one fixture layout and
+  `["alpha","beta"]` after adding one more article. Result *sets* are stable
+  (semantics correct); only highlight/hit-card completeness for `+` terms is
+  affected. Tokenizer itself is correct (`+alpha` → `op=Intersection`,
+  `["+alpha", "+beta"]` split verified by source-level debug). Tests must
+  therefore assert result sets, not `<mark>` spans, for `+`-containing
+  queries.
 - Set the repo clippy standard to the strictest level: `[lints.clippy]` with
   `pedantic = { level = "deny", priority = -1 }` and `too_many_lines = "allow"`
   in all three `Cargo.toml` files. Fixed every pedantic warning across the

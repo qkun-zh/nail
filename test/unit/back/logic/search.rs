@@ -564,6 +564,110 @@ async fn search_articles_returns_nothing_for_empty_ranges() {
 }
 
 #[tokio::test]
+async fn space_separated_keywords_match_any_field_or() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let now = nail_common::time::now_ms().expect("now");
+    seed_article(
+        &context,
+        &actor,
+        "Alpha",
+        "zzz",
+        vec!["rust"],
+        "note",
+        now - 3_600_000,
+    )
+    .await;
+    seed_article(
+        &context,
+        &actor,
+        "Beta",
+        "zzz",
+        vec!["rust"],
+        "note",
+        now - 2 * 3_600_000,
+    )
+    .await;
+    seed_article(
+        &context,
+        &actor,
+        "Alpha Beta",
+        "zzz",
+        vec!["rust"],
+        "note",
+        now - 5 * 3_600_000,
+    )
+    .await;
+
+    // Plain space is OR (union): every article containing either term matches.
+    // Assertions compare raw titles: highlight markup depends on shard layout
+    // (SeekStorm only reports query_terms it resolved per shard), so the stable
+    // contract is the result set, not the `<mark>` spans.
+    let page = crate::logic::search::search_articles(&context.state, &params(Some("alpha beta")))
+        .await
+        .expect("alpha beta or");
+    assert_eq!(page.total, 3, "space must OR the terms");
+    let mut titles: Vec<String> = page
+        .article_list
+        .iter()
+        .map(|a| a.title.replace("<mark>", "").replace("</mark>", ""))
+        .collect();
+    titles.sort_unstable();
+    assert_eq!(
+        titles,
+        vec![
+            "Alpha".to_string(),
+            "Alpha Beta".to_string(),
+            "Beta".to_string()
+        ],
+        "space OR matches every article holding either term"
+    );
+
+    // '+' on both terms forces AND: only the article containing both matches.
+    let page = crate::logic::search::search_articles(&context.state, &params(Some("+alpha +beta")))
+        .await
+        .expect("+alpha +beta and");
+    assert_eq!(page.total, 1, "leading '+' on both terms must AND");
+    assert_eq!(
+        page.article_list[0]
+            .title
+            .replace("<mark>", "")
+            .replace("</mark>", ""),
+        "Alpha Beta"
+    );
+
+    // A single '+' marks that term required; unmarked terms stay optional,
+    // so the result is every article containing beta.
+    let page = crate::logic::search::search_articles(&context.state, &params(Some("alpha +beta")))
+        .await
+        .expect("alpha +beta");
+    assert_eq!(page.total, 2, "required beta matches its two articles");
+    let mut titles: Vec<String> = page
+        .article_list
+        .iter()
+        .map(|a| a.title.replace("<mark>", "").replace("</mark>", ""))
+        .collect();
+    titles.sort_unstable();
+    assert_eq!(titles, vec!["Alpha Beta".to_string(), "Beta".to_string()]);
+
+    // '-' excludes: alpha without beta.
+    let page = crate::logic::search::search_articles(&context.state, &params(Some("alpha -beta")))
+        .await
+        .expect("alpha -beta");
+    assert_eq!(
+        page.total, 1,
+        "alpha -beta must exclude Beta and Alpha Beta"
+    );
+    assert_eq!(
+        page.article_list[0]
+            .title
+            .replace("<mark>", "")
+            .replace("</mark>", ""),
+        "Alpha"
+    );
+}
+
+#[tokio::test]
 async fn keyword_that_misses_tags_does_not_report_a_tag_hit() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;

@@ -202,7 +202,7 @@ impl SearchIndex {
                 .search(
                     String::new(),
                     None,
-                    QueryType::Intersection,
+                    QueryType::Union,
                     SearchMode::Lexical,
                     true,
                     0,
@@ -294,7 +294,7 @@ impl SearchIndex {
             .search(
                 query_string,
                 None,
-                QueryType::Intersection,
+                QueryType::Union,
                 SearchMode::Lexical,
                 false,
                 0,
@@ -365,7 +365,7 @@ impl SearchIndex {
             .search(
                 String::new(),
                 None,
-                QueryType::Intersection,
+                QueryType::Union,
                 SearchMode::Lexical,
                 true,
                 0,
