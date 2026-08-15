@@ -12,6 +12,15 @@ Search page is live and healthy: backend `:3000`, proxy `:8080`, SPA all `200`.
 
 ## What was done
 
+- Search slice (committed `d78a5b5`): empty query and empty ranges now return
+  empty results instead of falling back to all fields; `field_hit` in
+  `repository/search/document.rs` switched from `<mark>` presence to a
+  case-insensitive substring scan of the folded raw value against SeekStorm's
+  official `query_terms` hook (`ResultObject.query_terms`); the frontend always
+  sends the `ranges` parameter (all 7 fields, a subset, or empty string), and
+  the previously-known single-character no-hit-card behaviour is fixed — "9"
+  now reports Summary hit cards. All 312 back tests green, clippy clean.
+  `document/run.md` rewritten into stepwise start/health-check instructions.
 - Set the repo clippy standard to the strictest level: `[lints.clippy]` with
   `pedantic = { level = "deny", priority = -1 }` and `too_many_lines = "allow"`
   in all three `Cargo.toml` files. Fixed every pedantic warning across the
@@ -40,9 +49,9 @@ Search page is live and healthy: backend `:3000`, proxy `:8080`, SPA all `200`.
 
 ## Known behaviour (user-accepted, documented here)
 
-- Single-character queries (e.g. "1") return article cards but no `<mark>`
-  highlighting and no version/comment cards: SeekStorm's
-  `no_score_no_highlight` optimisation. Not a bug.
+- Single-character queries (e.g. "9") are handled via `query_terms`
+  substring matching, so hit cards are now reported even though SeekStorm's
+  `no_score_no_highlight` optimisation skips `<mark>` insertion for them.
 - Hyphenated author names ("sample-author-00") tokenise as one token, so
   searching "author" finds nothing while "auth" matches via the `auth` tag and
   substring-highlights the author name. SeekStorm tokenizer behaviour,
@@ -52,4 +61,5 @@ Search page is live and healthy: backend `:3000`, proxy `:8080`, SPA all `200`.
 
 - User verification: `cargo clippy` (zero warnings) and
   `cargo fmt --all -- --check` inside `code/{common,back,front}`.
-- Restart procedure lives in `document/run.md` (three `200`s).
+- Restart procedure lives in `document/run.md` (stepwise, health checks per
+  component).
