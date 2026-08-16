@@ -218,11 +218,6 @@ fn sample_note(rng: &mut SampleRng, index: usize) -> String {
     format!("version note {index}: {topic} {object} adjustments")
 }
 
-/// Seeds `count` sample articles across a small pool of sample authors, each
-/// with varied titles, summaries, tags, version notes and (via the uuidv7
-/// timestamps in their ids) spread-out creation times. Used for search testing.
-/// Idempotent-safe: article ids are derived from the count and current time, so
-/// re-running appends more samples instead of colliding.
 pub async fn seed_sample_articles(
     db: &DbHandle,
     search: &crate::repository::search::SearchIndex,
@@ -249,8 +244,6 @@ pub async fn seed_sample_articles(
     let mut rng = SampleRng::new(now);
     for index in 0..count {
         let author = &author_ids[rng.below(author_ids.len())];
-        // Spread each sample one hour apart going back in time, so time-range
-        // searches have distinct boundaries to test against.
         let back_ms = (index as u64).saturating_mul(3_600_000);
         let sample_ms = now.saturating_sub(back_ms);
         let article_id = nail_common::time::uuidv7_min_for_ms(sample_ms);

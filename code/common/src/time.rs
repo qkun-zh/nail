@@ -16,11 +16,10 @@ pub fn uuidv7_timestamp_secs(uuid_string: &str) -> Option<u64> {
     uuidv7_timestamp_ms(uuid_string).map(|millis| millis / 1000)
 }
 
-/// Returns the current wall-clock time in milliseconds since the Unix epoch.
+/// Returns the current time as milliseconds since the Unix epoch.
 ///
 /// # Errors
-/// Returns the underlying [`std::time::SystemTimeError`] when the system clock
-/// is set before the Unix epoch.
+/// Returns an error if the system clock predates the Unix epoch.
 pub fn now_ms() -> Result<u64, std::time::SystemTimeError> {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -47,9 +46,11 @@ fn uuidv7_for_ms(millis: u64, fill: u8) -> String {
     Uuid::from_bytes(bytes).hyphenated().to_string()
 }
 
+/// Formats a UTC-millis timestamp as RFC 3339 in a given UTC offset.
+///
 /// # Errors
-/// Returns an error when the offset is out of range or the timestamp cannot be
-/// represented, or when the formatted output is not RFC3339-encodable.
+/// Returns an error if the offset is invalid, the timestamp is out of range,
+/// or formatting fails.
 pub fn format_rfc3339_with_offset(utc_ms: u64, offset_seconds: i32) -> anyhow::Result<String> {
     use time::format_description::well_known::Rfc3339;
     use time::{OffsetDateTime, UtcOffset};
@@ -59,16 +60,14 @@ pub fn format_rfc3339_with_offset(utc_ms: u64, offset_seconds: i32) -> anyhow::R
     Ok(datetime.format(&Rfc3339)?)
 }
 
-/// Formats a UTC millisecond timestamp as an ISO8601 / RFC3339 string with a
-/// trailing Z (UTC). All wall-clock times across the app are UTC now.
+/// Formats a UTC-millis timestamp as RFC 3339 in UTC.
 ///
 /// # Errors
-/// Returns an error when the timestamp cannot be represented or formatted.
+/// Returns an error if the timestamp is out of range or formatting fails.
 pub fn format_rfc3339_utc(utc_ms: u64) -> anyhow::Result<String> {
     format_rfc3339_with_offset(utc_ms, 0)
 }
 
-/// Parses an ISO8601 datetime into UTC epoch seconds.
 #[must_use]
 pub fn parse_iso8601_utc_secs(input: &str) -> Option<i64> {
     let trimmed = input.trim();
@@ -113,8 +112,6 @@ pub fn parse_iso8601_utc_secs(input: &str) -> Option<i64> {
     Some(utc.unix_timestamp())
 }
 
-/// Splits an ISO8601 input into its datetime body and an optional UTC offset.
-/// A trailing Z/z means UTC (no offset adjustment needed).
 fn split_timezone(input: &str) -> Option<(String, Option<time::UtcOffset>)> {
     if let Some(rest) = input.strip_suffix('Z').or_else(|| input.strip_suffix('z')) {
         return Some((rest.to_string(), None));

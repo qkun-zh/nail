@@ -9,11 +9,12 @@ pub struct TagRef {
     pub name: String,
 }
 
-/// Validates a single tag name.
+/// Validates and trims a single tag name.
 ///
 /// # Errors
-/// Returns [`TagNameError::Empty`], [`TagNameError::ContainsForbiddenChar`],
-/// or [`TagNameError::TooLong`] on invalid input.
+/// Returns [`TagNameError::Empty`] if blank, [`TagNameError::TooLong`] if it
+/// exceeds [`MAX_TAG_NAME_CHAR_COUNT`], or
+/// [`TagNameError::ContainsForbiddenChar`] for an invalid character.
 pub fn validate_tag_name(raw_name: &str) -> Result<String, TagNameError> {
     let trimmed = raw_name.trim();
     if trimmed.is_empty() {
@@ -30,13 +31,11 @@ pub fn validate_tag_name(raw_name: &str) -> Result<String, TagNameError> {
     Ok(trimmed.to_string())
 }
 
-/// Parses whitespace-separated tag names. No '#' prefix is expected or
-/// required; each whitespace-delimited token is validated as a plain tag name.
+/// Parses whitespace-separated tags, deduplicating them.
 ///
 /// # Errors
-/// Returns [`TagNamesError::Name`] when any token is invalid and
-/// [`TagNamesError::TooManyTags`] when more than `max_count` unique tags are
-/// parsed.
+/// Returns [`TagNamesError::Name`] for an invalid tag or
+/// [`TagNamesError::TooManyTags`] when more than `max_count` tags are given.
 pub fn parse_tags(raw: &str, max_count: usize) -> Result<Vec<String>, TagNamesError> {
     let mut seen = std::collections::HashSet::new();
     let mut tags = Vec::new();

@@ -1,11 +1,10 @@
 use std::fmt;
 
-/// Validates printable-ASCII text, optionally allowing newlines, and trims it.
+/// Validates and trims printable-ASCII text.
 ///
 /// # Errors
-/// Returns [`TextError::Empty`] for empty input,
-/// [`TextError::ContainsForbiddenChar`] for non-printable or non-ASCII
-/// characters, and [`TextError::TooLong`] past `max_chars`.
+/// Returns [`TextError::Empty`] if blank, [`TextError::TooLong`] if it exceeds
+/// `max_chars`, or [`TextError::ContainsForbiddenChar`] for a forbidden character.
 pub fn validate_ascii_text(
     raw: &str,
     max_chars: usize,

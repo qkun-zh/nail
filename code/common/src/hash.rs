@@ -9,9 +9,10 @@ pub fn email(email_address: &str) -> String {
     hex::encode(output)
 }
 
+/// Computes a salted hash of a bearer token.
+///
 /// # Errors
-/// Returns an error if the Ascon CXOF cannot be initialized with the
-/// "token-hash" customization string.
+/// Returns an error if the ascon CXOF cannot be initialized with the token salt.
 pub fn token(token: &str) -> anyhow::Result<String> {
     use ascon_xof128::{AsconCxof128, TryCustomizedInit};
     let mut cxof = AsconCxof128::try_new_customized(b"token-hash")?;

@@ -347,7 +347,6 @@ async fn create_article_rejects_a_duplicate_content_hash() {
 async fn create_article_accepts_plain_tags_and_rejects_invalid_characters() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = member_session(&context, "alice@example.com").await;
-    // Plain space-separated tags are valid now (no '#' required).
     let fields = article_fields("Plain Tags", "rust web");
     let (status, body) = context
         .post_multipart(
@@ -361,7 +360,6 @@ async fn create_article_accepts_plain_tags_and_rejects_invalid_characters() {
         .await;
     assert_eq!(status, StatusCode::CREATED, "body: {body}");
 
-    // A tag containing '#' is rejected.
     let fields = article_fields("Bad Tags", "rust#web");
     let (status, body) = context
         .post_multipart(

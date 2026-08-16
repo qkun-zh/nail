@@ -404,8 +404,6 @@ fn dir_arrow(dir: &str) -> &'static str {
     if dir == "desc" { "↓" } else { "↑" }
 }
 
-/// A version's comment list with client-side pagination. The search response
-/// already carries all comments for a version, so paging is local state only.
 #[component]
 fn SearchComments(
     article_id: String,
@@ -452,9 +450,6 @@ fn SearchComments(
     }
 }
 
-/// An article's hit-version list with client-side pagination. The search
-/// response already carries all hit versions for an article, so paging is
-/// local state only (refreshing the page returns to the first page).
 #[component]
 fn SearchVersions(article_id: String, versions: Vec<SearchVersionItem>) -> impl IntoView {
     let render = move |version: &SearchVersionItem| {

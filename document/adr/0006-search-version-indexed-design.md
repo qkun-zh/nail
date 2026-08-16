@@ -2,13 +2,15 @@
 
 ## Status
 
-Accepted (design only; implementation is a separate, owner-scheduled task)
+Accepted and implemented (2026-08-16): the version-indexed index, the
+two-document-shape schema, and the hierarchical response contract described
+below are live in the current code.
 
 ## Context
 
-The current search implementation (see ADR-0002) indexes **one document per
-article**, aggregating a whole article — including *all* versions' comments —
-into a single SeekStorm document. Concrete failures:
+The design replaced an earlier search that indexed **one document per article**,
+aggregating a whole article — including *all* versions' comments — into a single
+SeekStorm document. Concrete failures of that shape:
 
 1. **Comment field bloat.** Every version's comments are concatenated into the
    article document. Index build, sync, and decompression are O(all comments)
@@ -18,8 +20,8 @@ into a single SeekStorm document. Concrete failures:
    (`highlighter.rs:237-252`) recursively flattens a Json field's values into
    one string and scans it, so a hit on one element returns the whole array
    (non-hit elements included); `snippet.contains("<mark>")` is a partial hack.
-3. **The response contract is flat, the UI is a tree.** `SearchPage →
-   SearchArticleItem { id, title, author, time, hits }` / `SearchHit { field,
+3. **The response contract is flat, the UI is a tree.** A flat
+   `SearchArticleItem { id, title, author, time, hits }` / `SearchHit { field,
    label, snippet }` cannot express "article → version → comment" hierarchy,
    cannot deep-link versions/comments (no `version_id`/`comment_id`), and does
    not carry per-entity metadata (version number, per-version time, comment
@@ -27,9 +29,7 @@ into a single SeekStorm document. Concrete failures:
 
 The frontend page and its search controls are fixed (frontend `search.rs`:
 query box, range checkboxes, from/to ISO8601 time bounds, sort
-time/title/author, project `Pagination` component). The result layout is the
-executable visual contract at `document/search-preview.html`. Both sides may be
-reworked freely to match it.
+time/title/author, project `Pagination` component).
 
 ## Hit propagation semantics (the display contract)
 
@@ -132,18 +132,6 @@ Every user-readable text field is searchable. Range → field name:
 `SearchRange` gains a `VersionNumber` variant. The field is named
 `author_name`, not `author`.
 
-### Stale contracts to correct (audited 2026-08-15)
-
-The following current-code contracts are outdated and must be corrected as part
-of this work:
-
-| # | Stale today | Corrected (this ADR) |
-| --- | --- | --- |
-| 1 | `SearchRange::Note.label()` = `"Version note"` (backend `search.rs:20`) vs frontend label `"version note"` — inconsistent | Unify on `"note"` (matches the preview) |
-| 2 | `SearchRange::Author` + field `author` + frontend label `"author"` | `author_name` (range key `author_name`, field `author_name`) |
-| 3 | No `version number` range | Add `SearchRange::VersionNumber`, schema field `version_number`, frontend checkbox `version number` |
-| 4 | Flat hits (`SearchArticleItem{id,title,author,time,hits}`), no `version_id`/`comment_id` | Hierarchical response tree (below) |
-
 The other search contracts are **not** stale and stay as-is: param shape
 (`ArticleSearchParams{q,ranges,sort,from,to,limit,page}`, all optional),
 lowercase enum serialization (`title/summary/author/comment/note/tag`,
@@ -242,19 +230,18 @@ All rendered times use ISO8601 UTC (`format_rfc3339_utc`, `…Z`), matching
   comment doc per comment. A version update rewrites its own doc; a comment
   update rewrites one comment doc. Index size drops from O(all comments per
   article) to O(comments) with no article-level duplication.
-- The response contract is a **breaking change**: flat hits become a tree.
+- The response contract is a **breaking change**: flat hits became a tree.
   `logic/search.rs` (collapse, ranges, `VersionNumber`, article-count
   pagination), `repository/search.rs` + `document.rs` (two doc shapes), and
   frontend `page/public/article/search.rs` (tree render, deep links, per-version
-  comment pagination) must be reworked — the implementation task, not part of
-  this ADR.
+  comment pagination) were reworked accordingly.
 - Requires a full index rebuild on deploy (`sync_all`).
-- Remaining caveat (accepted): article ordering is "best hit order", not a
-  separate article-level relevance key; with top-k limiting this is bounded and
+- Caveat (accepted): article ordering is "best hit order", not a separate
+  article-level relevance key; with top-k limiting this is bounded and
   predictable.
 
 ## Visual contract
 
-`document/search-preview.html` is the executable spec: three-level cards,
-field-name links, ISO8601 UTC times, version number without a `v` prefix,
-comment cards with author/time/content, internal comment pagination.
+The result layout is a three-level card tree: article cards with field-name
+links, version cards, and comment cards (author/time/content) with internal
+comment pagination; ISO8601 UTC times; version number without a `v` prefix.

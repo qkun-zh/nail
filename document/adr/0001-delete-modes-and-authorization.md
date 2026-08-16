@@ -77,9 +77,10 @@ transfer.
 - `is_author` (authorize.rs:104, currently uses `PERMISSION_COMMENT_DELETE`)
   must switch to a "may transfer" check after the split.
 
-## Follow-up (bug fixes to apply alongside)
+## Follow-up (resolved 2026-08-16)
 
 - `pick_recycler_target`: for single-asset transfer, exclude the current owner
   of the target (defense in depth).
 - `transfer_target_ownership`: stop returning `Ok(())` when the owner edge is
-  absent; return an explicit, observable result instead of a silent success.
+  absent; return an explicit, observable result (`TargetOwnerMissing`) instead
+  of a silent success.

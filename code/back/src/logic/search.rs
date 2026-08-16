@@ -96,8 +96,6 @@ pub async fn search_articles(
     })
 }
 
-/// Fold the flat version/comment hits into the article → version → comment tree.
-/// Article order = order the article's first (best-scoring) hit appeared.
 fn assemble_tree(docs: &[SearchDocOutcome]) -> Vec<SearchArticleItem> {
     struct VersionBuilder {
         version_id: String,

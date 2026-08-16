@@ -75,11 +75,11 @@ fn pow_prove_internal(id: &str, raw_data: &str, difficulty: u64) -> anyhow::Resu
     Ok(hex::encode(out))
 }
 
-/// Computes a proof of work for the given challenge and payload.
+/// Produces a proof-of-work [`Pow`] for a challenge.
 ///
 /// # Errors
-/// Returns an error when the payload exceeds [`MAX_PAYLOAD_BYTES`] or the
-/// underlying VDF/CXOF primitives fail.
+/// Returns an error if the payload is too large or the ascon CXOF cannot be
+/// initialized.
 pub fn prove(input: ProveInput) -> anyhow::Result<Pow> {
     let id_str = input.challenge.id.to_string();
     let solution_hex = pow_prove_internal(&id_str, &input.payload, input.challenge.difficulty)?;

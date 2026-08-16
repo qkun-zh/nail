@@ -75,7 +75,6 @@ async fn search_articles_rejects_an_overlong_query() {
 #[tokio::test]
 async fn search_articles_accepts_multibyte_query_within_char_limit() {
     let context = TestCtx::new().await.expect("test context");
-    // 512 CJK characters = 1536 bytes, but 512 chars is within the limit.
     let multibyte_query = "中".repeat(512);
     let result =
         crate::logic::search::search_articles(&context.state, &params(Some(&multibyte_query)))
@@ -86,7 +85,6 @@ async fn search_articles_accepts_multibyte_query_within_char_limit() {
 #[tokio::test]
 async fn search_articles_rejects_multibyte_query_over_char_limit() {
     let context = TestCtx::new().await.expect("test context");
-    // 513 CJK characters = 1539 bytes, and 513 chars exceeds the limit.
     let multibyte_query = "中".repeat(513);
     let error =
         crate::logic::search::search_articles(&context.state, &params(Some(&multibyte_query)))
@@ -126,7 +124,6 @@ async fn search_filters_by_iso8601_time_range_and_renders_utc_times() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
     let now = nail_common::time::now_ms().expect("now");
-    // Three articles with distinct timestamps: -2h, -3h, -4h from now.
     let titles = ["Recent One", "Middle One", "Old One"];
     let offsets_ms = [2, 3, 4];
     for (title, offset_hours) in titles.iter().zip(offsets_ms.iter()) {
@@ -153,7 +150,6 @@ async fn search_filters_by_iso8601_time_range_and_renders_utc_times() {
         crate::logic::search::sync_article_best_effort(&context.state, &article_id).await;
     }
 
-    // Filter to only the article from ~2 hours ago: from = now-2h30m, to = now-1h30m.
     let from = nail_common::time::format_rfc3339_utc(now - 150 * 60_000).expect("from");
     let to = nail_common::time::format_rfc3339_utc(now - 90 * 60_000).expect("to");
     let request = ArticleSearchParams {
@@ -167,7 +163,6 @@ async fn search_filters_by_iso8601_time_range_and_renders_utc_times() {
         .expect("search");
     assert_eq!(page.total, 1, "only the recent article falls in the range");
     assert_eq!(page.article_list[0].title, "Recent One");
-    // Rendering is UTC ISO8601 with a trailing Z.
     assert!(
         page.article_list[0].time.ends_with('Z'),
         "time should be UTC ISO8601: {}",
@@ -219,7 +214,6 @@ async fn search_combines_keyword_range_time_author_tag_and_sort() {
         .await
         .expect("bob name");
     let now = nail_common::time::now_ms().expect("now");
-    // A: newest, alice, tags rust+database, note mentions pipeline
     seed_article(
         &context,
         &alice,
@@ -230,7 +224,6 @@ async fn search_combines_keyword_range_time_author_tag_and_sort() {
         now - 2 * 3_600_000,
     )
     .await;
-    // B: middle, bob, tags web+api, summary mentions pipeline
     seed_article(
         &context,
         &bob,
@@ -241,7 +234,6 @@ async fn search_combines_keyword_range_time_author_tag_and_sort() {
         now - 5 * 3_600_000,
     )
     .await;
-    // C: oldest, alice, tags rust+search, title mentions store
     seed_article(
         &context,
         &alice,
@@ -253,13 +245,11 @@ async fn search_combines_keyword_range_time_author_tag_and_sort() {
     )
     .await;
 
-    // 1. keyword matches title field across authors
     let page = crate::logic::search::search_articles(&context.state, &params(Some("quantum")))
         .await
         .expect("quantum");
     assert_eq!(page.total, 2, "quantum hits A(title) and B(summary)");
 
-    // 2. ranges=title narrows to title-only hits
     let mut title_only = params(Some("quantum"));
     title_only.ranges = Some("title".to_string());
     let page = crate::logic::search::search_articles(&context.state, &title_only)
@@ -268,25 +258,21 @@ async fn search_combines_keyword_range_time_author_tag_and_sort() {
     assert_eq!(page.total, 1, "title-only search finds only A");
     assert_eq!(page.article_list[0].title, "<mark>Quantum</mark> Index");
 
-    // 3. tag search: rust tag matches A and C
     let page = crate::logic::search::search_articles(&context.state, &params(Some("rust")))
         .await
         .expect("rust tag");
     assert_eq!(page.total, 2, "rust tag hits A and C");
 
-    // 4. author search by user name
     let page = crate::logic::search::search_articles(&context.state, &params(Some("alice-smith")))
         .await
         .expect("alice author");
     assert_eq!(page.total, 2, "alice authored A and C");
 
-    // 5. note field: pipeline appears in A(note) and B(summary), not C
     let page = crate::logic::search::search_articles(&context.state, &params(Some("pipeline")))
         .await
         .expect("pipeline");
     assert_eq!(page.total, 2, "pipeline hits A(note) and B(summary)");
 
-    // 6. time range with only from (to empty): keep A and B, drop C
     let from = nail_common::time::format_rfc3339_utc(now - 7 * 3_600_000).expect("from");
     let page = crate::logic::search::search_articles(
         &context.state,
@@ -300,7 +286,6 @@ async fn search_combines_keyword_range_time_author_tag_and_sort() {
     .expect("from only");
     assert_eq!(page.total, 2, "from-only keeps A and B");
 
-    // 7. time range with only to (from empty): keep A, B, C (all before now)
     let to = nail_common::time::format_rfc3339_utc(now - 60_000).expect("to");
     let page = crate::logic::search::search_articles(
         &context.state,
@@ -314,7 +299,6 @@ async fn search_combines_keyword_range_time_author_tag_and_sort() {
     .expect("to only");
     assert_eq!(page.total, 3, "to-only keeps everything before now");
 
-    // 8. keyword + time range combined: quantum within last 6h = A and B (C is older)
     let from6 = nail_common::time::format_rfc3339_utc(now - 6 * 3_600_000).expect("from6");
     let page = crate::logic::search::search_articles(
         &context.state,
@@ -328,7 +312,6 @@ async fn search_combines_keyword_range_time_author_tag_and_sort() {
     .expect("quantum+from");
     assert_eq!(page.total, 2, "quantum within 6h is A and B");
 
-    // 9. keyword + closed time window [now-6h, now-3h] keeps only B
     let to3 = nail_common::time::format_rfc3339_utc(now - 3 * 3_600_000).expect("to3");
     let page = crate::logic::search::search_articles(
         &context.state,
@@ -388,7 +371,6 @@ async fn search_sorts_by_time_title_and_author_and_paginates() {
     )
     .await;
 
-    // time desc: newest first
     let mut sort_time = params(Some("rust"));
     sort_time.sort = Some("time:desc".to_string());
     let page = crate::logic::search::search_articles(&context.state, &sort_time)
@@ -397,7 +379,6 @@ async fn search_sorts_by_time_title_and_author_and_paginates() {
     let titles: Vec<&str> = page.article_list.iter().map(|a| a.title.as_str()).collect();
     assert_eq!(titles, vec!["Banana", "Apple", "Cherry"], "time desc");
 
-    // time asc: oldest first
     let mut sort_time_asc = params(Some("rust"));
     sort_time_asc.sort = Some("time:asc".to_string());
     let page = crate::logic::search::search_articles(&context.state, &sort_time_asc)
@@ -406,7 +387,6 @@ async fn search_sorts_by_time_title_and_author_and_paginates() {
     let titles: Vec<&str> = page.article_list.iter().map(|a| a.title.as_str()).collect();
     assert_eq!(titles, vec!["Cherry", "Apple", "Banana"], "time asc");
 
-    // title asc
     let mut sort_title = params(Some("rust"));
     sort_title.sort = Some("title:asc".to_string());
     let page = crate::logic::search::search_articles(&context.state, &sort_title)
@@ -415,7 +395,6 @@ async fn search_sorts_by_time_title_and_author_and_paginates() {
     let titles: Vec<&str> = page.article_list.iter().map(|a| a.title.as_str()).collect();
     assert_eq!(titles, vec!["Apple", "Banana", "Cherry"], "title asc");
 
-    // author asc: alice articles then bob
     let mut sort_author = params(Some("rust"));
     sort_author.sort = Some("author:asc".to_string());
     let page = crate::logic::search::search_articles(&context.state, &sort_author)
@@ -432,7 +411,6 @@ async fn search_sorts_by_time_title_and_author_and_paginates() {
         "author asc"
     );
 
-    // pagination: limit 2 page 1 gives 2 rows and has_next
     let page = crate::logic::search::search_articles(
         &context.state,
         &ArticleSearchParams {
@@ -465,7 +443,6 @@ async fn bare_tag_search_matches_tag_field() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
     let now = nail_common::time::now_ms().expect("now");
-    // Tags are stored without any '#' prefix now.
     seed_article(
         &context,
         &actor,
@@ -486,7 +463,6 @@ async fn bare_tag_search_matches_tag_field() {
         .iter()
         .find(|hit| hit.label == "tag")
         .expect("tag hit present");
-    // No '#' anywhere in the rendered tag snippet.
     assert_eq!(
         tag_hit.snippet, "[\"<mark>rust</mark>\"]",
         "bare tag snippet"
@@ -599,10 +575,6 @@ async fn space_separated_keywords_match_any_field_or() {
     )
     .await;
 
-    // Plain space is OR (union): every article containing either term matches.
-    // Assertions compare raw titles: highlight markup depends on shard layout
-    // (SeekStorm only reports query_terms it resolved per shard), so the stable
-    // contract is the result set, not the `<mark>` spans.
     let page = crate::logic::search::search_articles(&context.state, &params(Some("alpha beta")))
         .await
         .expect("alpha beta or");
@@ -623,7 +595,6 @@ async fn space_separated_keywords_match_any_field_or() {
         "space OR matches every article holding either term"
     );
 
-    // '+' on both terms forces AND: only the article containing both matches.
     let page = crate::logic::search::search_articles(&context.state, &params(Some("+alpha +beta")))
         .await
         .expect("+alpha +beta and");
@@ -636,8 +607,6 @@ async fn space_separated_keywords_match_any_field_or() {
         "Alpha Beta"
     );
 
-    // A single '+' marks that term required; unmarked terms stay optional,
-    // so the result is every article containing beta.
     let page = crate::logic::search::search_articles(&context.state, &params(Some("alpha +beta")))
         .await
         .expect("alpha +beta");
@@ -650,7 +619,6 @@ async fn space_separated_keywords_match_any_field_or() {
     titles.sort_unstable();
     assert_eq!(titles, vec!["Alpha Beta".to_string(), "Beta".to_string()]);
 
-    // '-' excludes: alpha without beta.
     let page = crate::logic::search::search_articles(&context.state, &params(Some("alpha -beta")))
         .await
         .expect("alpha -beta");

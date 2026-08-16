@@ -31,9 +31,6 @@ fn highlight_name(field: &str) -> String {
     format!("{field}_highlight")
 }
 
-/// The highlighted rendering of a field when the highlighter was enabled for it,
-/// otherwise the raw stored value. Used for always-shown fields that may carry
-/// `<mark>`.
 fn read_highlighted_or_raw(document: &Document, field: &str) -> String {
     let highlighted = read_string_field(document, &highlight_name(field));
     if highlighted.is_empty() {
@@ -43,13 +40,6 @@ fn read_highlighted_or_raw(document: &Document, field: &str) -> String {
     }
 }
 
-/// True when an enabled range actually matched this field: the raw stored value
-/// contains one of the folded query terms. `SeekStorm` exposes no per-field
-/// match API; the official hook for custom highlighting is
-/// `ResultObject.query_terms` and the highlighter matches with a
-/// case-insensitive substring scan, so this mirrors that same semantics.
-/// Highlight markup alone is unreliable: a single-character query skips `<mark>`
-/// insertion entirely.
 fn field_hit(document: &Document, field: &str, query_terms: &[String]) -> bool {
     let raw = read_string_field(document, field);
     let folded = raw.to_lowercase();
@@ -126,7 +116,6 @@ pub(super) fn read_comment_outcome(
     comment
 }
 
-/// Build one document per version plus one per comment for an article.
 pub(super) async fn build_documents(
     db: &DbHandle,
     article_id: &str,
@@ -231,7 +220,6 @@ pub(super) async fn build_documents(
     Ok(documents)
 }
 
-/// Collect every comment node hanging off a version, including nested replies.
 fn comments_of_version(
     guard: &agdb::DbAny,
     version: agdb::DbId,

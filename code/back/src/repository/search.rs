@@ -38,13 +38,8 @@ const FIELD_TAGS: &str = "tags";
 const FIELD_CONTENT: &str = "content";
 const FIELD_TS: &str = "ts";
 
-/// Upper bound on documents (versions + comments) a single article contributes,
-/// used to size the top-k fetch so the logic layer can fold enough hits for a page.
 const MAX_DOCS_PER_ARTICLE: u64 = 32;
 
-/// Bump when the `SeekStorm` schema (`schema_fields`) or document shapes change so
-/// the index is rebuilt from the graph on next start. Stored as a marker file
-/// inside the index directory.
 const INDEX_SCHEMA_VERSION: &str = "2";
 const SCHEMA_VERSION_FILENAME: &str = "nail_schema_version";
 
@@ -71,8 +66,6 @@ pub struct SearchHitOutcome {
     pub snippet: String,
 }
 
-/// A version document hit. Carries the always-shown fields (which may carry
-/// `<mark>` when the term matched) plus the hit-only field cards.
 #[derive(Debug, Clone)]
 pub struct SearchVersionOutcome {
     pub article_id: String,
@@ -85,9 +78,6 @@ pub struct SearchVersionOutcome {
     pub version_number_hit: bool,
 }
 
-/// A comment document hit. Carries the comment card plus enough parent context
-/// (enriched from the DB) to render the version + article headers even when the
-/// version document did not itself match.
 #[derive(Debug, Clone)]
 pub struct SearchCommentOutcome {
     pub article_id: String,
@@ -160,8 +150,6 @@ impl SearchIndex {
         Ok(Self { index, recreated })
     }
 
-    /// True when the index was recreated this start because its schema was out of
-    /// date. Callers that populated the graph should then run `sync_all` to rebuild.
     pub fn was_recreated(&self) -> bool {
         self.recreated
     }
@@ -553,8 +541,6 @@ async fn article_ids_of_user(db: &DbHandle, user_id: &str) -> Result<Vec<String>
     Ok(ids)
 }
 
-/// Walks a comment node up to its article: comment -> version (via
-/// `EDGE_COMMENT_TO_VERSION`) -> article (via the reverse of `EDGE_ARTICLE_TO_VERSION`).
 fn article_id_of_comment(
     guard: &agdb::DbAny,
     comment: agdb::DbId,

@@ -2,12 +2,12 @@ use std::fmt;
 
 pub const MAX_NAME_CHAR_COUNT: usize = 32;
 
-/// Validates and normalizes a display name.
+/// Validates and trims a user name.
 ///
 /// # Errors
-/// Returns [`NameError::Empty`] when the trimmed name is empty,
-/// [`NameError::ContainsForbiddenChar`] for non-alphanumeric characters other
-/// than `-` and `_`, and [`NameError::TooLong`] past [`MAX_NAME_CHAR_COUNT`].
+/// Returns [`NameError::Empty`] if blank, [`NameError::TooLong`] if it exceeds
+/// [`MAX_NAME_CHAR_COUNT`], or [`NameError::ContainsForbiddenChar`] for an
+/// invalid character.
 pub fn validate_name(raw_name: &str) -> Result<String, NameError> {
     let trimmed = raw_name.trim();
     if trimmed.is_empty() {

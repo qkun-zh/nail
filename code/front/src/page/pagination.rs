@@ -22,9 +22,6 @@ pub fn local_page_of(index: usize, per_page: u64) -> u64 {
     (index as u64) / per_page
 }
 
-/// A client-side paged list whose data is already fully present in memory.
-/// Paging is local state only (no request, no URL); refreshing returns to the
-/// first page. `render` maps each item on the current page to a view.
 #[component]
 pub fn LocalPagedList<T, R>(
     items: Vec<T>,
