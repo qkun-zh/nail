@@ -229,7 +229,7 @@ deleted; creates route through `authorize` against
 `Virtual::"..."` uids; grep clean (`System::`/`authorize_create` zero hits).
 Back 428, common 109, clippy 0, frontend `trunk build` clean.
 
-#### A4 — Role revocation protection in policy (O5, D7-b)
+#### A4 — Role revocation protection in policy (O5, D7-b) — **DONE** (commit `0d3e7de`)
 **Changes**:
 - Vocabulary: add `Role::Revoke` action (`schema.cedar`); `Role::Manage` stays.
   26 → 27 actions.
@@ -251,6 +251,14 @@ Back 428, common 109, clippy 0, frontend `trunk build` clean.
 roles works for holders; `Resource::Role` assembly covers the uids.
 **Exit**: admin revocation blocked by policy; `Role::Revoke` in schema/seed/UI;
 suite green.
+**Evidence**: red observed two ways — `revoke_from_the_admin_role_is_forbidden`
+got 400 (old Rust guard) vs 403 target; `role_resource_assembly_covers_role_uids`
+did not compile (no `Resource::Role` variant). After: forbid blocks admin
+revocation through the admin override (forbid beats permit); `update_role`
+routes removals via `Role::Revoke` on `Resource::Role(target)`, additions keep
+`Role::Manage`; guard covers recycler/member only. `Role::Revoke` seeded to
+admin via `ALL_PERMISSIONS`. Probe count pinned to 27. Back 431 (was 428 +3
+tests), common 109, clippy 0, frontend `trunk build` clean.
 
 #### A5 — Vocabulary single source + delete policy 6 (O4, D3)
 **Changes**:

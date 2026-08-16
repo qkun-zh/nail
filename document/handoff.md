@@ -16,8 +16,8 @@
 - Uncommitted (other agent): `document/workflow.md`, `AGENTS.md`, `README.md` —
   the double-evidence workflow refactor (see Done).
 - **Authz refactor (in progress, plan `document/authz-refactor.md`)**: A1 done
-  (`8698ecc`), A2 done (`208e94c`), A3 done (`9a92e1e`). Next slice: A4
-  (Role::Revoke protection).
+  (`8698ecc`), A2 done (`208e94c`), A3 done (`9a92e1e`), A4 done (`0d3e7de`).
+  Next slice: A5 (vocab single source + policy 6 deletion).
 - **Soft-delete refcount + restore API (committed bac4e65, c40608b, 6c33fac,
   97fd467, 6883a5b)**: done — `KEY_SOFT_DELETED` is a u64 count, soft-delete
   cascades `+1` over the subtree, restore `-1` (key deleted at 0; invariant key
@@ -28,6 +28,16 @@
 
 ## Done
 
+- **Authz A4 — Role::Revoke protection in policy (committed 0d3e7de)**:
+  `Role::Revoke` joins the vocabulary (27 actions, seeded to admin).
+  `policy.cedar` adds `forbid(principal, action == Role::Revoke, resource ==
+  Role::"admin")` so the admin override can't undo the admin role (D7-b; forbid
+  beats permit). `Resource::Role` assembles `Role::"..."`. `update_role`
+  authorizes removals against `Role::Revoke` on the target role, additions keep
+  `Role::Manage` on admin-console. The Rust required-role guard now covers
+  recycler/member only so the forbid is not shadowed. Red = admin-revoke got
+  400 vs 403 target; `Resource::Role` did not compile. Back 431, common 109,
+  clippy 0, frontend trunk build clean.
 - **Authz A3 — System → Virtual + single create entry (committed 9a92e1e)**:
   the synthetic entity is `Virtual` (D4): `article-create`, `comment-create`
   and `admin-console` desks. `schema.cedar` declares `entity Virtual`;
@@ -119,8 +129,8 @@
 ## Next
 
 - Commit the uncommitted slices (one commit each, clean tree).
-- Authz: A1 (`8698ecc`) + A2 (`208e94c`) + A3 (`9a92e1e`) done; A4 (Role::Revoke
-  protection) next, then A5 (vocab single source + policy 6 deletion), A6 (docs).
+- Authz: A1 (`8698ecc`) + A2 (`208e94c`) + A3 (`9a92e1e`) + A4 (`0d3e7de`) done;
+  A5 (vocab single source + policy 6 deletion) next, then A6 (docs).
 - Perf: P2, P3, P5, search-ORDER-BY closed. P1 rejected (highlight behavior);
   P6 non-problem (O(R)); P4 accepted (inherent). Open: total/cursor on list endpoints
   + search total.
