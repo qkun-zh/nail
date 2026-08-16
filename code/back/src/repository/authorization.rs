@@ -18,7 +18,7 @@ pub enum Resource {
     Article(String),
     Version(String),
     Comment(String),
-    System(String),
+    Virtual(String),
 }
 
 #[derive(Debug, Clone, Default)]
@@ -228,8 +228,8 @@ pub async fn assemble_resource(
                 vec![article_entity, version_entity, comment_entity],
             ))
         }
-        Resource::System(name) => {
-            let resource_uid = system_uid(&name)?;
+        Resource::Virtual(name) => {
+            let resource_uid = virtual_uid(&name)?;
             let entity = Entity::new_no_attrs(resource_uid.clone(), HashSet::new());
             Ok((resource_uid, vec![entity]))
         }
@@ -336,8 +336,8 @@ fn comment_uid(comment_id: &str) -> Result<EntityUid, AssemblyError> {
     parse_uid(&format!("Comment::\"{comment_id}\""))
 }
 
-fn system_uid(name: &str) -> Result<EntityUid, AssemblyError> {
-    parse_uid(&format!("System::\"{name}\""))
+fn virtual_uid(name: &str) -> Result<EntityUid, AssemblyError> {
+    parse_uid(&format!("Virtual::\"{name}\""))
 }
 
 fn expression(text: &str) -> Result<RestrictedExpression, AssemblyError> {

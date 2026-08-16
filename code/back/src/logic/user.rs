@@ -286,5 +286,5 @@ fn name_update_error(error: UserWriteError) -> LogicError {
 }
 
 fn admin_console() -> Resource {
-    Resource::System("admin-console".to_string())
+    Resource::Virtual("admin-console".to_string())
 }

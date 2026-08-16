@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::infrastructure::pdf::PdfUpload;
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::{authorize_create, authorize_or};
+use crate::logic::authorize::{authorize, authorize_or};
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::search::sync_article_best_effort;
 use crate::logic::version::{
@@ -45,7 +45,13 @@ pub async fn create_article(
         note: raw_note,
         upload,
     } = input;
-    authorize_create(state, actor_id, PERMISSION_ARTICLE_CREATE).await?;
+    authorize(
+        state,
+        actor_id,
+        PERMISSION_ARTICLE_CREATE,
+        &Resource::Virtual("article-create".to_string()),
+    )
+    .await?;
 
     let title = validate_title(raw_title, state.config.server.max_title_chars)?;
     let summary = validate_summary(raw_summary, state.config.server.max_summary_chars)?;

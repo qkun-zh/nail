@@ -169,7 +169,7 @@ fn admin_role_allows_everything() {
         decide(
             &uid("User::\"alice\""),
             "User::Delete::Hard",
-            &uid("System::\"admin-console\""),
+            &uid("Virtual::\"admin-console\""),
             vec![principal.clone(), admin.clone(), resource.clone()],
         )
         .expect("admin all")
@@ -179,7 +179,7 @@ fn admin_role_allows_everything() {
         decide(
             &uid("User::\"alice\""),
             "Role::Manage",
-            &uid("System::\"admin-console\""),
+            &uid("Virtual::\"admin-console\""),
             vec![principal, admin, resource],
         )
         .expect("admin role manage")

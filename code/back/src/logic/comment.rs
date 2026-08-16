@@ -5,7 +5,7 @@ use nail_common::response::comment::{CommentIdView, CommentListPage, CommentView
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::{authorize_create, authorize_or};
+use crate::logic::authorize::{authorize, authorize_or};
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::search::sync_article_best_effort;
 use crate::repository::authorization::Resource;
@@ -29,7 +29,13 @@ pub async fn create_comment(
     version_id: &str,
     raw_content: &str,
 ) -> Result<String, LogicError> {
-    authorize_create(state, actor_id, PERMISSION_COMMENT_CREATE).await?;
+    authorize(
+        state,
+        actor_id,
+        PERMISSION_COMMENT_CREATE,
+        &Resource::Virtual("comment-create".to_string()),
+    )
+    .await?;
     let content =
         validate_comment_content(raw_content, state.config.server.max_comment_body_chars)?;
     let comment_id = Uuid::now_v7().to_string();
@@ -46,7 +52,13 @@ pub async fn create_reply(
     parent_comment_id: &str,
     raw_content: &str,
 ) -> Result<String, LogicError> {
-    authorize_create(state, actor_id, PERMISSION_COMMENT_CREATE).await?;
+    authorize(
+        state,
+        actor_id,
+        PERMISSION_COMMENT_CREATE,
+        &Resource::Virtual("comment-create".to_string()),
+    )
+    .await?;
     let content =
         validate_comment_content(raw_content, state.config.server.max_comment_body_chars)?;
     let comment_id = Uuid::now_v7().to_string();

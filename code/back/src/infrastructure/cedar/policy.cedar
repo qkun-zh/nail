@@ -33,13 +33,13 @@ permit (principal, action, resource)
   when { principal in action };
 
 // 4. Admin-console meta-permission: User::Read/Update/Delete and Role::Manage
-//    are only judged against System::"admin-console".
+//    are only judged against Virtual::"admin-console".
 permit (principal, action in [Action::"User::Read", Action::"User::Update",
                               Action::"User::Delete::Hard",
                               Action::"User::Delete::Transfer",
                               Action::"Role::Manage"],
         resource)
-  when { resource == System::"admin-console" && principal in action };
+  when { resource == Virtual::"admin-console" && principal in action };
 
 // 5. Recycler is a terminal sink: a recycler can never transfer content. This
 //    principal-side forbid also applies to user_zero, who holds the recycler

@@ -1,5 +1,5 @@
 use super::context::TestCtx;
-use crate::logic::authorize::{authorize, authorize_create, authorize_or};
+use crate::logic::authorize::{authorize, authorize_or};
 use crate::logic::error::LogicError;
 use crate::repository::article::{ArticleDraft, create_article};
 use crate::repository::authorization::Resource;
@@ -45,7 +45,7 @@ async fn create_article_fixture(
 }
 
 fn admin_console() -> Resource {
-    Resource::System("admin-console".to_string())
+    Resource::Virtual("admin-console".to_string())
 }
 
 #[tokio::test]
@@ -143,7 +143,7 @@ async fn missing_article_is_not_found() {
 }
 
 #[tokio::test]
-async fn authorize_create_grants_a_member_article_create() {
+async fn authorize_article_create_on_the_virtual_desk_grants_a_member() {
     let context = TestCtx::new().await.expect("test context");
     let member = create_user(&context, "alice@example.com").await;
     crate::repository::role::hold_role(&context.state.graph, &member, "member")
@@ -151,10 +151,51 @@ async fn authorize_create_grants_a_member_article_create() {
         .expect("member");
 
     assert!(
-        authorize_create(&context.state, &member, PERMISSION_ARTICLE_CREATE)
-            .await
-            .is_ok()
+        authorize(
+            &context.state,
+            &member,
+            PERMISSION_ARTICLE_CREATE,
+            &Resource::Virtual("article-create".to_string()),
+        )
+        .await
+        .is_ok()
     );
+}
+
+#[tokio::test]
+async fn authorize_article_create_on_the_virtual_desk_denies_a_non_holder() {
+    let context = TestCtx::new().await.expect("test context");
+    let outsider = create_user(&context, "bob@example.com").await;
+
+    assert_eq!(
+        authorize(
+            &context.state,
+            &outsider,
+            PERMISSION_ARTICLE_CREATE,
+            &Resource::Virtual("article-create".to_string()),
+        )
+        .await
+        .unwrap_err(),
+        LogicError::forbidden("you are denied")
+    );
+}
+
+#[tokio::test]
+async fn virtual_desk_assembly_covers_the_create_and_admin_uids() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = create_user(&context, "alice@example.com").await;
+    for name in ["article-create", "comment-create", "admin-console"] {
+        let assembly = crate::repository::authorization::assemble(
+            &context.state.graph,
+            &actor,
+            Resource::Virtual(name.to_string()),
+        )
+        .await
+        .expect("assemble");
+        let expected: cedar_policy::EntityUid =
+            format!("Virtual::\"{name}\"").parse().expect("uid");
+        assert_eq!(assembly.resource, expected);
+    }
 }
 
 #[tokio::test]
@@ -241,23 +282,10 @@ async fn admin_console_action_on_a_non_admin_console_resource_is_denied() {
             &context.state,
             &member,
             PERMISSION_USER_READ,
-            &Resource::System("users".to_string()),
+            &Resource::Virtual("users".to_string()),
         )
         .await
         .unwrap_err(),
-        LogicError::forbidden("you are denied")
-    );
-}
-
-#[tokio::test]
-async fn authorize_create_denies_a_principal_without_article_create() {
-    let context = TestCtx::new().await.expect("test context");
-    let outsider = create_user(&context, "bob@example.com").await;
-
-    assert_eq!(
-        authorize_create(&context.state, &outsider, PERMISSION_ARTICLE_CREATE)
-            .await
-            .unwrap_err(),
         LogicError::forbidden("you are denied")
     );
 }
