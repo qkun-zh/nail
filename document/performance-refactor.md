@@ -69,9 +69,9 @@ Planned solution (revised): since `enrich_articles` is only ever called from `re
 with a single id (`article.rs:190`), use targeted `.search().to(article)` for the owner
 edge and `.search().from(article)` for the tag edges, plus batch `read_rows`. O(E) → O(1).
 
-**Approved? YES.** No observable behavior change (probe-verified identical edge set); no
-risk; reaches the theoretical optimum for the single-article read. Verification: the probe
-plus existing article-read tests.
+**Approved? YES — IMPLEMENTED (commit 20fdeb4).** No observable behavior change
+(probe-verified identical edge set); no risk; reaches the theoretical optimum for the
+single-article read. Verification: probe plus existing article-read tests, 305 tests pass.
 
 ## P3. `enrich_comment_headers` per-comment round trips — O(C) time
 
@@ -158,17 +158,15 @@ duplicate-laden exclude list.
 | Item | Status |
 | --- | --- |
 | P1 deep pagination (master doc) | **Open** — behavior change (index shape + highlight) |
-| P2 enrich_articles localize (`where_.ids`) | **Approved** — implement |
+| P2 enrich_articles localize (targeted `to`/`from`) | **Done** (commit 20fdeb4) |
 | P3 enrich_comment_headers batching | **Approved** — implement |
 | P4 sync_all | Accepted as inherent (no change) |
 | P5 pagination sort + slice | **Open** — drops newest-first ordering |
 | P6 recycler O(R²) → HashSet | **Approved** — implement |
 | Search: no ORDER BY / cursor / no total | **Open** — user decides |
 
-_Last updated: P2 plan corrected after probe — `where_.ids` is invalid (matches element id,
-not endpoints); the evidenced solution is targeted `to`/`from` per article. P2/P3/P6 approved
-(no behavior change, no risk, optimal); P1/P5/total/cursor open. Baseline: build green,
-304 tests pass._
+_Last updated: P2 implemented (commit 20fdeb4). P3/P6 approved pending evidence+implementation;
+P1/P5/total/cursor open. Baseline: build green, 305 tests pass._
 
 ## Probe evidence log
 
