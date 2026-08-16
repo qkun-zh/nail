@@ -6,6 +6,7 @@ use crate::infrastructure::state::AppState;
 use crate::interface::{
     article, challenge, comment, config, content, role, session, token, user, version,
 };
+use crate::logic::operations::ROUTE_ACTIONS;
 
 pub fn build_router(state: AppState) -> Router {
     let body_limit = state
@@ -14,6 +15,10 @@ pub fn build_router(state: AppState) -> Router {
         .max_pdf_size_bytes
         .saturating_add(state.config.server.max_text_field_bytes.saturating_mul(5))
         .saturating_add(64 * 1024);
+
+    for (route, actions) in ROUTE_ACTIONS {
+        tracing::debug!(route, actions = ?actions, "route authorization inventory");
+    }
 
     Router::new()
         .route("/challenge/create", post(challenge::create_challenge))

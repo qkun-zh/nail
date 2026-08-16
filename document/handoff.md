@@ -18,8 +18,8 @@
 - **Authz refactor (in progress, plan `document/authz-refactor.md`)**: A1 done
   (`8698ecc`), A2 done (`208e94c`), A3 done (`9a92e1e`), A4 done (`0d3e7de`),
   A5 done (`2b1f02c`), A6 done (docs, `document/authz.md`), B0 done (baseline
-  probe `probe_001`), B1 done (`295ff6e`), B2 done. Next: B3 (central
-  operation→action inventory + router coverage test).
+  probe `probe_001`), B1 done (`295ff6e`), B2 done (`2d5b78e`), B3 done. Phase B
+  complete — only the release re-run of `probe_001` remains (open follow-up).
 - **Soft-delete refcount + restore API (committed bac4e65, c40608b, 6c33fac,
   97fd467, 6883a5b)**: done — `KEY_SOFT_DELETED` is a u64 count, soft-delete
   cascades `+1` over the subtree, restore `-1` (key deleted at 0; invariant key
@@ -30,6 +30,22 @@
 
 ## Done
 
+- **Authz B3 — central route→action inventory + router coverage test (O1, O2)**:
+  new `logic/operations.rs` holds `ROUTE_ACTIONS`, the one table mapping every
+  route in `interface/router.rs` to its Cedar action(s) (empty = no Cedar gate;
+  entries use the `PERMISSION_*` constants). `build_router` consumes it at boot
+  (per-route debug log). The strict enforcers are two tests in
+  `test/unit/back/infrastructure/cedar.rs`: `every_route_in_router_has_an_inventory_entry`
+  walks the `.route("...")` literals in `router.rs` source (`include_str!`) and
+  asserts every route has an entry / every entry has a route / no duplicates,
+  and `every_inventory_action_exists_in_the_schema` asserts each listed action is
+  a real seeded permission. Mode-dependent deletes list real actions:
+  article/comment `Hard/Transfer/Soft`, version `Soft/Hard` (Transfer is a
+  bad_request), user `Hard` only (transfer is PoW-token-gated, not Cedar).
+  Red: `/comment/{id}/restore` omitted → test named it → added → green. Also
+  fixed a `#[cfg(test)]` `PERMISSION_USER_DELETE_TRANSFER` import (E0432 under
+  clippy --all-targets) by dropping the non-Cedar transfer from the table. 450
+  back tests; fmt/clippy 0, common 109, frontend trunk build clean.
 - **Authz B2 — `read_user` self-view to Cedar (O5)**: `User::Read` now judged
   against a `User` resource entity (`owner` = target, schema
   `entity User in [Role] { owner?: User }`), not the admin console. Policy 1
@@ -194,11 +210,8 @@
 ## Next
 
 - Commit the uncommitted slices (one commit each, clean tree).
-- Authz: A1–A6 + B0 + B1 + B2 done. Next: B3 (central operation→action
-  inventory + router coverage test — one table consumed by handlers, a test
-  walks every route in `interface/router.rs` and asserts a matching entry).
-  Open follow-up: release re-run of `probe_001` (B1 numbers so far are
-  dev-profile).
+- Authz: A1–A6 + B0–B3 done — Phase B complete, plan closed. Open follow-up:
+  release re-run of `probe_001` (B1 numbers so far are dev-profile).
 - Perf: P2, P3, P5, search-ORDER-BY closed. P1 rejected (highlight behavior);
   P6 non-problem (O(R)); P4 accepted (inherent). Open: total/cursor on list endpoints
   + search total.

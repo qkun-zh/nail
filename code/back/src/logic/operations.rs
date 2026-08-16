@@ -1,0 +1,81 @@
+use crate::repository::role::{
+    PERMISSION_ARTICLE_CREATE, PERMISSION_ARTICLE_DELETE_HARD, PERMISSION_ARTICLE_DELETE_SOFT,
+    PERMISSION_ARTICLE_DELETE_TRANSFER, PERMISSION_ARTICLE_READ, PERMISSION_ARTICLE_RESTORE,
+    PERMISSION_ARTICLE_UPDATE, PERMISSION_COMMENT_CREATE, PERMISSION_COMMENT_DELETE_HARD,
+    PERMISSION_COMMENT_DELETE_SOFT, PERMISSION_COMMENT_DELETE_TRANSFER, PERMISSION_COMMENT_READ,
+    PERMISSION_COMMENT_RESTORE, PERMISSION_COMMENT_UPDATE, PERMISSION_ROLE_MANAGE,
+    PERMISSION_ROLE_REVOKE, PERMISSION_USER_DELETE_HARD, PERMISSION_USER_READ,
+    PERMISSION_USER_UPDATE, PERMISSION_VERSION_CREATE, PERMISSION_VERSION_DELETE_HARD,
+    PERMISSION_VERSION_DELETE_SOFT, PERMISSION_VERSION_READ, PERMISSION_VERSION_RESTORE,
+    PERMISSION_VERSION_UPDATE,
+};
+
+pub const ROUTE_ACTIONS: &[(&str, &[&str])] = &[
+    ("/challenge/create", &[]),
+    ("/config/read", &[]),
+    ("/token/create", &[]),
+    ("/user/create", &[]),
+    ("/session/read", &[]),
+    ("/session/delete", &[]),
+    ("/user/{id}/read", &[PERMISSION_USER_READ]),
+    ("/user/{id}/update", &[PERMISSION_USER_UPDATE]),
+    ("/user/{id}/delete", &[PERMISSION_USER_DELETE_HARD]),
+    ("/article/read", &[PERMISSION_ARTICLE_READ]),
+    ("/article/create", &[PERMISSION_ARTICLE_CREATE]),
+    ("/article/{id}/read", &[PERMISSION_ARTICLE_READ]),
+    ("/article/{id}/update", &[PERMISSION_ARTICLE_UPDATE]),
+    (
+        "/article/{id}/delete",
+        &[
+            PERMISSION_ARTICLE_DELETE_HARD,
+            PERMISSION_ARTICLE_DELETE_TRANSFER,
+            PERMISSION_ARTICLE_DELETE_SOFT,
+        ],
+    ),
+    ("/article/{id}/restore", &[PERMISSION_ARTICLE_RESTORE]),
+    ("/article/{id}/version/create", &[PERMISSION_VERSION_CREATE]),
+    ("/article/{id}/version/read", &[PERMISSION_VERSION_READ]),
+    (
+        "/article/{id}/version/{version_id}/content/read",
+        &[PERMISSION_VERSION_READ],
+    ),
+    ("/version/{id}/read", &[PERMISSION_VERSION_READ]),
+    ("/version/{id}/update", &[PERMISSION_VERSION_UPDATE]),
+    (
+        "/version/{id}/delete",
+        &[
+            PERMISSION_VERSION_DELETE_SOFT,
+            PERMISSION_VERSION_DELETE_HARD,
+        ],
+    ),
+    ("/version/{id}/restore", &[PERMISSION_VERSION_RESTORE]),
+    (
+        "/version/{id}/comments/create",
+        &[PERMISSION_COMMENT_CREATE],
+    ),
+    (
+        "/comments/{id}/replies/create",
+        &[PERMISSION_COMMENT_CREATE],
+    ),
+    ("/version/{id}/comments/read", &[PERMISSION_COMMENT_READ]),
+    ("/comment/{id}/read", &[PERMISSION_COMMENT_READ]),
+    ("/comment/{id}/replies/read", &[PERMISSION_COMMENT_READ]),
+    ("/comment/{id}/update", &[PERMISSION_COMMENT_UPDATE]),
+    (
+        "/comment/{id}/delete",
+        &[
+            PERMISSION_COMMENT_DELETE_HARD,
+            PERMISSION_COMMENT_DELETE_TRANSFER,
+            PERMISSION_COMMENT_DELETE_SOFT,
+        ],
+    ),
+    ("/comment/{id}/restore", &[PERMISSION_COMMENT_RESTORE]),
+    ("/role/create", &[PERMISSION_ROLE_MANAGE]),
+    ("/role/read", &[PERMISSION_ROLE_MANAGE]),
+    ("/role/{name}/read", &[PERMISSION_ROLE_MANAGE]),
+    (
+        "/role/{name}/update",
+        &[PERMISSION_ROLE_MANAGE, PERMISSION_ROLE_REVOKE],
+    ),
+    ("/role/{name}/delete", &[PERMISSION_ROLE_MANAGE]),
+];

@@ -390,10 +390,32 @@ hard-deleted self-read is 404. fmt/clippy 0, common 109, frontend trunk build
 clean.
 **Exit**: met — no `read_user` policy decision is duplicated in Rust.
 
-#### B3 — Central operation→action inventory + router coverage test (O1, O2)
+#### B3 — Central operation→action inventory + router coverage test (O1, O2) — **DONE**
 **Changes**:
-- One table (operation → action string) consumed by handlers; a test walks every
-  route in `interface/router.rs` and asserts a matching entry.
+- New `logic/operations.rs`: `ROUTE_ACTIONS`, the one table mapping every route
+  path to its Cedar action(s) (empty list = no Cedar gate: the six public /
+  session-only routes). Entries use the `PERMISSION_*` constants (O4 single
+  vocabulary). Mode-dependent deletes list their real actions: article/comment
+  `Hard/Transfer/Soft`, version `Soft/Hard` (Transfer is a bad_request),
+  user `Hard` only (the transfer path is PoW-token-gated, not Cedar).
+- `build_router` consumes the inventory at boot (per-route debug log); the
+  router coverage test is the strict enforcer.
+- Tests in `test/unit/back/infrastructure/cedar.rs`:
+  `every_route_in_router_has_an_inventory_entry` walks the `.route("...")`
+  literals in `interface/router.rs` (via `include_str!`, mirroring
+  `policy_action_names`) and asserts every route has an entry, every entry has a
+  route, and no route is duplicated; `every_inventory_action_exists_in_the_schema`
+  asserts every listed action is declared in `schema.cedar` and matches a
+  `PERMISSION_*` constant.
+**Red→Green**: table written with `/comment/{id}/restore` omitted → the coverage
+test failed naming that route → entry added → green. (Multi-line `.route(`
+registrations initially defeated the source parser; fixed to skip to the next
+string literal.) Green: **450 back tests** (448 + 2); fmt/clippy 0, common 109,
+frontend trunk build clean. New-route workflow is now explicit: add the
+`.route()` literal, the table entry (actions), and the handler arm — the test
+fails loud if any are missing.
+**Exit**: met — every route has an explicit authorization inventory entry and
+the inventory can't name an action that isn't a real, seeded permission.
 
 ## 6. Risks & mitigations
 
