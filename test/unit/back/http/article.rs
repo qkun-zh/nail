@@ -520,6 +520,36 @@ async fn delete_article_transfer_repoints_to_the_recycler() {
 }
 
 #[tokio::test]
+async fn delete_article_soft_hides_the_article_over_http() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let article_id = create_article_fixture(&context, &token, "Soft Deletable").await;
+    let (status, body) = context
+        .post(
+            &format!("/article/{article_id}/delete"),
+            json!({ "mode": "soft" }),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("deleted"));
+    let (status, body) = context
+        .get(&format!("/article/{article_id}/read"), Some(&token))
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("article not found"));
+    let (versions, _) =
+        crate::repository::version::versions_of(&context.state.graph, &article_id, 10, 0)
+            .await
+            .expect("versions");
+    assert_eq!(
+        versions.len(),
+        1,
+        "versions stay public after article soft delete"
+    );
+}
+
+#[tokio::test]
 async fn delete_article_hard_cascades() {
     let context = TestCtx::new().await.expect("test context");
     let (_, owner_token) = member_session(&context, "alice@example.com").await;

@@ -97,9 +97,6 @@ pub mod http_role;
 #[path = "repository/comment.rs"]
 pub mod repository_comment;
 
-#[path = "repository/probe.rs"]
-pub mod repository_probe;
-
 #[path = "logic/comment.rs"]
 pub mod logic_comment;
 

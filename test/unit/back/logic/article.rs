@@ -204,3 +204,131 @@ async fn read_article_missing_is_not_found() {
         .unwrap_err();
     assert_eq!(error, LogicError::not_found("article not found"));
 }
+
+#[tokio::test]
+async fn delete_article_soft_hides_the_article_but_keeps_versions_public() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let (article_id, _) = crate::logic::article::create_article(
+        &context.state,
+        &actor,
+        crate::logic::article::ArticleCreateInput {
+            title: "Softly Deleted",
+            summary: "Summary",
+            tags: "rust",
+            version: "1.0.0",
+            note: "note",
+            upload: context.upload(&valid_pdf()),
+        },
+    )
+    .await
+    .expect("create");
+
+    let data = crate::logic::article::delete_article(
+        &context.state,
+        &actor,
+        &article_id,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect("soft delete");
+    assert_eq!(data.article_id, article_id);
+
+    let error = crate::logic::article::read_article(&context.state, &article_id)
+        .await
+        .expect_err("deleted article");
+    assert_eq!(error, LogicError::not_found("article not found"));
+    let (versions, _) =
+        crate::repository::version::versions_of(&context.state.graph, &article_id, 10, 0)
+            .await
+            .expect("versions");
+    assert_eq!(versions.len(), 1, "versions stay public");
+}
+
+#[tokio::test]
+async fn delete_article_soft_by_a_stranger_mirrors_transfer() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let stranger = member(&context, "bob@example.com").await;
+    let (article_id, _) = crate::logic::article::create_article(
+        &context.state,
+        &actor,
+        crate::logic::article::ArticleCreateInput {
+            title: "Not Yours",
+            summary: "Summary",
+            tags: "rust",
+            version: "1.0.0",
+            note: "note",
+            upload: context.upload(&valid_pdf()),
+        },
+    )
+    .await
+    .expect("create");
+
+    let data = crate::logic::article::delete_article(
+        &context.state,
+        &stranger,
+        &article_id,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect("member soft delete mirrors transfer");
+    assert_eq!(data.article_id, article_id);
+    assert!(
+        crate::repository::article::read_article(&context.state.graph, &article_id)
+            .await
+            .expect("read")
+            .is_none(),
+        "article hidden after stranger soft delete"
+    );
+}
+
+#[tokio::test]
+async fn delete_article_soft_keeps_the_title_and_content_hash_held() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let pdf = valid_pdf();
+    let (article_id, _) = crate::logic::article::create_article(
+        &context.state,
+        &actor,
+        crate::logic::article::ArticleCreateInput {
+            title: "Held Title",
+            summary: "Summary",
+            tags: "rust",
+            version: "1.0.0",
+            note: "note",
+            upload: context.upload(&pdf),
+        },
+    )
+    .await
+    .expect("create");
+
+    crate::logic::article::delete_article(
+        &context.state,
+        &actor,
+        &article_id,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect("soft delete");
+
+    let error = crate::logic::article::create_article(
+        &context.state,
+        &actor,
+        crate::logic::article::ArticleCreateInput {
+            title: "Held Title",
+            summary: "Summary",
+            tags: "rust",
+            version: "1.0.0",
+            note: "note",
+            upload: context.upload(&unique_pdf("reused")),
+        },
+    )
+    .await
+    .unwrap_err();
+    let message = error.to_string();
+    assert!(
+        message.starts_with("title already exists"),
+        "deleted node still holds its title: {message}"
+    );
+}

@@ -193,3 +193,167 @@ async fn delete_version_rejects_transfer_mode() {
         LogicError::bad_request("version delete only supports mode \"soft\" or \"hard\"")
     );
 }
+
+#[tokio::test]
+async fn delete_version_soft_hides_the_version_as_admin() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let admin_id = admin(&context).await;
+    let (article_id, version_id) = article_fixture(&context, &actor, "Article").await;
+
+    let data = crate::logic::version::delete_version(
+        &context.state,
+        &admin_id,
+        &version_id,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect("soft delete");
+    assert_eq!(data.version_id, version_id);
+    assert!(
+        crate::repository::version::read_version(&context.state.graph, &version_id)
+            .await
+            .expect("read")
+            .is_none(),
+        "soft-deleted version is hidden"
+    );
+    let (versions, _) =
+        crate::repository::version::versions_of(&context.state.graph, &article_id, 10, 0)
+            .await
+            .expect("versions");
+    assert_eq!(
+        versions.len(),
+        0,
+        "soft-deleted version hidden from versions_of"
+    );
+}
+
+#[tokio::test]
+async fn delete_version_soft_hides_only_the_target_version() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let admin_id = admin(&context).await;
+    let (article_id, version_id) = article_fixture(&context, &actor, "Article").await;
+    let second_id = {
+        let draft = crate::repository::version::VersionDraft {
+            version_id: uuid::Uuid::now_v7().to_string(),
+            version_number: "2.0.0".to_string(),
+            content_hash: nail_common::hash::pdf(&unique_pdf("second")),
+            note: "note".to_string(),
+        };
+        crate::repository::version::create_version(&context.state.graph, &article_id, &draft)
+            .await
+            .expect("second version");
+        draft.version_id
+    };
+
+    crate::logic::version::delete_version(
+        &context.state,
+        &admin_id,
+        &version_id,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect("soft delete first");
+
+    assert!(
+        crate::repository::version::read_version(&context.state.graph, &second_id)
+            .await
+            .expect("read")
+            .is_some(),
+        "sibling version stays live"
+    );
+    let latest = crate::repository::article::read_article(&context.state.graph, &article_id)
+        .await
+        .expect("read")
+        .expect("article")
+        .latest_version_id;
+    assert_eq!(
+        latest.as_str(),
+        second_id.as_str(),
+        "latest skips the soft-deleted version"
+    );
+}
+
+#[tokio::test]
+async fn delete_version_soft_is_allowed_for_the_member_owner() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let (_, version_id) = article_fixture(&context, &actor, "Article").await;
+
+    let data = crate::logic::version::delete_version(
+        &context.state,
+        &actor,
+        &version_id,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect("member owner soft deletes via owner bypass");
+    assert_eq!(data.version_id, version_id);
+    assert!(
+        crate::repository::version::read_version(&context.state.graph, &version_id)
+            .await
+            .expect("read")
+            .is_none(),
+        "version hidden"
+    );
+}
+
+#[tokio::test]
+async fn delete_version_soft_is_forbidden_for_a_stranger_member() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let stranger = member(&context, "bob@example.com").await;
+    let (_, version_id) = article_fixture(&context, &actor, "Article").await;
+
+    let error = crate::logic::version::delete_version(
+        &context.state,
+        &stranger,
+        &version_id,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect_err("stranger cannot soft delete a version");
+    assert!(matches!(error, LogicError::Forbidden(_)));
+    assert!(
+        crate::repository::version::read_version(&context.state.graph, &version_id)
+            .await
+            .expect("read")
+            .is_some(),
+        "version untouched"
+    );
+}
+
+#[tokio::test]
+async fn delete_version_soft_keeps_the_content_hash_held() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let admin_id = admin(&context).await;
+    let (_, version_id) = article_fixture(&context, &actor, "Article").await;
+
+    crate::logic::version::delete_version(
+        &context.state,
+        &admin_id,
+        &version_id,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect("soft delete");
+
+    let second_article = article_fixture(&context, &actor, "Other Article").await.0;
+    let error = crate::logic::version::create_version(
+        &context.state,
+        &actor,
+        &second_article,
+        "1.0.1",
+        "note",
+        context.upload(&unique_pdf("Article")),
+    )
+    .await
+    .unwrap_err();
+    let message = error.to_string();
+    assert!(
+        message.starts_with("identical PDF already exists"),
+        "soft-deleted version still holds its content hash: {message}"
+    );
+}

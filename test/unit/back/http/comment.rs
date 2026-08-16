@@ -233,6 +233,37 @@ async fn delete_comment_transfer_over_http() {
 }
 
 #[tokio::test]
+async fn delete_comment_soft_hides_the_comment_over_http() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, token) = member_session(&context, "alice@example.com").await;
+    let version_id = version_fixture(&context, &user_id).await;
+    let (_, created) = context
+        .post(
+            &format!("/version/{version_id}/comments/create"),
+            json!({ "content": "hello" }),
+            Some(&token),
+        )
+        .await;
+    let comment_id = created["data"]["comment_id"].as_str().expect("comment id");
+
+    let (status, body) = context
+        .post(
+            &format!("/comment/{comment_id}/delete"),
+            json!({ "mode": "soft" }),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("deleted"));
+
+    let (status, body) = context
+        .get(&format!("/comment/{comment_id}/read"), Some(&token))
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("comment not found"));
+}
+
+#[tokio::test]
 async fn delete_comment_requires_a_mode_over_http() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = member_session(&context, "alice@example.com").await;

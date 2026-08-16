@@ -293,3 +293,83 @@ async fn delete_comment_hard_is_forbidden_for_a_member_owner() {
         .expect_err("member cannot hard delete");
     assert!(matches!(error, LogicError::Forbidden(_)));
 }
+
+#[tokio::test]
+async fn delete_comment_soft_hides_the_comment_but_keeps_replies_visible() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = member(&state, "alice@example.com").await;
+    let version_id = create_version_fixture(&state, &author_id).await;
+    let top = create_comment(&state, &author_id, &version_id, "top")
+        .await
+        .expect("top");
+    let reply = create_reply(&state, &author_id, &top, "reply")
+        .await
+        .expect("reply");
+
+    delete_comment(&state, &author_id, &top, Some(DeleteMode::Soft))
+        .await
+        .expect("soft delete");
+
+    let error = read_comment(&state, &author_id, &top)
+        .await
+        .expect_err("soft-deleted comment");
+    assert_eq!(error, LogicError::not_found("comment not found"));
+    let page = read_comments(&state, &version_id, 1, 50)
+        .await
+        .expect("comments");
+    assert!(
+        page.comments.is_empty(),
+        "soft-deleted top-level comment hidden from the version page"
+    );
+    assert!(
+        read_comment(&state, &author_id, &reply)
+            .await
+            .expect("read reply")
+            .id
+            == reply,
+        "reply stays readable after its parent is soft-deleted"
+    );
+}
+
+#[tokio::test]
+async fn delete_comment_soft_by_a_stranger_member_mirrors_transfer() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = member(&state, "alice@example.com").await;
+    let stranger = member(&state, "bob@example.com").await;
+    let version_id = create_version_fixture(&state, &author_id).await;
+    let comment_id = create_comment(&state, &author_id, &version_id, "hello")
+        .await
+        .expect("create");
+
+    let data = delete_comment(&state, &stranger, &comment_id, Some(DeleteMode::Soft))
+        .await
+        .expect("member soft delete mirrors transfer");
+    assert_eq!(data.comment_id, comment_id);
+    let error = read_comment(&state, &stranger, &comment_id)
+        .await
+        .expect_err("soft-deleted comment");
+    assert_eq!(error, LogicError::not_found("comment not found"));
+}
+
+#[tokio::test]
+async fn delete_comment_soft_keeps_the_owner_edge() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = member(&state, "alice@example.com").await;
+    let version_id = create_version_fixture(&state, &author_id).await;
+    let comment_id = create_comment(&state, &author_id, &version_id, "hello")
+        .await
+        .expect("create");
+
+    delete_comment(&state, &author_id, &comment_id, Some(DeleteMode::Soft))
+        .await
+        .expect("soft delete");
+
+    assert_eq!(
+        crate::repository::comment::owner_of_comment(&state.graph, &comment_id)
+            .await
+            .expect("owner")
+            .as_deref(),
+        Some(author_id.as_str()),
+        "soft delete keeps the author edge"
+    );
+}

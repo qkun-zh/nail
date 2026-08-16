@@ -140,6 +140,34 @@ pub async fn soft_delete_comment(db: &DbHandle, comment_id: &str) -> Result<(), 
     set_soft_deleted_flag(db, ENTITY_TYPE_COMMENT, comment_id).await
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
+pub async fn clear_soft_deleted_flag(db: &DbHandle, business_id: &str) -> Result<(), DbError> {
+    let mut guard = db.write().await;
+    let Some(id) = resolve_node_id_sync(&guard, ENTITY_TYPE_ARTICLE, business_id)
+        .ok()
+        .flatten()
+        .or(
+            resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, business_id)
+                .ok()
+                .flatten(),
+        )
+        .or(
+            resolve_node_id_sync(&guard, ENTITY_TYPE_COMMENT, business_id)
+                .ok()
+                .flatten(),
+        )
+    else {
+        return Ok(());
+    };
+    guard.exec_mut(
+        QueryBuilder::remove()
+            .values([KEY_SOFT_DELETED])
+            .ids([id])
+            .query(),
+    )?;
+    Ok(())
+}
+
 async fn set_soft_deleted_flag(
     db: &DbHandle,
     entity_type: &str,

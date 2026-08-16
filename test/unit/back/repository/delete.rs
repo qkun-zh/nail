@@ -418,6 +418,59 @@ async fn soft_delete_is_idempotent_for_a_missing_node() {
 }
 
 #[tokio::test]
+async fn clearing_the_soft_deleted_flag_revives_the_node() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let top = insert_comment(&state, &version_id, &author_id).await;
+
+    soft_delete_article(&state.graph, &article_id)
+        .await
+        .expect("soft delete article");
+    soft_delete_version(&state.graph, &version_id)
+        .await
+        .expect("soft delete version");
+    soft_delete_comment(&state.graph, &top)
+        .await
+        .expect("soft delete comment");
+
+    crate::repository::delete::clear_soft_deleted_flag(&state.graph, &article_id)
+        .await
+        .expect("clear article");
+    crate::repository::delete::clear_soft_deleted_flag(&state.graph, &version_id)
+        .await
+        .expect("clear version");
+    crate::repository::delete::clear_soft_deleted_flag(&state.graph, &top)
+        .await
+        .expect("clear comment");
+
+    assert!(
+        crate::repository::article::read_article(&state.graph, &article_id)
+            .await
+            .expect("read article")
+            .is_some(),
+        "article revived"
+    );
+    assert!(
+        crate::repository::version::read_version(&state.graph, &version_id)
+            .await
+            .expect("read version")
+            .is_some(),
+        "version revived"
+    );
+    assert!(
+        crate::repository::comment::read_comment_item(&state.graph, &top)
+            .await
+            .expect("read comment")
+            .is_some(),
+        "comment revived"
+    );
+    assert!(!has_soft_deleted_flag(&state, "article", &article_id).await);
+    assert!(!has_soft_deleted_flag(&state, "version", &version_id).await);
+    assert!(!has_soft_deleted_flag(&state, "comment", &top).await);
+}
+
+#[tokio::test]
 async fn soft_deleted_article_read_returns_none_but_versions_stay_public() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = create_user(&state, "alice@example.com").await;
