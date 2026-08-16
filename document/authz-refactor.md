@@ -451,7 +451,7 @@ user explicitly adopts this plan before any slice starts.
 ## 9. Phase B4 — Codegen single-source + policy validation
 
 Status: **adopted by user** ("修复这三个吧，同时加上测试保证不会修错"),
-B4.0 evidence collected, B4.1 done. Three fixes, each with guard tests so a wrong
+B4.0 evidence collected, B4.1 done, B4.2 done. Three fixes, each with guard tests so a wrong
 "repair" cannot pass:
 
 1. **Fix 2 (point 2) — `PERMISSION_*` constants generated from `schema.cedar`**:
@@ -513,30 +513,32 @@ B4.0 evidence collected, B4.1 done. Three fixes, each with guard tests so a wron
 policy/schema both pass strict validation; suite green (452 back tests;
 fmt/clippy 0, common 109, frontend trunk build clean).
 
-### B4.2 — Fix 2: permission constants via build.rs
+### B4.2 — Fix 2: permission constants via build.rs (done)
 
 **Changes**:
-- New `code/back/build.rs`: parse `src/infrastructure/cedar/schema.cedar`
-  lines `action "Article::Delete::Hard" ... ;` → emit
-  `pub const PERMISSION_ARTICLE_DELETE_HARD: &str = "Article::Delete::Hard";`
-  (segments joined by `_`, upper-snake) into
-  `OUT_DIR/permissions.rs`, with `#[cfg(test)]` on the two transfer actions
-  that production does not use.
-- `repository/role.rs`: delete the 27 hand-written constants; add
-  `include!(concat!(env!("OUT_DIR"), "/permissions.rs"));` where they stood.
+- New `code/back/build.rs`: parses `src/infrastructure/cedar/schema.cedar`
+  `action "..."` lines → emits `pub const PERMISSION_<SEGMENTS>: &str = "...";`
+  (segments joined by `_`, upper-snake) into `OUT_DIR/permissions.rs`, with
+  `#[cfg(test)]` on the two transfer actions (`Version::Delete::Transfer`,
+  `User::Delete::Transfer`) that production does not use.
+- `repository/role.rs`: the 27 hand-written constants replaced by
+  `include!(concat!(env!("OUT_DIR"), "/permissions.rs"));`.
   `permission_vocabulary()` and every `use crate::repository::role::PERMISSION_*`
   call site keep compiling (names unchanged).
-- `Cargo.toml`: add `build = "build.rs"`; `build.rs` emits
+- `Cargo.toml`: `build = "build.rs"`; `build.rs` emits
   `cargo:rerun-if-changed=src/infrastructure/cedar/schema.cedar`.
 **Guard tests** (prove the generator is right, not just that it ran):
 - existing `schema_actions_equal_the_permission_constants` compares the
   generated constants against the parsed schema (now guards generation);
-- new naming spot-check: assert a representative constant string equals its
-  action, and that the two transfer constants carry the expected values;
+- new `generated_permission_constants_have_expected_names` spot-checks the
+  naming rule (segments→upper-snake, `::`→`_`) on representative constants
+  and the two transfer constants;
 - existing A5 tests (seed derives from schema; drift test) stay green.
+**Red→Green**: generator output byte-identical to the replaced constants
+(verified in OUT_DIR before wiring `include!`).
 **Exit**: no hand-written `PERMISSION_*` remains; adding an action to
 `schema.cedar` recompiles constants and (via A5 tests) propagates to seed;
-suite green.
+suite green (453 back tests; fmt/clippy 0).
 
 ### B4.3 — Fix 1: route constants via build.rs
 

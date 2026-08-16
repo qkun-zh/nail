@@ -9,35 +9,7 @@ use crate::repository::schema::{
     alias_of,
 };
 
-pub const PERMISSION_ARTICLE_CREATE: &str = "Article::Create";
-pub const PERMISSION_ARTICLE_READ: &str = "Article::Read";
-pub const PERMISSION_ARTICLE_UPDATE: &str = "Article::Update";
-pub const PERMISSION_ARTICLE_DELETE_HARD: &str = "Article::Delete::Hard";
-pub const PERMISSION_ARTICLE_DELETE_TRANSFER: &str = "Article::Delete::Transfer";
-pub const PERMISSION_ARTICLE_DELETE_SOFT: &str = "Article::Delete::Soft";
-pub const PERMISSION_ARTICLE_RESTORE: &str = "Article::Restore";
-pub const PERMISSION_VERSION_CREATE: &str = "Version::Create";
-pub const PERMISSION_VERSION_READ: &str = "Version::Read";
-pub const PERMISSION_VERSION_UPDATE: &str = "Version::Update";
-pub const PERMISSION_VERSION_DELETE_HARD: &str = "Version::Delete::Hard";
-#[cfg(test)]
-pub const PERMISSION_VERSION_DELETE_TRANSFER: &str = "Version::Delete::Transfer";
-pub const PERMISSION_VERSION_DELETE_SOFT: &str = "Version::Delete::Soft";
-pub const PERMISSION_VERSION_RESTORE: &str = "Version::Restore";
-pub const PERMISSION_COMMENT_CREATE: &str = "Comment::Create";
-pub const PERMISSION_COMMENT_READ: &str = "Comment::Read";
-pub const PERMISSION_COMMENT_UPDATE: &str = "Comment::Update";
-pub const PERMISSION_COMMENT_DELETE_HARD: &str = "Comment::Delete::Hard";
-pub const PERMISSION_COMMENT_DELETE_TRANSFER: &str = "Comment::Delete::Transfer";
-pub const PERMISSION_COMMENT_DELETE_SOFT: &str = "Comment::Delete::Soft";
-pub const PERMISSION_COMMENT_RESTORE: &str = "Comment::Restore";
-pub const PERMISSION_USER_READ: &str = "User::Read";
-pub const PERMISSION_USER_UPDATE: &str = "User::Update";
-pub const PERMISSION_USER_DELETE_HARD: &str = "User::Delete::Hard";
-#[cfg(test)]
-pub const PERMISSION_USER_DELETE_TRANSFER: &str = "User::Delete::Transfer";
-pub const PERMISSION_ROLE_MANAGE: &str = "Role::Manage";
-pub const PERMISSION_ROLE_REVOKE: &str = "Role::Revoke";
+include!(concat!(env!("OUT_DIR"), "/permissions.rs"));
 
 #[cfg(test)]
 pub fn permission_vocabulary() -> &'static [&'static str] {
