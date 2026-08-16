@@ -9,4 +9,4 @@ and tool restrictions.
 | `workflow.md` | The mandatory code-execution loop: how to change code correctly. Read before touching anything. |
 | `handoff.md` | Current progress and next steps. Update at the end of every slice. |
 | `run.md` | How to build, start, and health-check the full stack. |
-| `decisions.md` | Decided architecture and conventions. Read-only; changing one requires re-evaluation. |
+| `performance-refactor.md` | Identified algorithmic bottlenecks in the backend, planned solutions (with library-source evidence), and open decisions. |
