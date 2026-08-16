@@ -167,6 +167,7 @@ the theoretical optimum (O(R) instead of O(R²)).
 | Search: no ORDER BY | **Done** (commit af09b00) — drop time/title/author sort, default relevance order; removed `SearchSort*` common types + sort UI |
 | Search: no total | **Done** — drop `total`/`total_pages`/`has_prev`/`truncated` from `SearchPage`; `has_next` derived from the assembled top_k window; frontend uses prev/next |
 | Search: page cap guard | **Done** — backend rejects `page > server.max_search_pages` with 400 (`logic/search.rs`); resurrects the config as a server-side hard cap, bounding deep-pagination cost at O(max_search_pages×limit×32) |
+| All paginated endpoints: page cap | **Done** (commit a698a10) — `clamp_page_limit` now takes `max_search_pages` and rejects `page` beyond it with 400, applied to version/comment/role interfaces; search uses the shared helper (dropped its duplicate parsing). Verified in isolated worktree: 315 back tests |
 | List endpoints: keep total | **Open** — O(A) full scan; search-page total no longer the free case |
 
 _Last updated: search page cap guard added — `max_search_pages` (default 1024) is now a
