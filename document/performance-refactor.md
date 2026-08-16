@@ -69,10 +69,10 @@ fetch authors with one targeted owner-edge query per distinct article; look up b
 per comment. O(C) round trips → O(#distinct articles + #distinct versions) resolves plus
 a constant number of batch reads. Output is identical.
 
-**Approved? YES.** No observable behavior change (same enriched comment fields); no
-risk; reaches the theoretical optimum (bounded batch queries instead of O(C) round
-trips). Verification: existing search tests plus a new TDD test asserting unchanged
-comment enrichment.
+**Approved? YES — IMPLEMENTED (commit cf701c4).** No observable behavior change
+(probe-verified identical enriched comment fields); no risk; reaches the theoretical
+optimum (bounded batch queries instead of O(C) round trips). Verification: probe plus
+existing search tests, 306 tests pass.
 
 ## P4. `sync_all` full rebuild — O(total documents) time and space
 
@@ -138,15 +138,15 @@ O(R²)) — but it awaits explicit user approval before implementation.
 | Item | Status |
 | --- | --- |
 | P1 deep pagination (master doc) | **Open** — behavior change (index shape + highlight) |
-| P3 enrich_comment_headers batching | **Approved** — implement |
+| P3 enrich_comment_headers batching | **Done** (commit cf701c4) |
 | P4 sync_all | Accepted as inherent (no change) |
 | P5 pagination sort + slice | **Open** — drops newest-first ordering |
 | P6 recycler O(R²) → HashSet | **Open** — not approved |
 | Search: no ORDER BY / cursor / no total | **Open** — user decides |
 
-_Last updated: P2 removed from tracking (implemented, commit 20fdeb4). P6 marked
-**not approved** (open). P3 approved pending evidence+implementation; P1/P5/total/cursor
-open. Baseline: build green, 305 tests pass._
+_Last updated: P2 and P3 both implemented (20fdeb4, cf701c4) and removed from pending
+tracking. P6 marked **not approved** (open). P1/P5/total/cursor open. Baseline: build
+green, 306 tests pass._
 
 ## Probe evidence log
 
