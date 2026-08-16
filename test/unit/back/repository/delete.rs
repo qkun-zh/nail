@@ -650,11 +650,14 @@ async fn comment_page_hides_soft_deleted_comments_and_their_replies() {
             .expect("comment page");
     assert!(page.is_empty(), "deleted top-level comment hidden");
     assert!(!has_next);
-    let (children, _) =
+    let children_error =
         crate::repository::comment::read_comment_children_page(&state.graph, &top, 10, 0)
             .await
-            .expect("children page");
-    assert!(children.is_empty(), "reply hidden with its deleted parent");
+            .expect_err("children page hidden with deleted parent");
+    assert!(
+        crate::repository::graph::is_not_found(&children_error),
+        "deleted parent surfaces as not found, got {children_error:?}"
+    );
     assert!(
         crate::repository::comment::read_comment_item(&state.graph, &top)
             .await

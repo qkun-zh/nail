@@ -30,7 +30,7 @@ pub fn CommentSection() -> impl IntoView {
     let comment_path = move || params.get().get("comment_path").unwrap_or_default();
     let mode = move || comment_level_from_path(&comment_path());
     let (page_signal, _set_page) = query_signal::<u64>("page");
-    let page = move || page_signal.get().unwrap_or(1).max(1);
+    let page = Memo::new(move |_| page_signal.get().unwrap_or(1).max(1));
     let base = move || {
         format!(
             "/public/article/{}/version/{}",
@@ -52,7 +52,7 @@ pub fn CommentSection() -> impl IntoView {
         let navigate = navigate.clone();
         move || {
             let base_path = base();
-            let page_value = page();
+            let page_value = page.get();
             let mut pairs: Vec<(String, String)> = Vec::new();
             let pathname = match mode() {
                 CommentLevel::VersionComments => {
@@ -88,7 +88,7 @@ pub fn CommentSection() -> impl IntoView {
     };
 
     Effect::new(move |previous: Option<()>| {
-        let _ = (body.get(), reply_body.get(), comment_path(), page());
+        let _ = (body.get(), reply_body.get(), comment_path(), page.get());
         if previous.is_none() {
             return;
         }
@@ -99,7 +99,7 @@ pub fn CommentSection() -> impl IntoView {
         let notifications = notifications.clone();
         move |version_id: String| {
             let current_mode = comment_level_from_path(&comment_path());
-            let page_value = page();
+            let page_value = page.get();
             let notifications = notifications.clone();
             match current_mode {
                 CommentLevel::VersionComments => {
@@ -128,28 +128,51 @@ pub fn CommentSection() -> impl IntoView {
                     loading.set(true);
                     let comment_id = comment_id.clone();
                     let notifications = notifications.clone();
-                    leptos::task::spawn_local(async move {
-                        match crate::request::comment::read_comment(&comment_id).await {
-                            Ok(view) => target.set(Some(view)),
-                            Err(request_error) => {
-                                notify_error(&notifications, request_error.to_string());
-                                error.set(Some(request_error.to_string()));
+                    let pending = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(2));
+                    let done_loading = {
+                        let pending = pending.clone();
+                        let loading = loading;
+                        move || {
+                            if pending.fetch_sub(1, std::sync::atomic::Ordering::SeqCst) == 1 {
+                                loading.set(false);
                             }
                         }
-                        match crate::request::comment::read_comment_children(
-                            &comment_id,
-                            page_value,
-                            COMMENTS_PER_PAGE,
-                        )
-                        .await
-                        {
-                            Ok(view) => children.set(Some(view)),
-                            Err(request_error) => {
-                                notify_error(&notifications, request_error.to_string());
-                                error.set(Some(request_error.to_string()));
+                    };
+                    leptos::task::spawn_local({
+                        let comment_id = comment_id.clone();
+                        let notifications = notifications.clone();
+                        let done_loading = done_loading.clone();
+                        async move {
+                            match crate::request::comment::read_comment(&comment_id).await {
+                                Ok(view) => target.set(Some(view)),
+                                Err(request_error) => {
+                                    notify_error(&notifications, request_error.to_string());
+                                    error.set(Some(request_error.to_string()));
+                                }
                             }
+                            done_loading();
                         }
-                        loading.set(false);
+                    });
+                    leptos::task::spawn_local({
+                        let comment_id = comment_id.clone();
+                        let notifications = notifications.clone();
+                        let done_loading = done_loading.clone();
+                        async move {
+                            match crate::request::comment::read_comment_children(
+                                &comment_id,
+                                page_value,
+                                COMMENTS_PER_PAGE,
+                            )
+                            .await
+                            {
+                                Ok(view) => children.set(Some(view)),
+                                Err(request_error) => {
+                                    notify_error(&notifications, request_error.to_string());
+                                    error.set(Some(request_error.to_string()));
+                                }
+                            }
+                            done_loading();
+                        }
                     });
                 }
                 CommentLevel::DeleteComment(_) => {
@@ -165,7 +188,7 @@ pub fn CommentSection() -> impl IntoView {
     });
 
     Effect::new(move |_| {
-        let _ = page();
+        let _ = page.get();
         let _ = comment_path();
         let version_id = version_id_param();
         let load = load.get_value();
@@ -298,7 +321,7 @@ pub fn CommentSection() -> impl IntoView {
                     return view! { <p class="cmt-loading">loading comments...</p> }.into_any();
                 }
                 let base_path = base();
-                let current_page = page();
+                let current_page = page.get();
                 let authenticated = !crate::request::session::read_session_token()
                     .unwrap_or_default()
                     .is_empty();

@@ -23,12 +23,12 @@ pub fn VersionList() -> impl IntoView {
     let navigate = use_navigate();
     let state = RwSignal::new(VersionPage::Loading);
     let (page_signal, _set_page) = query_signal::<u64>("page");
-    let current_page = move || page_signal.get().unwrap_or(1).max(1);
+    let current_page = Memo::new(move |_| page_signal.get().unwrap_or(1).max(1));
 
     Effect::new(move |_| {
         let article_id = params.get().get("article_id").unwrap_or_default();
         let limit = clamp_page_size(limits.get().search_page_size, 8);
-        let page_value = current_page();
+        let page_value = current_page.get();
         let notifications = notifications.clone();
         leptos::task::spawn_local(async move {
             match crate::request::version::read_versions(&article_id, page_value, limit).await {
@@ -47,7 +47,7 @@ pub fn VersionList() -> impl IntoView {
         VersionPage::Loaded(view) => {
             let article_id = params.get().get("article_id").unwrap_or_default();
             let create_href = format!("/public/article/{article_id}/version/create");
-            let current_page = current_page();
+            let current_page = current_page.get();
             let has_next = view.has_next;
             let has_prev = current_page > 1;
             let rows = view

@@ -109,18 +109,17 @@ pub async fn read_comment_children(
     limit: u64,
 ) -> Result<CommentListPage, LogicError> {
     let _ = actor_id;
-    if read_comment_item(&state.graph, parent_comment_id)
-        .await
-        .map_err(database_error)?
-        .is_none()
-    {
-        return Err(LogicError::not_found("comment not found"));
-    }
     let offset = page.saturating_sub(1).saturating_mul(limit);
     let (items, has_next) =
         read_comment_children_page(&state.graph, parent_comment_id, limit, offset)
             .await
-            .map_err(database_error)?;
+            .map_err(|error| {
+                if crate::repository::graph::is_not_found(&error) {
+                    LogicError::not_found("comment not found")
+                } else {
+                    database_error(error)
+                }
+            })?;
     let comments = build_comment_views(state, items).await?;
     Ok(CommentListPage { comments, has_next })
 }

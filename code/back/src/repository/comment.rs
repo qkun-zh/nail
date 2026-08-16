@@ -259,14 +259,20 @@ pub async fn read_comment_children_page(
 ) -> Result<(Vec<CommentTreeItem>, bool), DbError> {
     let guard = db.read().await;
     let Some(parent) = resolve_node_id_sync(&guard, ENTITY_TYPE_COMMENT, parent_comment_id)? else {
-        return Ok((Vec::new(), false));
+        return Err(DbError::query(
+            agdb::DbErrorType::NotFound,
+            "parent comment not found",
+        ));
     };
     if crate::repository::delete::content_path_soft_deleted_sync(
         &guard,
         ENTITY_TYPE_COMMENT,
         parent_comment_id,
     )? {
-        return Ok((Vec::new(), false));
+        return Err(DbError::query(
+            agdb::DbErrorType::NotFound,
+            "parent comment not found",
+        ));
     }
     let (page_ids, has_next) = incoming_comment_ids_page(&guard, parent, limit, offset)?;
     let items = read_comment_items(&guard, &page_ids)?;
