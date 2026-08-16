@@ -10,6 +10,7 @@ fn mode_to_str(mode: DeleteMode) -> &'static str {
     match mode {
         DeleteMode::Transfer => "transfer",
         DeleteMode::Hard => "hard",
+        DeleteMode::Soft => "soft",
     }
 }
 
@@ -17,6 +18,7 @@ fn mode_from_str(value: &str) -> Option<DeleteMode> {
     match value {
         "transfer" => Some(DeleteMode::Transfer),
         "hard" => Some(DeleteMode::Hard),
+        "soft" => Some(DeleteMode::Soft),
         _ => None,
     }
 }
@@ -97,12 +99,19 @@ pub fn DeleteArticle() -> impl IntoView {
         }
         let is_transfer = move || mode.get() == DeleteMode::Transfer;
         let is_hard = move || mode.get() == DeleteMode::Hard;
+        let is_soft = move || mode.get() == DeleteMode::Soft;
         view! {
             <div>
                 <div>
                     <label>
                         <input type="radio" name="delete_mode" prop:checked=is_transfer on:change=move |_| mode.set(DeleteMode::Transfer)/>
                         "transfer"
+                    </label>
+                </div>
+                <div>
+                    <label>
+                        <input type="radio" name="delete_mode" prop:checked=is_soft on:change=move |_| mode.set(DeleteMode::Soft)/>
+                        "soft"
                     </label>
                 </div>
                 <div>

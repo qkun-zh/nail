@@ -7,6 +7,7 @@ fn delete_mode_serializes_as_lowercase_strings() -> anyhow::Result<()> {
         r#""transfer""#
     );
     assert_eq!(serde_json::to_string(&DeleteMode::Hard)?, r#""hard""#);
+    assert_eq!(serde_json::to_string(&DeleteMode::Soft)?, r#""soft""#);
     Ok(())
 }
 
@@ -20,12 +21,16 @@ fn delete_mode_deserializes_from_lowercase_strings() -> anyhow::Result<()> {
         serde_json::from_str::<DeleteMode>(r#""hard""#)?,
         DeleteMode::Hard
     );
+    assert_eq!(
+        serde_json::from_str::<DeleteMode>(r#""soft""#)?,
+        DeleteMode::Soft
+    );
     Ok(())
 }
 
 #[test]
 fn delete_mode_rejects_unknown_values() {
-    for value in [r#""soft""#, r#""Transfer""#, r#""HARD""#, r#""""#] {
+    for value in [r#""Transfer""#, r#""HARD""#, r#""SOFT""#, r#""""#] {
         let result = serde_json::from_str::<DeleteMode>(value);
         assert!(result.is_err(), "value {value} must be rejected");
     }
@@ -113,7 +118,7 @@ fn delete_body_round_trips_without_mode() -> anyhow::Result<()> {
 
 #[test]
 fn delete_body_rejects_invalid_mode_value() {
-    let result = serde_json::from_str::<crate::request::DeleteBody>(r#"{"mode":"soft"}"#);
+    let result = serde_json::from_str::<crate::request::DeleteBody>(r#"{"mode":"shred"}"#);
     assert!(result.is_err());
 }
 

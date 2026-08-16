@@ -13,9 +13,10 @@ use crate::logic::authorize::authorize_or;
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::search::sync_article_best_effort;
 use crate::repository::authorization::Resource;
-use crate::repository::delete::delete_version as delete_version_node;
+use crate::repository::delete::{delete_version as delete_version_node, soft_delete_version};
 use crate::repository::role::{
-    PERMISSION_VERSION_CREATE, PERMISSION_VERSION_DELETE_HARD, PERMISSION_VERSION_UPDATE,
+    PERMISSION_VERSION_CREATE, PERMISSION_VERSION_DELETE_HARD, PERMISSION_VERSION_DELETE_SOFT,
+    PERMISSION_VERSION_UPDATE,
 };
 use crate::repository::version::{
     CreateVersionError, VersionDraft, content_hash_owner, create_version as create_version_node,
@@ -209,32 +210,56 @@ pub async fn delete_version(
     version_id: &str,
     mode: Option<DeleteMode>,
 ) -> Result<VersionIdView, LogicError> {
-    if !matches!(mode, Some(DeleteMode::Hard)) {
-        return Err(LogicError::bad_request(
-            "version delete only supports mode \"hard\"",
-        ));
+    match mode {
+        Some(DeleteMode::Soft) => {
+            authorize_or(
+                state,
+                actor_id,
+                PERMISSION_VERSION_DELETE_SOFT,
+                &Resource::Version(version_id.to_string()),
+                "version not found",
+            )
+            .await?;
+            let parent_article = parent_article_of(&state.graph, version_id)
+                .await
+                .map_err(database_error)?;
+            soft_delete_version(&state.graph, version_id)
+                .await
+                .map_err(database_error)?;
+            if let Some(parent_article) = parent_article {
+                sync_article_best_effort(state, &parent_article).await;
+            }
+            Ok(VersionIdView {
+                version_id: version_id.to_string(),
+            })
+        }
+        Some(DeleteMode::Hard) => {
+            authorize_or(
+                state,
+                actor_id,
+                PERMISSION_VERSION_DELETE_HARD,
+                &Resource::Version(version_id.to_string()),
+                "version not found",
+            )
+            .await?;
+            let parent_article = parent_article_of(&state.graph, version_id)
+                .await
+                .map_err(database_error)?;
+            let outcome = delete_version_node(&state.graph, version_id)
+                .await
+                .map_err(database_error)?;
+            remove_orphaned_pdfs(state, &outcome.removed_pdf_hashes).await;
+            if let Some(parent_article) = parent_article {
+                sync_article_best_effort(state, &parent_article).await;
+            }
+            Ok(VersionIdView {
+                version_id: version_id.to_string(),
+            })
+        }
+        Some(DeleteMode::Transfer) | None => Err(LogicError::bad_request(
+            "version delete only supports mode \"soft\" or \"hard\"",
+        )),
     }
-    authorize_or(
-        state,
-        actor_id,
-        PERMISSION_VERSION_DELETE_HARD,
-        &Resource::Version(version_id.to_string()),
-        "version not found",
-    )
-    .await?;
-    let parent_article = parent_article_of(&state.graph, version_id)
-        .await
-        .map_err(database_error)?;
-    let outcome = delete_version_node(&state.graph, version_id)
-        .await
-        .map_err(database_error)?;
-    remove_orphaned_pdfs(state, &outcome.removed_pdf_hashes).await;
-    if let Some(parent_article) = parent_article {
-        sync_article_best_effort(state, &parent_article).await;
-    }
-    Ok(VersionIdView {
-        version_id: version_id.to_string(),
-    })
 }
 
 pub(crate) fn validate_note(raw: &str, max_chars: u64) -> Result<String, LogicError> {

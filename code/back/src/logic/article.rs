@@ -17,8 +17,8 @@ use crate::repository::article::{
 };
 use crate::repository::authorization::Resource;
 use crate::repository::role::{
-    PERMISSION_ARTICLE_CREATE, PERMISSION_ARTICLE_DELETE_HARD, PERMISSION_ARTICLE_DELETE_TRANSFER,
-    PERMISSION_ARTICLE_UPDATE,
+    PERMISSION_ARTICLE_CREATE, PERMISSION_ARTICLE_DELETE_HARD, PERMISSION_ARTICLE_DELETE_SOFT,
+    PERMISSION_ARTICLE_DELETE_TRANSFER, PERMISSION_ARTICLE_UPDATE,
 };
 use crate::repository::transfer::{TransferTargetError, transfer_article};
 use crate::repository::version::{VersionDraft, content_hash_owner, read_version};
@@ -194,8 +194,25 @@ pub async fn delete_article(
                 article_id: article_id.to_string(),
             })
         }
+        Some(DeleteMode::Soft) => {
+            authorize_or(
+                state,
+                actor_id,
+                PERMISSION_ARTICLE_DELETE_SOFT,
+                &Resource::Article(article_id.to_string()),
+                "article not found",
+            )
+            .await?;
+            crate::repository::delete::soft_delete_article(&state.graph, article_id)
+                .await
+                .map_err(database_error)?;
+            sync_article_best_effort(state, article_id).await;
+            Ok(ArticleIdView {
+                article_id: article_id.to_string(),
+            })
+        }
         None => Err(LogicError::bad_request(
-            "missing or unsupported delete mode (expected \"transfer\" or \"hard\")",
+            "missing or unsupported delete mode (expected \"transfer\", \"soft\", or \"hard\")",
         )),
     }
 }

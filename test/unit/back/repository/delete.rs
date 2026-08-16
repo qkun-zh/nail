@@ -1,10 +1,13 @@
 use super::context::{build_state, test_config};
 
 use crate::repository::article::{ArticleDraft, create_article};
-use crate::repository::delete::{delete_article, delete_user, delete_version};
+use crate::repository::delete::{
+    delete_article, delete_user, delete_version, soft_delete_article, soft_delete_comment,
+    soft_delete_version,
+};
 use crate::repository::schema::{
     CommentRow, EDGE_COMMENT_ATTACH_VERSION, EDGE_COMMENT_REPLY_COMMENT, EDGE_USER_AUTHOR_COMMENT,
-    ENTITY_TYPE_COMMENT, ENTITY_TYPE_USER, KEY_TYPE, alias_of,
+    ENTITY_TYPE_COMMENT, ENTITY_TYPE_USER, KEY_SOFT_DELETED, KEY_TYPE, alias_of,
 };
 use crate::repository::version::{VersionDraft, versions_of};
 use agdb::QueryBuilder;
@@ -295,4 +298,121 @@ async fn delete_user_removes_a_nested_comment_subtree_and_collects_the_pdf_hash(
             .expect("read user"),
         None
     );
+}
+
+async fn has_soft_deleted_flag(
+    state: &crate::infrastructure::state::AppState,
+    kind: &str,
+    id: &str,
+) -> bool {
+    let guard = state.graph.read().await;
+    let Some(node) =
+        crate::repository::graph::resolve_node_id_sync(&guard, kind, id).expect("resolve node")
+    else {
+        return false;
+    };
+    let result = guard
+        .exec(
+            QueryBuilder::search()
+                .elements()
+                .where_()
+                .ids([node])
+                .and()
+                .keys(KEY_SOFT_DELETED)
+                .query(),
+        )
+        .expect("flag search");
+    !result.elements.is_empty()
+}
+
+#[tokio::test]
+async fn soft_delete_article_flags_only_the_article_node() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    insert_comment(&state, &version_id, &author_id).await;
+
+    soft_delete_article(&state.graph, &article_id)
+        .await
+        .expect("soft delete");
+
+    assert!(has_soft_deleted_flag(&state, "article", &article_id).await);
+    assert!(!has_soft_deleted_flag(&state, "version", &version_id).await);
+    let (remaining, _) = versions_of(&state.graph, &article_id, 10, 0)
+        .await
+        .expect("versions");
+    assert_eq!(remaining.len(), 1, "versions untouched by article flag");
+    assert!(
+        crate::repository::version::read_version(&state.graph, &version_id)
+            .await
+            .expect("read version")
+            .is_some(),
+        "version content still readable"
+    );
+}
+
+#[tokio::test]
+async fn soft_delete_version_flags_only_the_version_node() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let (article_id, first_version) =
+        create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let second_version = uuid::Uuid::now_v7().to_string();
+    crate::repository::version::create_version(
+        &state.graph,
+        &article_id,
+        &VersionDraft {
+            version_id: second_version.clone(),
+            version_number: "2.0.0".to_string(),
+            content_hash: pdf_hash(2),
+            note: "note".to_string(),
+        },
+    )
+    .await
+    .expect("v2");
+
+    soft_delete_version(&state.graph, &second_version)
+        .await
+        .expect("soft delete");
+
+    assert!(has_soft_deleted_flag(&state, "version", &second_version).await);
+    assert!(!has_soft_deleted_flag(&state, "version", &first_version).await);
+    assert!(!has_soft_deleted_flag(&state, "article", &article_id).await);
+}
+
+#[tokio::test]
+async fn soft_delete_comment_flags_only_the_comment_node() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let top = insert_comment(&state, &version_id, &author_id).await;
+    let reply = insert_reply(&state, &top, &author_id).await;
+
+    soft_delete_comment(&state.graph, &top)
+        .await
+        .expect("soft delete");
+
+    assert!(has_soft_deleted_flag(&state, "comment", &top).await);
+    assert!(!has_soft_deleted_flag(&state, "comment", &reply).await);
+    assert!(
+        crate::repository::comment::read_comment_item(&state.graph, &reply)
+            .await
+            .expect("read reply")
+            .is_some(),
+        "reply node untouched by parent flag"
+    );
+}
+
+#[tokio::test]
+async fn soft_delete_is_idempotent_for_a_missing_node() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    soft_delete_article(&state.graph, "missing")
+        .await
+        .expect("soft delete");
+    soft_delete_version(&state.graph, "missing")
+        .await
+        .expect("soft delete");
+    soft_delete_comment(&state.graph, "missing")
+        .await
+        .expect("soft delete");
 }

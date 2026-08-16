@@ -159,6 +159,9 @@ pub async fn delete_user(
                 user_id: target_id.to_string(),
             }))
         }
+        Some(DeleteMode::Soft) => Err(LogicError::bad_request(
+            "user delete only supports mode \"transfer\" or \"hard\"",
+        )),
         None => Err(LogicError::bad_request(
             "missing or unsupported delete mode (expected \"transfer\" or \"hard\")",
         )),

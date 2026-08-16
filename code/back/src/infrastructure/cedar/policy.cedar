@@ -11,9 +11,12 @@
 permit (principal, action in [Action::"Article::Read", Action::"Version::Read",
                               Action::"Comment::Read",
                               Action::"Comment::Delete::Transfer",
+                              Action::"Comment::Delete::Soft",
                               Action::"Article::Update", Action::"Article::Delete::Transfer",
+                              Action::"Article::Delete::Soft",
                               Action::"Version::Create", Action::"Version::Update",
                               Action::"Version::Delete::Transfer",
+                              Action::"Version::Delete::Soft",
                               Action::"Comment::Update"],
         resource)
   when { resource.owner == principal };

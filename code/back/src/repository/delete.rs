@@ -1,10 +1,13 @@
 use agdb::{DbError, QueryBuilder};
 
-use crate::repository::graph::{DbHandle, read_node_in_txn, resolve_node_id_in_txn};
+use crate::repository::graph::{
+    DbHandle, read_node_in_txn, resolve_node_id_in_txn, resolve_node_id_sync,
+};
 use crate::repository::schema::{
     EDGE_ARTICLE_HOLD_VERSION, EDGE_COMMENT_ATTACH_VERSION, EDGE_COMMENT_REPLY_COMMENT,
     EDGE_USER_AUTHOR_ARTICLE, EDGE_USER_AUTHOR_COMMENT, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_COMMENT,
-    ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, KEY_LATEST_VERSION_ID, KEY_TYPE, VersionRow,
+    ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, KEY_LATEST_VERSION_ID, KEY_SOFT_DELETED, KEY_TYPE,
+    VersionRow,
 };
 
 #[derive(Debug, Default)]
@@ -110,6 +113,37 @@ pub async fn delete_version(db: &DbHandle, version_id: &str) -> Result<DeleteOut
         }
         Ok(outcome)
     })
+}
+
+pub async fn soft_delete_article(db: &DbHandle, article_id: &str) -> Result<(), DbError> {
+    set_soft_deleted_flag(db, ENTITY_TYPE_ARTICLE, article_id).await
+}
+
+pub async fn soft_delete_version(db: &DbHandle, version_id: &str) -> Result<(), DbError> {
+    set_soft_deleted_flag(db, ENTITY_TYPE_VERSION, version_id).await
+}
+
+pub async fn soft_delete_comment(db: &DbHandle, comment_id: &str) -> Result<(), DbError> {
+    set_soft_deleted_flag(db, ENTITY_TYPE_COMMENT, comment_id).await
+}
+
+async fn set_soft_deleted_flag(
+    db: &DbHandle,
+    entity_type: &str,
+    business_id: &str,
+) -> Result<(), DbError> {
+    let mut guard = db.write().await;
+    let Some(id) = resolve_node_id_sync(&guard, entity_type, business_id)? else {
+        return Ok(());
+    };
+    guard.exec_mut(
+        QueryBuilder::insert()
+            .nodes()
+            .ids([id])
+            .values([[(KEY_SOFT_DELETED, 1).into()]])
+            .query(),
+    )?;
+    Ok(())
 }
 
 fn delete_article_in_txn(

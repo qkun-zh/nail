@@ -268,6 +268,7 @@ pub fn CommentSection() -> impl IntoView {
                         let message = match delete_mode {
                             DeleteMode::Transfer => "comment transferred to recycler",
                             DeleteMode::Hard => "comment deleted",
+                            DeleteMode::Soft => "comment soft-deleted",
                         };
                         notify_success(&notifications, message);
                         navigate(
@@ -400,6 +401,7 @@ pub fn CommentSection() -> impl IntoView {
                         }
                         let transfer = on_submit_delete.clone();
                         let hard = on_submit_delete.clone();
+                        let soft = on_submit_delete.clone();
                         view! {
                             <div>
                                 <p class="cmt-empty">confirm delete comment</p>
@@ -410,6 +412,13 @@ pub fn CommentSection() -> impl IntoView {
                                         on:click=move |_| transfer(DeleteMode::Transfer)
                                     >
                                         transfer
+                                    </button>
+                                    <button
+                                        class="cmt-btn cmt-btn-danger"
+                                        disabled=move || posting.get()
+                                        on:click=move |_| soft(DeleteMode::Soft)
+                                    >
+                                        soft
                                     </button>
                                     <button
                                         class="cmt-btn cmt-btn-danger"

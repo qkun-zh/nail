@@ -14,16 +14,19 @@ pub const PERMISSION_ARTICLE_READ: &str = "Article::Read";
 pub const PERMISSION_ARTICLE_UPDATE: &str = "Article::Update";
 pub const PERMISSION_ARTICLE_DELETE_HARD: &str = "Article::Delete::Hard";
 pub const PERMISSION_ARTICLE_DELETE_TRANSFER: &str = "Article::Delete::Transfer";
+pub const PERMISSION_ARTICLE_DELETE_SOFT: &str = "Article::Delete::Soft";
 pub const PERMISSION_VERSION_CREATE: &str = "Version::Create";
 pub const PERMISSION_VERSION_READ: &str = "Version::Read";
 pub const PERMISSION_VERSION_UPDATE: &str = "Version::Update";
 pub const PERMISSION_VERSION_DELETE_HARD: &str = "Version::Delete::Hard";
 pub const PERMISSION_VERSION_DELETE_TRANSFER: &str = "Version::Delete::Transfer";
+pub const PERMISSION_VERSION_DELETE_SOFT: &str = "Version::Delete::Soft";
 pub const PERMISSION_COMMENT_CREATE: &str = "Comment::Create";
 pub const PERMISSION_COMMENT_READ: &str = "Comment::Read";
 pub const PERMISSION_COMMENT_UPDATE: &str = "Comment::Update";
 pub const PERMISSION_COMMENT_DELETE_HARD: &str = "Comment::Delete::Hard";
 pub const PERMISSION_COMMENT_DELETE_TRANSFER: &str = "Comment::Delete::Transfer";
+pub const PERMISSION_COMMENT_DELETE_SOFT: &str = "Comment::Delete::Soft";
 pub const PERMISSION_USER_READ: &str = "User::Read";
 pub const PERMISSION_USER_UPDATE: &str = "User::Update";
 pub const PERMISSION_USER_DELETE_HARD: &str = "User::Delete::Hard";
@@ -36,16 +39,19 @@ pub const ALL_PERMISSIONS: &[&str] = &[
     PERMISSION_ARTICLE_UPDATE,
     PERMISSION_ARTICLE_DELETE_HARD,
     PERMISSION_ARTICLE_DELETE_TRANSFER,
+    PERMISSION_ARTICLE_DELETE_SOFT,
     PERMISSION_VERSION_CREATE,
     PERMISSION_VERSION_READ,
     PERMISSION_VERSION_UPDATE,
     PERMISSION_VERSION_DELETE_HARD,
     PERMISSION_VERSION_DELETE_TRANSFER,
+    PERMISSION_VERSION_DELETE_SOFT,
     PERMISSION_COMMENT_CREATE,
     PERMISSION_COMMENT_READ,
     PERMISSION_COMMENT_UPDATE,
     PERMISSION_COMMENT_DELETE_HARD,
     PERMISSION_COMMENT_DELETE_TRANSFER,
+    PERMISSION_COMMENT_DELETE_SOFT,
     PERMISSION_USER_READ,
     PERMISSION_USER_UPDATE,
     PERMISSION_USER_DELETE_HARD,

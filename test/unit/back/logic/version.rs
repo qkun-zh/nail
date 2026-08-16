@@ -190,6 +190,6 @@ async fn delete_version_rejects_transfer_mode() {
     .unwrap_err();
     assert_eq!(
         error,
-        LogicError::bad_request("version delete only supports mode \"hard\"")
+        LogicError::bad_request("version delete only supports mode \"soft\" or \"hard\"")
     );
 }

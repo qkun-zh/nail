@@ -15,8 +15,8 @@ use crate::repository::comment::{
     update_comment_content, version_of_comment,
 };
 use crate::repository::role::{
-    PERMISSION_COMMENT_CREATE, PERMISSION_COMMENT_DELETE_HARD, PERMISSION_COMMENT_DELETE_TRANSFER,
-    PERMISSION_COMMENT_UPDATE,
+    PERMISSION_COMMENT_CREATE, PERMISSION_COMMENT_DELETE_HARD, PERMISSION_COMMENT_DELETE_SOFT,
+    PERMISSION_COMMENT_DELETE_TRANSFER, PERMISSION_COMMENT_UPDATE,
 };
 use crate::repository::transfer::{TransferTargetError, transfer_comment};
 use crate::repository::version::{parent_article_of, read_version};
@@ -238,9 +238,22 @@ pub async fn delete_comment(
                 .await
                 .map_err(database_error)?;
         }
+        Some(DeleteMode::Soft) => {
+            authorize_or(
+                state,
+                actor_id,
+                PERMISSION_COMMENT_DELETE_SOFT,
+                &Resource::Comment(comment_id.to_string()),
+                "comment not found",
+            )
+            .await?;
+            crate::repository::delete::soft_delete_comment(&state.graph, comment_id)
+                .await
+                .map_err(database_error)?;
+        }
         None => {
             return Err(LogicError::bad_request(
-                "missing or unsupported delete mode (expected \"transfer\" or \"hard\")",
+                "missing or unsupported delete mode (expected \"transfer\", \"soft\", or \"hard\")",
             ));
         }
     }

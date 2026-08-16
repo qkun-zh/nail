@@ -30,6 +30,7 @@ pub const KEY_PERMISSION_NAME: &str = "permission_name";
 pub const KEY_LATEST_VERSION_ID: &str = "latest_version_id";
 pub const KEY_VERSION_NOTE: &str = "note";
 pub const KEY_COMMENT_CONTENT: &str = "content";
+pub const KEY_SOFT_DELETED: &str = "soft_deleted";
 
 pub fn alias_of(kind: &str, business_id: &str) -> String {
     format!("{kind}:{business_id}")
