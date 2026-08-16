@@ -100,12 +100,8 @@ fn search_article_item_round_trips_with_hits() -> anyhow::Result<()> {
 fn search_page_round_trips_with_paging_fields() -> anyhow::Result<()> {
     let page = crate::response::search::SearchPage {
         article_list: Vec::new(),
-        total: 0,
         page: 1,
-        total_pages: 1,
         has_next: false,
-        has_prev: false,
-        truncated: false,
     };
     let json = serde_json::to_string(&page)?;
     let decoded: crate::response::search::SearchPage = serde_json::from_str(&json)?;

@@ -70,25 +70,18 @@ pub async fn search_articles(
         .map_err(|error| LogicError::internal(format!("search failed: {error}")))?;
 
     let article_list = assemble_tree(&outcome.docs);
-    let total = article_list.len() as u64;
     let sliced: Vec<SearchArticleItem> = article_list
-        .into_iter()
+        .iter()
         .skip(usize::try_from(offset).unwrap_or(usize::MAX))
         .take(usize::try_from(limit).unwrap_or(usize::MAX))
+        .cloned()
         .collect();
-
-    let raw_total_pages = total.div_ceil(limit);
-    let total_pages = raw_total_pages.min(state.config.server.max_search_pages);
-    let truncated = raw_total_pages > state.config.server.max_search_pages;
+    let has_next = article_list.len() as u64 > offset + limit;
 
     Ok(SearchPage {
         article_list: sliced,
-        total,
         page,
-        total_pages,
-        has_next: page < total_pages,
-        has_prev: page > 1,
-        truncated,
+        has_next,
     })
 }
 

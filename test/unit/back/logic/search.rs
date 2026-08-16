@@ -114,7 +114,11 @@ async fn search_articles_returns_nothing_for_an_empty_query() {
     let page = crate::logic::search::search_articles(&context.state, &params(None))
         .await
         .expect("search");
-    assert_eq!(page.total, 0, "empty query must return no articles");
+    assert_eq!(
+        page.article_list.len() as u64,
+        0,
+        "empty query must return no articles"
+    );
     assert!(page.article_list.is_empty());
 }
 
@@ -160,7 +164,11 @@ async fn search_filters_by_iso8601_time_range_and_renders_utc_times() {
     let page = crate::logic::search::search_articles(&context.state, &request)
         .await
         .expect("search");
-    assert_eq!(page.total, 1, "only the recent article falls in the range");
+    assert_eq!(
+        page.article_list.len() as u64,
+        1,
+        "only the recent article falls in the range"
+    );
     assert_eq!(page.article_list[0].title, "Recent One");
     assert!(
         page.article_list[0].time.ends_with('Z'),
@@ -247,30 +255,42 @@ async fn search_combines_keyword_range_time_author_tag() {
     let page = crate::logic::search::search_articles(&context.state, &params(Some("quantum")))
         .await
         .expect("quantum");
-    assert_eq!(page.total, 2, "quantum hits A(title) and B(summary)");
+    assert_eq!(
+        page.article_list.len() as u64,
+        2,
+        "quantum hits A(title) and B(summary)"
+    );
 
     let mut title_only = params(Some("quantum"));
     title_only.ranges = Some("title".to_string());
     let page = crate::logic::search::search_articles(&context.state, &title_only)
         .await
         .expect("quantum title");
-    assert_eq!(page.total, 1, "title-only search finds only A");
+    assert_eq!(
+        page.article_list.len() as u64,
+        1,
+        "title-only search finds only A"
+    );
     assert_eq!(page.article_list[0].title, "<mark>Quantum</mark> Index");
 
     let page = crate::logic::search::search_articles(&context.state, &params(Some("rust")))
         .await
         .expect("rust tag");
-    assert_eq!(page.total, 2, "rust tag hits A and C");
+    assert_eq!(page.article_list.len() as u64, 2, "rust tag hits A and C");
 
     let page = crate::logic::search::search_articles(&context.state, &params(Some("alice-smith")))
         .await
         .expect("alice author");
-    assert_eq!(page.total, 2, "alice authored A and C");
+    assert_eq!(page.article_list.len() as u64, 2, "alice authored A and C");
 
     let page = crate::logic::search::search_articles(&context.state, &params(Some("pipeline")))
         .await
         .expect("pipeline");
-    assert_eq!(page.total, 2, "pipeline hits A(note) and B(summary)");
+    assert_eq!(
+        page.article_list.len() as u64,
+        2,
+        "pipeline hits A(note) and B(summary)"
+    );
 
     let from = nail_common::time::format_rfc3339_utc(now - 7 * 3_600_000).expect("from");
     let page = crate::logic::search::search_articles(
@@ -283,7 +303,7 @@ async fn search_combines_keyword_range_time_author_tag() {
     )
     .await
     .expect("from only");
-    assert_eq!(page.total, 2, "from-only keeps A and B");
+    assert_eq!(page.article_list.len() as u64, 2, "from-only keeps A and B");
 
     let to = nail_common::time::format_rfc3339_utc(now - 60_000).expect("to");
     let page = crate::logic::search::search_articles(
@@ -296,7 +316,11 @@ async fn search_combines_keyword_range_time_author_tag() {
     )
     .await
     .expect("to only");
-    assert_eq!(page.total, 3, "to-only keeps everything before now");
+    assert_eq!(
+        page.article_list.len() as u64,
+        3,
+        "to-only keeps everything before now"
+    );
 
     let from6 = nail_common::time::format_rfc3339_utc(now - 6 * 3_600_000).expect("from6");
     let page = crate::logic::search::search_articles(
@@ -309,7 +333,11 @@ async fn search_combines_keyword_range_time_author_tag() {
     )
     .await
     .expect("quantum+from");
-    assert_eq!(page.total, 2, "quantum within 6h is A and B");
+    assert_eq!(
+        page.article_list.len() as u64,
+        2,
+        "quantum within 6h is A and B"
+    );
 
     let to3 = nail_common::time::format_rfc3339_utc(now - 3 * 3_600_000).expect("to3");
     let page = crate::logic::search::search_articles(
@@ -323,7 +351,11 @@ async fn search_combines_keyword_range_time_author_tag() {
     )
     .await
     .expect("quantum+window");
-    assert_eq!(page.total, 1, "quantum in [now-6h, now-3h] is B only");
+    assert_eq!(
+        page.article_list.len() as u64,
+        1,
+        "quantum in [now-6h, now-3h] is B only"
+    );
     assert_eq!(page.article_list[0].title, "Lunar Cache");
 }
 
@@ -382,7 +414,6 @@ async fn search_paginates_with_limit_and_page() {
     .expect("page 1");
     assert_eq!(page.article_list.len(), 2);
     assert!(page.has_next);
-    assert_eq!(page.total, 3);
     let page2 = crate::logic::search::search_articles(
         &context.state,
         &ArticleSearchParams {
@@ -416,7 +447,10 @@ async fn bare_tag_search_matches_tag_field() {
     let page = crate::logic::search::search_articles(&context.state, &params(Some("rust")))
         .await
         .expect("search rust");
-    assert!(page.total >= 1, "rust should find the article via its tag");
+    assert!(
+        page.article_list.len() as u64 >= 1,
+        "rust should find the article via its tag"
+    );
     let tag_hit = page.article_list[0]
         .article_hits
         .iter()
@@ -450,7 +484,10 @@ async fn single_char_query_reports_field_hits() {
     let page = crate::logic::search::search_articles(&context.state, &params(Some("9")))
         .await
         .expect("search 9");
-    assert!(page.total >= 1, "single-char query must find the article");
+    assert!(
+        page.article_list.len() as u64 >= 1,
+        "single-char query must find the article"
+    );
     let item = page
         .article_list
         .iter()
@@ -494,7 +531,11 @@ async fn search_articles_returns_nothing_for_empty_ranges() {
     let page = crate::logic::search::search_articles(&context.state, &request)
         .await
         .expect("search");
-    assert_eq!(page.total, 0, "empty ranges must return no articles");
+    assert_eq!(
+        page.article_list.len() as u64,
+        0,
+        "empty ranges must return no articles"
+    );
     assert!(page.article_list.is_empty());
 }
 
@@ -537,7 +578,7 @@ async fn space_separated_keywords_match_any_field_or() {
     let page = crate::logic::search::search_articles(&context.state, &params(Some("alpha beta")))
         .await
         .expect("alpha beta or");
-    assert_eq!(page.total, 3, "space must OR the terms");
+    assert_eq!(page.article_list.len() as u64, 3, "space must OR the terms");
     let mut titles: Vec<String> = page
         .article_list
         .iter()
@@ -557,7 +598,11 @@ async fn space_separated_keywords_match_any_field_or() {
     let page = crate::logic::search::search_articles(&context.state, &params(Some("+alpha +beta")))
         .await
         .expect("+alpha +beta and");
-    assert_eq!(page.total, 1, "leading '+' on both terms must AND");
+    assert_eq!(
+        page.article_list.len() as u64,
+        1,
+        "leading '+' on both terms must AND"
+    );
     assert_eq!(
         page.article_list[0]
             .title
@@ -569,7 +614,11 @@ async fn space_separated_keywords_match_any_field_or() {
     let page = crate::logic::search::search_articles(&context.state, &params(Some("alpha +beta")))
         .await
         .expect("alpha +beta");
-    assert_eq!(page.total, 2, "required beta matches its two articles");
+    assert_eq!(
+        page.article_list.len() as u64,
+        2,
+        "required beta matches its two articles"
+    );
     let mut titles: Vec<String> = page
         .article_list
         .iter()
@@ -582,7 +631,8 @@ async fn space_separated_keywords_match_any_field_or() {
         .await
         .expect("alpha -beta");
     assert_eq!(
-        page.total, 1,
+        page.article_list.len() as u64,
+        1,
         "alpha -beta must exclude Beta and Alpha Beta"
     );
     assert_eq!(
@@ -614,7 +664,7 @@ async fn keyword_that_misses_tags_does_not_report_a_tag_hit() {
         .await
         .expect("search unique");
     assert!(
-        page.total >= 1,
+        page.article_list.len() as u64 >= 1,
         "unique should find the article via its title"
     );
     let item = &page.article_list[0];

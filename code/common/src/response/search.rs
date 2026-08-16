@@ -39,10 +39,6 @@ pub struct SearchCommentItem {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SearchPage {
     pub article_list: Vec<SearchArticleItem>,
-    pub total: u64,
     pub page: u64,
-    pub total_pages: u64,
     pub has_next: bool,
-    pub has_prev: bool,
-    pub truncated: bool,
 }

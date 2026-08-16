@@ -528,7 +528,7 @@ async fn probe_live_data_58() {
     let page = crate::logic::search::search_articles(&state, &params)
         .await
         .expect("logic search");
-    println!("logic total = {}", page.total);
+    println!("logic results = {}", page.article_list.len());
     for item in &page.article_list {
         println!(
             "LOGIC article={} title={:?} author={:?} time={:?} hits={:?}",

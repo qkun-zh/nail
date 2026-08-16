@@ -7,7 +7,7 @@ use nail_common::response::search::{SearchArticleItem, SearchCommentItem, Search
 
 use crate::infrastructure::limits::use_limits;
 use crate::page::notify::{notify_error, use_notifications};
-use crate::page::pagination::{LocalPagedList, Pagination};
+use crate::page::pagination::{LocalPagedList, PrevNext};
 use crate::page::public::article::version::comment::pagination::COMMENTS_PER_PAGE;
 use crate::request::url::encode_component;
 
@@ -474,9 +474,7 @@ pub fn Search() -> impl IntoView {
     let search_list = RwSignal::new(Vec::<SearchArticleItem>::new());
     let loaded = RwSignal::new(false);
     let fetching = RwSignal::new(false);
-    let total = RwSignal::new(0u64);
-    let total_pages = RwSignal::new(0u64);
-    let truncated = RwSignal::new(false);
+    let has_next = RwSignal::new(false);
 
     let q_filter = RwSignal::new(String::new());
     let ranges = RwSignal::new(vec![true; 7]);
@@ -569,16 +567,9 @@ pub fn Search() -> impl IntoView {
                         return;
                     }
                     search_list.set(page.article_list);
-                    total.set(page.total);
-                    total_pages.set(page.total_pages);
-                    truncated.set(page.truncated);
-                    let committed = if page.total_pages > 0 {
-                        page.page.min(page.total_pages)
-                    } else {
-                        page.page
-                    };
-                    current_page.set(committed);
-                    last_good_page.set_value(committed);
+                    has_next.set(page.has_next);
+                    current_page.set(page.page);
+                    last_good_page.set_value(page.page);
                 }
                 Err(error) => {
                     if request_seq.get_value() == my_seq {
@@ -605,9 +596,7 @@ pub fn Search() -> impl IntoView {
             let q = q_filter.get_untracked().trim().to_string();
             if q.is_empty() {
                 search_list.set(Vec::new());
-                total.set(0);
-                total_pages.set(0);
-                truncated.set(false);
+                has_next.set(false);
                 current_page.set(1);
                 loaded.set(true);
                 fetching.set(false);
@@ -772,18 +761,6 @@ pub fn Search() -> impl IntoView {
         </div>
         <div class="wrap">
             {move || {
-                if truncated.get() {
-                    let message = format!(
-                        "too many results ({} records) - only the first {} pages are shown, add more conditions to narrow down",
-                        total.get(),
-                        limits.get().max_search_pages
-                    );
-                    view! { <p>{message}</p> }.into_any()
-                } else {
-                    ().into_any()
-                }
-            }}
-            {move || {
                 if loaded.get() {
                     let list = search_list.get();
                     if list.is_empty() {
@@ -838,12 +815,14 @@ pub fn Search() -> impl IntoView {
                                 }
                             })
                             .collect_view();
+                        let has_prev = move || current_page.get() > 1;
                         view! {
                             <div>
                                 {rows}
-                                <Pagination
+                                <PrevNext
                                     current=move || current_page.get()
-                                    total_pages=move || total_pages.get()
+                                    has_prev=has_prev
+                                    has_next=move || has_next.get()
                                     on_go=on_go
                                 />
                             </div>
