@@ -90,6 +90,7 @@ async fn hard_delete_article_removes_versions_comments_and_search_docs() {
     );
     let page = crate::logic::search::search_articles(
         &context.state,
+        &owner,
         &nail_common::request::ArticleSearchParams {
             q: Some("teardown".to_string()),
             ranges: Some("title".to_string()),
@@ -151,9 +152,10 @@ async fn hard_delete_version_removes_only_that_version_and_its_comments() {
             .is_some(),
         "v2 must survive"
     );
-    let comments = crate::logic::comment::read_comments(&context.state, &second_version_id, 1, 10)
-        .await
-        .expect("comments of v2");
+    let comments =
+        crate::logic::comment::read_comments(&context.state, &owner, &second_version_id, 1, 10)
+            .await
+            .expect("comments of v2");
     assert_eq!(comments.comments.len(), 1, "v2 comment must survive");
 }
 
@@ -189,7 +191,7 @@ async fn hard_delete_comment_removes_the_subtree_but_keeps_siblings() {
     .await
     .expect("hard delete doomed top");
 
-    let comments = crate::logic::comment::read_comments(&context.state, &version_id, 1, 10)
+    let comments = crate::logic::comment::read_comments(&context.state, &owner, &version_id, 1, 10)
         .await
         .expect("comments");
     assert_eq!(
@@ -291,7 +293,7 @@ async fn transfer_article_repoints_ownership_but_keeps_content_readable() {
             .is_some(),
         "transferred article must remain readable"
     );
-    let versions = crate::logic::version::read_versions(&context.state, &article_id, 1, 10)
+    let versions = crate::logic::version::read_versions(&context.state, &owner, &article_id, 1, 10)
         .await
         .expect("versions");
     assert_eq!(
@@ -333,6 +335,7 @@ async fn transfer_article_updates_the_search_author_name() {
 
     let page = crate::logic::search::search_articles(
         &context.state,
+        &owner,
         &nail_common::request::ArticleSearchParams {
             q: Some("transferred".to_string()),
             ranges: Some("title".to_string()),
@@ -371,7 +374,7 @@ async fn transfer_comment_repoints_ownership_but_keeps_it_visible() {
     .await
     .expect("transfer comment");
 
-    let comments = crate::logic::comment::read_comments(&context.state, &version_id, 1, 10)
+    let comments = crate::logic::comment::read_comments(&context.state, &owner, &version_id, 1, 10)
         .await
         .expect("comments");
     assert_eq!(
@@ -617,6 +620,7 @@ async fn hard_delete_user_removes_content_and_search_docs() {
     );
     let page = crate::logic::search::search_articles(
         &context.state,
+        &admin_id,
         &nail_common::request::ArticleSearchParams {
             q: Some("user".to_string()),
             ranges: Some("title".to_string()),
@@ -706,7 +710,7 @@ async fn soft_deleted_article_hides_its_whole_subtree_and_rejects_writes() {
             .is_none(),
         "version detail hidden"
     );
-    let comments = crate::logic::comment::read_comments(&context.state, &version_id, 1, 50)
+    let comments = crate::logic::comment::read_comments(&context.state, &owner, &version_id, 1, 50)
         .await
         .expect_err("comment page hidden");
     assert_eq!(comments, LogicError::not_found("version not found"));
@@ -745,6 +749,7 @@ async fn soft_deleted_article_hides_its_whole_subtree_and_rejects_writes() {
 
     let page = crate::logic::search::search_articles(
         &context.state,
+        &owner,
         &nail_common::request::ArticleSearchParams {
             q: Some("subtree".to_string()),
             ranges: Some("title".to_string()),
@@ -794,7 +799,7 @@ async fn soft_deleted_article_restore_brings_back_the_whole_subtree() {
             .await
             .expect("versions");
     assert_eq!(versions.len(), 1, "version list back");
-    let comments = crate::logic::comment::read_comments(&context.state, &version_id, 1, 50)
+    let comments = crate::logic::comment::read_comments(&context.state, &owner, &version_id, 1, 50)
         .await
         .expect("comments back");
     assert_eq!(comments.comments.len(), 1, "comments back");
@@ -832,7 +837,7 @@ async fn soft_deleted_version_hides_its_comments_and_download() {
         "version hidden"
     );
     assert_eq!(
-        crate::logic::comment::read_comments(&context.state, &version_id, 1, 50)
+        crate::logic::comment::read_comments(&context.state, &owner, &version_id, 1, 50)
             .await
             .expect_err("comments hidden"),
         LogicError::not_found("version not found")

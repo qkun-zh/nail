@@ -66,7 +66,7 @@ pub struct VersionsReadParams {
 
 pub async fn read_versions(
     State(state): State<AppState>,
-    _principal: Principal,
+    principal: Principal,
     AppPath(article_id): AppPath<String>,
     AppQuery(params): AppQuery<VersionsReadParams>,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -76,7 +76,9 @@ pub async fn read_versions(
         state.config.server.search_page_size,
         state.config.server.max_search_pages,
     )?;
-    let data = crate::logic::version::read_versions(&state, &article_id, page, limit).await?;
+    let data =
+        crate::logic::version::read_versions(&state, &principal.user_id, &article_id, page, limit)
+            .await?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
@@ -87,13 +89,17 @@ pub struct VersionReadParams {
 
 pub async fn read_version(
     State(state): State<AppState>,
-    _principal: Principal,
+    principal: Principal,
     AppPath(version_id): AppPath<String>,
     AppQuery(params): AppQuery<VersionReadParams>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data =
-        crate::logic::version::read_version(&state, &version_id, params.article_id.as_deref())
-            .await?;
+    let data = crate::logic::version::read_version(
+        &state,
+        &principal.user_id,
+        &version_id,
+        params.article_id.as_deref(),
+    )
+    .await?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 

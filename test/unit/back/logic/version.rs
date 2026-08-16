@@ -27,6 +27,12 @@ async fn admin(context: &TestCtx) -> String {
     .expect("seeded user zero")
 }
 
+async fn plain(context: &TestCtx, email: &str) -> String {
+    crate::repository::user::create_user(&context.state.graph, &nail_common::hash::email(email))
+        .await
+        .expect("user")
+}
+
 async fn article_fixture(context: &TestCtx, author_id: &str, title: &str) -> (String, String) {
     let article_id = uuid::Uuid::now_v7().to_string();
     let version_id = uuid::Uuid::now_v7().to_string();
@@ -121,16 +127,39 @@ async fn read_version_cross_checks_the_parent_article() {
     let (article_id, version_id) = article_fixture(&context, &actor, "Article").await;
     let (other_article, _) = article_fixture(&context, &actor, "Other").await;
 
-    let data = crate::logic::version::read_version(&context.state, &version_id, Some(&article_id))
-        .await
-        .expect("read");
+    let data =
+        crate::logic::version::read_version(&context.state, &actor, &version_id, Some(&article_id))
+            .await
+            .expect("read");
     assert_eq!(data.version, "1.0.0");
 
-    let error =
-        crate::logic::version::read_version(&context.state, &version_id, Some(&other_article))
-            .await
-            .unwrap_err();
+    let error = crate::logic::version::read_version(
+        &context.state,
+        &actor,
+        &version_id,
+        Some(&other_article),
+    )
+    .await
+    .unwrap_err();
     assert_eq!(error, LogicError::not_found("version not found"));
+}
+
+#[tokio::test]
+async fn read_version_and_read_versions_deny_a_user_without_the_grant() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let (article_id, version_id) = article_fixture(&context, &actor, "Article").await;
+    let outsider = plain(&context, "stranger@example.com").await;
+
+    let error = crate::logic::version::read_version(&context.state, &outsider, &version_id, None)
+        .await
+        .unwrap_err();
+    assert_eq!(error, LogicError::forbidden("you are denied"));
+
+    let error = crate::logic::version::read_versions(&context.state, &outsider, &article_id, 1, 10)
+        .await
+        .unwrap_err();
+    assert_eq!(error, LogicError::forbidden("you are denied"));
 }
 
 #[tokio::test]

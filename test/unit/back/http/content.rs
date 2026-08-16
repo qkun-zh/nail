@@ -28,6 +28,24 @@ async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
     (user_id, token)
 }
 
+async fn plain_session(context: &TestCtx, email: &str) -> (String, String) {
+    let user_id = crate::repository::user::create_user(
+        &context.state.graph,
+        &nail_common::hash::email(email),
+    )
+    .await
+    .expect("user");
+    let token = Uuid::now_v7().to_string();
+    let key = token_key(&token).expect("token key");
+    context.state.caches.session.insert(
+        &key,
+        SessionTokenEntry {
+            user_id: user_id.clone(),
+        },
+    );
+    (user_id, token)
+}
+
 async fn create_article_over_http(context: &TestCtx, token: &str) -> (String, String) {
     let fields: Vec<(&str, &str)> = vec![
         ("title", "Downloadable"),
@@ -190,6 +208,22 @@ async fn read_content_requires_a_session() {
         )
         .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn read_content_requires_a_read_grant() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, _) = member_session(&context, "alice@example.com").await;
+    let (article_id, version_id) = article_without_pdf_file(&context, &user_id).await;
+
+    let (_, outsider) = plain_session(&context, "bob@example.com").await;
+    let (status, body) = context
+        .get(
+            &format!("/article/{article_id}/version/{version_id}/content/read?download=1"),
+            Some(&outsider),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
 }
 
 #[tokio::test]

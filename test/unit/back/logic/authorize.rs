@@ -341,7 +341,7 @@ async fn version_owner_is_the_article_owner() {
 }
 
 #[tokio::test]
-async fn read_open_allows_an_authenticated_non_owner_to_read() {
+async fn member_can_read_articles_and_versions_via_role_grant() {
     let context = TestCtx::new().await.expect("test context");
     let owner = create_user(&context, "alice@example.com").await;
     let member = create_user(&context, "bob@example.com").await;

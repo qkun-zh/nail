@@ -128,7 +128,7 @@ async fn read_comments_returns_top_level_comments_with_child_counts() {
         .await
         .expect("reply");
 
-    let data = read_comments(&state, &version_id, 1, 8)
+    let data = read_comments(&state, &author_id, &version_id, 1, 8)
         .await
         .expect("read");
     let comments = &data.comments;
@@ -159,12 +159,37 @@ async fn read_comments_returns_top_level_comments_with_child_counts() {
 async fn read_comments_reports_a_missing_version() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = member(&state, "alice@example.com").await;
-    let _ = author_id;
 
-    let error = read_comments(&state, "missing-version", 1, 8)
+    let error = read_comments(&state, &author_id, "missing-version", 1, 8)
         .await
         .expect_err("missing version");
     assert!(matches!(error, LogicError::NotFound(_)));
+}
+
+#[tokio::test]
+async fn read_comment_functions_deny_a_user_without_the_grant() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = member(&state, "alice@example.com").await;
+    let version_id = create_version_fixture(&state, &author_id).await;
+    let comment_id = create_comment(&state, &author_id, &version_id, "top")
+        .await
+        .expect("top");
+    let outsider = create_user(&state, "stranger@example.com").await;
+
+    let error = read_comments(&state, &outsider, &version_id, 1, 8)
+        .await
+        .expect_err("denied read");
+    assert_eq!(error, LogicError::forbidden("you are denied"));
+
+    let error = read_comment(&state, &outsider, &comment_id)
+        .await
+        .expect_err("denied read");
+    assert_eq!(error, LogicError::forbidden("you are denied"));
+
+    let error = read_comment_children(&state, &outsider, &comment_id, 1, 8)
+        .await
+        .expect_err("denied read");
+    assert_eq!(error, LogicError::forbidden("you are denied"));
 }
 
 #[tokio::test]
@@ -182,7 +207,7 @@ async fn read_comments_rejects_a_non_uuidv7_comment_id() {
     .await
     .expect("corrupt comment");
 
-    let error = read_comments(&state, &version_id, 1, 8)
+    let error = read_comments(&state, &author_id, &version_id, 1, 8)
         .await
         .expect_err("invalid comment id");
     assert!(matches!(error, LogicError::BadRequest(message) if message == "invalid comment id"));
@@ -314,7 +339,7 @@ async fn delete_comment_soft_hides_the_comment_and_its_replies() {
         .await
         .expect_err("soft-deleted comment");
     assert_eq!(error, LogicError::not_found("comment not found"));
-    let page = read_comments(&state, &version_id, 1, 50)
+    let page = read_comments(&state, &author_id, &version_id, 1, 50)
         .await
         .expect("comments");
     assert!(

@@ -815,6 +815,15 @@ async fn probe_live_data_58() {
             0,
         ),
     };
+    let reader = crate::repository::user::create_user(
+        &state.graph,
+        &nail_common::hash::email("probe-reader@example.com"),
+    )
+    .await
+    .expect("reader user");
+    crate::repository::role::hold_role(&state.graph, &reader, crate::repository::role::ROLE_ADMIN)
+        .await
+        .expect("admin role");
     let params = nail_common::request::ArticleSearchParams {
         q: Some("58".to_string()),
         ranges: Some("title,summary,author_name,comment,note,tag,version_number".to_string()),
@@ -823,7 +832,7 @@ async fn probe_live_data_58() {
         page: None,
         limit: None,
     };
-    let page = crate::logic::search::search_articles(&state, &params)
+    let page = crate::logic::search::search_articles(&state, &reader, &params)
         .await
         .expect("logic search");
     println!("logic results = {}", page.article_list.len());

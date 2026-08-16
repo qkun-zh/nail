@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::infrastructure::pdf::{PdfUpload, content_hash_rel_path};
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::authorize_or;
+use crate::logic::authorize::{authorize, authorize_or};
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::search::sync_article_best_effort;
 use crate::repository::authorization::Resource;
@@ -18,7 +18,7 @@ use crate::repository::delete::{
 };
 use crate::repository::role::{
     PERMISSION_VERSION_CREATE, PERMISSION_VERSION_DELETE_HARD, PERMISSION_VERSION_DELETE_SOFT,
-    PERMISSION_VERSION_RESTORE, PERMISSION_VERSION_UPDATE,
+    PERMISSION_VERSION_READ, PERMISSION_VERSION_RESTORE, PERMISSION_VERSION_UPDATE,
 };
 use crate::repository::version::{
     CreateVersionError, VersionDraft, content_hash_owner, create_version as create_version_node,
@@ -130,9 +130,18 @@ pub async fn create_version(
 
 pub async fn read_version(
     state: &AppState,
+    actor_id: &str,
     version_id: &str,
     article_id: Option<&str>,
 ) -> Result<VersionView, LogicError> {
+    authorize_or(
+        state,
+        actor_id,
+        PERMISSION_VERSION_READ,
+        &Resource::Version(version_id.to_string()),
+        "version not found",
+    )
+    .await?;
     let parent_article = parent_article_of(&state.graph, version_id)
         .await
         .map_err(database_error)?
@@ -160,10 +169,18 @@ pub async fn read_version(
 
 pub async fn read_versions(
     state: &AppState,
+    actor_id: &str,
     article_id: &str,
     page: u64,
     limit: u64,
 ) -> Result<VersionListPage, LogicError> {
+    authorize(
+        state,
+        actor_id,
+        PERMISSION_VERSION_READ,
+        &Resource::Virtual("read".to_string()),
+    )
+    .await?;
     let offset = page.saturating_sub(1).saturating_mul(limit);
     let (items, has_next) = versions_of(&state.graph, article_id, limit, offset)
         .await

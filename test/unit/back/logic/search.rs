@@ -17,6 +17,22 @@ async fn member(context: &TestCtx, email: &str) -> String {
     user_id
 }
 
+async fn admin(context: &TestCtx) -> String {
+    crate::repository::user::read_user_by_email_address_hash(
+        &context.state.graph,
+        &nail_common::hash::email("user-zero@example.com"),
+    )
+    .await
+    .expect("lookup user zero")
+    .expect("seeded user zero")
+}
+
+async fn plain(context: &TestCtx, email: &str) -> String {
+    crate::repository::user::create_user(&context.state.graph, &nail_common::hash::email(email))
+        .await
+        .expect("user")
+}
+
 const ALL_RANGES: &str = "title,summary,author_name,comment,note,tag,version_number";
 
 fn params(q: Option<&str>) -> ArticleSearchParams {
@@ -31,13 +47,25 @@ fn params(q: Option<&str>) -> ArticleSearchParams {
 }
 
 #[tokio::test]
+async fn search_articles_denies_a_user_without_the_grant() {
+    let context = TestCtx::new().await.expect("test context");
+    let outsider = plain(&context, "stranger@example.com").await;
+
+    let error = crate::logic::search::search_articles(&context.state, &outsider, &params(None))
+        .await
+        .unwrap_err();
+    assert_eq!(error, LogicError::forbidden("you are denied"));
+}
+
+#[tokio::test]
 async fn search_articles_rejects_an_unknown_range() {
     let context = TestCtx::new().await.expect("test context");
     let mut request = params(Some("rust"));
     request.ranges = Some("bogus".to_string());
-    let error = crate::logic::search::search_articles(&context.state, &request)
-        .await
-        .unwrap_err();
+    let error =
+        crate::logic::search::search_articles(&context.state, &admin(&context).await, &request)
+            .await
+            .unwrap_err();
     assert_eq!(
         error,
         LogicError::bad_request("unknown search range: bogus")
@@ -52,9 +80,10 @@ async fn search_articles_rejects_from_greater_than_to() {
         to: Some("2024-01-15T10:00:00Z".to_string()),
         ..params(None)
     };
-    let error = crate::logic::search::search_articles(&context.state, &request)
-        .await
-        .unwrap_err();
+    let error =
+        crate::logic::search::search_articles(&context.state, &admin(&context).await, &request)
+            .await
+            .unwrap_err();
     assert_eq!(
         error,
         LogicError::bad_request("from must not be greater than to")
@@ -65,9 +94,13 @@ async fn search_articles_rejects_from_greater_than_to() {
 async fn search_articles_rejects_an_overlong_query() {
     let context = TestCtx::new().await.expect("test context");
     let long = "a".repeat(513);
-    let error = crate::logic::search::search_articles(&context.state, &params(Some(&long)))
-        .await
-        .unwrap_err();
+    let error = crate::logic::search::search_articles(
+        &context.state,
+        &admin(&context).await,
+        &params(Some(&long)),
+    )
+    .await
+    .unwrap_err();
     assert!(matches!(error, LogicError::BadRequest(_)));
 }
 
@@ -78,9 +111,10 @@ async fn search_rejects_a_page_beyond_max_search_pages() {
         page: Some(1025),
         ..params(Some("rust"))
     };
-    let error = crate::logic::search::search_articles(&context.state, &request)
-        .await
-        .unwrap_err();
+    let error =
+        crate::logic::search::search_articles(&context.state, &admin(&context).await, &request)
+            .await
+            .unwrap_err();
     assert_eq!(
         error,
         LogicError::bad_request("page exceeds max search pages")
@@ -94,9 +128,10 @@ async fn search_allows_a_page_at_max_search_pages() {
         page: Some(1024),
         ..params(Some("rust"))
     };
-    let page = crate::logic::search::search_articles(&context.state, &request)
-        .await
-        .expect("page at the limit is allowed");
+    let page =
+        crate::logic::search::search_articles(&context.state, &admin(&context).await, &request)
+            .await
+            .expect("page at the limit is allowed");
     assert!(page.article_list.is_empty());
 }
 
@@ -104,9 +139,12 @@ async fn search_allows_a_page_at_max_search_pages() {
 async fn search_articles_accepts_multibyte_query_within_char_limit() {
     let context = TestCtx::new().await.expect("test context");
     let multibyte_query = "中".repeat(512);
-    let result =
-        crate::logic::search::search_articles(&context.state, &params(Some(&multibyte_query)))
-            .await;
+    let result = crate::logic::search::search_articles(
+        &context.state,
+        &admin(&context).await,
+        &params(Some(&multibyte_query)),
+    )
+    .await;
     assert!(result.is_ok(), "512 CJK chars (512 chars) should pass");
 }
 
@@ -114,10 +152,13 @@ async fn search_articles_accepts_multibyte_query_within_char_limit() {
 async fn search_articles_rejects_multibyte_query_over_char_limit() {
     let context = TestCtx::new().await.expect("test context");
     let multibyte_query = "中".repeat(513);
-    let error =
-        crate::logic::search::search_articles(&context.state, &params(Some(&multibyte_query)))
-            .await
-            .unwrap_err();
+    let error = crate::logic::search::search_articles(
+        &context.state,
+        &admin(&context).await,
+        &params(Some(&multibyte_query)),
+    )
+    .await
+    .unwrap_err();
     assert!(matches!(error, LogicError::BadRequest(_)));
 }
 
@@ -140,9 +181,13 @@ async fn search_articles_returns_nothing_for_an_empty_query() {
     .await
     .expect("create");
 
-    let page = crate::logic::search::search_articles(&context.state, &params(None))
-        .await
-        .expect("search");
+    let page = crate::logic::search::search_articles(
+        &context.state,
+        &admin(&context).await,
+        &params(None),
+    )
+    .await
+    .expect("search");
     assert_eq!(
         page.article_list.len() as u64,
         0,
@@ -190,9 +235,10 @@ async fn search_filters_by_iso8601_time_range_and_renders_utc_times() {
         to: Some(to),
         ..params(None)
     };
-    let page = crate::logic::search::search_articles(&context.state, &request)
-        .await
-        .expect("search");
+    let page =
+        crate::logic::search::search_articles(&context.state, &admin(&context).await, &request)
+            .await
+            .expect("search");
     assert_eq!(
         page.article_list.len() as u64,
         1,
@@ -281,9 +327,13 @@ async fn search_combines_keyword_range_time_author_tag() {
     )
     .await;
 
-    let page = crate::logic::search::search_articles(&context.state, &params(Some("quantum")))
-        .await
-        .expect("quantum");
+    let page = crate::logic::search::search_articles(
+        &context.state,
+        &admin(&context).await,
+        &params(Some("quantum")),
+    )
+    .await
+    .expect("quantum");
     assert_eq!(
         page.article_list.len() as u64,
         2,
@@ -292,9 +342,10 @@ async fn search_combines_keyword_range_time_author_tag() {
 
     let mut title_only = params(Some("quantum"));
     title_only.ranges = Some("title".to_string());
-    let page = crate::logic::search::search_articles(&context.state, &title_only)
-        .await
-        .expect("quantum title");
+    let page =
+        crate::logic::search::search_articles(&context.state, &admin(&context).await, &title_only)
+            .await
+            .expect("quantum title");
     assert_eq!(
         page.article_list.len() as u64,
         1,
@@ -302,19 +353,31 @@ async fn search_combines_keyword_range_time_author_tag() {
     );
     assert_eq!(page.article_list[0].title, "<mark>Quantum</mark> Index");
 
-    let page = crate::logic::search::search_articles(&context.state, &params(Some("rust")))
-        .await
-        .expect("rust tag");
+    let page = crate::logic::search::search_articles(
+        &context.state,
+        &admin(&context).await,
+        &params(Some("rust")),
+    )
+    .await
+    .expect("rust tag");
     assert_eq!(page.article_list.len() as u64, 2, "rust tag hits A and C");
 
-    let page = crate::logic::search::search_articles(&context.state, &params(Some("alice-smith")))
-        .await
-        .expect("alice author");
+    let page = crate::logic::search::search_articles(
+        &context.state,
+        &admin(&context).await,
+        &params(Some("alice-smith")),
+    )
+    .await
+    .expect("alice author");
     assert_eq!(page.article_list.len() as u64, 2, "alice authored A and C");
 
-    let page = crate::logic::search::search_articles(&context.state, &params(Some("pipeline")))
-        .await
-        .expect("pipeline");
+    let page = crate::logic::search::search_articles(
+        &context.state,
+        &admin(&context).await,
+        &params(Some("pipeline")),
+    )
+    .await
+    .expect("pipeline");
     assert_eq!(
         page.article_list.len() as u64,
         2,
@@ -324,6 +387,7 @@ async fn search_combines_keyword_range_time_author_tag() {
     let from = nail_common::time::format_rfc3339_utc(now - 7 * 3_600_000).expect("from");
     let page = crate::logic::search::search_articles(
         &context.state,
+        &admin(&context).await,
         &ArticleSearchParams {
             q: Some("shared".to_string()),
             from: Some(from),
@@ -337,6 +401,7 @@ async fn search_combines_keyword_range_time_author_tag() {
     let to = nail_common::time::format_rfc3339_utc(now - 60_000).expect("to");
     let page = crate::logic::search::search_articles(
         &context.state,
+        &admin(&context).await,
         &ArticleSearchParams {
             q: Some("shared".to_string()),
             to: Some(to),
@@ -354,6 +419,7 @@ async fn search_combines_keyword_range_time_author_tag() {
     let from6 = nail_common::time::format_rfc3339_utc(now - 6 * 3_600_000).expect("from6");
     let page = crate::logic::search::search_articles(
         &context.state,
+        &admin(&context).await,
         &ArticleSearchParams {
             q: Some("quantum".to_string()),
             from: Some(from6.clone()),
@@ -371,6 +437,7 @@ async fn search_combines_keyword_range_time_author_tag() {
     let to3 = nail_common::time::format_rfc3339_utc(now - 3 * 3_600_000).expect("to3");
     let page = crate::logic::search::search_articles(
         &context.state,
+        &admin(&context).await,
         &ArticleSearchParams {
             q: Some("quantum".to_string()),
             from: Some(from6),
@@ -433,6 +500,7 @@ async fn search_paginates_with_limit_and_page() {
 
     let page = crate::logic::search::search_articles(
         &context.state,
+        &admin(&context).await,
         &ArticleSearchParams {
             limit: Some(2),
             page: Some(1),
@@ -445,6 +513,7 @@ async fn search_paginates_with_limit_and_page() {
     assert!(page.has_next);
     let page2 = crate::logic::search::search_articles(
         &context.state,
+        &admin(&context).await,
         &ArticleSearchParams {
             limit: Some(2),
             page: Some(2),
@@ -473,9 +542,13 @@ async fn bare_tag_search_matches_tag_field() {
     )
     .await;
 
-    let page = crate::logic::search::search_articles(&context.state, &params(Some("rust")))
-        .await
-        .expect("search rust");
+    let page = crate::logic::search::search_articles(
+        &context.state,
+        &admin(&context).await,
+        &params(Some("rust")),
+    )
+    .await
+    .expect("search rust");
     assert!(
         page.article_list.len() as u64 >= 1,
         "rust should find the article via its tag"
@@ -510,9 +583,13 @@ async fn single_char_query_reports_field_hits() {
     .await
     .expect("create");
 
-    let page = crate::logic::search::search_articles(&context.state, &params(Some("9")))
-        .await
-        .expect("search 9");
+    let page = crate::logic::search::search_articles(
+        &context.state,
+        &admin(&context).await,
+        &params(Some("9")),
+    )
+    .await
+    .expect("search 9");
     assert!(
         page.article_list.len() as u64 >= 1,
         "single-char query must find the article"
@@ -557,9 +634,10 @@ async fn search_articles_returns_nothing_for_empty_ranges() {
         ranges: Some(String::new()),
         ..params(Some("searchable"))
     };
-    let page = crate::logic::search::search_articles(&context.state, &request)
-        .await
-        .expect("search");
+    let page =
+        crate::logic::search::search_articles(&context.state, &admin(&context).await, &request)
+            .await
+            .expect("search");
     assert_eq!(
         page.article_list.len() as u64,
         0,
@@ -604,9 +682,13 @@ async fn space_separated_keywords_match_any_field_or() {
     )
     .await;
 
-    let page = crate::logic::search::search_articles(&context.state, &params(Some("alpha beta")))
-        .await
-        .expect("alpha beta or");
+    let page = crate::logic::search::search_articles(
+        &context.state,
+        &admin(&context).await,
+        &params(Some("alpha beta")),
+    )
+    .await
+    .expect("alpha beta or");
     assert_eq!(page.article_list.len() as u64, 3, "space must OR the terms");
     let mut titles: Vec<String> = page
         .article_list
@@ -624,9 +706,13 @@ async fn space_separated_keywords_match_any_field_or() {
         "space OR matches every article holding either term"
     );
 
-    let page = crate::logic::search::search_articles(&context.state, &params(Some("+alpha +beta")))
-        .await
-        .expect("+alpha +beta and");
+    let page = crate::logic::search::search_articles(
+        &context.state,
+        &admin(&context).await,
+        &params(Some("+alpha +beta")),
+    )
+    .await
+    .expect("+alpha +beta and");
     assert_eq!(
         page.article_list.len() as u64,
         1,
@@ -640,9 +726,13 @@ async fn space_separated_keywords_match_any_field_or() {
         "Alpha Beta"
     );
 
-    let page = crate::logic::search::search_articles(&context.state, &params(Some("alpha +beta")))
-        .await
-        .expect("alpha +beta");
+    let page = crate::logic::search::search_articles(
+        &context.state,
+        &admin(&context).await,
+        &params(Some("alpha +beta")),
+    )
+    .await
+    .expect("alpha +beta");
     assert_eq!(
         page.article_list.len() as u64,
         2,
@@ -656,9 +746,13 @@ async fn space_separated_keywords_match_any_field_or() {
     titles.sort_unstable();
     assert_eq!(titles, vec!["Alpha Beta".to_string(), "Beta".to_string()]);
 
-    let page = crate::logic::search::search_articles(&context.state, &params(Some("alpha -beta")))
-        .await
-        .expect("alpha -beta");
+    let page = crate::logic::search::search_articles(
+        &context.state,
+        &admin(&context).await,
+        &params(Some("alpha -beta")),
+    )
+    .await
+    .expect("alpha -beta");
     assert_eq!(
         page.article_list.len() as u64,
         1,
@@ -689,9 +783,13 @@ async fn keyword_that_misses_tags_does_not_report_a_tag_hit() {
     )
     .await;
 
-    let page = crate::logic::search::search_articles(&context.state, &params(Some("unique")))
-        .await
-        .expect("search unique");
+    let page = crate::logic::search::search_articles(
+        &context.state,
+        &admin(&context).await,
+        &params(Some("unique")),
+    )
+    .await
+    .expect("search unique");
     assert!(
         page.article_list.len() as u64 >= 1,
         "unique should find the article via its title"

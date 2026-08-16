@@ -10,7 +10,6 @@ use crate::repository::schema::{
 };
 
 pub const PERMISSION_ARTICLE_CREATE: &str = "Article::Create";
-#[cfg(test)]
 pub const PERMISSION_ARTICLE_READ: &str = "Article::Read";
 pub const PERMISSION_ARTICLE_UPDATE: &str = "Article::Update";
 pub const PERMISSION_ARTICLE_DELETE_HARD: &str = "Article::Delete::Hard";
@@ -26,7 +25,6 @@ pub const PERMISSION_VERSION_DELETE_TRANSFER: &str = "Version::Delete::Transfer"
 pub const PERMISSION_VERSION_DELETE_SOFT: &str = "Version::Delete::Soft";
 pub const PERMISSION_VERSION_RESTORE: &str = "Version::Restore";
 pub const PERMISSION_COMMENT_CREATE: &str = "Comment::Create";
-#[cfg(test)]
 pub const PERMISSION_COMMENT_READ: &str = "Comment::Read";
 pub const PERMISSION_COMMENT_UPDATE: &str = "Comment::Update";
 pub const PERMISSION_COMMENT_DELETE_HARD: &str = "Comment::Delete::Hard";

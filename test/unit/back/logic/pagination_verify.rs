@@ -59,9 +59,10 @@ async fn version_pages_tile_the_full_history_exactly_once() {
 
     let mut seen: Vec<String> = Vec::new();
     for page in 1..=5 {
-        let result = crate::logic::version::read_versions(&context.state, &article_id, page, 1)
-            .await
-            .expect("page");
+        let result =
+            crate::logic::version::read_versions(&context.state, &actor, &article_id, page, 1)
+                .await
+                .expect("page");
         assert_eq!(
             result.version_list.len(),
             1,
@@ -101,15 +102,16 @@ async fn version_pages_with_limit_two_tile_exactly() {
         .expect("create version");
     }
 
-    let page_one = crate::logic::version::read_versions(&context.state, &article_id, 1, 2)
+    let page_one = crate::logic::version::read_versions(&context.state, &actor, &article_id, 1, 2)
         .await
         .expect("page 1");
-    let page_two = crate::logic::version::read_versions(&context.state, &article_id, 2, 2)
+    let page_two = crate::logic::version::read_versions(&context.state, &actor, &article_id, 2, 2)
         .await
         .expect("page 2");
-    let page_three = crate::logic::version::read_versions(&context.state, &article_id, 3, 2)
-        .await
-        .expect("page 3");
+    let page_three =
+        crate::logic::version::read_versions(&context.state, &actor, &article_id, 3, 2)
+            .await
+            .expect("page 3");
     assert_eq!(page_one.version_list.len(), 2);
     assert!(page_one.has_next);
     assert_eq!(page_two.version_list.len(), 2);
@@ -125,7 +127,7 @@ async fn version_page_beyond_the_end_is_empty() {
     let (article_id, _) =
         create_seeded_article(&context, &actor, "Beyond End", "1.0.0", "one").await;
 
-    let page = crate::logic::version::read_versions(&context.state, &article_id, 9, 10)
+    let page = crate::logic::version::read_versions(&context.state, &actor, &article_id, 9, 10)
         .await
         .expect("far page");
     assert!(page.version_list.is_empty());
@@ -149,7 +151,7 @@ async fn version_limit_larger_than_total_returns_everything_without_next() {
     .await
     .expect("create v2");
 
-    let page = crate::logic::version::read_versions(&context.state, &article_id, 1, 100)
+    let page = crate::logic::version::read_versions(&context.state, &actor, &article_id, 1, 100)
         .await
         .expect("wide page");
     assert_eq!(page.version_list.len(), 2);
@@ -175,10 +177,10 @@ async fn version_pages_are_stable_across_repeated_reads() {
         .expect("create version");
     }
 
-    let first = crate::logic::version::read_versions(&context.state, &article_id, 1, 2)
+    let first = crate::logic::version::read_versions(&context.state, &actor, &article_id, 1, 2)
         .await
         .expect("first read");
-    let second = crate::logic::version::read_versions(&context.state, &article_id, 1, 2)
+    let second = crate::logic::version::read_versions(&context.state, &actor, &article_id, 1, 2)
         .await
         .expect("second read");
     let ids = |page: &nail_common::response::version::VersionListPage| -> Vec<String> {
@@ -223,9 +225,10 @@ async fn version_pages_tile_exactly_when_a_middle_version_is_soft_deleted() {
 
     let mut seen: Vec<String> = Vec::new();
     for page in 1..=3 {
-        let result = crate::logic::version::read_versions(&context.state, &article_id, page, 1)
-            .await
-            .expect("page");
+        let result =
+            crate::logic::version::read_versions(&context.state, &actor, &article_id, page, 1)
+                .await
+                .expect("page");
         assert_eq!(result.version_list.len(), 1, "page {page}");
         seen.push(result.version_list[0].version.clone());
     }
@@ -258,7 +261,7 @@ async fn version_soft_deleted_first_version_does_not_shift_later_pages() {
     .await
     .expect("soft delete first");
 
-    let page = crate::logic::version::read_versions(&context.state, &article_id, 1, 10)
+    let page = crate::logic::version::read_versions(&context.state, &actor, &article_id, 1, 10)
         .await
         .expect("page");
     assert_eq!(page.version_list.len(), 1, "only the live version remains");
@@ -286,9 +289,10 @@ async fn comment_pages_tile_all_top_level_comments_exactly_once() {
 
     let mut seen: Vec<String> = Vec::new();
     for page in 1..=4 {
-        let result = crate::logic::comment::read_comments(&context.state, &version_id, page, 1)
-            .await
-            .expect("page");
+        let result =
+            crate::logic::comment::read_comments(&context.state, &actor, &version_id, page, 1)
+                .await
+                .expect("page");
         assert_eq!(result.comments.len(), 1, "page {page} holds one comment");
         assert_eq!(result.has_next, page < 4, "has_next on page {page}");
         seen.push(result.comments[0].id.clone());
@@ -308,7 +312,7 @@ async fn comment_page_beyond_the_end_is_empty() {
         .await
         .expect("comment");
 
-    let page = crate::logic::comment::read_comments(&context.state, &version_id, 9, 10)
+    let page = crate::logic::comment::read_comments(&context.state, &actor, &version_id, 9, 10)
         .await
         .expect("far page");
     assert!(page.comments.is_empty());
@@ -344,9 +348,10 @@ async fn comment_pages_tile_only_live_comments_when_one_is_soft_deleted() {
 
     let mut seen: Vec<String> = Vec::new();
     for page in 1..=3 {
-        let result = crate::logic::comment::read_comments(&context.state, &version_id, page, 1)
-            .await
-            .expect("page");
+        let result =
+            crate::logic::comment::read_comments(&context.state, &actor, &version_id, page, 1)
+                .await
+                .expect("page");
         assert_eq!(result.comments.len(), 1, "page {page}");
         seen.push(result.comments[0].id.clone());
     }
@@ -462,7 +467,7 @@ async fn comment_pages_reject_a_soft_deleted_version() {
     .await
     .expect("soft delete version");
 
-    let error = crate::logic::comment::read_comments(&context.state, &version_id, 1, 10)
+    let error = crate::logic::comment::read_comments(&context.state, &actor, &version_id, 1, 10)
         .await
         .expect_err("soft-deleted version must reject comment reads");
     assert!(matches!(error, LogicError::NotFound(_)));
@@ -489,6 +494,7 @@ async fn search_pages_tile_all_matches_with_limit_two() {
     for page in 1..=3 {
         let result = crate::logic::search::search_articles(
             &context.state,
+            &actor,
             &nail_common::request::ArticleSearchParams {
                 q: Some("match".to_string()),
                 ranges: Some(
@@ -520,7 +526,7 @@ async fn pagination_page_zero_is_treated_as_page_one() {
     let (article_id, _) =
         create_seeded_article(&context, &actor, "Zero Page", "1.0.0", "one").await;
 
-    let page = crate::logic::version::read_versions(&context.state, &article_id, 0, 10)
+    let page = crate::logic::version::read_versions(&context.state, &actor, &article_id, 0, 10)
         .await
         .expect("page zero");
     assert_eq!(page.version_list.len(), 1, "page 0 must behave like page 1");
@@ -534,6 +540,7 @@ async fn search_page_zero_is_treated_as_page_one() {
 
     let page = crate::logic::search::search_articles(
         &context.state,
+        &actor,
         &nail_common::request::ArticleSearchParams {
             q: Some("zero".to_string()),
             ranges: Some("title".to_string()),

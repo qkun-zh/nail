@@ -314,7 +314,7 @@ build) on hot paths (`/article/read`, `/article/{id}/read`) before and after
 adding the gate. Source + probe per `workflow.md`; decide caching strategy only
 on numbers.
 **Baseline (release build, `probe_001_read_gate_assembly_baseline`, kept as the
-before/after instrument; re-run after B1)**, mean per call:
+before/after instrument; B1 re-run in dev profile — see B1)**, mean per call:
 - `assemble_principal` admin (27 grants): **465 µs**; member (2 grants): **60 µs**.
 - `authorize` `Article::Read` single-resource: **180 µs**; on Version (chain):
   **230 µs**; on Comment (chain): **297 µs**; on `Virtual::"read"` desk: **138 µs**.
@@ -327,21 +327,40 @@ against the coarse desk (principal assembly only), not per item**. Admin's
 27-grant principal assembly (465 µs) dominates member (60 µs): if admin becomes
 hot, cache principal assembly keyed by user; not needed for the B1 default path.
 
-#### B1 — Read enforcement (O1, R4 strict form)
-**Changes**:
-- Thread `actor_id` through read logic (`logic/article.rs:89`,
-  `logic/search.rs:13`, `logic/version.rs:131,161`, `logic/comment.rs:67,91,104`)
-  and their interface handlers.
-- Grant `Article::Read`/`Version::Read`/`Comment::Read` to the member role in
-  `seed.rs` (D5) alongside the existing create grants; the PDF download path
-  (`logic/download.rs:19`) already authorizes `Version::Read` and passes via this
-  grant once policy 2 is removed.
-- Single-resource reads authorize against the resource (`Article::Read` /
-  `Version::Read` / `Comment::Read`); collection reads authorize once against the
-  coarse `Virtual::"read"` desk (principal assembly only, no per-item assembly).
-- Fail-closed risk: wiring error → 403 on reads; land atomically per route group
-  with red tests per route.
-**Exit**: no session-only read gate remains; member reads succeed; non-member
+#### B1 — Read enforcement (O1, R4 strict form) — **DONE**
+**Changes** (as planned):
+- Threaded `actor_id` through the read logic (`logic/article.rs` `read_article`,
+  `logic/search.rs` `search_articles`, `logic/version.rs`
+  `read_version`/`read_versions`, `logic/comment.rs`
+  `read_comments`/`read_comment`/`read_comment_children`) and their interface
+  handlers.
+- Granted `Article::Read`/`Version::Read`/`Comment::Read` to the member role in
+  `seed.rs` (D5) alongside the create grants; the PDF download path
+  (`logic/download.rs`) already authorizes `Version::Read` and passes via this
+  grant.
+- Single-resource reads gate with `authorize_or` against the resource
+  (`Article::Read`/`Version::Read`/`Comment::Read`, not-found message wins when
+  the resource is absent); collection reads gate once with `authorize` against
+  the coarse `Virtual::"read"` desk (principal assembly only, no per-item
+  assembly), placed before validation so the gates fail closed.
+- Deleted the read-open rule (policy 2); policy numbering kept stable so doc
+  cross-references still hold (`authz.md:36`).
+- Promoted `PERMISSION_ARTICLE_READ`/`PERMISSION_COMMENT_READ` from test-only to
+  production constants in `repository/role.rs`.
+**Red→Green**: 8 interface red tests (one per read route: article read/search,
+version read/read-versions, comments/comment/comment-children, content read) —
+all observed 200 pre-change vs expected 403. Green: **446 back tests**; non-member
+reads denied at both interface (403) and logic (`LogicError::forbidden`) level;
+member reads succeed via the D5 grant. New logic-level denial tests cover all
+seven read functions; the cedar policy test was rewritten from read-open to
+grant-based (`read_requires_a_role_grant`).
+**Perf**: B1 re-run of `probe_001` (dev profile, nightly + Cranelift per
+`run.md` — release re-run would need a full LLVM rebuild): `read_article` gated
+body 5.1 ms, single-resource gate 5.1 ms, coarse `Virtual::"read"` desk 3.5 ms,
+per-item ×8 41.1 ms vs coarse desk 3.5 ms (**11.9×**, matching B0's ~10.5×
+ratio). Absolute values differ from B0's release baseline; the structural
+conclusion (one coarse desk gate per collection page, not per item) holds.
+**Exit**: met — no session-only read gate remains; member reads succeed; non-member
 denied.
 
 #### B2 — `read_user` self-view to Cedar (O5)

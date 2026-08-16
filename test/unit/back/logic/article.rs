@@ -25,6 +25,12 @@ async fn admin(context: &TestCtx) -> String {
     .expect("seeded user zero")
 }
 
+async fn plain(context: &TestCtx, email: &str) -> String {
+    crate::repository::user::create_user(&context.state.graph, &nail_common::hash::email(email))
+        .await
+        .expect("user")
+}
+
 #[tokio::test]
 async fn create_article_writes_the_article_and_version() {
     let context = TestCtx::new().await.expect("test context");
@@ -199,7 +205,7 @@ async fn read_article_returns_detail() {
     .await
     .expect("create");
 
-    let data = crate::logic::article::read_article(&context.state, &article_id)
+    let data = crate::logic::article::read_article(&context.state, &actor, &article_id)
         .await
         .expect("read");
     assert_eq!(data.title, "Titled");
@@ -209,10 +215,37 @@ async fn read_article_returns_detail() {
 #[tokio::test]
 async fn read_article_missing_is_not_found() {
     let context = TestCtx::new().await.expect("test context");
-    let error = crate::logic::article::read_article(&context.state, "missing")
+    let reader = admin(&context).await;
+    let error = crate::logic::article::read_article(&context.state, &reader, "missing")
         .await
         .unwrap_err();
     assert_eq!(error, LogicError::not_found("article not found"));
+}
+
+#[tokio::test]
+async fn read_article_denies_a_user_without_the_grant() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let (article_id, _) = crate::logic::article::create_article(
+        &context.state,
+        &actor,
+        crate::logic::article::ArticleCreateInput {
+            title: "Restricted",
+            summary: "Summary",
+            tags: "rust",
+            version: "1.0.0",
+            note: "note",
+            upload: context.upload(&valid_pdf()),
+        },
+    )
+    .await
+    .expect("create");
+    let outsider = plain(&context, "stranger@example.com").await;
+
+    let error = crate::logic::article::read_article(&context.state, &outsider, &article_id)
+        .await
+        .unwrap_err();
+    assert_eq!(error, LogicError::forbidden("you are denied"));
 }
 
 #[tokio::test]
@@ -244,7 +277,7 @@ async fn delete_article_soft_hides_the_article_and_its_versions() {
     .expect("soft delete");
     assert_eq!(data.article_id, article_id);
 
-    let error = crate::logic::article::read_article(&context.state, &article_id)
+    let error = crate::logic::article::read_article(&context.state, &actor, &article_id)
         .await
         .expect_err("deleted article");
     assert_eq!(error, LogicError::not_found("article not found"));
@@ -424,7 +457,7 @@ async fn restore_article_revives_the_article_and_its_versions() {
         .expect("restore");
     assert_eq!(data.article_id, article_id);
 
-    crate::logic::article::read_article(&context.state, &article_id)
+    crate::logic::article::read_article(&context.state, &admin_id, &article_id)
         .await
         .expect("article visible again");
     let (versions, _) =

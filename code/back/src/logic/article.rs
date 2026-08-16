@@ -18,7 +18,8 @@ use crate::repository::article::{
 use crate::repository::authorization::Resource;
 use crate::repository::role::{
     PERMISSION_ARTICLE_CREATE, PERMISSION_ARTICLE_DELETE_HARD, PERMISSION_ARTICLE_DELETE_SOFT,
-    PERMISSION_ARTICLE_DELETE_TRANSFER, PERMISSION_ARTICLE_RESTORE, PERMISSION_ARTICLE_UPDATE,
+    PERMISSION_ARTICLE_DELETE_TRANSFER, PERMISSION_ARTICLE_READ, PERMISSION_ARTICLE_RESTORE,
+    PERMISSION_ARTICLE_UPDATE,
 };
 use crate::repository::transfer::{TransferTargetError, transfer_article};
 use crate::repository::version::{VersionDraft, content_hash_owner, read_version};
@@ -92,7 +93,19 @@ pub async fn create_article(
     }
 }
 
-pub async fn read_article(state: &AppState, article_id: &str) -> Result<ArticleView, LogicError> {
+pub async fn read_article(
+    state: &AppState,
+    actor_id: &str,
+    article_id: &str,
+) -> Result<ArticleView, LogicError> {
+    authorize_or(
+        state,
+        actor_id,
+        PERMISSION_ARTICLE_READ,
+        &Resource::Article(article_id.to_string()),
+        "article not found",
+    )
+    .await?;
     let article = read_article_node(&state.graph, article_id)
         .await
         .map_err(database_error)?

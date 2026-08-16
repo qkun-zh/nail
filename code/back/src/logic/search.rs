@@ -7,13 +7,24 @@ use nail_common::response::search::{
 use nail_common::search::SearchRange;
 
 use crate::infrastructure::state::AppState;
+use crate::logic::authorize::authorize;
 use crate::logic::error::LogicError;
+use crate::repository::authorization::Resource;
+use crate::repository::role::PERMISSION_ARTICLE_READ;
 use crate::repository::search::{SearchCommentOutcome, SearchDocOutcome, SearchRequest};
 
 pub async fn search_articles(
     state: &AppState,
+    actor_id: &str,
     params: &ArticleSearchParams,
 ) -> Result<SearchPage, LogicError> {
+    authorize(
+        state,
+        actor_id,
+        PERMISSION_ARTICLE_READ,
+        &Resource::Virtual("read".to_string()),
+    )
+    .await?;
     let max_query_chars = state.config.server.max_search_query_chars;
 
     let query = match params.q.as_deref() {

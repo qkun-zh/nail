@@ -14,10 +14,10 @@ use nail_common::hash::PdfHasher;
 
 pub async fn search_articles(
     State(state): State<AppState>,
-    _principal: Principal,
+    principal: Principal,
     AppQuery(params): AppQuery<nail_common::request::ArticleSearchParams>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data = crate::logic::search::search_articles(&state, &params).await?;
+    let data = crate::logic::search::search_articles(&state, &principal.user_id, &params).await?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
@@ -82,10 +82,10 @@ pub async fn create_article(
 
 pub async fn read_article(
     State(state): State<AppState>,
-    _principal: Principal,
+    principal: Principal,
     AppPath(article_id): AppPath<String>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data = crate::logic::article::read_article(&state, &article_id).await?;
+    let data = crate::logic::article::read_article(&state, &principal.user_id, &article_id).await?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 

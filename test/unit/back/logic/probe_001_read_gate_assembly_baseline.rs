@@ -188,15 +188,16 @@ async fn probe_001_read_gate_assembly_baseline() {
 
     let hot_read = mean_duration(|| {
         let state = state.clone();
+        let actor = alice.clone();
         let id = article_id.clone();
         async move {
-            let _ = crate::logic::article::read_article(&state, &id)
+            let _ = crate::logic::article::read_article(&state, &actor, &id)
                 .await
                 .expect("read");
         }
     })
     .await;
-    report("logic read_article (session-only body)", hot_read);
+    report("logic read_article (gated read body)", hot_read);
 
     let single_per_page = article_gate.saturating_mul(8);
     eprintln!(

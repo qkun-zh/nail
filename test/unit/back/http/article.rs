@@ -207,6 +207,40 @@ async fn article_requires_a_session_for_reads() {
 }
 
 #[tokio::test]
+async fn read_article_requires_a_read_grant() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (status, create_body) = context
+        .post_multipart(
+            "/article/create",
+            Some(&token),
+            &article_fields("Gated Read", "rust"),
+            "file",
+            "article.pdf",
+            &valid_pdf(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "body: {create_body}");
+    let article_id = create_body["data"]["article_id"]
+        .as_str()
+        .expect("article id");
+
+    let (_, outsider) = session_for(&context, "bob@example.com").await;
+    let (status, body) = context
+        .get(&format!("/article/{article_id}/read"), Some(&outsider))
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
+}
+
+#[tokio::test]
+async fn search_articles_requires_a_read_grant() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, outsider) = session_for(&context, "bob@example.com").await;
+    let (status, body) = context.get("/article/read?q=rust", Some(&outsider)).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
+}
+
+#[tokio::test]
 async fn delete_article_rejects_missing_mode() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = member_session(&context, "alice@example.com").await;

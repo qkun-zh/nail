@@ -16,7 +16,8 @@ use crate::repository::comment::{
 };
 use crate::repository::role::{
     PERMISSION_COMMENT_CREATE, PERMISSION_COMMENT_DELETE_HARD, PERMISSION_COMMENT_DELETE_SOFT,
-    PERMISSION_COMMENT_DELETE_TRANSFER, PERMISSION_COMMENT_RESTORE, PERMISSION_COMMENT_UPDATE,
+    PERMISSION_COMMENT_DELETE_TRANSFER, PERMISSION_COMMENT_READ, PERMISSION_COMMENT_RESTORE,
+    PERMISSION_COMMENT_UPDATE,
 };
 use crate::repository::transfer::{TransferTargetError, transfer_comment};
 use crate::repository::version::{parent_article_of, read_version};
@@ -78,10 +79,18 @@ pub async fn create_reply(
 
 pub async fn read_comments(
     state: &AppState,
+    actor_id: &str,
     version_id: &str,
     page: u64,
     limit: u64,
 ) -> Result<CommentListPage, LogicError> {
+    authorize(
+        state,
+        actor_id,
+        PERMISSION_COMMENT_READ,
+        &Resource::Virtual("read".to_string()),
+    )
+    .await?;
     if read_version(&state.graph, version_id)
         .await
         .map_err(database_error)?
@@ -105,7 +114,14 @@ pub async fn read_comment(
     actor_id: &str,
     comment_id: &str,
 ) -> Result<CommentView, LogicError> {
-    let _ = actor_id;
+    authorize_or(
+        state,
+        actor_id,
+        PERMISSION_COMMENT_READ,
+        &Resource::Comment(comment_id.to_string()),
+        "comment not found",
+    )
+    .await?;
     let item = read_comment_item(&state.graph, comment_id)
         .await
         .map_err(database_error)?
@@ -120,7 +136,13 @@ pub async fn read_comment_children(
     page: u64,
     limit: u64,
 ) -> Result<CommentListPage, LogicError> {
-    let _ = actor_id;
+    authorize(
+        state,
+        actor_id,
+        PERMISSION_COMMENT_READ,
+        &Resource::Virtual("read".to_string()),
+    )
+    .await?;
     let offset = page.saturating_sub(1).saturating_mul(limit);
     let (items, has_next) =
         read_comment_children_page(&state.graph, parent_comment_id, limit, offset)

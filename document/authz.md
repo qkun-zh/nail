@@ -33,17 +33,18 @@ uses a bound, consumable token instead of the session itself.
 
 ## Read gating today
 
-Reads (article/version/comment read-open, policy 2) are gated **session-only**
-today: any authenticated principal may read published content; Cedar is not
-invoked on read paths. This is a deliberate intermediate state, not the target.
+Reads are Cedar-gated (B1): single-resource reads authorize
+`Article::Read` / `Version::Read` / `Comment::Read` against the resource, and
+collection reads authorize once against the coarse `Virtual::"read"` desk (the
+former read-open policy 2 was removed in B1; policy numbering is stable). Any
+authenticated principal may no longer read: a non-member is denied (403) and a
+member reads via the seeded D5 read grants; the PDF download path already
+authorizes `Version::Read` at `logic/download.rs:19`.
 
-The Phase B hook: `B1` will thread `actor_id` through the read entry points
-(`logic/article.rs:89`, `logic/search.rs:13`, `logic/version.rs:131,161`,
-`logic/comment.rs:67,91,104`) and authorize single-resource reads against
-`Article::Read` / `Version::Read` / `Comment::Read` on the resource, and
-collection reads once against a coarse `Virtual::"read"` desk. The member role
-is already seeded with these three read grants (D5), and the PDF download path
-already authorizes `Version::Read` at `logic/download.rs:19`.
+The B1 thread: `actor_id` runs through the read entry points (`logic/article.rs`
+`read_article`, `logic/search.rs` `search_articles`, `logic/version.rs`
+`read_version`/`read_versions`, `logic/comment.rs` `read_comments`/`read_comment`/
+`read_comment_children`) and their interface handlers.
 
 ## Decision records
 

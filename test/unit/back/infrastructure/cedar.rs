@@ -85,18 +85,34 @@ fn every_action_referenced_by_policy_exists_in_the_schema() {
 }
 
 #[test]
-fn read_open_policy_allows_any_authenticated_principal() {
-    let principal = user_entity("alice", HashSet::new());
-    let resource = article_entity("article-1", "bob");
+fn read_requires_a_role_grant() {
+    let member_role = Entity::new_no_attrs(
+        uid("Role::\"member\""),
+        HashSet::from([uid("Action::\"Article::Read\"")]),
+    );
+    let action = Entity::new_no_attrs(uid("Action::\"Article::Read\""), HashSet::new());
+    let member = user_entity("alice", HashSet::from([uid("Role::\"member\"")]));
+    let article = article_entity("article-1", "bob");
 
     assert!(
         decide(
             &uid("User::\"alice\""),
             "Article::Read",
             &uid("Article::\"article-1\""),
-            vec![principal, resource],
+            vec![member, member_role.clone(), action.clone(), article.clone()],
         )
-        .expect("decide")
+        .expect("member read")
+    );
+
+    let grantless = user_entity("carol", HashSet::new());
+    assert!(
+        !decide(
+            &uid("User::\"carol\""),
+            "Article::Read",
+            &uid("Article::\"article-1\""),
+            vec![grantless, member_role, action, article],
+        )
+        .expect("grantless read")
     );
 }
 

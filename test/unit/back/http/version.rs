@@ -33,6 +33,24 @@ async fn admin_session(context: &TestCtx) -> (String, String) {
     member_session(context, "user-zero@example.com").await
 }
 
+async fn plain_session(context: &TestCtx, email: &str) -> (String, String) {
+    let user_id = crate::repository::user::create_user(
+        &context.state.graph,
+        &nail_common::hash::email(email),
+    )
+    .await
+    .expect("user");
+    let token = Uuid::now_v7().to_string();
+    let key = token_key(&token).expect("token key");
+    context.state.caches.session.insert(
+        &key,
+        SessionTokenEntry {
+            user_id: user_id.clone(),
+        },
+    );
+    (user_id, token)
+}
+
 async fn article_fixture(context: &TestCtx, author_id: &str) -> (String, String) {
     let article_id = Uuid::now_v7().to_string();
     let version_id = Uuid::now_v7().to_string();
@@ -137,6 +155,35 @@ async fn read_versions_rejects_a_page_beyond_max_search_pages() {
         body["message"].as_str(),
         Some("page exceeds max search pages")
     );
+}
+
+#[tokio::test]
+async fn read_versions_requires_a_read_grant() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, _) = member_session(&context, "alice@example.com").await;
+    let (article_id, _) = article_fixture(&context, &user_id).await;
+
+    let (_, outsider) = plain_session(&context, "bob@example.com").await;
+    let (status, body) = context
+        .get(
+            &format!("/article/{article_id}/version/read"),
+            Some(&outsider),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
+}
+
+#[tokio::test]
+async fn read_version_requires_a_read_grant() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, _) = member_session(&context, "alice@example.com").await;
+    let (_, version_id) = article_fixture(&context, &user_id).await;
+
+    let (_, outsider) = plain_session(&context, "bob@example.com").await;
+    let (status, body) = context
+        .get(&format!("/version/{version_id}/read"), Some(&outsider))
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
 }
 
 #[tokio::test]

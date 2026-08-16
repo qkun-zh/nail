@@ -22,10 +22,8 @@ permit (principal, action in [Action::"Article::Read", Action::"Version::Read",
         resource)
   when { resource.owner == principal };
 
-// 2. Read-open: any authenticated principal may read article/version/comment.
-permit (principal, action in [Action::"Article::Read", Action::"Version::Read",
-                              Action::"Comment::Read"],
-        resource);
+// 2 was the read-open rule, removed in B1: reads now flow through policy 1
+// (owner) or the role grant in policy 3.
 
 // 3. Role permission: the principal's role ancestor closure contains the
 //    action. Roles are pure sets of users; the scope axis was removed (D1).

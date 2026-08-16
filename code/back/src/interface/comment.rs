@@ -58,7 +58,7 @@ pub struct CommentsReadParams {
 
 pub async fn read_comments(
     State(state): State<AppState>,
-    _principal: Principal,
+    principal: Principal,
     AppPath(version_id): AppPath<String>,
     AppQuery(params): AppQuery<CommentsReadParams>,
 ) -> Result<impl IntoResponse, ApiError> {
@@ -68,7 +68,9 @@ pub async fn read_comments(
         state.config.server.search_page_size,
         state.config.server.max_search_pages,
     )?;
-    let data = crate::logic::comment::read_comments(&state, &version_id, page, limit).await?;
+    let data =
+        crate::logic::comment::read_comments(&state, &principal.user_id, &version_id, page, limit)
+            .await?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
