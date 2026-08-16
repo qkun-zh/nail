@@ -62,11 +62,7 @@ pub async fn create_top_level_comment(
         else {
             return Err(CreateCommentError::TargetNotFound);
         };
-        if crate::repository::delete::content_path_soft_deleted_in_txn(
-            transaction,
-            ENTITY_TYPE_VERSION,
-            version_id,
-        )? {
+        if crate::repository::delete::has_soft_deleted_flag_in_txn(transaction, version)? {
             return Err(CreateCommentError::TargetNotFound);
         }
         if resolve_node_id_in_txn(transaction, ENTITY_TYPE_COMMENT, comment_id)?.is_some() {
@@ -119,11 +115,7 @@ pub async fn create_reply_comment(
         else {
             return Err(CreateCommentError::TargetNotFound);
         };
-        if crate::repository::delete::content_path_soft_deleted_in_txn(
-            transaction,
-            ENTITY_TYPE_COMMENT,
-            parent_comment_id,
-        )? {
+        if crate::repository::delete::has_soft_deleted_flag_in_txn(transaction, parent)? {
             return Err(CreateCommentError::TargetNotFound);
         }
         if parent_chain_depth_in_txn(transaction, parent_comment_id, max_tree_depth)?
@@ -239,11 +231,7 @@ pub async fn read_comments_page_by_version(
     let Some(version) = resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, version_id)? else {
         return Ok((Vec::new(), false));
     };
-    if crate::repository::delete::content_path_soft_deleted_sync(
-        &guard,
-        ENTITY_TYPE_VERSION,
-        version_id,
-    )? {
+    if crate::repository::delete::has_soft_deleted_flag(&guard, version)? {
         return Ok((Vec::new(), false));
     }
     let (page_ids, has_next) = incoming_comment_ids_page(&guard, version, limit, offset)?;
@@ -264,11 +252,7 @@ pub async fn read_comment_children_page(
             "parent comment not found",
         ));
     };
-    if crate::repository::delete::content_path_soft_deleted_sync(
-        &guard,
-        ENTITY_TYPE_COMMENT,
-        parent_comment_id,
-    )? {
+    if crate::repository::delete::has_soft_deleted_flag(&guard, parent)? {
         return Err(DbError::query(
             agdb::DbErrorType::NotFound,
             "parent comment not found",
@@ -348,11 +332,7 @@ fn read_comment_item_sync(
     let Some(comment) = resolve_node_id_sync(guard, ENTITY_TYPE_COMMENT, comment_id)? else {
         return Ok(None);
     };
-    if crate::repository::delete::content_path_soft_deleted_sync(
-        guard,
-        ENTITY_TYPE_COMMENT,
-        comment_id,
-    )? {
+    if crate::repository::delete::has_soft_deleted_flag(guard, comment)? {
         return Ok(None);
     }
     let content = read_rows_sync::<CommentRow>(guard, &[comment])?
@@ -448,11 +428,7 @@ pub async fn update_comment_content(
     let Some(node) = resolve_node_id_sync(&guard, ENTITY_TYPE_COMMENT, comment_id)? else {
         return Ok(false);
     };
-    if crate::repository::delete::content_path_soft_deleted_sync(
-        &guard,
-        ENTITY_TYPE_COMMENT,
-        comment_id,
-    )? {
+    if crate::repository::delete::has_soft_deleted_flag(&guard, node)? {
         return Ok(false);
     }
     guard.exec_mut(

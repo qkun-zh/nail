@@ -1,13 +1,13 @@
 use agdb::{DbError, QueryBuilder};
 
 use crate::repository::graph::{
-    DbHandle, read_node_in_txn, read_rows_sync, resolve_node_id_in_txn, resolve_node_id_sync,
+    DbHandle, read_node_in_txn, resolve_node_id_in_txn, resolve_node_id_sync,
 };
 use crate::repository::schema::{
     EDGE_ARTICLE_HOLD_VERSION, EDGE_COMMENT_ATTACH_VERSION, EDGE_COMMENT_REPLY_COMMENT,
     EDGE_USER_AUTHOR_ARTICLE, EDGE_USER_AUTHOR_COMMENT, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_COMMENT,
-    ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, IdRow, KEY_LATEST_VERSION_ID, KEY_SOFT_DELETED,
-    KEY_TYPE, VersionRow,
+    ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, KEY_LATEST_VERSION_ID, KEY_SOFT_DELETED, KEY_TYPE,
+    VersionRow,
 };
 #[derive(Debug, Default)]
 pub struct DeleteOutcome {
@@ -128,52 +128,7 @@ pub fn has_soft_deleted_flag(guard: &agdb::DbAny, id: agdb::DbId) -> Result<bool
     Ok(!result.elements.is_empty())
 }
 
-pub(crate) fn content_path_soft_deleted_in_txn(
-    transaction: &agdb::DbAnyTransactionMut,
-    kind: &str,
-    business_id: &str,
-) -> Result<bool, DbError> {
-    let mut current_kind = kind.to_string();
-    let mut current_id = business_id.to_string();
-    loop {
-        let Some(node) = resolve_node_id_in_txn(transaction, &current_kind, &current_id)? else {
-            return Ok(false);
-        };
-        if has_soft_deleted_flag_in_txn(transaction, node)? {
-            return Ok(true);
-        }
-        match current_kind.as_str() {
-            ENTITY_TYPE_COMMENT => {
-                let parent =
-                    next_comment_chain_node_in_txn(transaction, node, EDGE_COMMENT_REPLY_COMMENT)?;
-                if let Some((next_kind, next_id)) = parent {
-                    current_kind = next_kind;
-                    current_id = next_id;
-                    continue;
-                }
-                let Some((next_kind, next_id)) =
-                    next_comment_chain_node_in_txn(transaction, node, EDGE_COMMENT_ATTACH_VERSION)?
-                else {
-                    return Ok(false);
-                };
-                current_kind = next_kind;
-                current_id = next_id;
-            }
-            ENTITY_TYPE_VERSION => {
-                let Some((next_kind, next_id)) =
-                    incoming_node_id_in_txn(transaction, node, EDGE_ARTICLE_HOLD_VERSION)?
-                else {
-                    return Ok(false);
-                };
-                current_kind = next_kind;
-                current_id = next_id;
-            }
-            _ => return Ok(false),
-        }
-    }
-}
-
-fn has_soft_deleted_flag_in_txn(
+pub(crate) fn has_soft_deleted_flag_in_txn(
     transaction: &agdb::DbAnyTransactionMut,
     id: agdb::DbId,
 ) -> Result<bool, DbError> {
@@ -188,191 +143,6 @@ fn has_soft_deleted_flag_in_txn(
             .query(),
     )?;
     Ok(!result.elements.is_empty())
-}
-
-fn next_comment_chain_node_in_txn(
-    transaction: &agdb::DbAnyTransactionMut,
-    node: agdb::DbId,
-    edge_type: &str,
-) -> Result<Option<(String, String)>, DbError> {
-    let edges = transaction.exec(
-        QueryBuilder::search()
-            .from(node)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(edge_type)
-            .query(),
-    )?;
-    let Some(edge) = edges.elements.first() else {
-        return Ok(None);
-    };
-    let id = read_rows_sync_from_txn(transaction, &[edge.to])?
-        .into_iter()
-        .next()
-        .map(|row| row.id)
-        .unwrap_or_default();
-    let next_kind = match edge_type {
-        EDGE_COMMENT_REPLY_COMMENT => ENTITY_TYPE_COMMENT,
-        EDGE_COMMENT_ATTACH_VERSION => ENTITY_TYPE_VERSION,
-        EDGE_ARTICLE_HOLD_VERSION => ENTITY_TYPE_ARTICLE,
-        _ => return Ok(None),
-    };
-    Ok(Some((next_kind.to_string(), id)))
-}
-
-fn incoming_node_id_in_txn(
-    transaction: &agdb::DbAnyTransactionMut,
-    node: agdb::DbId,
-    edge_type: &str,
-) -> Result<Option<(String, String)>, DbError> {
-    let edges = transaction.exec(
-        QueryBuilder::search()
-            .to(node)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(edge_type)
-            .query(),
-    )?;
-    let Some(edge) = edges.elements.first() else {
-        return Ok(None);
-    };
-    let id = read_rows_sync_from_txn(transaction, &[edge.from])?
-        .into_iter()
-        .next()
-        .map(|row| row.id)
-        .unwrap_or_default();
-    let next_kind = match edge_type {
-        EDGE_ARTICLE_HOLD_VERSION => ENTITY_TYPE_ARTICLE,
-        EDGE_USER_AUTHOR_ARTICLE | EDGE_USER_AUTHOR_COMMENT => ENTITY_TYPE_USER,
-        _ => return Ok(None),
-    };
-    Ok(Some((next_kind.to_string(), id)))
-}
-
-fn read_rows_sync_from_txn(
-    transaction: &agdb::DbAnyTransactionMut,
-    ids: &[agdb::DbId],
-) -> Result<Vec<IdRow>, DbError> {
-    crate::repository::graph::read_rows_in_txn::<IdRow>(transaction, ids)
-}
-
-pub(crate) fn content_path_soft_deleted_sync(
-    guard: &agdb::DbAny,
-    kind: &str,
-    business_id: &str,
-) -> Result<bool, DbError> {
-    let mut current_kind = kind.to_string();
-    let mut current_id = business_id.to_string();
-    loop {
-        let Some(node) = resolve_node_id_sync(guard, &current_kind, &current_id)? else {
-            return Ok(false);
-        };
-        if has_soft_deleted_flag(guard, node)? {
-            return Ok(true);
-        }
-        match current_kind.as_str() {
-            ENTITY_TYPE_COMMENT => {
-                let parent = next_comment_chain_node(guard, node, EDGE_COMMENT_REPLY_COMMENT)?;
-                if let Some((next_kind, next_id)) = parent {
-                    current_kind = next_kind;
-                    current_id = next_id;
-                    continue;
-                }
-                let Some((next_kind, next_id)) =
-                    next_comment_chain_node(guard, node, EDGE_COMMENT_ATTACH_VERSION)?
-                else {
-                    return Ok(false);
-                };
-                current_kind = next_kind;
-                current_id = next_id;
-            }
-            ENTITY_TYPE_VERSION => {
-                let Some((next_kind, next_id)) =
-                    incoming_node_id(guard, node, EDGE_ARTICLE_HOLD_VERSION)?
-                else {
-                    return Ok(false);
-                };
-                current_kind = next_kind;
-                current_id = next_id;
-            }
-            _ => return Ok(false),
-        }
-    }
-}
-
-fn next_comment_chain_node(
-    guard: &agdb::DbAny,
-    node: agdb::DbId,
-    edge_type: &str,
-) -> Result<Option<(String, String)>, DbError> {
-    let edges = guard.exec(
-        QueryBuilder::search()
-            .from(node)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(edge_type)
-            .query(),
-    )?;
-    let Some(edge) = edges.elements.first() else {
-        return Ok(None);
-    };
-    let id = read_rows_sync::<IdRow>(guard, &[edge.to])?
-        .into_iter()
-        .next()
-        .map(|row| row.id)
-        .unwrap_or_default();
-    let next_kind = match edge_type {
-        EDGE_COMMENT_REPLY_COMMENT => ENTITY_TYPE_COMMENT,
-        EDGE_COMMENT_ATTACH_VERSION => ENTITY_TYPE_VERSION,
-        EDGE_ARTICLE_HOLD_VERSION => ENTITY_TYPE_ARTICLE,
-        _ => return Ok(None),
-    };
-    Ok(Some((next_kind.to_string(), id)))
-}
-
-fn incoming_node_id(
-    guard: &agdb::DbAny,
-    node: agdb::DbId,
-    edge_type: &str,
-) -> Result<Option<(String, String)>, DbError> {
-    let edges = guard.exec(
-        QueryBuilder::search()
-            .to(node)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(edge_type)
-            .query(),
-    )?;
-    let Some(edge) = edges.elements.first() else {
-        return Ok(None);
-    };
-    let id = read_rows_sync::<IdRow>(guard, &[edge.from])?
-        .into_iter()
-        .next()
-        .map(|row| row.id)
-        .unwrap_or_default();
-    let next_kind = match edge_type {
-        EDGE_ARTICLE_HOLD_VERSION => ENTITY_TYPE_ARTICLE,
-        EDGE_USER_AUTHOR_ARTICLE | EDGE_USER_AUTHOR_COMMENT => ENTITY_TYPE_USER,
-        _ => return Ok(None),
-    };
-    Ok(Some((next_kind.to_string(), id)))
 }
 
 pub async fn soft_delete_article(db: &DbHandle, article_id: &str) -> Result<(), DbError> {

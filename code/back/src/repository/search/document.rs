@@ -8,8 +8,7 @@ use crate::repository::graph::{DbHandle, read_rows_sync, resolve_node_id_sync};
 use crate::repository::schema::{
     ArticleRow, CommentRow, EDGE_ARTICLE_APPLY_TAG, EDGE_ARTICLE_HOLD_VERSION,
     EDGE_COMMENT_ATTACH_VERSION, EDGE_COMMENT_REPLY_COMMENT, EDGE_USER_AUTHOR_ARTICLE,
-    EDGE_USER_AUTHOR_COMMENT, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_COMMENT, ENTITY_TYPE_VERSION,
-    KEY_TYPE, TagRow, UserRow, VersionRow,
+    EDGE_USER_AUTHOR_COMMENT, ENTITY_TYPE_ARTICLE, KEY_TYPE, TagRow, UserRow, VersionRow,
 };
 
 use super::{
@@ -125,11 +124,7 @@ pub(super) async fn build_documents(
     let Some(article) = resolve_node_id_sync(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
         return Ok(Vec::new());
     };
-    if crate::repository::delete::content_path_soft_deleted_sync(
-        &guard,
-        ENTITY_TYPE_ARTICLE,
-        article_id,
-    )? {
+    if crate::repository::delete::has_soft_deleted_flag(&guard, article)? {
         return Ok(Vec::new());
     }
     let article_row = read_rows_sync::<ArticleRow>(&guard, &[article])?
@@ -170,10 +165,9 @@ pub(super) async fn build_documents(
         let version_id = version_row.id;
         let version_ts = nail_common::time::uuidv7_timestamp_secs(&version_id)
             .map_or(0, |secs| i64::try_from(secs).unwrap_or(0));
-        let version_deleted = crate::repository::delete::content_path_soft_deleted_sync(
+        let version_deleted = crate::repository::delete::has_soft_deleted_flag(
             &guard,
-            ENTITY_TYPE_VERSION,
-            &version_id,
+            version_edge.to,
         )?;
 
         if version_deleted {
@@ -209,11 +203,7 @@ pub(super) async fn build_documents(
                 continue;
             };
             let comment_id = comment_row.id;
-            if crate::repository::delete::content_path_soft_deleted_sync(
-                &guard,
-                ENTITY_TYPE_COMMENT,
-                &comment_id,
-            )? {
+            if crate::repository::delete::has_soft_deleted_flag(&guard, comment_node)? {
                 continue;
             }
             let comment_author = read_owner_name(&guard, comment_node, EDGE_USER_AUTHOR_COMMENT)?;
