@@ -8,6 +8,7 @@ pub mod role;
 pub mod schema;
 pub mod search;
 pub mod seed;
+pub mod seed_demo;
 pub mod tag;
 pub mod transfer;
 pub mod user;

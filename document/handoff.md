@@ -30,6 +30,11 @@
 
 ## Done
 
+- **Seed split**: demo data (`seed_sample_articles`, `SAMPLE_*`, `SampleRng`)
+  moved out of `repository/seed.rs` into `repository/seed_demo.rs`
+  (`main.rs` now calls `seed_demo::seed_sample_articles`). `seed.rs` is now
+  purely runtime initialization (indexes, roles, permissions, user_zero).
+  451 back tests, fmt/clippy 0.
 - **Seed guard test**: `member_role_holds_exactly_the_seeded_baseline_permissions`
   (repository/role.rs) asserts the member role holds exactly the five seeded
   baseline grants (`Article::Create`/`Comment::Create`/`Article::Read`/`Version::Read`/
