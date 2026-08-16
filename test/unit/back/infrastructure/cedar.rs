@@ -73,7 +73,7 @@ fn article_entity(id: &str, owner: &str, scopes: &[&str]) -> Entity {
 }
 
 #[test]
-fn schema_declares_exactly_the_twenty_seeded_actions() {
+fn schema_declares_exactly_the_twenty_three_seeded_actions() {
     let schema: cedar_policy::Schema = SCHEMA.parse().expect("schema");
     let mut declared: Vec<String> = schema
         .actions()
