@@ -361,6 +361,253 @@ async fn sync_removes_documents_for_a_deleted_article() {
 }
 
 #[tokio::test]
+async fn sync_excludes_a_soft_deleted_version_doc_but_keeps_its_comments() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = crate::repository::user::create_user(
+        &state.graph,
+        &nail_common::hash::email("alice@example.com"),
+    )
+    .await
+    .expect("user");
+    let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
+    let index = SearchIndex::open_or_create(directory.to_str().expect("path"))
+        .await
+        .expect("index");
+
+    let version_id = uuid::Uuid::now_v7().to_string();
+    let article_id = uuid::Uuid::now_v7().to_string();
+    create_article(
+        &state.graph,
+        &ArticleDraft {
+            article_id: article_id.clone(),
+            author_id: author_id.clone(),
+            title: "Soft Version Title".to_string(),
+            summary: "a searchable summary".to_string(),
+            tags: vec!["rust".to_string()],
+            first_version: VersionDraft {
+                version_id: version_id.clone(),
+                version_number: "1.0.0".to_string(),
+                content_hash: pdf_hash(6),
+                note: "note".to_string(),
+            },
+        },
+    )
+    .await
+    .expect("create");
+    let comment_id = uuid::Uuid::now_v7().to_string();
+    crate::repository::comment::create_top_level_comment(
+        &state.graph,
+        &comment_id,
+        &author_id,
+        &version_id,
+        "public comment on the soft-deleted version",
+    )
+    .await
+    .expect("comment");
+    index.sync(&state.graph, &article_id).await.expect("sync");
+
+    crate::repository::delete::soft_delete_version(&state.graph, &version_id)
+        .await
+        .expect("soft delete version");
+    index
+        .sync(&state.graph, &article_id)
+        .await
+        .expect("resync after soft delete");
+
+    let outcome = index
+        .read(
+            &state.graph,
+            query_request("soft", vec![nail_common::search::SearchRange::Title]),
+        )
+        .await
+        .expect("read");
+    let versions = version_articles(&outcome);
+    assert!(
+        versions.is_empty(),
+        "soft-deleted version doc removed from search"
+    );
+    let comments = index
+        .read(
+            &state.graph,
+            SearchRequest {
+                query: Some("public comment".to_string()),
+                ranges: vec![nail_common::search::SearchRange::Comment],
+                ..empty_request(10)
+            },
+        )
+        .await
+        .expect("read")
+        .docs
+        .into_iter()
+        .filter_map(|doc| match doc {
+            SearchDocOutcome::Comment(comment) => Some(comment.comment_id),
+            SearchDocOutcome::Version(_) => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(comments, vec![comment_id], "comment stays public");
+
+    index.close().await;
+    let _ = std::fs::remove_dir_all(&directory);
+}
+
+#[tokio::test]
+async fn sync_excludes_a_soft_deleted_comment_doc() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = crate::repository::user::create_user(
+        &state.graph,
+        &nail_common::hash::email("alice@example.com"),
+    )
+    .await
+    .expect("user");
+    let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
+    let index = SearchIndex::open_or_create(directory.to_str().expect("path"))
+        .await
+        .expect("index");
+
+    let version_id = uuid::Uuid::now_v7().to_string();
+    let article_id = uuid::Uuid::now_v7().to_string();
+    create_article(
+        &state.graph,
+        &ArticleDraft {
+            article_id: article_id.clone(),
+            author_id: author_id.clone(),
+            title: "Soft Comment Title".to_string(),
+            summary: "a searchable summary".to_string(),
+            tags: vec!["rust".to_string()],
+            first_version: VersionDraft {
+                version_id: version_id.clone(),
+                version_number: "1.0.0".to_string(),
+                content_hash: pdf_hash(7),
+                note: "note".to_string(),
+            },
+        },
+    )
+    .await
+    .expect("create");
+    let deleted_comment = uuid::Uuid::now_v7().to_string();
+    crate::repository::comment::create_top_level_comment(
+        &state.graph,
+        &deleted_comment,
+        &author_id,
+        &version_id,
+        "doomed comment text",
+    )
+    .await
+    .expect("comment");
+    let live_comment = uuid::Uuid::now_v7().to_string();
+    crate::repository::comment::create_top_level_comment(
+        &state.graph,
+        &live_comment,
+        &author_id,
+        &version_id,
+        "live comment text",
+    )
+    .await
+    .expect("comment");
+    index.sync(&state.graph, &article_id).await.expect("sync");
+
+    crate::repository::delete::soft_delete_comment(&state.graph, &deleted_comment)
+        .await
+        .expect("soft delete comment");
+    index
+        .sync(&state.graph, &article_id)
+        .await
+        .expect("resync after soft delete");
+
+    let comments = index
+        .read(
+            &state.graph,
+            SearchRequest {
+                query: Some("comment text".to_string()),
+                ranges: vec![nail_common::search::SearchRange::Comment],
+                ..empty_request(10)
+            },
+        )
+        .await
+        .expect("read")
+        .docs
+        .into_iter()
+        .filter_map(|doc| match doc {
+            SearchDocOutcome::Comment(comment) => Some(comment.comment_id),
+            SearchDocOutcome::Version(_) => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        comments,
+        vec![live_comment.clone()],
+        "only the live comment remains indexed"
+    );
+
+    index.close().await;
+    let _ = std::fs::remove_dir_all(&directory);
+}
+
+#[tokio::test]
+async fn sync_keeps_children_docs_of_a_soft_deleted_article() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = crate::repository::user::create_user(
+        &state.graph,
+        &nail_common::hash::email("alice@example.com"),
+    )
+    .await
+    .expect("user");
+    let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
+    let index = SearchIndex::open_or_create(directory.to_str().expect("path"))
+        .await
+        .expect("index");
+
+    let version_id = uuid::Uuid::now_v7().to_string();
+    let article_id = uuid::Uuid::now_v7().to_string();
+    create_article(
+        &state.graph,
+        &ArticleDraft {
+            article_id: article_id.clone(),
+            author_id: author_id.clone(),
+            title: "Soft Article Title".to_string(),
+            summary: "a searchable summary".to_string(),
+            tags: vec!["rust".to_string()],
+            first_version: VersionDraft {
+                version_id: version_id.clone(),
+                version_number: "1.0.0".to_string(),
+                content_hash: pdf_hash(8),
+                note: "note".to_string(),
+            },
+        },
+    )
+    .await
+    .expect("create");
+    index.sync(&state.graph, &article_id).await.expect("sync");
+
+    crate::repository::delete::soft_delete_article(&state.graph, &article_id)
+        .await
+        .expect("soft delete article");
+    index
+        .sync(&state.graph, &article_id)
+        .await
+        .expect("resync after soft delete");
+
+    let outcome = index
+        .read(
+            &state.graph,
+            query_request(
+                "soft article",
+                vec![nail_common::search::SearchRange::Title],
+            ),
+        )
+        .await
+        .expect("read");
+    let versions = version_articles(&outcome);
+    assert_eq!(
+        versions.len(),
+        1,
+        "soft-deleted article keeps its version docs (children stay public)"
+    );
+
+    index.close().await;
+    let _ = std::fs::remove_dir_all(&directory);
+}
+
+#[tokio::test]
 async fn sync_all_and_incremental_sync_agree_on_document_count() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(

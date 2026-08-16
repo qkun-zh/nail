@@ -162,30 +162,37 @@ pub(super) async fn build_documents(
         let version_id = version_row.id;
         let version_ts = nail_common::time::uuidv7_timestamp_secs(&version_id)
             .map_or(0, |secs| i64::try_from(secs).unwrap_or(0));
+        let version_deleted =
+            crate::repository::delete::has_soft_deleted_flag(&guard, version_edge.to)?;
 
-        let mut version_doc = Document::new();
-        version_doc.insert(
-            FIELD_DOC_TYPE.to_string(),
-            serde_json::json!(vec!["version"]),
-        );
-        version_doc.insert(FIELD_VERSION_ID.to_string(), serde_json::json!(version_id));
-        version_doc.insert(FIELD_ARTICLE_ID.to_string(), serde_json::json!(article_id));
-        version_doc.insert(
-            FIELD_VERSION_NUMBER.to_string(),
-            serde_json::json!(version_row.version_number),
-        );
-        version_doc.insert(FIELD_TITLE.to_string(), serde_json::json!(title));
-        version_doc.insert(FIELD_SUMMARY.to_string(), serde_json::json!(summary));
-        version_doc.insert(
-            FIELD_AUTHOR_NAME.to_string(),
-            serde_json::json!(author_name),
-        );
-        version_doc.insert(FIELD_NOTE.to_string(), serde_json::json!(version_row.note));
-        version_doc.insert(FIELD_TAGS.to_string(), serde_json::json!(tags));
-        version_doc.insert(FIELD_TS.to_string(), serde_json::json!(version_ts));
-        documents.push(version_doc);
+        if !version_deleted {
+            let mut version_doc = Document::new();
+            version_doc.insert(
+                FIELD_DOC_TYPE.to_string(),
+                serde_json::json!(vec!["version"]),
+            );
+            version_doc.insert(FIELD_VERSION_ID.to_string(), serde_json::json!(version_id));
+            version_doc.insert(FIELD_ARTICLE_ID.to_string(), serde_json::json!(article_id));
+            version_doc.insert(
+                FIELD_VERSION_NUMBER.to_string(),
+                serde_json::json!(version_row.version_number),
+            );
+            version_doc.insert(FIELD_TITLE.to_string(), serde_json::json!(title));
+            version_doc.insert(FIELD_SUMMARY.to_string(), serde_json::json!(summary));
+            version_doc.insert(
+                FIELD_AUTHOR_NAME.to_string(),
+                serde_json::json!(author_name),
+            );
+            version_doc.insert(FIELD_NOTE.to_string(), serde_json::json!(version_row.note));
+            version_doc.insert(FIELD_TAGS.to_string(), serde_json::json!(tags));
+            version_doc.insert(FIELD_TS.to_string(), serde_json::json!(version_ts));
+            documents.push(version_doc);
+        }
 
         for comment_node in comments_of_version(&guard, version_edge.to)? {
+            if crate::repository::delete::has_soft_deleted_flag(&guard, comment_node)? {
+                continue;
+            }
             let Some(comment_row) = read_rows_sync::<CommentRow>(&guard, &[comment_node])?
                 .into_iter()
                 .next()
