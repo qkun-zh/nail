@@ -55,5 +55,6 @@
   committed.
 - Soft delete (mode Soft, delete-flag scheme 1) remains unimplemented/decided.
 - Perf refactor: P2 (`enrich_articles` localization) done. P3
-  (`enrich_comment_headers` batching) and P6 (recycler HashSet) approved, each
-  awaiting source+probe evidence before implementation. P1/P5/total-cursor open.
+  (`enrich_comment_headers` batching) approved, awaiting source+probe evidence before
+  implementation. P6 (recycler HashSet) **not approved** by user. P1/P5/total-cursor open.
+  P2's problem/solution removed from `performance-refactor.md` tracking (code kept).

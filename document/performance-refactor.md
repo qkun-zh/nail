@@ -42,37 +42,6 @@ Planned solution:
 granularity (per-version/per-comment hits), i.e. observable behavior the user has not
 agreed to change. Requires an explicit user decision (see "Open decisions").
 
-## P2. `enrich_articles` full-graph scan — O(E) time and space for a single read
-
-Location: `code/back/src/repository/article.rs:313-415`
-
-Problem: `read_article` calls `enrich_articles`, which scans the **entire**
-`EDGE_USER_AUTHOR_ARTICLE` and `EDGE_ARTICLE_APPLY_TAG` edge tables
-(`article.rs:325,346`, `.search().elements()` with no `from`/`to` filter), then
-filters by `node_set`. Cost is O(total edges) instead of O(1).
-
-Library evidence (verified):
-- agdb `where_` has **no** `from`/`to` endpoint filter (only `ids`/`key`/`distance`/
-  `beyond`; `where_.rs`). Its `ids` condition matches the **element's own db id**
-  (`db.rs:1213-1227`) — for an edge search that is the edge id, not its endpoints. It
-  also is not composable with `.key()` (returns `WhereLogicOperator`, no `.key`). So
-  `where_.ids(article_ids)` is **not** a valid localization (refutes the old plan).
-- Targeted `to`/`from` exist and are used in-repo (`version.rs:236`, `comment.rs:198`,
-  `document.rs:141`).
-
-Probe evidence (`test/unit/back/repository/probe.rs`, probe passed): with two articles,
-the current graph scan sees 2 owner + 2 tag edges; targeted `.to(a1)` returns exactly the
-1 owner edge and `.from(a1)` the 1 tag edge, and the returned **edge ids are identical**
-(assert_eq) to the current scan+filter for `a1`. Behavior preserved.
-
-Planned solution (revised): since `enrich_articles` is only ever called from `read_article`
-with a single id (`article.rs:190`), use targeted `.search().to(article)` for the owner
-edge and `.search().from(article)` for the tag edges, plus batch `read_rows`. O(E) → O(1).
-
-**Approved? YES — IMPLEMENTED (commit 20fdeb4).** No observable behavior change
-(probe-verified identical edge set); no risk; reaches the theoretical optimum for the
-single-article read. Verification: probe plus existing article-read tests, 305 tests pass.
-
 ## P3. `enrich_comment_headers` per-comment round trips — O(C) time
 
 Location: `code/back/src/repository/search.rs:424-441`
@@ -82,7 +51,8 @@ title, article author, version number), and the author lookup traverses the owne
 each time. O(C) round trips.
 
 Library evidence: agdb `read_rows_sync(&ids)` batch reads and targeted edge queries
-resolve many articles/versions in a handful of queries (see P2 evidence).
+resolve many articles/versions in a handful of queries (targeted `to`/`from` is used
+in-repo in `version.rs:236`, `comment.rs:198`, `document.rs:141`).
 
 Planned solution: collect all article ids and version ids, resolve and `read_rows_sync`
 them in batch; fetch authors with one targeted edge query. O(C) → constant number of
@@ -134,10 +104,9 @@ recyclers cost O(R²).
 Planned solution: replace `exclude.contains` with a `HashSet<String>` of excluded ids
 (O(1) membership). Selection result is identical (same excluded set, same best-pick).
 
-**Approved? YES.** No observable behavior change (the recycler chosen is unchanged);
-no risk; reaches the theoretical optimum (O(R) instead of O(R²)). Verification: existing
-transfer/recycler tests plus a new TDD test asserting the same selection with a
-duplicate-laden exclude list.
+**Approved? NO — OPEN.** User has not approved P6. No observable behavior change (the
+recycler chosen is unchanged); no risk; reaches the theoretical optimum (O(R) instead of
+O(R²)) — but it awaits explicit user approval before implementation.
 
 ## Open decisions for the user (behavior-changing, not yet approved)
 
@@ -158,18 +127,17 @@ duplicate-laden exclude list.
 | Item | Status |
 | --- | --- |
 | P1 deep pagination (master doc) | **Open** — behavior change (index shape + highlight) |
-| P2 enrich_articles localize (targeted `to`/`from`) | **Done** (commit 20fdeb4) |
 | P3 enrich_comment_headers batching | **Approved** — implement |
 | P4 sync_all | Accepted as inherent (no change) |
 | P5 pagination sort + slice | **Open** — drops newest-first ordering |
-| P6 recycler O(R²) → HashSet | **Approved** — implement |
+| P6 recycler O(R²) → HashSet | **Open** — not approved |
 | Search: no ORDER BY / cursor / no total | **Open** — user decides |
 
-_Last updated: P2 implemented (commit 20fdeb4). P3/P6 approved pending evidence+implementation;
-P1/P5/total/cursor open. Baseline: build green, 305 tests pass._
+_Last updated: P2 removed from tracking (implemented, commit 20fdeb4). P6 marked
+**not approved** (open). P3 approved pending evidence+implementation; P1/P5/total/cursor
+open. Baseline: build green, 305 tests pass._
 
 ## Probe evidence log
 
 | # | Probe | Result |
 | --- | --- | --- |
-| P2 | `test/unit/back/repository/probe.rs::probe_targeted_queries_localize_by_endpoint` | Passed. Graph 2 owner+2 tag edges; targeted `.to(a1)/.from(a1)` return identical edge ids to scan+filter. Refutes `where_.ids`. |
