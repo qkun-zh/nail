@@ -164,7 +164,7 @@ wired via `harness.rs`; all green, baseline 429 green, fmt/clippy clean):
   at runtime; **26 actions**; equals `ALL_PERMISSIONS`; every name parses as an
   `Action::"..."` UID via `action_uid` — the A5 seeding source is proven.
 
-#### A1 — Remove the scope axis (O3) — **DONE**
+#### A1 — Remove the scope axis (O3) — **DONE** (commit `8698ecc`)
 **Changes**:
 - `schema.cedar`: delete the `scopes`/`global_role` User attributes,
   `required_scopes` on Article/Version/Comment, and the `Tag` entity.
