@@ -152,8 +152,6 @@ the theoretical optimum (O(R) instead of O(R²)).
   version+comment granular, which keeps highlight cost O(single field) but makes article
   paging O(offset). Master-doc reverses it: cheap article paging, loses per-version/
   comment highlight, risks article-level bloat.
-- **No ORDER BY for search.** Only helps the empty-query/browse path
-  (`search_iterator_index`, `search.rs:1413-1432`); keyword search still ranks by BM25.
 - **No ORDER BY for listing (P5).** Verified `LimitOffsetHandler` short-circuit, but it
   drops newest-first ordering.
 
@@ -166,12 +164,15 @@ the theoretical optimum (O(R) instead of O(R²)).
 | P4 sync_all | Accepted as inherent (no change) |
 | P5 pagination sort + slice | **Done** (commit c2f62ec) — drop sort + total, default order |
 | P6 recycler O(R²) → HashSet | **Done** (verified + user-approved) |
-| Search: no ORDER BY / cursor / no total | **Open** — user decides |
+| Search: no ORDER BY | **Done** (commit af09b00) — drop time/title/author sort, default relevance order; removed `SearchSort*` common types + sort UI |
+| Search: no total / cursor | **Open** — user decides |
 
 _Last updated: P5 implemented (c2f62ec) — lists use agdb offset/limit, no order-by/total.
+Search ORDER BY removed (af09b00) — default relevance order, sort UI gone.
 P1 rejected (highlight behavior), P4 accepted (inherent), P6 non-problem (O(R), exclude
-length 1). Remaining: total/cursor decision on list endpoints (only affects keeping
-`total`; offset nav works without it). Baseline: build green, 308 tests pass._
+length 1). Remaining: total/cursor decision on list endpoints + search total (only
+affects keeping `total`; offset nav works without it). Baseline: build green, 308 back
+tests + 109 common + 69 front pass._
 
 ## Probe evidence log
 

@@ -38,10 +38,15 @@
   `total` (`VersionListPage`, `CommentListPage`) and `VersionListItem.created_at`
   (unused). Frontend uses a new `PrevNext` control instead of numbered pagination.
   308 tests pass; frontend trunk build clean.
+- **Search ORDER BY removed (committed af09b00)**: dropped the client-selectable
+  time/title/author sort on `/search` (common `SearchSort*`, request param,
+  `parse_sort`, `ResultSort` → SeekStorm, frontend sort chips). Results always come in
+  SeekStorm default order (BM25 relevance for keyword search); sort UI removed.
 
 ## Next
 
 - Commit the uncommitted slices (one commit each, clean tree).
 - Soft delete (mode Soft, delete-flag 1) still undecided.
-- Perf: P2, P3, P5 closed. P1 rejected (highlight behavior); P6 non-problem (O(R));
-  P4 accepted (inherent). Open: total/cursor on list endpoints.
+- Perf: P2, P3, P5, search-ORDER-BY closed. P1 rejected (highlight behavior);
+  P6 non-problem (O(R)); P4 accepted (inherent). Open: total/cursor on list endpoints
+  + search total.
