@@ -139,7 +139,7 @@ pub async fn restore_version(
     principal: Principal,
     AppPath(version_id): AppPath<String>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data = crate::logic::version::restore_version(&state, &principal.user_id, &version_id)
-        .await?;
+    let data =
+        crate::logic::version::restore_version(&state, &principal.user_id, &version_id).await?;
     Ok(json_response(StatusCode::OK, data, "restored"))
 }

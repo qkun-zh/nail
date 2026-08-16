@@ -379,11 +379,18 @@ async fn soft_delete_version_cascades_the_flag_over_versions_and_comments() {
     assert!(has_soft_deleted_flag(&state, "version", &second_version).await);
     assert!(!has_soft_deleted_flag(&state, "version", &first_version).await);
     assert!(!has_soft_deleted_flag(&state, "article", &article_id).await);
-    let (page, _) =
-        crate::repository::comment::read_comments_page_by_version(&state.graph, &second_version, 10, 0)
-            .await
-            .expect("comment page");
-    assert!(page.is_empty(), "comments hidden under a soft-deleted version");
+    let (page, _) = crate::repository::comment::read_comments_page_by_version(
+        &state.graph,
+        &second_version,
+        10,
+        0,
+    )
+    .await
+    .expect("comment page");
+    assert!(
+        page.is_empty(),
+        "comments hidden under a soft-deleted version"
+    );
 }
 
 #[tokio::test]

@@ -128,8 +128,8 @@ pub async fn restore_article(
     principal: Principal,
     AppPath(article_id): AppPath<String>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data = crate::logic::article::restore_article(&state, &principal.user_id, &article_id)
-        .await?;
+    let data =
+        crate::logic::article::restore_article(&state, &principal.user_id, &article_id).await?;
     Ok(json_response(StatusCode::OK, data, "restored"))
 }
 

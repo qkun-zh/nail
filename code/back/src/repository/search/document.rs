@@ -165,10 +165,8 @@ pub(super) async fn build_documents(
         let version_id = version_row.id;
         let version_ts = nail_common::time::uuidv7_timestamp_secs(&version_id)
             .map_or(0, |secs| i64::try_from(secs).unwrap_or(0));
-        let version_deleted = crate::repository::delete::has_soft_deleted_flag(
-            &guard,
-            version_edge.to,
-        )?;
+        let version_deleted =
+            crate::repository::delete::has_soft_deleted_flag(&guard, version_edge.to)?;
 
         if version_deleted {
             continue;

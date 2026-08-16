@@ -172,7 +172,11 @@ fn resolve_any_node_id_sync(
     guard: &agdb::DbAny,
     business_id: &str,
 ) -> Result<Option<(String, agdb::DbId)>, DbError> {
-    for kind in [ENTITY_TYPE_ARTICLE, ENTITY_TYPE_VERSION, ENTITY_TYPE_COMMENT] {
+    for kind in [
+        ENTITY_TYPE_ARTICLE,
+        ENTITY_TYPE_VERSION,
+        ENTITY_TYPE_COMMENT,
+    ] {
         if let Some(id) = resolve_node_id_sync(guard, kind, business_id)? {
             return Ok(Some((kind.to_string(), id)));
         }
@@ -300,7 +304,9 @@ fn adjust_node_soft_delete_count_in_txn(
     delta: i64,
 ) -> Result<(), DbError> {
     let current = soft_delete_count_in_txn(transaction, id)?;
-    let next = i64::try_from(current).unwrap_or(i64::MAX).saturating_add(delta);
+    let next = i64::try_from(current)
+        .unwrap_or(i64::MAX)
+        .saturating_add(delta);
     if next <= 0 {
         transaction.exec_mut(
             QueryBuilder::remove()
@@ -337,7 +343,10 @@ fn soft_delete_count_in_txn(
     let Some(element) = result.elements.first() else {
         return Ok(0);
     };
-    let Some(key_value) = element.values.iter().find(|value| value.key == KEY_SOFT_DELETED.into())
+    let Some(key_value) = element
+        .values
+        .iter()
+        .find(|value| value.key == KEY_SOFT_DELETED.into())
     else {
         return Ok(0);
     };
