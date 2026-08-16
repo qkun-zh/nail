@@ -18,15 +18,6 @@ fn user_entity(id: &str, parents: HashSet<EntityUid>) -> Entity {
     Entity::new_no_attrs(uid(&format!("User::\"{id}\"")), parents)
 }
 
-fn user_entity_owned(id: &str) -> Entity {
-    Entity::new(
-        uid(&format!("User::\"{id}\"")),
-        HashMap::from([("owner".to_string(), expression(&format!("User::\"{id}\"")))]),
-        HashSet::new(),
-    )
-    .expect("user entity")
-}
-
 fn article_entity(id: &str, owner: &str) -> Entity {
     Entity::new(
         uid(&format!("Article::\"{id}\"")),
@@ -55,6 +46,22 @@ fn schema_actions_equal_the_permission_constants() {
     constants.sort();
 
     assert_eq!(declared, constants);
+}
+
+#[test]
+fn policy_set_validates_against_the_schema() {
+    let schema: cedar_policy::Schema = SCHEMA.parse().expect("schema");
+    let pset: cedar_policy::PolicySet = POLICY.parse().expect("policy");
+    let result =
+        cedar_policy::Validator::new(schema).validate(&pset, cedar_policy::ValidationMode::Strict);
+    let errors: Vec<String> = result
+        .validation_errors()
+        .map(std::string::ToString::to_string)
+        .collect();
+    assert!(
+        result.validation_passed(),
+        "policy does not validate against schema: {errors:?}"
+    );
 }
 
 fn policy_action_names() -> Vec<String> {
@@ -215,25 +222,25 @@ fn read_requires_a_role_grant() {
 
 #[test]
 fn user_self_view_allows_anyone_and_other_users_need_a_grant() {
-    let alice_owned = user_entity_owned("alice");
+    let alice = user_entity("alice", HashSet::new());
     assert!(
         decide(
             &uid("User::\"alice\""),
             "User::Read",
             &uid("User::\"alice\""),
-            vec![alice_owned],
+            vec![alice],
         )
         .expect("self view")
     );
 
     let alice = user_entity("alice", HashSet::new());
-    let bob_owned = user_entity_owned("bob");
+    let bob = user_entity("bob", HashSet::new());
     assert!(
         !decide(
             &uid("User::\"alice\""),
             "User::Read",
             &uid("User::\"bob\""),
-            vec![alice, bob_owned.clone()],
+            vec![alice, bob.clone()],
         )
         .expect("other view denied")
     );
@@ -249,7 +256,7 @@ fn user_self_view_allows_anyone_and_other_users_need_a_grant() {
             &uid("User::\"admin\""),
             "User::Read",
             &uid("User::\"bob\""),
-            vec![admin, admin_role, action, bob_owned],
+            vec![admin, admin_role, action, bob],
         )
         .expect("granted other view")
     );

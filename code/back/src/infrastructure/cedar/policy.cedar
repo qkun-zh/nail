@@ -3,10 +3,9 @@
 // these policies.
 
 // 1. Owner bypass: the resource owner may read/update, create new versions,
-//    and transfer (soft-delete) their own content. User::Read is the self-view:
-//    the target user's own record (resource.owner == principal). Published
-//    content is a platform asset, so the owner can never hard-delete it: the
-//    Delete actions listed here are the Transfer and Soft variants only.
+//    and transfer (soft-delete) their own content. Published content is a
+//    platform asset, so the owner can never hard-delete it: the Delete actions
+//    listed here are the Transfer and Soft variants only.
 //    Version::Update/Delete and Comment::Update keep the author stories in
 //    FR-20/FR-21; version hard-delete is admin-only. Members hold no global
 //    Transfer/Soft grants: the owner bypass is the only member path to
@@ -20,10 +19,17 @@ permit (principal, action in [Action::"Article::Read", Action::"Version::Read",
                               Action::"Version::Create", Action::"Version::Update",
                               Action::"Version::Delete::Transfer",
                               Action::"Version::Delete::Soft",
-                              Action::"Comment::Update",
-                              Action::"User::Read"],
+                              Action::"Comment::Update"],
         resource)
   when { resource.owner == principal };
+
+// 1b. User::Read self-view: a user may always read their own record. The
+//     User entity carries no attributes (schema `entity User in [Role];`), so
+//     self-view is expressed directly as `principal == resource` instead of an
+//     owner attribute — User stays attribute-less in both the principal and the
+//     resource position.
+permit (principal, action == Action::"User::Read", resource)
+  when { principal == resource };
 
 // 2 was the read-open rule, removed in B1: reads now flow through policy 1
 // (owner) or the role grant in policy 3.

@@ -4,6 +4,10 @@ Status: **adopted by user — A0 evidence collected (probes green), decisions
 D1–D7 recorded, execution started at A1**. Per `workflow.md` 5.5, this file is
 the tracking point: update it on every plan change, mark status on adoption.
 
+Phase B4 (**codegen single-source + policy validation**, user-approved
+"修复这三个吧，同时加上测试保证不会修错") added below; B4.0 evidence collected,
+B4.1 done (see B4.1).
+
 ## 1. Goal
 
 Make the authorization model truthful: what the code claims (policy + schema) is
@@ -443,3 +447,127 @@ the inventory can't name an action that isn't a real, seeded permission.
 
 Per `workflow.md` 5.5: evidence (A0) presented, decisions D1–D7 recorded, and the
 user explicitly adopts this plan before any slice starts.
+
+## 9. Phase B4 — Codegen single-source + policy validation
+
+Status: **adopted by user** ("修复这三个吧，同时加上测试保证不会修错"),
+B4.0 evidence collected, B4.1 done. Three fixes, each with guard tests so a wrong
+"repair" cannot pass:
+
+1. **Fix 2 (point 2) — `PERMISSION_*` constants generated from `schema.cedar`**:
+   replace the hand-written mirror in `repository/role.rs` with a `build.rs`
+   that parses the schema's `action "..."` lines and emits the constants,
+   making schema → constants constructively consistent. Test-only transfer
+   constants (`User::Delete::Transfer`, `Version::Delete::Transfer`) keep
+   `#[cfg(test)]`.
+2. **Fix 1 (point 1) — `ROUTE_*` constants generated from `router.rs`**:
+   `build.rs` parses the `.route("...")` literals and emits `ROUTE_<SLUG>`
+   constants; `ROUTE_ACTIONS` keys use them, so route → inventory keys are
+   constructively consistent. `router.rs` stays the literal source (that is
+   where axum registration must read from).
+3. **Fix 3 — Cedar `PolicySet::validate(&schema)`** at policy parse time,
+   fail-fast at boot. Current policy/schema FAIL strict validation
+   (`probe_002`, see B4.1) because `User` doubles as principal (attr-less)
+   and resource (carries optional `owner`) — fixed by removing the dual role.
+
+### B4.0 — Evidence probes (done)
+
+- `probe_002_policy_validate` (RED, `test/unit/back/infrastructure/probe_002_policy_validate.rs`,
+  wired via `harness.rs`): `Validator::new(schema).validate(&pset,
+  ValidationMode::Strict)` on the current `POLICY`/`SCHEMA` fails:
+  `for policy policy0, unable to guarantee safety of access to optional
+  attribute owner on entity type User`. Source evidence: `cedar-policy`
+  4.12.0 `api.rs` — `PolicySet` has no `validate`; validation is
+  `Validator::new(schema).validate(&pset, mode)` (`api.rs:1532`),
+  `ValidationResult::validation_passed()` (`api.rs:2299`), `ValidationMode`
+  defaults to `Strict` (`api.rs:1473`).
+
+### B4.1 — Fix 3: policy validation + root-cause `User` dual-role fix (done)
+
+**Root cause**: `User` doubles as principal (attr-less) and resource (carries
+`owner?: User`). The optional attribute exists only to support self-view via
+`resource.owner == principal` — but self-view is semantically just
+`principal == resource`. So the optional-attribute access (and the earlier
+`has()` guard idea) disappears entirely by removing the dual role.
+
+**Changes**:
+- `schema.cedar`: `entity User in [Role] { owner?: User };` →
+  `entity User in [Role];` (User is attr-less again).
+- `policy.cedar` rule 1: drop `Action::"User::Read"` from the action list;
+  condition stays `resource.owner == principal` (no `has()` needed — all
+  remaining rule-1 resources `Article`/`Version`/`Comment` declare required
+  `owner`). New rule 1b: `permit (principal, action ==
+  Action::"User::Read", resource) when { principal == resource };`
+  (self-view).
+- `repository/authorization.rs` `Resource::User`: assemble the resource with
+  `Entity::new_no_attrs` (no `owner` attr anymore); existence check → 404 kept.
+- `infrastructure/cedar.rs` `policies()`: after `POLICY.parse::<PolicySet>()`,
+  run `Validator::new(SCHEMA.parse()?).validate(&pset, Strict)`; on failure
+  return an error naming the validation messages. Fail-fast at first use
+  (OnceLock, startup).
+- `probe_002` promoted → real test `policy_set_validates_against_the_schema`
+  in `test/unit/back/infrastructure/cedar.rs`; probe file deleted; self-view
+  test updated to attr-less `User` entities.
+**Red→Green**: probe was red (see B4.0). After the fix, probe test green.
+**Exit**: `policies()` returns an error if policy and schema ever disagree;
+policy/schema both pass strict validation; suite green (452 back tests;
+fmt/clippy 0, common 109, frontend trunk build clean).
+
+### B4.2 — Fix 2: permission constants via build.rs
+
+**Changes**:
+- New `code/back/build.rs`: parse `src/infrastructure/cedar/schema.cedar`
+  lines `action "Article::Delete::Hard" ... ;` → emit
+  `pub const PERMISSION_ARTICLE_DELETE_HARD: &str = "Article::Delete::Hard";`
+  (segments joined by `_`, upper-snake) into
+  `OUT_DIR/permissions.rs`, with `#[cfg(test)]` on the two transfer actions
+  that production does not use.
+- `repository/role.rs`: delete the 27 hand-written constants; add
+  `include!(concat!(env!("OUT_DIR"), "/permissions.rs"));` where they stood.
+  `permission_vocabulary()` and every `use crate::repository::role::PERMISSION_*`
+  call site keep compiling (names unchanged).
+- `Cargo.toml`: add `build = "build.rs"`; `build.rs` emits
+  `cargo:rerun-if-changed=src/infrastructure/cedar/schema.cedar`.
+**Guard tests** (prove the generator is right, not just that it ran):
+- existing `schema_actions_equal_the_permission_constants` compares the
+  generated constants against the parsed schema (now guards generation);
+- new naming spot-check: assert a representative constant string equals its
+  action, and that the two transfer constants carry the expected values;
+- existing A5 tests (seed derives from schema; drift test) stay green.
+**Exit**: no hand-written `PERMISSION_*` remains; adding an action to
+`schema.cedar` recompiles constants and (via A5 tests) propagates to seed;
+suite green.
+
+### B4.3 — Fix 1: route constants via build.rs
+
+**Changes**:
+- `build.rs` also parses `src/interface/router.rs` `.route("...", ...)`
+  literals → emit `pub const ROUTE_ARTICLE_ID_READ: &str = "/article/{id}/read";`
+  (slug: split path segments, strip `{`/`}`, upper-snake) into
+  `OUT_DIR/routes.rs`. Emit `cargo:rerun-if-changed=src/interface/router.rs`.
+- `logic/operations.rs`: add
+  `include!(concat!(env!("OUT_DIR"), "/routes.rs"));` and write `ROUTE_ACTIONS`
+  keys as `ROUTE_*` constants.
+**Guard tests**:
+- existing `every_route_in_router_has_an_inventory_entry` (walks router.rs
+  literals) now verifies the generated constants keep agreeing with the
+  literal source;
+- new spot-check asserting a few `ROUTE_*` constants equal their literal
+  paths.
+**Exit**: route → inventory-key consistency is constructive; suite green.
+
+### B4.4 — Gate & docs
+
+**Gate**: `cargo fmt`, `cargo clippy` 0 warnings, full back suite, `common
+--lib`, frontend `trunk build`. Update `document/authz-refactor.md` B4 status
+and `document/handoff.md`.
+
+## 10. B4 Risks & mitigations
+
+| Risk | Slice | Mitigation |
+| --- | --- | --- |
+| Cedar strict validation rejects a policy term that is safe at runtime | B4.1 | probe first; root-cause fix removes the dual-role `User` (no `has()` shim); full policy test suite |
+| Behavior change from removing `User.owner` | B4.1 | self-view re-expressed as `principal == resource`; `user_self_view...` + full cedar suite prove semantics |
+| Generated constants silently disagree with source | B4.2/B4.3 | bidirectional guard tests (constants vs parsed schema / router literals) + rerun-if-changed |
+| `include!`/OUT_DIR wiring breaks crate build | B4.2/B4.3 | build.rs + Cargo.toml change lands with its guard tests; gate runs the full suite |
+| Changing `policies()` to fail-fast introduces a new boot error path | B4.1 | error carries validation messages; existing boot tests green |

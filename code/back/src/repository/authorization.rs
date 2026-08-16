@@ -246,12 +246,7 @@ pub async fn assemble_resource(
                 return Err(AssemblyError::ResourceNotFound);
             }
             let resource_uid = user_uid(&user_id)?;
-            let entity = Entity::new(
-                resource_uid.clone(),
-                resource_attrs(&user_id)?,
-                HashSet::new(),
-            )
-            .map_err(|error| AssemblyError::Internal(error.to_string()))?;
+            let entity = Entity::new_no_attrs(resource_uid.clone(), HashSet::new());
             Ok((resource_uid, vec![entity]))
         }
         Resource::Virtual(name) => {

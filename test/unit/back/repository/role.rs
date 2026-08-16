@@ -150,7 +150,7 @@ async fn member_role_holds_exactly_the_seeded_baseline_permissions() {
         .expect("member role");
 
     let mut actual: Vec<&str> = role.permissions.iter().map(String::as_str).collect();
-    actual.sort();
+    actual.sort_unstable();
     let mut expected: Vec<&str> = vec![
         PERMISSION_ARTICLE_CREATE,
         PERMISSION_COMMENT_CREATE,
@@ -158,7 +158,7 @@ async fn member_role_holds_exactly_the_seeded_baseline_permissions() {
         PERMISSION_VERSION_READ,
         PERMISSION_COMMENT_READ,
     ];
-    expected.sort();
+    expected.sort_unstable();
 
     assert_eq!(actual, expected);
 }

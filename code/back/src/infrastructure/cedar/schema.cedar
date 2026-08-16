@@ -2,7 +2,7 @@
 // type declarations. This is the single handwritten source of the action names;
 // the permission nodes are seeded from these names. Static, requires restart.
 
-entity User in [Role] { owner?: User };
+entity User in [Role];
 entity Role;
 entity Article  { owner: User };
 entity Version  { owner: User };

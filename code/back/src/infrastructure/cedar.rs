@@ -1,7 +1,10 @@
 use std::sync::OnceLock;
 
 use anyhow::Context;
-use cedar_policy::{Authorizer, Decision, Entities, Entity, EntityUid, PolicySet, Request};
+use cedar_policy::{
+    Authorizer, Decision, Entities, Entity, EntityUid, PolicySet, Request, ValidationMode,
+    Validator,
+};
 
 pub const SCHEMA: &str = include_str!("cedar/schema.cedar");
 pub const POLICY: &str = include_str!("cedar/policy.cedar");
@@ -23,9 +26,25 @@ pub fn schema_actions() -> anyhow::Result<Vec<String>> {
 
 fn policies() -> anyhow::Result<&'static PolicySet> {
     let result = POLICY_SET.get_or_init(|| {
-        POLICY
-            .parse::<PolicySet>()
-            .map_err(|error| error.to_string())
+        let policy_set = match POLICY.parse::<PolicySet>() {
+            Ok(set) => set,
+            Err(error) => return Err(error.to_string()),
+        };
+        let schema = match SCHEMA.parse::<cedar_policy::Schema>() {
+            Ok(schema) => schema,
+            Err(error) => return Err(error.to_string()),
+        };
+        let validation = Validator::new(schema).validate(&policy_set, ValidationMode::Strict);
+        if !validation.validation_passed() {
+            let messages: Vec<String> = validation
+                .validation_errors()
+                .map(std::string::ToString::to_string)
+                .collect();
+            return Err(format!(
+                "policy does not validate against schema: {messages:?}"
+            ));
+        }
+        Ok(policy_set)
     });
     result
         .as_ref()
