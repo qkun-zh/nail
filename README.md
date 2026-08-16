@@ -7,8 +7,8 @@ proof-of-work, Cedar policy authorization, and PDF download with short-lived
 tokens.
 
 This README is the project constitution: its layering, standards, and build
-rules are mandatory. Agents must read it (and
-`document/agent-code-workflow.md`) before any work — see `AGENTS.md`.
+rules are mandatory. Agents must read it (and `document/INDEX.md`) before any
+work — see `AGENTS.md`.
 
 ## 1. Repository layout
 
@@ -19,8 +19,9 @@ rules are mandatory. Agents must read it (and
 - `data/` — agdb database, SeekStorm search index, PDF storage. The dev
   database is reset and reseeded at startup; deleting it forces a fresh init.
 - `log/` — backend and proxy logs.
-- `document/` — progress tracker (`handoff.md`), ADRs (`adr/`), run guide
-  (`run.md`), code workflow (`agent-code-workflow.md`).
+- `document/` — project docs, indexed by `INDEX.md`: code workflow
+  (`workflow.md`), progress tracker (`handoff.md`), run guide (`run.md`),
+  decisions (`decisions.md`).
 - `test/` — shared unit-test sources pulled in by the crates via `#[path]`.
 
 ## 2. Architecture
@@ -203,7 +204,9 @@ payloads, the database node/edge shapes, and the cache key-value layout.
 
 ## 13. Documentation
 
+- `document/INDEX.md` is the entry point: read order and what each doc covers.
+- `document/workflow.md` defines the mandatory code-execution loop.
 - `document/handoff.md` tracks current state, what was done, and what comes
   next.
-- `document/adr/` records adjudicated architectural decisions.
-- `document/agent-code-workflow.md` defines the mandatory code-execution loop.
+- `document/decisions.md` records the decided architecture and conventions.
+- `document/run.md` is the build/run/health-check guide.

@@ -5,27 +5,28 @@
 1. `README.md` — the project constitution: repository layout, architecture
    layering, coding standards, robustness, configuration, and build rules.
    Mandatory, not advisory.
-2. `document/agent-code-workflow.md` — the mandatory execution loop for any
-   code change: baseline green, clean commits, requirement interrogation, todo
-   plan, research via source/probe tests, red→green→gate→commit per slice,
-   final gate.
+2. `document/INDEX.md` — the doc map and read order.
+3. `document/workflow.md` — the mandatory execution loop for any code change:
+   baseline green, clean commits, requirement interrogation, todo plan, research
+   via source/probe tests, red→green→gate→commit per slice, final gate.
 
 Everything below — the skills to reach for and the tool operations allowed or
-forbidden — is secondary to those two documents. If this file ever conflicts
-with either, the README and the workflow doc win.
+forbidden — is secondary to those documents. If this file ever conflicts with
+any of them, the README, the doc index, and the workflow doc win.
 
 ## Documentation map
 
 - `README.md` — constitution (layering, standards, robustness, config, build).
-- `document/agent-code-workflow.md` — the mandatory code-execution loop.
+- `document/INDEX.md` — entry point: read order and what each doc covers.
+- `document/workflow.md` — the mandatory code-execution loop.
 - `document/handoff.md` — progress tracker: current state, what was done, what
   comes next. Update it at the end of every completed slice, before reporting.
-- `document/adr/` — adjudicated decisions, numbered `0001-…`. Follow the
-  numbering; do not reopen a frozen decision without a new ADR.
+- `document/decisions.md` — the decided architecture and conventions. Read-only;
+  changing one requires re-evaluation.
 - `document/run.md` — full-stack build/restart procedure and health checks.
 
 There is no issue tracker (no git remote, no `.scratch/`). Work is tracked in
-`document/handoff.md`; specs/decisions live in `document/adr/`.
+`document/handoff.md`; specs/decisions live in `document/decisions.md`.
 
 ## When to use which skill
 
@@ -38,9 +39,9 @@ one exception below, and it is a reference to consult, not a session to run.
 | `codebase-design` | designing or restructuring a module's interface, deciding where a seam goes, deepening a module, or making code more testable/AI-navigable. A vocabulary to consult during any design work, not a standalone session. |
 | `diagnosing-bugs` | the user reports something broken, throwing, failing, or slow (or says "diagnose"/"debug"). Build a tight red-capable repro first; never hypothesise before it. |
 | `tdd` | building a feature or fixing a bug test-first ("red-green-refactor", or tests were requested). Seams = the README layer boundaries; tests live under `test/unit/{common,back,front}`, pulled in via `#[path]`. |
-| `domain-modeling` | pinning down domain terminology, sharpening a fuzzy term, or recording an architectural decision (writes ADRs under `document/adr/`). |
+| `domain-modeling` | pinning down domain terminology, sharpening a fuzzy term, or recording an architectural decision (writes to `document/decisions.md`). |
 | `grilling` | the user wants a plan/decision stress-tested ("grill me"). User-invoked; do not self-initiate. |
-| `grill-with-docs` | a grilling session that should also produce glossary/ADR docs as it goes. User-invoked. |
+| `grill-with-docs` | a grilling session that should also produce glossary/decision docs as it goes. User-invoked. |
 | `improve-codebase-architecture` | the user wants a codebase architecture review / deepening-opportunities report. Produces an HTML report, then grills through the picked candidate. |
 | `handoff` | wrapping up a session and compacting context for a fresh agent. Keep `document/handoff.md` current; the skill's temp-dir doc references it instead of duplicating it. |
 | `thermo-nuclear-code-quality-review` | the user asks for an extremely strict maintainability / abstraction / spaghetti review. |
@@ -76,7 +77,7 @@ one exception below, and it is a reference to consult, not a session to run.
   credential into files, logs, diffs, or commits. Redact secrets in all
   output. The file is gitignored; the committed template is
   `configuration/smtp.toml.example`.
-- **Per-slice commits are pre-authorized**: `document/agent-code-workflow.md`
+- **Per-slice commits are pre-authorized**: `document/workflow.md`
   mandates one commit per slice on a clean tree, so each slice's commit needs no
   separate user prompt. `amend`, `push`, and `force` still require explicit user
   approval.

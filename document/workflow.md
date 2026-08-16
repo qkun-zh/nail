@@ -256,7 +256,7 @@ down (user unreachable), or a task that proves infeasible. A stop must:
 - One commit per slice; clean tree at every loop-back.
 - Every reported result is reproducible by re-running the gates.
 - Repo constitution always applies: no hand-edited `Cargo.lock`, no
-  `unwrap`/`expect`, no edits to `document/legacy/`, no secrets in output.
+  `unwrap`/`expect`, no secrets in output.
 - Never discard work: `git checkout HEAD -- <path>`, `git checkout --`,
   `git restore`, `git reset --hard`, `git clean -fd`, and change-dropping
   `git stash` are forbidden (see AGENTS.md). Recover from a commit/bundle or
