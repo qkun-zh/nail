@@ -64,6 +64,9 @@ pub mod logic_user;
 #[path = "logic/authorize.rs"]
 pub mod logic_authorize;
 
+#[path = "logic/probe_001_read_gate_assembly_baseline.rs"]
+pub mod logic_probe_001_read_gate_assembly_baseline;
+
 #[path = "logic/article.rs"]
 pub mod logic_article;
 
