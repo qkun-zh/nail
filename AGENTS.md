@@ -14,6 +14,20 @@ Everything below — the skills to reach for and the tool operations allowed or
 forbidden — is secondary to those documents. If this file ever conflicts with
 any of them, the README, the doc index, and the workflow doc win.
 
+## Concurrent agents
+
+Other agents may work on this same project at the same time. Task scopes are
+generally disjoint, so:
+
+- Do not be surprised by uncommitted modifications or new commits you did not
+  make — someone else is working in the same tree.
+- Do not assume files you did not touch are in the state you left them; re-read
+  before depending on them.
+- Do not sweep unrelated working-tree changes into your own commit — stage only
+  what belongs to your task, and leave other agents' in-progress work alone.
+- Never discard others' work: the "never discard work" rule applies to every
+  change in the tree, not just your own.
+
 ## Documentation map
 
 - `README.md` — constitution (layering, standards, robustness, config, build).
