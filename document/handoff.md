@@ -17,7 +17,8 @@
   the double-evidence workflow refactor (see Done).
 - **Authz refactor (in progress, plan `document/authz-refactor.md`)**: A1 done
   (`8698ecc`), A2 done (`208e94c`), A3 done (`9a92e1e`), A4 done (`0d3e7de`),
-  A5 done (`2b1f02c`). Next slice: A6 (documentation).
+  A5 done (`2b1f02c`), A6 done (docs, `document/authz.md`). Phase A complete.
+  Next: Phase B (B0 read-gate benchmark → B1 read enforcement) per plan.
 - **Soft-delete refcount + restore API (committed bac4e65, c40608b, 6c33fac,
   97fd467, 6883a5b)**: done — `KEY_SOFT_DELETED` is a u64 count, soft-delete
   cascades `+1` over the subtree, restore `-1` (key deleted at 0; invariant key
@@ -28,6 +29,12 @@
 
 ## Done
 
+- **Authz A6 — documentation**: wrote `document/authz.md` — the stable
+  layered-model record (session/PoW → Cedar authorize → one-time token
+  binding), read gating today (session-only) + the Phase B hook locations, and
+  the D1/D3/D7 decision records. Put in `document/` because `README.md` §5 is
+  another agent's uncommitted file; plan notes a later agent may fold it into
+  README §5. No code changed. Phase A complete.
 - **Authz A5 — vocabulary single source + policy 6 deleted (committed 2b1f02c)**:
   `SCHEMA` is now production (`infrastructure/cedar.rs`) with a new
   `schema_actions()` helper (parses the schema, returns sorted action names).
@@ -146,7 +153,8 @@
 
 - Commit the uncommitted slices (one commit each, clean tree).
 - Authz: A1 (`8698ecc`) + A2 (`208e94c`) + A3 (`9a92e1e`) + A4 (`0d3e7de`) +
-  A5 (`2b1f02c`) done; A6 (docs) next.
+  A5 (`2b1f02c`) + A6 (docs) done — Phase A complete. Next: B0 (read-gate
+  benchmark) then B1 (read enforcement, D5 member read grants already seeded).
 - Perf: P2, P3, P5, search-ORDER-BY closed. P1 rejected (highlight behavior);
   P6 non-problem (O(R)); P4 accepted (inherent). Open: total/cursor on list endpoints
   + search total.

@@ -289,7 +289,7 @@ tests), common 109, clippy 0, frontend `trunk build` clean.
 power to a role (admin's power is data, not a permit); cross-check test green.
 Gate: back 433 / common 109, clippy 0, front `trunk build` clean.
 
-#### A6 — Documentation (O6)
+#### A6 — Documentation (O6) — **DONE**
 **Changes**:
 - Record the layered model (session/PoW → Cedar authorize → one-time token
   binding) in `README.md` §5 or `document/`.
@@ -300,6 +300,11 @@ Gate: back 433 / common 109, clippy 0, front `trunk build` clean.
 - Record D3 (admin power = explicit data grants, policy 6 deleted) and D7 (admin
   revocation blocked by a policy forbid; recycler/member kept guarded in Rust).
 - Update `document/handoff.md`.
+**Done**: wrote `document/authz.md` (layered model, read gating today + Phase B
+hook, D1/D3/D7 records). Used the `document/` branch: `README.md` §5 is owned by
+the concurrent docs-refactor agent (uncommitted), so the durable record lives in
+`document/authz.md` and is linked from the plan; a later agent may fold it into
+README §5 once the other agent's edits land. No code changed.
 
 ### Phase B — Read enforcement (O1, O5)
 
