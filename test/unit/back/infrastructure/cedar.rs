@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use cedar_policy::{Entity, EntityUid, RestrictedExpression};
 
-use crate::infrastructure::cedar::{SCHEMA, decide};
+use crate::infrastructure::cedar::{POLICY, SCHEMA, decide};
 
 fn uid(text: &str) -> EntityUid {
     text.parse::<EntityUid>().expect("entity uid")
@@ -30,7 +30,7 @@ fn article_entity(id: &str, owner: &str) -> Entity {
 }
 
 #[test]
-fn schema_declares_exactly_the_twenty_three_seeded_actions() {
+fn schema_actions_equal_the_seed_vocabulary() {
     let schema: cedar_policy::Schema = SCHEMA.parse().expect("schema");
     let mut declared: Vec<String> = schema
         .actions()
@@ -45,6 +45,43 @@ fn schema_declares_exactly_the_twenty_three_seeded_actions() {
     seeded.sort();
 
     assert_eq!(declared, seeded);
+}
+
+fn policy_action_names() -> Vec<String> {
+    let mut names = Vec::new();
+    let mut rest = POLICY;
+    while let Some(start) = rest.find("Action::\"") {
+        rest = &rest[start + "Action::\"".len()..];
+        match rest.find('"') {
+            Some(end) => {
+                names.push(rest[..end].to_string());
+                rest = &rest[end + 1..];
+            }
+            None => break,
+        }
+    }
+    names.sort();
+    names.dedup();
+    names
+}
+
+#[test]
+fn every_action_referenced_by_policy_exists_in_the_schema() {
+    let schema: cedar_policy::Schema = SCHEMA.parse().expect("schema");
+    let declared: HashSet<String> = schema
+        .actions()
+        .map(|action| action.id().unescaped().to_string())
+        .collect();
+
+    let missing: Vec<String> = policy_action_names()
+        .into_iter()
+        .filter(|name| !declared.contains(name))
+        .collect();
+
+    assert!(
+        missing.is_empty(),
+        "policy references actions missing from schema.cedar: {missing:?}"
+    );
 }
 
 #[test]

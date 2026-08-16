@@ -1,4 +1,4 @@
-// Authorization action vocabulary (Cedar schema): 23 actions and the entity
+// Authorization action vocabulary (Cedar schema): 26 actions and the entity
 // type declarations. This is the single handwritten source of the action names;
 // the permission nodes are seeded from these names. Static, requires restart.
 
