@@ -13,10 +13,12 @@ use crate::logic::authorize::authorize_or;
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::search::sync_article_best_effort;
 use crate::repository::authorization::Resource;
-use crate::repository::delete::{delete_version as delete_version_node, soft_delete_version};
+use crate::repository::delete::{
+    clear_soft_deleted_flag, delete_version as delete_version_node, soft_delete_version,
+};
 use crate::repository::role::{
     PERMISSION_VERSION_CREATE, PERMISSION_VERSION_DELETE_HARD, PERMISSION_VERSION_DELETE_SOFT,
-    PERMISSION_VERSION_UPDATE,
+    PERMISSION_VERSION_RESTORE, PERMISSION_VERSION_UPDATE,
 };
 use crate::repository::version::{
     CreateVersionError, VersionDraft, content_hash_owner, create_version as create_version_node,
@@ -266,6 +268,39 @@ pub async fn delete_version(
             "version delete only supports mode \"soft\" or \"hard\"",
         )),
     }
+}
+
+pub async fn restore_version(
+    state: &AppState,
+    actor_id: &str,
+    version_id: &str,
+) -> Result<VersionIdView, LogicError> {
+    authorize_or(
+        state,
+        actor_id,
+        PERMISSION_VERSION_RESTORE,
+        &Resource::Version(version_id.to_string()),
+        "version not found",
+    )
+    .await?;
+    let hidden = crate::repository::delete::is_soft_deleted(&state.graph, "version", version_id)
+        .await
+        .map_err(database_error)?;
+    if !hidden {
+        return Err(LogicError::bad_request("not soft-deleted"));
+    }
+    clear_soft_deleted_flag(&state.graph, version_id)
+        .await
+        .map_err(database_error)?;
+    if let Some(parent_article) = parent_article_of(&state.graph, version_id)
+        .await
+        .map_err(database_error)?
+    {
+        sync_article_best_effort(state, &parent_article).await;
+    }
+    Ok(VersionIdView {
+        version_id: version_id.to_string(),
+    })
 }
 
 pub(crate) fn validate_note(raw: &str, max_chars: u64) -> Result<String, LogicError> {

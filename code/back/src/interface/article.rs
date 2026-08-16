@@ -123,6 +123,16 @@ pub async fn delete_article(
     Ok(json_response(StatusCode::OK, data, "deleted"))
 }
 
+pub async fn restore_article(
+    State(state): State<AppState>,
+    principal: Principal,
+    AppPath(article_id): AppPath<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    let data = crate::logic::article::restore_article(&state, &principal.user_id, &article_id)
+        .await?;
+    Ok(json_response(StatusCode::OK, data, "restored"))
+}
+
 pub(crate) async fn read_text_field(
     state: &AppState,
     field: axum::extract::multipart::Field<'_>,

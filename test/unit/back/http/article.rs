@@ -588,6 +588,62 @@ async fn delete_article_hard_is_forbidden_for_a_member_owner() {
 }
 
 #[tokio::test]
+async fn restore_article_revives_the_article_over_http() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, owner_token) = member_session(&context, "alice@example.com").await;
+    let (_, admin_token) = admin_session(&context).await;
+    let article_id = create_article_fixture(&context, &owner_token, "Restorable").await;
+    let (status, body) = context
+        .post(
+            &format!("/article/{article_id}/delete"),
+            json!({ "mode": "soft" }),
+            Some(&owner_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+
+    let (status, body) = context
+        .post(
+            &format!("/article/{article_id}/restore"),
+            json!({}),
+            Some(&admin_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("restored"));
+
+    let (status, body) = context
+        .get(&format!("/article/{article_id}/read"), Some(&owner_token))
+        .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+}
+
+#[tokio::test]
+async fn restore_article_is_forbidden_for_a_member_owner() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, owner_token) = member_session(&context, "alice@example.com").await;
+    let article_id = create_article_fixture(&context, &owner_token, "Restore Denied").await;
+    let (status, _) = context
+        .post(
+            &format!("/article/{article_id}/delete"),
+            json!({ "mode": "soft" }),
+            Some(&owner_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, body) = context
+        .post(
+            &format!("/article/{article_id}/restore"),
+            json!({}),
+            Some(&owner_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("you are denied"));
+}
+
+#[tokio::test]
 async fn search_rejects_an_unknown_range() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = member_session(&context, "alice@example.com").await;

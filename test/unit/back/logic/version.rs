@@ -388,3 +388,55 @@ async fn delete_version_soft_is_rejected_for_an_already_hidden_version() {
         "repeated soft delete is rejected at the logic layer"
     );
 }
+
+#[tokio::test]
+async fn restore_version_revives_the_version_as_admin() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let admin_id = admin(&context).await;
+    let (_, version_id) = article_fixture(&context, &actor, "Restorable").await;
+
+    crate::logic::version::delete_version(
+        &context.state,
+        &admin_id,
+        &version_id,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect("soft delete");
+
+    let data = crate::logic::version::restore_version(&context.state, &admin_id, &version_id)
+        .await
+        .expect("restore");
+    assert_eq!(data.version_id, version_id);
+
+    assert!(
+        crate::repository::version::read_version(&context.state.graph, &version_id)
+            .await
+            .expect("read")
+            .is_some(),
+        "version visible again after restore"
+    );
+}
+
+#[tokio::test]
+async fn restore_version_is_forbidden_for_a_member() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let admin_id = admin(&context).await;
+    let (_, version_id) = article_fixture(&context, &actor, "Restore Denied").await;
+
+    crate::logic::version::delete_version(
+        &context.state,
+        &admin_id,
+        &version_id,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect("soft delete");
+
+    let error = crate::logic::version::restore_version(&context.state, &actor, &version_id)
+        .await
+        .expect_err("member restore");
+    assert_eq!(error, LogicError::forbidden("you are denied"));
+}

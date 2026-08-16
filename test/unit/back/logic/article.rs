@@ -15,6 +15,16 @@ async fn member(context: &TestCtx, email: &str) -> String {
     user_id
 }
 
+async fn admin(context: &TestCtx) -> String {
+    crate::repository::user::read_user_by_email_address_hash(
+        &context.state.graph,
+        &nail_common::hash::email("user-zero@example.com"),
+    )
+    .await
+    .expect("lookup user zero")
+    .expect("seeded user zero")
+}
+
 #[tokio::test]
 async fn create_article_writes_the_article_and_version() {
     let context = TestCtx::new().await.expect("test context");
@@ -377,5 +387,117 @@ async fn delete_article_soft_is_rejected_for_an_already_hidden_article() {
         error,
         LogicError::bad_request("already soft-deleted"),
         "repeated soft delete is rejected at the logic layer"
+    );
+}
+
+#[tokio::test]
+async fn restore_article_revives_the_article_and_its_versions() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let admin_id = admin(&context).await;
+    let (article_id, _) = crate::logic::article::create_article(
+        &context.state,
+        &actor,
+        crate::logic::article::ArticleCreateInput {
+            title: "Restorable",
+            summary: "Summary",
+            tags: "rust",
+            version: "1.0.0",
+            note: "note",
+            upload: context.upload(&valid_pdf()),
+        },
+    )
+    .await
+    .expect("create");
+
+    crate::logic::article::delete_article(
+        &context.state,
+        &actor,
+        &article_id,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect("soft delete");
+
+    let data = crate::logic::article::restore_article(&context.state, &admin_id, &article_id)
+        .await
+        .expect("restore");
+    assert_eq!(data.article_id, article_id);
+
+    crate::logic::article::read_article(&context.state, &article_id)
+        .await
+        .expect("article visible again");
+    let (versions, _) =
+        crate::repository::version::versions_of(&context.state.graph, &article_id, 10, 0)
+            .await
+            .expect("versions");
+    assert_eq!(
+        versions.len(),
+        1,
+        "versions revived after the article restore"
+    );
+}
+
+#[tokio::test]
+async fn restore_article_is_forbidden_for_a_member() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let (article_id, _) = crate::logic::article::create_article(
+        &context.state,
+        &actor,
+        crate::logic::article::ArticleCreateInput {
+            title: "Restore Denied",
+            summary: "Summary",
+            tags: "rust",
+            version: "1.0.0",
+            note: "note",
+            upload: context.upload(&valid_pdf()),
+        },
+    )
+    .await
+    .expect("create");
+
+    crate::logic::article::delete_article(
+        &context.state,
+        &actor,
+        &article_id,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect("soft delete");
+
+    let error = crate::logic::article::restore_article(&context.state, &actor, &article_id)
+        .await
+        .expect_err("member restore");
+    assert_eq!(error, LogicError::forbidden("you are denied"));
+}
+
+#[tokio::test]
+async fn restore_article_is_rejected_when_the_article_is_visible() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let admin_id = admin(&context).await;
+    let (article_id, _) = crate::logic::article::create_article(
+        &context.state,
+        &actor,
+        crate::logic::article::ArticleCreateInput {
+            title: "Already Visible",
+            summary: "Summary",
+            tags: "rust",
+            version: "1.0.0",
+            note: "note",
+            upload: context.upload(&valid_pdf()),
+        },
+    )
+    .await
+    .expect("create");
+
+    let error = crate::logic::article::restore_article(&context.state, &admin_id, &article_id)
+        .await
+        .expect_err("restore of visible article");
+    assert_eq!(
+        error,
+        LogicError::bad_request("not soft-deleted"),
+        "restore of a visible article is rejected"
     );
 }

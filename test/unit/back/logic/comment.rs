@@ -399,3 +399,52 @@ async fn delete_comment_soft_is_rejected_for_an_already_hidden_comment() {
         "repeated soft delete is rejected at the logic layer"
     );
 }
+
+#[tokio::test]
+async fn restore_comment_revives_the_comment_as_admin() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = member(&state, "alice@example.com").await;
+    let admin_id = crate::repository::user::read_user_by_email_address_hash(
+        &state.graph,
+        &nail_common::hash::email("user-zero@example.com"),
+    )
+    .await
+    .expect("lookup user zero")
+    .expect("seeded user zero");
+    let version_id = create_version_fixture(&state, &author_id).await;
+    let comment_id = create_comment(&state, &author_id, &version_id, "hello")
+        .await
+        .expect("create");
+
+    delete_comment(&state, &author_id, &comment_id, Some(DeleteMode::Soft))
+        .await
+        .expect("soft delete");
+
+    let data = crate::logic::comment::restore_comment(&state, &admin_id, &comment_id)
+        .await
+        .expect("restore");
+    assert_eq!(data.comment_id, comment_id);
+
+    read_comment(&state, &author_id, &comment_id)
+        .await
+        .expect("comment visible again");
+}
+
+#[tokio::test]
+async fn restore_comment_is_forbidden_for_a_member() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = member(&state, "alice@example.com").await;
+    let version_id = create_version_fixture(&state, &author_id).await;
+    let comment_id = create_comment(&state, &author_id, &version_id, "hello")
+        .await
+        .expect("create");
+
+    delete_comment(&state, &author_id, &comment_id, Some(DeleteMode::Soft))
+        .await
+        .expect("soft delete");
+
+    let error = crate::logic::comment::restore_comment(&state, &author_id, &comment_id)
+        .await
+        .expect_err("member restore");
+    assert_eq!(error, LogicError::forbidden("you are denied"));
+}

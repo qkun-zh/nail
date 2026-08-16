@@ -136,3 +136,13 @@ pub async fn delete_comment(
     .await?;
     Ok(json_response(StatusCode::OK, data, "deleted"))
 }
+
+pub async fn restore_comment(
+    State(state): State<AppState>,
+    principal: Principal,
+    AppPath(comment_id): AppPath<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    let data = crate::logic::comment::restore_comment(&state, &principal.user_id, &comment_id)
+        .await?;
+    Ok(json_response(StatusCode::OK, data, "restored"))
+}

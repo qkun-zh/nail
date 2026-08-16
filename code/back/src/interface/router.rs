@@ -30,6 +30,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/article/{id}/read", get(article::read_article))
         .route("/article/{id}/update", post(article::update_article))
         .route("/article/{id}/delete", post(article::delete_article))
+        .route("/article/{id}/restore", post(article::restore_article))
         .route(
             "/article/{id}/version/create",
             post(version::create_version),
@@ -42,6 +43,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/version/{id}/read", get(version::read_version))
         .route("/version/{id}/update", post(version::update_version))
         .route("/version/{id}/delete", post(version::delete_version))
+        .route("/version/{id}/restore", post(version::restore_version))
         .route(
             "/version/{id}/comments/create",
             post(comment::create_comment),
@@ -55,6 +57,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route("/comment/{id}/update", post(comment::update_comment))
         .route("/comment/{id}/delete", post(comment::delete_comment))
+        .route("/comment/{id}/restore", post(comment::restore_comment))
         .route("/role/create", post(role::create_role))
         .route("/role/read", get(role::read_roles))
         .route("/role/{name}/read", get(role::read_role))

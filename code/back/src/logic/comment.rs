@@ -16,7 +16,7 @@ use crate::repository::comment::{
 };
 use crate::repository::role::{
     PERMISSION_COMMENT_CREATE, PERMISSION_COMMENT_DELETE_HARD, PERMISSION_COMMENT_DELETE_SOFT,
-    PERMISSION_COMMENT_DELETE_TRANSFER, PERMISSION_COMMENT_UPDATE,
+    PERMISSION_COMMENT_DELETE_TRANSFER, PERMISSION_COMMENT_RESTORE, PERMISSION_COMMENT_UPDATE,
 };
 use crate::repository::transfer::{TransferTargetError, transfer_comment};
 use crate::repository::version::{parent_article_of, read_version};
@@ -263,6 +263,34 @@ pub async fn delete_comment(
             ));
         }
     }
+    sync_article_best_effort_for_comment(state, comment_id).await;
+    Ok(CommentIdView {
+        comment_id: comment_id.to_string(),
+    })
+}
+
+pub async fn restore_comment(
+    state: &AppState,
+    actor_id: &str,
+    comment_id: &str,
+) -> Result<CommentIdView, LogicError> {
+    authorize_or(
+        state,
+        actor_id,
+        PERMISSION_COMMENT_RESTORE,
+        &Resource::Comment(comment_id.to_string()),
+        "comment not found",
+    )
+    .await?;
+    let hidden = crate::repository::delete::is_soft_deleted(&state.graph, "comment", comment_id)
+        .await
+        .map_err(database_error)?;
+    if !hidden {
+        return Err(LogicError::bad_request("not soft-deleted"));
+    }
+    crate::repository::delete::clear_soft_deleted_flag(&state.graph, comment_id)
+        .await
+        .map_err(database_error)?;
     sync_article_best_effort_for_comment(state, comment_id).await;
     Ok(CommentIdView {
         comment_id: comment_id.to_string(),

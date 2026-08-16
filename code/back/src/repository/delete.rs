@@ -157,7 +157,6 @@ pub async fn soft_delete_comment(db: &DbHandle, comment_id: &str) -> Result<(), 
     adjust_soft_delete_count(db, ENTITY_TYPE_COMMENT, comment_id, 1).await
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 pub async fn clear_soft_deleted_flag(db: &DbHandle, business_id: &str) -> Result<(), DbError> {
     let mut guard = db.write().await;
     let Some((kind, id)) = resolve_any_node_id_sync(&guard, business_id)? else {
