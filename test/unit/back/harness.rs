@@ -73,6 +73,15 @@ pub mod logic_download;
 #[path = "logic/search.rs"]
 pub mod logic_search;
 
+#[path = "logic/search_verify.rs"]
+pub mod logic_search_verify;
+
+#[path = "logic/pagination_verify.rs"]
+pub mod logic_pagination_verify;
+
+#[path = "logic/delete_verify.rs"]
+pub mod logic_delete_verify;
+
 #[path = "http/session.rs"]
 pub mod http_session;
 
