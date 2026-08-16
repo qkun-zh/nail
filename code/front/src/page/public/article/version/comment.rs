@@ -1,6 +1,13 @@
+pub mod delete;
+pub mod detail;
+pub mod index;
 pub mod pagination;
 pub mod render;
 pub mod url;
+
+use delete::comment_delete_view;
+use detail::comment_detail_view;
+use index::comment_list_view;
 
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
@@ -13,8 +20,8 @@ use crate::page::notify::{notify_error, notify_success, use_notifications};
 use crate::page::session_gate::who_are_you;
 use crate::page::validation::validate_comment_content;
 
-use pagination::{COMMENTS_PER_PAGE, LevelPagination};
-use render::{STYLE, comment_form, comment_rows, context_card};
+use pagination::COMMENTS_PER_PAGE;
+use render::{CommentViewContext, STYLE};
 use url::{CommentLevel, comment_id_from_level, comment_level_from_path};
 
 #[component]
@@ -326,141 +333,36 @@ pub fn CommentSection() -> impl IntoView {
                 let authenticated = !crate::request::session::read_session_token()
                     .unwrap_or_default()
                     .is_empty();
+                let ctx = CommentViewContext {
+                    base_path,
+                    current_page,
+                    authenticated,
+                    max_chars: limits.get().max_comment_body_chars,
+                    posting,
+                };
                 match mode() {
-                    CommentLevel::VersionComments => {
-                        let Some(list) = roots.get() else {
-                            return ().into_any();
-                        };
-                        let has_next = list.has_next;
-                        let rows = comment_rows(
-                            &list.comments,
-                            &base_path,
-                            (current_page - 1) * COMMENTS_PER_PAGE,
-                        );
-                        let form = if authenticated {
-                            comment_form(
-                                body,
-                                posting,
-                                limits.get().max_comment_body_chars,
-                                "comment",
-                                "comment",
-                                on_submit_comment.clone(),
-                            )
-                            .into_any()
-                        } else {
-                            who_are_you()
-                        };
-                        let list_view = if rows.is_empty() {
-                            view! { <p class="cmt-empty">no comments yet</p> }.into_any()
-                        } else {
-                            view! { <div class="cmt-list">{rows}</div> }.into_any()
-                        };
-                        view! {
-                            <div>
-                                {form}
-                                {list_view}
-                                <LevelPagination
-                                    current=current_page
-                                    has_next=has_next
-                                    base_href=format!("{base_path}/comment")
-                                />
-                            </div>
-                        }
-                        .into_any()
-                    }
-                    CommentLevel::Comment(comment_id) => {
-                        let Some(comment) = target.get() else {
-                            return view! { <p class="cmt-empty">comment not found</p> }.into_any();
-                        };
-                        let delete_url = format!("{base_path}/comment/{comment_id}/delete");
-                        let form = if authenticated {
-                            comment_form(
-                                reply_body,
-                                posting,
-                                limits.get().max_comment_body_chars,
-                                "reply",
-                                "reply",
-                                on_submit_reply.clone(),
-                            )
-                            .into_any()
-                        } else {
-                            who_are_you()
-                        };
-                        let child_list = children.get();
-                        let rows = child_list
-                            .as_ref()
-                            .map(|list| {
-                                comment_rows(
-                                    &list.comments,
-                                    &base_path,
-                                    (current_page - 1) * COMMENTS_PER_PAGE,
-                                )
-                            })
-                            .unwrap_or_default();
-                        let has_next = child_list
-                            .as_ref()
-                            .is_some_and(|list| list.has_next);
-                        let children_view = if rows.is_empty() {
-                            view! { <p class="cmt-empty">no replies yet</p> }.into_any()
-                        } else {
-                            view! { <div class="cmt-list">{rows}</div> }.into_any()
-                        };
-                        view! {
-                            <div>
-                                {context_card(&comment, Some(delete_url))}
-                                {form}
-                                {children_view}
-                                <LevelPagination
-                                    current=current_page
-                                    has_next=has_next
-                                    base_href=format!("{base_path}/comment/{comment_id}")
-                                />
-                            </div>
-                        }
-                        .into_any()
-                    }
+                    CommentLevel::VersionComments => comment_list_view(
+                        roots,
+                        &ctx,
+                        body,
+                        on_submit_comment.clone(),
+                    )
+                    .into_any(),
+                    CommentLevel::Comment(comment_id) => comment_detail_view(
+                        target,
+                        children,
+                        &comment_id,
+                        &ctx,
+                        reply_body,
+                        on_submit_reply.clone(),
+                    )
+                    .into_any(),
                     CommentLevel::DeleteComment(_) => {
                         if !authenticated {
                             return who_are_you();
                         }
-                        let submit_delete = on_submit_delete.clone();
-                        let delete_mode = delete_mode.clone();
-                        let is_transfer = move || delete_mode.get() == DeleteMode::Transfer;
-                        let is_soft = move || delete_mode.get() == DeleteMode::Soft;
-                        let is_hard = move || delete_mode.get() == DeleteMode::Hard;
-                        view! {
-                            <div>
-                                <p class="cmt-empty">confirm delete comment</p>
-                                <div>
-                                    <label>
-                                        <input type="radio" name="comment_delete_mode" prop:checked=is_transfer on:change=move |_| delete_mode.set(DeleteMode::Transfer)/>
-                                        "transfer"
-                                    </label>
-                                </div>
-                                <div>
-                                    <label>
-                                        <input type="radio" name="comment_delete_mode" prop:checked=is_soft on:change=move |_| delete_mode.set(DeleteMode::Soft)/>
-                                        "soft"
-                                    </label>
-                                </div>
-                                <div>
-                                    <label>
-                                        <input type="radio" name="comment_delete_mode" prop:checked=is_hard on:change=move |_| delete_mode.set(DeleteMode::Hard)/>
-                                        "hard"
-                                    </label>
-                                </div>
-                                <div>
-                                    <button
-                                        class="cmt-btn cmt-btn-danger"
-                                        disabled=move || posting.get()
-                                        on:click=move |_| submit_delete(delete_mode.get())
-                                    >
-                                        {move || if posting.get() { "deleting..." } else { "delete" }}
-                                    </button>
-                                </div>
-                            </div>
-                        }
-                        .into_any()
+                        comment_delete_view(delete_mode, ctx.posting, on_submit_delete.clone())
+                            .into_any()
                     }
                     CommentLevel::Invalid => {
                         view! { <p class="cmt-empty">comment not found</p> }.into_any()

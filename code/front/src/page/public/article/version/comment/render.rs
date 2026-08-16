@@ -5,6 +5,14 @@ use nail_common::response::comment::CommentView;
 
 use crate::page::time_format::format_timestamp;
 
+pub struct CommentViewContext {
+    pub base_path: String,
+    pub current_page: u64,
+    pub authenticated: bool,
+    pub max_chars: u64,
+    pub posting: RwSignal<bool>,
+}
+
 pub const STYLE: &str = r#"
 .cmt-section {
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
