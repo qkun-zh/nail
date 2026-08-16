@@ -50,7 +50,14 @@ pub async fn search_articles(
         .limit
         .unwrap_or(state.config.server.search_page_size)
         .clamp(1, MAX_PAGE_SIZE);
-    let page = params.page.unwrap_or(1).clamp(1, MAX_PAGE);
+    let page = match params.page {
+        Some(page) if page > state.config.server.max_search_pages => {
+            return Err(LogicError::bad_request("page exceeds max search pages"));
+        }
+        Some(page) => page,
+        None => 1,
+    }
+    .clamp(1, MAX_PAGE);
     let offset = page.saturating_sub(1).saturating_mul(limit);
 
     let outcome = state

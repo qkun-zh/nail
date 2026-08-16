@@ -601,6 +601,18 @@ async fn search_rejects_an_overlong_query() {
 }
 
 #[tokio::test]
+async fn search_rejects_a_page_beyond_max_search_pages() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (status, body) = context.get("/article/read?page=1025", Some(&token)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(
+        body["message"].as_str(),
+        Some("page exceeds max search pages")
+    );
+}
+
+#[tokio::test]
 async fn search_returns_hits_for_a_keyword() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = member_session(&context, "alice@example.com").await;

@@ -166,19 +166,25 @@ the theoretical optimum (O(R) instead of O(R²)).
 | P6 recycler O(R²) → HashSet | **Done** (verified + user-approved) |
 | Search: no ORDER BY | **Done** (commit af09b00) — drop time/title/author sort, default relevance order; removed `SearchSort*` common types + sort UI |
 | Search: no total | **Done** — drop `total`/`total_pages`/`has_prev`/`truncated` from `SearchPage`; `has_next` derived from the assembled top_k window; frontend uses prev/next |
+| Search: page cap guard | **Done** — backend rejects `page > server.max_search_pages` with 400 (`logic/search.rs`); resurrects the config as a server-side hard cap, bounding deep-pagination cost at O(max_search_pages×limit×32) |
 | List endpoints: keep total | **Open** — O(A) full scan; search-page total no longer the free case |
 
-_Last updated: search total removed — `SearchPage` is now `{article_list, page, has_next}`.
-Search `total` was NOT a true count: `total = article_list.len()` over docs assembled from
+_Last updated: search page cap guard added — `max_search_pages` (default 1024) is now a
+server-side hard cap, not a dead knob: requests with `page > max_search_pages` are rejected
+with 400 (`logic/search.rs`), bounding the deepest accepted query at
+O(max_search_pages×limit×32) doc work (SeekStorm `heap_size = min(offset+length, doc_count)`,
+`search.rs:2527-2528`, scales with `offset`; multi-shard multiplies). Frontend needs no
+change — `run_search`'s error branch already shows the 400 and resets the page. Earlier:
+search `total` was NOT a true count: `total = article_list.len()` over docs assembled from
 the top_k window (`top_k = offset + limit*32`, `repository/search.rs:254`, `logic/search.rs`),
 which SeekStorm caps via `results.truncate(length)` (`seekstorm search.rs:2118`);
-`result_count_total` is only accurate for `TopkCount` (`:197`). Probe: 34 matching articles,
-limit=1 -> reported total 32, `has_next` true but window-exhausted -> total drifted per page
-and `total_pages`/`truncated` were unreliable. Removing it drops the truncated-warning and
-numbered pagination (now prev/next). Follow-up: `server.max_search_pages` config is now a
-dead knob (was only consumed by the removed truncated warning). P1 rejected (highlight
-behavior), P4 accepted (inherent), P6 non-problem (O(R), exclude length 1). Baseline:
-build green, 311 back tests + 109 common + 69 front pass._
+`result_count_total` is only accurate for `TopkCount` (`:197`), which costs a full traversal
+of every match (no early termination, `single.rs:350/383`; the O(1) `posting_count` shortcut
+needs `enable_single_term_topk` (default false) and no filters) — so keeping a true total
+was dropped in favor of the page cap. Probe: 34 matching articles, limit=1 -> reported total
+32, `has_next` true but window-exhausted. P1 rejected (highlight behavior), P4 accepted
+(inherent), P6 non-problem (O(R), exclude length 1). Baseline: build green, 314 back tests
++ 109 common + 69 front pass._
 
 ## Probe evidence log
 
@@ -188,3 +194,4 @@ build green, 311 back tests + 109 common + 69 front pass._
 | P5 | `probe.rs::probe_offset_limit_pagination_tiles_default_order` | Passed. 4 versions; `.offset().limit()` (no sort) tiles default-order full set, no gaps/overlaps/dups; `has_next` via limit+1 peek. |
 | Search total (pre-removal) | `probe_search_total_truncates_when_matches_exceed_topk` | Passed. 34 matching articles, limit=1 -> top_k=32 -> reported total 32 (true 34). Proves `total` is a truncated top_k-window count, not a real count. |
 | Search no total | `probe.rs::probe_search_has_next_pages_cover_all_matches_without_total` | Passed. limit=1 over 34 articles; prev/next-style paging via `has_next` alone collects all 34 with no gaps/dups. |
+| Search page cap | `logic/search.rs` guard + tests `search_rejects_a_page_beyond_max_search_pages` / `search_allows_a_page_at_max_search_pages` (logic + http) | Passed. `page=1025` -> 400 "page exceeds max search pages"; `page=1024` allowed. |

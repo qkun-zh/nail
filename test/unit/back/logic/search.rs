@@ -72,6 +72,35 @@ async fn search_articles_rejects_an_overlong_query() {
 }
 
 #[tokio::test]
+async fn search_rejects_a_page_beyond_max_search_pages() {
+    let context = TestCtx::new().await.expect("test context");
+    let request = ArticleSearchParams {
+        page: Some(1025),
+        ..params(Some("rust"))
+    };
+    let error = crate::logic::search::search_articles(&context.state, &request)
+        .await
+        .unwrap_err();
+    assert_eq!(
+        error,
+        LogicError::bad_request("page exceeds max search pages")
+    );
+}
+
+#[tokio::test]
+async fn search_allows_a_page_at_max_search_pages() {
+    let context = TestCtx::new().await.expect("test context");
+    let request = ArticleSearchParams {
+        page: Some(1024),
+        ..params(Some("rust"))
+    };
+    let page = crate::logic::search::search_articles(&context.state, &request)
+        .await
+        .expect("page at the limit is allowed");
+    assert!(page.article_list.is_empty());
+}
+
+#[tokio::test]
 async fn search_articles_accepts_multibyte_query_within_char_limit() {
     let context = TestCtx::new().await.expect("test context");
     let multibyte_query = "中".repeat(512);
