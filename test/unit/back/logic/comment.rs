@@ -332,7 +332,7 @@ async fn delete_comment_soft_hides_the_comment_but_keeps_replies_visible() {
 }
 
 #[tokio::test]
-async fn delete_comment_soft_by_a_stranger_member_mirrors_transfer() {
+async fn delete_comment_soft_is_forbidden_for_a_stranger() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = member(&state, "alice@example.com").await;
     let stranger = member(&state, "bob@example.com").await;
@@ -341,14 +341,18 @@ async fn delete_comment_soft_by_a_stranger_member_mirrors_transfer() {
         .await
         .expect("create");
 
-    let data = delete_comment(&state, &stranger, &comment_id, Some(DeleteMode::Soft))
+    let error = delete_comment(&state, &stranger, &comment_id, Some(DeleteMode::Soft))
         .await
-        .expect("member soft delete mirrors transfer");
-    assert_eq!(data.comment_id, comment_id);
-    let error = read_comment(&state, &stranger, &comment_id)
-        .await
-        .expect_err("soft-deleted comment");
-    assert_eq!(error, LogicError::not_found("comment not found"));
+        .expect_err("stranger soft delete forbidden");
+    assert!(matches!(error, LogicError::Forbidden(_)));
+    assert!(
+        read_comment(&state, &author_id, &comment_id)
+            .await
+            .expect("read")
+            .id
+            == comment_id,
+        "comment untouched"
+    );
 }
 
 #[tokio::test]

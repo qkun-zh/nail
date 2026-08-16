@@ -246,7 +246,7 @@ async fn delete_article_soft_hides_the_article_but_keeps_versions_public() {
 }
 
 #[tokio::test]
-async fn delete_article_soft_by_a_stranger_mirrors_transfer() {
+async fn delete_article_soft_is_forbidden_for_a_stranger() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
     let stranger = member(&context, "bob@example.com").await;
@@ -265,21 +265,21 @@ async fn delete_article_soft_by_a_stranger_mirrors_transfer() {
     .await
     .expect("create");
 
-    let data = crate::logic::article::delete_article(
+    let error = crate::logic::article::delete_article(
         &context.state,
         &stranger,
         &article_id,
         Some(nail_common::request::DeleteMode::Soft),
     )
     .await
-    .expect("member soft delete mirrors transfer");
-    assert_eq!(data.article_id, article_id);
+    .expect_err("stranger cannot soft delete");
+    assert!(matches!(error, LogicError::Forbidden(_)));
     assert!(
         crate::repository::article::read_article(&context.state.graph, &article_id)
             .await
             .expect("read")
-            .is_none(),
-        "article hidden after stranger soft delete"
+            .is_some(),
+        "article untouched"
     );
 }
 

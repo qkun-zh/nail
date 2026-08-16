@@ -5,9 +5,10 @@
 // 1. Owner bypass: the resource owner may read/update, create new versions,
 //    and transfer (soft-delete) their own content. Published content is a
 //    platform asset, so the owner can never hard-delete it: the Delete actions
-//    listed here are the Transfer variants only. Version::Update/Delete and
-//    Comment::Update keep the author stories in FR-20/FR-21; version hard-delete
-//    is admin-only.
+//    listed here are the Transfer and Soft variants only. Version::Update/Delete
+//    and Comment::Update keep the author stories in FR-20/FR-21; version
+//    hard-delete is admin-only. Members hold no global Transfer/Soft grants:
+//    the owner bypass is the only member path to delete/transfer content.
 permit (principal, action in [Action::"Article::Read", Action::"Version::Read",
                               Action::"Comment::Read",
                               Action::"Comment::Delete::Transfer",
