@@ -127,6 +127,52 @@ async fn read_comments_over_http() {
 }
 
 #[tokio::test]
+async fn read_comments_rejects_a_page_beyond_max_search_pages() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, token) = member_session(&context, "alice@example.com").await;
+    let version_id = version_fixture(&context, &user_id).await;
+
+    let (status, body) = context
+        .get(
+            &format!("/version/{version_id}/comments/read?page=1025"),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(
+        body["message"].as_str(),
+        Some("page exceeds max search pages")
+    );
+}
+
+#[tokio::test]
+async fn read_comment_children_rejects_a_page_beyond_max_search_pages() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, token) = member_session(&context, "alice@example.com").await;
+    let version_id = version_fixture(&context, &user_id).await;
+    let (_, create_body) = context
+        .post(
+            &format!("/version/{version_id}/comments/create"),
+            json!({ "content": "root" }),
+            Some(&token),
+        )
+        .await;
+    let comment_id = create_body["data"]["comment_id"].as_str().unwrap();
+
+    let (status, body) = context
+        .get(
+            &format!("/comment/{comment_id}/replies/read?page=1025"),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(
+        body["message"].as_str(),
+        Some("page exceeds max search pages")
+    );
+}
+
+#[tokio::test]
 async fn update_comment_over_http() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = member_session(&context, "alice@example.com").await;

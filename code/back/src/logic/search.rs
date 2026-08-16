@@ -10,9 +10,6 @@ use crate::infrastructure::state::AppState;
 use crate::logic::error::LogicError;
 use crate::repository::search::{SearchCommentOutcome, SearchDocOutcome, SearchRequest};
 
-const MAX_PAGE_SIZE: u64 = 200;
-const MAX_PAGE: u64 = 10_000;
-
 pub async fn search_articles(
     state: &AppState,
     params: &ArticleSearchParams,
@@ -46,18 +43,12 @@ pub async fn search_articles(
         return Err(LogicError::bad_request("from must not be greater than to"));
     }
 
-    let limit = params
-        .limit
-        .unwrap_or(state.config.server.search_page_size)
-        .clamp(1, MAX_PAGE_SIZE);
-    let page = match params.page {
-        Some(page) if page > state.config.server.max_search_pages => {
-            return Err(LogicError::bad_request("page exceeds max search pages"));
-        }
-        Some(page) => page,
-        None => 1,
-    }
-    .clamp(1, MAX_PAGE);
+    let (page, limit) = crate::logic::pagination::clamp_page_limit(
+        params.page,
+        params.limit,
+        state.config.server.search_page_size,
+        state.config.server.max_search_pages,
+    )?;
     let offset = page.saturating_sub(1).saturating_mul(limit);
 
     let outcome = state

@@ -102,6 +102,19 @@ async fn read_roles_reports_real_member_counts() {
 }
 
 #[tokio::test]
+async fn read_roles_rejects_a_page_beyond_max_search_pages() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = admin_session(&context).await;
+
+    let (status, body) = context.get("/role/read?page=1025", Some(&token)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(
+        body["message"].as_str(),
+        Some("page exceeds max search pages")
+    );
+}
+
+#[tokio::test]
 async fn read_role_returns_members_and_permissions() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = admin_session(&context).await;

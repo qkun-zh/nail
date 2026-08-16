@@ -121,6 +121,25 @@ async fn read_versions_over_http() {
 }
 
 #[tokio::test]
+async fn read_versions_rejects_a_page_beyond_max_search_pages() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, token) = member_session(&context, "alice@example.com").await;
+    let (article_id, _) = article_fixture(&context, &user_id).await;
+
+    let (status, body) = context
+        .get(
+            &format!("/article/{article_id}/version/read?page=1025"),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
+    assert_eq!(
+        body["message"].as_str(),
+        Some("page exceeds max search pages")
+    );
+}
+
+#[tokio::test]
 async fn read_version_cross_check_over_http() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = member_session(&context, "alice@example.com").await;
@@ -181,7 +200,7 @@ async fn delete_version_rejects_transfer_mode() {
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     assert_eq!(
         body["message"].as_str(),
-        Some("version delete only supports mode \"hard\"")
+        Some("version delete only supports mode \"soft\" or \"hard\"")
     );
 }
 

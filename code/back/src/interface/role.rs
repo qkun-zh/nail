@@ -38,7 +38,8 @@ pub async fn read_roles(
         params.page,
         params.limit,
         state.config.server.search_page_size,
-    );
+        state.config.server.max_search_pages,
+    )?;
     let data = crate::logic::role::read_roles(&state, &principal.user_id, page, limit).await?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }

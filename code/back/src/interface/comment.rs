@@ -66,7 +66,8 @@ pub async fn read_comments(
         params.page,
         params.limit,
         state.config.server.search_page_size,
-    );
+        state.config.server.max_search_pages,
+    )?;
     let data = crate::logic::comment::read_comments(&state, &version_id, page, limit).await?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
@@ -91,7 +92,8 @@ pub async fn read_comment_children(
         params.page,
         params.limit,
         state.config.server.search_page_size,
-    );
+        state.config.server.max_search_pages,
+    )?;
     let data: CommentListPage = crate::logic::comment::read_comment_children(
         &state,
         &principal.user_id,
