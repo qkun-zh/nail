@@ -17,8 +17,8 @@
   the double-evidence workflow refactor (see Done).
 - **Authz refactor (in progress, plan `document/authz-refactor.md`)**: A1 done
   (`8698ecc`), A2 done (`208e94c`), A3 done (`9a92e1e`), A4 done (`0d3e7de`),
-  A5 done (`2b1f02c`), A6 done (docs, `document/authz.md`). Phase A complete.
-  Next: Phase B (B0 read-gate benchmark → B1 read enforcement) per plan.
+  A5 done (`2b1f02c`), A6 done (docs, `document/authz.md`), B0 done (baseline
+  probe `probe_001`). Next: B1 (read enforcement).
 - **Soft-delete refcount + restore API (committed bac4e65, c40608b, 6c33fac,
   97fd467, 6883a5b)**: done — `KEY_SOFT_DELETED` is a u64 count, soft-delete
   cascades `+1` over the subtree, restore `-1` (key deleted at 0; invariant key
@@ -29,6 +29,15 @@
 
 ## Done
 
+- **Authz B0 — read-gate baseline benchmark**: new probe
+  `logic/probe_001_read_gate_assembly_baseline.rs` (wired into `harness.rs`)
+  measures the marginal cost B1 adds to hot read paths. Release means:
+  `assemble_principal` admin (27 grants) 465 µs / member 60 µs; single-resource
+  `authorize` Article::Read 180 µs, Version-chain 230 µs, Comment-chain 297 µs,
+  coarse `Virtual::"read"` desk 138 µs; session-only `read_article` body 85 µs.
+  Per-item gating a collection page (8) = 1.44 ms vs 138 µs coarse (~10.5×) ⇒
+  B1 must gate collection reads once against the coarse desk, not per item.
+  Probe kept as the before/after instrument; re-run after B1.
 - **Authz A6 — documentation**: wrote `document/authz.md` — the stable
   layered-model record (session/PoW → Cedar authorize → one-time token
   binding), read gating today (session-only) + the Phase B hook locations, and
@@ -153,8 +162,10 @@
 
 - Commit the uncommitted slices (one commit each, clean tree).
 - Authz: A1 (`8698ecc`) + A2 (`208e94c`) + A3 (`9a92e1e`) + A4 (`0d3e7de`) +
-  A5 (`2b1f02c`) + A6 (docs) done — Phase A complete. Next: B0 (read-gate
-  benchmark) then B1 (read enforcement, D5 member read grants already seeded).
+  A5 (`2b1f02c`) + A6 (docs) + B0 (baseline probe `probe_001`) done. Next: B1
+  (read enforcement — thread `actor_id` through read logic, gate single-resource
+  reads, gate collections once on the coarse `Virtual::"read"` desk; D5 member
+  read grants already seeded).
 - Perf: P2, P3, P5, search-ORDER-BY closed. P1 rejected (highlight behavior);
   P6 non-problem (O(R)); P4 accepted (inherent). Open: total/cursor on list endpoints
   + search total.

@@ -308,11 +308,24 @@ README §5 once the other agent's edits land. No code changed.
 
 ### Phase B — Read enforcement (O1, O5)
 
-#### B0 — Read-gate benchmark (evidence before any code)
+#### B0 — Read-gate benchmark (evidence before any code) — **DONE** (probe `probe_001`)
 **Goal**: measure per-authorize assembly cost (principal graph read + entity
 build) on hot paths (`/article/read`, `/article/{id}/read`) before and after
 adding the gate. Source + probe per `workflow.md`; decide caching strategy only
 on numbers.
+**Baseline (release build, `probe_001_read_gate_assembly_baseline`, kept as the
+before/after instrument; re-run after B1)**, mean per call:
+- `assemble_principal` admin (27 grants): **465 µs**; member (2 grants): **60 µs**.
+- `authorize` `Article::Read` single-resource: **180 µs**; on Version (chain):
+  **230 µs**; on Comment (chain): **297 µs**; on `Virtual::"read"` desk: **138 µs**.
+- session-only read body `read_article`: **85 µs**.
+- Collection page of 8: per-item gate **1.44 ms** vs coarse desk **138 µs** (~10.5×).
+**Conclusion**: a single gate adds ~180 µs on the article hot path (read body is
+85 µs) — sub-millisecond, acceptable. Per-item gating a page costs ~10.5× the
+coarse `Virtual::"read"` desk, so **B1 collection reads must authorize once
+against the coarse desk (principal assembly only), not per item**. Admin's
+27-grant principal assembly (465 µs) dominates member (60 µs): if admin becomes
+hot, cache principal assembly keyed by user; not needed for the B1 default path.
 
 #### B1 — Read enforcement (O1, R4 strict form)
 **Changes**:

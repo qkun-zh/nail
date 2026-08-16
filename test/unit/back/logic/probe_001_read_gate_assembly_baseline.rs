@@ -14,8 +14,8 @@ use std::time::{Duration, Instant};
 use crate::repository::authorization::{Resource, assemble_principal};
 use crate::repository::role::{PERMISSION_ARTICLE_READ, ROLE_MEMBER};
 
-const ITERATIONS: usize = 200;
-const WARMUP: usize = 20;
+const ITERATIONS: usize = 100;
+const WARMUP: usize = 10;
 
 async fn mean_duration<F, Fut>(mut run: F) -> Duration
 where
@@ -31,7 +31,8 @@ where
         run().await;
         total += start.elapsed();
     }
-    total / ITERATIONS as u32
+    let denominator = u32::try_from(ITERATIONS).unwrap_or(1);
+    total / denominator
 }
 
 fn report(metric: &str, mean: Duration) {
