@@ -55,6 +55,24 @@ implementation. Record searched APIs and rejection reasons, or the consent;
 **Adoption gate (5.5)** — no code until evidence is consistent per dimension and
 the user explicitly adopts the plan.
 
+**Probe file layout (concurrent-safe)** — never accumulate probes into a single
+shared `probe.rs`. Concurrent agents editing one file collide; one file per
+probe avoids that. Rules:
+
+- Each probe lives in its **own** file under
+  `test/{common,back,front}/<area>/probe_<NNN>_<purpose>.rs`, wired into the
+  suite by its own `#[path]` module declaration in the area harness
+  (e.g. `test/unit/back/harness.rs`).
+- `<NNN>` is a 3-digit zero-padded sequence unique across the whole repo,
+  allocated lowest-first (add to a single counter). `<purpose>` is a short
+  snake_case phrase naming what the probe verifies.
+- First line of the file is a doc comment: numbered purpose, the source
+  evidence it confirms, and the acceptance question it answers.
+- Test fn mirrors the file: `probe_<NNN>_<purpose>`.
+- One agent claims one number; do not edit another agent's `probe_<NNN>_*` file.
+- Promote-to-real: rename file and fn (drop `NNN_`), move under the normal test
+  name; disposable probes are deleted after the evidence gate.
+
 ## Slices (6–8)
 
 - Each slice: test first (red) → implement (green) → gate (fmt, clippy 0 warn,

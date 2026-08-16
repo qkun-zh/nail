@@ -1,212 +1,153 @@
 # nail
 
-`nail` is a versioned-article knowledge base: authors publish articles as
-versioned revisions, attach notes and comments, tag content, and search across
-the whole tree. Access is protected by email-challenge authentication with
-proof-of-work, Cedar policy authorization, and PDF download with short-lived
-tokens.
+Versioned-article knowledge base: authors publish versioned revisions, attach
+notes/comments, tag, and search. Access via email-challenge auth with PoW,
+Cedar authorization, PDF download with short-lived tokens.
 
-This README is the project constitution: its layering, standards, and build
-rules are mandatory. Agents must read it (and `document/INDEX.md`) before any
-work — see `AGENTS.md`.
+This README is the constitution: its rules are mandatory. Read it, `AGENTS.md`
+(skills, tool restrictions), and `document/` before any work — they
+cross-reference and must be read together.
 
-## 1. Repository layout
+## 1. Layout
 
-- `code/` — the workspace: `back` (axum server), `front` (Leptos CSR app),
-  `common` (shared crate), `proxy` (pingap binary).
-- `configuration/` — all runtime config as toml; `proxy/` holds the pingap
-  config.
-- `data/` — agdb database, SeekStorm search index, PDF storage. The dev
-  database is reset and reseeded at startup; deleting it forces a fresh init.
+- `code/` — workspace: `back` (axum), `front` (Leptos CSR), `common` (shared),
+  `proxy` (pingap).
+- `configuration/` — runtime toml; `proxy/` holds pingap config.
+- `data/` — agdb DB, SeekStorm index, PDF storage. Dev DB resets/reseeds at
+  startup; deleting it forces fresh init.
 - `log/` — backend and proxy logs.
-- `document/` — project docs, indexed by `INDEX.md`: code workflow
-  (`workflow.md`), progress tracker (`handoff.md`), run guide (`run.md`),
-  decisions (`decisions.md`).
-- `test/` — shared unit-test sources pulled in by the crates via `#[path]`.
+- `document/` — docs: `workflow.md`, `handoff.md`, `run.md`.
+- `test/` — shared unit tests pulled in via `#[path]`.
 
 ## 2. Architecture
 
-Layering is mandatory; dependencies point strictly inward as shown.
+Layering mandatory; dependencies point strictly inward.
 
-### 2.1 Backend layering and dependency direction
+Backend: `interface → logic`, `interface/logic/repository → infrastructure`,
+`logic → repository`.
 
-```mermaid
-graph TD
-    I[interface] --> L[logic]
-    L --> R[repository]
-    I --> IN[infrastructure]
-    L --> IN
-    R --> IN
-```
+- `main.rs` — composition root: config, logging, seed, start server.
+- `interface` — axum routes: one `<verb>_<resource>` handler per route.
+- `logic` — business rules, authorization, search, pagination.
+- `repository` — agdb, SeekStorm, moka cache.
+- `infrastructure` — config, logging, email, PDF, server bootstrap.
 
-- `main.rs` is the composition root: loads config, initializes logging, seeds
-  the dev database, starts the server.
-- `interface` — the axum route surface: one `<verb>_<resource>` handler per
-  route, request extraction, response envelope.
-- `logic` — business rules, authorization, search tree assembly, pagination.
-- `repository` — persistence: agdb graph access, the SeekStorm index, the moka
-  cache.
-- `infrastructure` — config, logging, email/SMTP, PDF, server bootstrap.
+Frontend: `router → page → request`, `page/request → infrastructure`.
 
-### 2.2 Frontend layering and dependency direction
+- `main.rs` — composition root: runtime-config signals, mounts router.
+- `router` — URL → `page` only.
+- `page` — UI + local state; calls backend only via `request`.
+- `request` — all HTTP, session tokens, `{code, data, message}` unwrap.
+- `infrastructure` — wasm primitives (compile-time config, runtime config fetch,
+  storage, PoW).
 
-```mermaid
-graph TD
-    RT[router] --> P[page]
-    P --> RQ[request]
-    P --> IN[infrastructure]
-    RQ --> IN
-```
+`common` — shared data structures/methods (hash, PoW, name, tag, text, search,
+time, request/response). Both depend on it; it depends on nothing internal.
 
-- `main.rs` is the composition root: wires runtime-config signals and mounts the
-  router.
-- `router` maps URL paths to `page` components only.
-- `page` renders UI and holds local state; it calls the backend only through
-  `request`.
-- `request` owns every HTTP call, session-token handling, and the
-  `{code, data, message}` envelope unwrapping.
-- `infrastructure` holds browser/wasm primitives (compile-time config, runtime
-  config fetch, storage, PoW); both `page` and `request` may reach it.
+Module org: never `mod.rs`; module = same-named `.rs` + folder; deepen if a dir
+exceeds 16 files.
 
-### 2.3 Shared crate (`common`)
+## 3. Stack
 
-`common` holds data structures and methods shared by front and back (hash, PoW,
-name, tag, text, search, time, request/response). Both depend on it; it depends
-on nothing internal.
-
-### 2.4 Module organization
-
-- Never use `mod.rs`. Every module = a same-named `.rs` file + folder.
-- If a directory holds more than 16 files, deepen the hierarchy.
-
-## 3. Technology stack
-
-- Frontend: Leptos CSR built with trunk; proxy: pingap (static assets + reverse
-  proxy, forwards `/api/*` to the backend).
-- Backend: axum, agdb (graph), SeekStorm (search), moka (cache),
-  cedar-policy (authorization), lettre (SMTP), tokio, tracing.
-- Hashing: ascon family; IDs and tokens: UUIDv7.
-- Versions are pinned by each crate's `Cargo.lock`. The local cargo registry
-  (`~/.cargo/registry/src/index.crates.io-*/`) holds the pinned crate sources
-  for reference.
+Frontend: Leptos CSR via trunk; proxy: pingap (static + reverse `/api/*`).
+Backend: axum, agdb, SeekStorm, moka, cedar-policy, lettre, tokio, tracing.
+Hashing: ascon; IDs/tokens: UUIDv7. Versions pinned by each crate's
+`Cargo.lock`; pinned sources in `~/.cargo/registry/src/index.crates.io-*/`.
 
 ## 4. Coding standards
 
-### 4.1 Language
+- **Language**: English only — code, docs, comments, UI.
+- **Naming**: no abbreviations (loop vars `i`/`j`/`k` excepted). CRUD-only verbs
+  (`create`/`read`/`update`/`delete`) for every resource; collection reads are
+  `read` (never `list`), paginated. Node ops, not flow vocabulary (no
+  `intent=authenticate`). `interface` strictest; `repository`/`infrastructure`
+  keep their own precise terms.
+- **Size**: file ≤ 512 lines; function ≤ 256; nesting ≤ 4 levels (function-body
+  braces = level 0).
+- **General**: concise; prefer pure functions; no hardcoding (toml); no dead
+  code; zero-warning gate on every build.
+- **Comments**: only for non-obvious intent/constraints/tradeoffs; restating the
+  code is a defect.
 
-English only — code, docs, comments, UI strings.
+## 5. Robustness & security
 
-### 4.2 Naming
-
-- No shorthand or abbreviations; names detailed, complete, self-explanatory.
-  Loop variables (`i`, `j`, `k`) are the only exception.
-- **CRUD-only verbs for resource operations.** Every backend resource (user,
-  article, version, comment, tag, role, permission, session, challenge) is
-  operated on with exactly `create`/`read`/`update`/`delete`. Collection reads
-  are `read` (never `list`), paginated through query parameters.
-- **Node operations, not frontend flow vocabulary.** Wire flow terms (e.g.
-  `intent=authenticate|change_email|deregister`) never appear as backend
-  identifiers — name the node op (`create_user`, `update_user_email`,
-  `delete_user`, `read_session`).
-- **Enforcement depth.** `interface` is strictest: one `<verb>_<resource>`
-  handler per route. `logic` top-level entry points use the same verbs.
-  `repository`/`infrastructure` helpers keep their own precise terms (`sync`,
-  `transfer`, `owner_of`).
-
-### 4.3 Size limits
-
-- Single file: at most 512 lines. Single function: at most 256 lines.
-  Nesting: at most 4 levels (function-body braces = level 0).
-
-### 4.4 General principles
-
-- Concise, clear, correct; longer-than-necessary code needs strong
-  justification.
-- Prefer pure (or near-pure) functions.
-- No hardcoding; anything configurable lives in toml.
-- No dead code; the zero-warning gate applies to every build.
-
-### 4.5 Comments
-
-Code must be self-explanatory. Comments only for non-obvious intent,
-constraints, or tradeoffs. A comment that restates the code is a defect.
-
-## 5. Robustness and security
-
-- Panic-free: never `unwrap`, `expect`, or similar.
-- Errors propagate with `?`; convert error types only at layer boundaries; the
-  interface layer maps the final error into the `{code, data, message}` envelope.
-- Search IDs and tokens: UUIDv7. Hashing: ascon family only.
-- Authorization is enforced in the logic layer against Cedar policies; every
-  request goes through a principal session.
+- Panic-free: never `unwrap`/`expect`.
+- Errors propagate with `?`; convert only at layer boundaries; interface maps
+  the final error to the `{code, data, message}` envelope.
+- IDs/tokens: UUIDv7; hashing: ascon only.
+- Authorization enforced in `logic` against Cedar policies; every request goes
+  through a principal session.
 
 ## 6. Configuration
 
-Config lives as toml under `configuration/`, never hardcoded:
-
-- `server.toml` — backend runtime config (listen addr, paths, limits, logging),
-  read at startup; editing needs no rebuild.
-- `front.toml` — frontend deployment params (e.g. `api_base_url`), embedded at
-  compile time via `include_str!` and fail fast.
-- `email.toml` — allowed email domains.
-- `smtp.toml` — SMTP credentials (secrets). Gitignored; the committed template
-  is `smtp.toml.example`.
-
-The backend serves a config-read endpoint (`/config/read`) holding the runtime
-configuration the frontend fetches.
+Toml under `configuration/`, never hardcoded. `server.toml` (runtime, read at
+startup), `front.toml` (compile-time via `include_str!`, fail fast),
+`email.toml` (allowed domains), `smtp.toml` (secrets, gitignored; committed
+template `smtp.toml.example`). Backend serves `/config/read` for the frontend.
 
 ## 7. Backend rules
 
-- Every response is `{code, data, message}`: code = HTTP status, message =
-  reason, data = payload.
-- Logging: `tracing` with `tracing-subscriber`, writing to `log/`, with daily
-  pruning.
+Every response is `{code, data, message}` (code=status, message=reason,
+data=payload). Logging: `tracing` + `tracing-subscriber` to `log/`, daily
+pruning.
 
 ## 8. Frontend rules
 
-- Build with Leptos in CSR mode. Pages must not use any CSS or style.
-- Deployment parameters are embedded at compile time and fail fast. All other
-  configuration is fetched at runtime from `/config/read`, with compile-time
-  defaults as fallback until the first fetch completes — the backend stays
-  authoritative.
+Leptos CSR; pages use no CSS. Deployment params embedded at compile time, fail
+fast; other config fetched at runtime from `/config/read` (compile-time defaults
+until first fetch); backend stays authoritative.
 
 ## 9. Design order
 
-Define data structures first, then the logic around them — for request/response
-payloads, the database node/edge shapes, and the cache key-value layout.
+Define data structures first (request/response payloads, DB node/edge shapes,
+cache layout), then the logic.
 
 ## 10. Testing
 
-- Test every function across all of its cases. Exhaustively when the cost is
-  low; otherwise cover every boundary case plus many randomized regular cases.
-- Unit tests live under `test/unit/{common,back,front}` and are pulled into the
-  crates via `#[path]`.
-- Run `cargo test` inside `code/back`, `code/common`, and `code/front`; keep the
-  zero-warning gate (`cargo clippy`, `cargo fmt`) green. The clippy gate runs
-  plain `cargo clippy` (no `--all-targets`) so test code is exempt.
+Test every function across all cases (exhaustive when cheap; else boundaries +
+randomized regular cases). Unit tests in `test/unit/{common,back,front}` via
+`#[path]`. Run `cargo test` in each crate; keep `cargo clippy` (zero warnings)
+and `cargo fmt` clean. Clippy runs plain (no `--all-targets`) so tests are
+exempt.
 
-## 11. Building and running
+## 11. Building & running
 
-- Full-stack restart (build frontend, start backend + proxy, health checks):
-  follow `document/run.md`.
-- Backend alone: `cargo run --bin nail_back` (from `code/back`); seed sample
-  data with `cargo run --bin nail_back -- seed-samples [count]`.
-- Frontend: `trunk build` (from `code/front`); served as static files by the
-  proxy.
+Full-stack restart: `document/run.md`. Backend alone:
+`cargo run --bin nail_back` (from `code/back`); seed samples with
+`-- seed-samples [count]`. Frontend: `trunk build` (from `code/front`), served
+by the proxy.
 
 ## 12. Dependencies
 
-- Add dependencies one by one with `cargo add`, alphabetical, latest
-  non-conflicting versions; commit `Cargo.lock` so builds are reproducible.
-- For any third-party crate question, read the pinned crate source in the local
-  cargo registry first; when it is ambiguous or untrustworthy, write a probe
-  test rather than guessing.
+Add one by one with `cargo add`, alphabetical, latest non-conflicting; commit
+`Cargo.lock`. For any crate question: read the pinned source, then confirm with
+a probe test — source + probe evidence, never a guess. No implementation until
+both are recorded and the user adopts the plan (`document/workflow.md` 5.5).
 
 ## 13. Documentation
 
-- `document/INDEX.md` is the entry point: read order and what each doc covers.
-- `document/workflow.md` defines the mandatory code-execution loop.
-- `document/handoff.md` tracks current state, what was done, and what comes
-  next.
-- `document/decisions.md` records the decided architecture and conventions.
-- `document/run.md` is the build/run/health-check guide.
+`workflow.md` = execution loop; `handoff.md` = progress; `run.md` =
+build/run/health-check.
+
+## 14. Search scope
+
+Search is precise, never the whole tree: most of the tree is generated or
+runtime data and would pollute results. Always set the search root; never
+search the repo root or a whole crate.
+
+Relevant roots (search one of these, not above them):
+
+- `code/{back,front,common}/src/` — Rust source.
+- `test/`, `document/`, `configuration/` — those layers only.
+- `code/{back,front,common}/Cargo.toml` — dependency declarations.
+
+Never include (large or unrelated; pollutes results):
+
+- `target/` — root and every crate (combined ~14G).
+- `code/front/dist/` — frontend build output.
+- `code/proxy/pingap-linux-gnu-x86-full` — downloaded binary.
+- `data/`, `log/`, `.git/`, `Cargo.lock`.
+
+For a repo-root `rg`, exclude all of the above:
+`rg -g '!target' -g '!dist' -g '!data' -g '!log' -g '!*.lock'
+-g '!pingap-linux-gnu-x86-full'`. A `src/` root needs no exclusions.

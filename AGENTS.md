@@ -1,114 +1,91 @@
 # Agent instructions
 
-## Read these first, in order, before any work
+## Read first, in order, before any work
 
-1. `README.md` — the project constitution: repository layout, architecture
-   layering, coding standards, robustness, configuration, and build rules.
-   Mandatory, not advisory.
-2. `document/INDEX.md` — the doc map and read order.
-3. `document/workflow.md` — the mandatory execution loop for any code change:
-   baseline green, clean commits, requirement interrogation, todo plan, research
-   via source/probe tests, red→green→gate→commit per slice, final gate.
+1. `README.md` — constitution: layout, layering, standards, robustness, config,
+   build. Mandatory.
+2. `document/workflow.md` — mandatory execution loop: baseline green, clean
+   commits, requirement pin-down, plan, source+probe double evidence, adoption
+   gate, red→green→gate→commit per slice, final gate.
 
-Everything below — the skills to reach for and the tool operations allowed or
-forbidden — is secondary to those documents. If this file ever conflicts with
-any of them, the README, the doc index, and the workflow doc win.
+These three plus this file cross-reference and win over everything below.
 
 ## Concurrent agents
 
-Other agents may work on this same project at the same time. Task scopes are
-generally disjoint, so:
-
-- Do not be surprised by uncommitted modifications or new commits you did not
-  make — someone else is working in the same tree.
-- Do not assume files you did not touch are in the state you left them; re-read
-  before depending on them.
-- Do not sweep unrelated working-tree changes into your own commit — stage only
-  what belongs to your task, and leave other agents' in-progress work alone.
-- Never discard others' work: the "never discard work" rule applies to every
-  change in the tree, not just your own.
+Other agents may work the same tree. Scope is generally disjoint: don't be
+surprised by others' changes or commits; re-read files before depending on
+them; stage only your own work; never discard anyone's work (the "never
+discard" rule covers every change in the tree).
 
 ## Documentation map
 
-- `README.md` — constitution (layering, standards, robustness, config, build).
-- `document/INDEX.md` — entry point: read order and what each doc covers.
-- `document/workflow.md` — the mandatory code-execution loop.
-- `document/handoff.md` — progress tracker: current state, what was done, what
-  comes next. Update it at the end of every completed slice, before reporting.
-- `document/decisions.md` — the decided architecture and conventions. Read-only;
-  changing one requires re-evaluation.
-- `document/run.md` — full-stack build/restart procedure and health checks.
+- `README.md` — constitution.
+- `document/workflow.md` — mandatory execution loop.
+- `document/handoff.md` — progress: current state, done, next. Update at the end
+  of every completed slice, before reporting.
+- `document/run.md` — build/restart/health-check.
 
-There is no issue tracker (no git remote, no `.scratch/`). Work is tracked in
-`document/handoff.md`; specs/decisions live in `document/decisions.md`.
+No issue tracker (no git remote, no `.scratch/`). Work tracked in
+`document/handoff.md`.
 
 ## When to use which skill
 
-Invoke a skill (via the skill tool) when the current task matches its trigger.
-Do not invoke a skill just to "have a vocabulary" — `codebase-design` is the
-one exception below, and it is a reference to consult, not a session to run.
+Invoke a skill when the task matches its trigger; don't invoke for vocabulary
+only (`codebase-design` is the one reference-only exception).
 
-| Skill | Trigger — use it when … |
+| Skill | Trigger |
 | --- | --- |
-| `codebase-design` | designing or restructuring a module's interface, deciding where a seam goes, deepening a module, or making code more testable/AI-navigable. A vocabulary to consult during any design work, not a standalone session. |
-| `diagnosing-bugs` | the user reports something broken, throwing, failing, or slow (or says "diagnose"/"debug"). Build a tight red-capable repro first; never hypothesise before it. |
-| `tdd` | building a feature or fixing a bug test-first ("red-green-refactor", or tests were requested). Seams = the README layer boundaries; tests live under `test/unit/{common,back,front}`, pulled in via `#[path]`. |
-| `domain-modeling` | pinning down domain terminology, sharpening a fuzzy term, or recording an architectural decision (writes to `document/decisions.md`). |
-| `grilling` | the user wants a plan/decision stress-tested ("grill me"). User-invoked; do not self-initiate. |
-| `grill-with-docs` | a grilling session that should also produce glossary/decision docs as it goes. User-invoked. |
-| `improve-codebase-architecture` | the user wants a codebase architecture review / deepening-opportunities report. Produces an HTML report, then grills through the picked candidate. |
-| `handoff` | wrapping up a session and compacting context for a fresh agent. Keep `document/handoff.md` current; the skill's temp-dir doc references it instead of duplicating it. |
-| `thermo-nuclear-code-quality-review` | the user asks for an extremely strict maintainability / abstraction / spaghetti review. |
-| `setup-matt-pocock-skills` | already run (this file carries its output). Do not re-run unless the user asks to reconfigure the issue tracker or doc layout. |
-| `to-spec` | not usable as-is: it publishes to an issue tracker, which this repo does not have. Adapt to `document/handoff.md` or ask the user before running. |
+| `codebase-design` | designing/restructuring a module interface, choosing a seam, deepening a module, AI-navigability. Reference vocabulary, not a session. |
+| `diagnosing-bugs` | something broken/throwing/failing/slow ("diagnose"/"debug"). Tight red-capable repro first; never hypothesise before it. |
+| `tdd` | building/fixing test-first. Seams = README layer boundaries; tests in `test/unit/{common,back,front}` via `#[path]`. |
+| `domain-modeling` | pinning domain terms or recording a decision. |
+| `grilling` | user wants a plan/decision stress-tested ("grill me"). User-invoked. |
+| `grill-with-docs` | grilling that also produces glossary/decision docs. User-invoked. |
+| `improve-codebase-architecture` | architecture review/deepening report (HTML) then grill. |
+| `handoff` | wrapping up; keep `document/handoff.md` current. |
+| `thermo-nuclear-code-quality-review` | extremely strict maintainability/abstraction/spaghetti review. |
+| `setup-matt-pocock-skills` | already run; don't re-run unless reconfigure requested. |
+| `to-spec` | not usable as-is (no issue tracker); adapt to `document/handoff.md` or ask. |
 
-## Tools and restrictions
+## Tools
 
 ### Allowed
 
-- **Search**: Glob/Grep tools with `target/` and `dist/` excluded (add path
-  limits or include filters like `*.rs`); for wide scans use `rg` with
-  `-g '!target' -g '!dist'` in bash.
-- **File edits**: Read/Edit/Write tools. Bash is for build, test, git, and
-  infra commands — not for file manipulation (`sed`/`awk`/`cat >` are
-  forbidden for editing).
-- **Skills**: via the skill tool, on the triggers above.
-- **Crate questions**: read the pinned crate source in
-  `~/.cargo/registry/src/index.crates.io-*/` first; if ambiguous, write a
-  probe test (`cargo test`) rather than guessing.
-- **Verification**: `cargo fmt`, `cargo clippy` (zero-warning gate), and
-  `cargo test` inside `code/{common,back,front}`. Frontend changes also need
-  a `trunk build` (see `document/run.md`).
+- **Search**: precise scope only — set the root, never search the repo root or
+  a whole crate; see `README.md` §14 for roots and exclusions. Repo-root `rg`
+  needs `-g '!target' -g '!dist' -g '!data' -g '!log' -g '!*.lock'
+  -g '!pingap-linux-gnu-x86-full'`; a `src/` root needs none.
+- **Edits**: Read/Edit/Write. Bash only for build/test/git/infra, not file
+  manipulation (`sed`/`awk`/`cat >` forbidden for editing).
+- **Skills**: via skill tool, on the triggers above.
+- **Crate questions**: read pinned source in
+  `~/.cargo/registry/src/index.crates.io-*/` first, then verify with a probe
+  test (`cargo test`) — source + probe evidence. No implementation until both
+  are recorded and the user adopts the plan (`workflow.md` 5.5).
+- **Verify**: `cargo fmt`, `cargo clippy` (zero warnings), `cargo test` in
+  `code/{common,back,front}`; frontend also `trunk build` (`document/run.md`).
 
 ### Prohibited
 
-- **Never hand-edit `Cargo.lock`** — change dependencies only via `cargo add`
-  (README §Dependencies); commit the lock.
-- **Never touch runtime/generated data**: `target/`, `dist/`, `data/`, `log/`.
-  `data/agdb` is reset and reseeded at startup; deleting the dir forces a
-  fresh init. Do not commit any of these (see `.gitignore`).
-- **Secrets**: never write `configuration/smtp.toml` contents or any
-  credential into files, logs, diffs, or commits. Redact secrets in all
-  output. The file is gitignored; the committed template is
-  `configuration/smtp.toml.example`.
-- **Per-slice commits are pre-authorized**: `document/workflow.md`
-  mandates one commit per slice on a clean tree, so each slice's commit needs no
-  separate user prompt. `amend`, `push`, and `force` still require explicit user
-  approval.
-- **Never discard work**: `git checkout HEAD -- <path>`, `git checkout -- <path>`,
-  `git restore`, `git reset --hard`, `git clean -fd`, and any `git stash` that
-  drops changes are forbidden — they overwrite or delete uncommitted work with no
-  recovery. To revert a file, recover it from a commit/bundle first, or ask the
-  user. Discarding a file's uncommitted changes requires explicit user approval
-  every time.
-- **No `unwrap`/`expect`** and no new panics — README §Robustness is mandatory.
-- **No comments restating the code** — README §Comments.
+- Never hand-edit `Cargo.lock` — change deps only via `cargo add`; commit the
+  lock.
+- Never touch runtime/generated data: `target/`, `dist/`, `data/`, `log/`.
+  `data/agdb` resets/reseeds at startup; don't commit these.
+- **Secrets**: never write `configuration/smtp.toml` or credentials into files,
+  logs, diffs, commits; redact in all output. Gitignored; template is
+  `smtp.toml.example`.
+- **Per-slice commits pre-authorized**: one commit per slice on a clean tree
+  needs no prompt. `amend`, `push`, `force` need explicit approval.
+- **Never discard work**: no `git checkout --`/`git restore`/`reset --hard`/
+  `clean -fd`/change-dropping `stash`. Recover from a commit/bundle or ask;
+  discarding uncommitted changes needs explicit approval each time.
+- No `unwrap`/`expect`/new panics (README §Robustness).
+- No comments restating the code (README §Comments).
 
 ### Conventions to hold
 
-- English only — code, docs, comments, UI strings (README §Language).
-- CRUD-only verbs for resource operations; node-op names, not frontend flow
-  vocabulary (README §Naming).
-- Every response is `{code, data, message}`; errors propagate with `?`
-  (README §Robustness, §Backend rules).
-- Config lives in toml, never hardcoded (README §Configuration).
+- English only (README §Language).
+- CRUD-only verbs; node ops, not flow vocabulary (README §Naming).
+- Every response `{code, data, message}`; errors propagate with `?` (README
+  §Robustness/§Backend).
+- Config in toml, never hardcoded (README §Configuration).
