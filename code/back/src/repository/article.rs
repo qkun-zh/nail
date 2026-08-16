@@ -320,22 +320,48 @@ fn enrich_articles(guard: &agdb::DbAny, ids: &[agdb::DbId]) -> Result<Vec<Articl
         .filter_map(|row| row.db_id.map(|node| (node, row)))
         .collect();
 
-    let node_set: HashSet<agdb::DbId> = ids.iter().copied().collect();
+    let mut owner_of: HashMap<agdb::DbId, agdb::DbId> = HashMap::new();
+    let mut tag_nodes: HashSet<agdb::DbId> = HashSet::new();
+    let mut tags_by_article: HashMap<agdb::DbId, Vec<agdb::DbId>> = HashMap::new();
+    for &article in ids {
+        if !article_by_node.contains_key(&article) {
+            continue;
+        }
+        let owner_edges = guard.exec(
+            QueryBuilder::search()
+                .to(article)
+                .where_()
+                .distance(agdb::CountComparison::Equal(1))
+                .and()
+                .edge()
+                .and()
+                .key(KEY_TYPE)
+                .value(EDGE_USER_AUTHOR_ARTICLE)
+                .query(),
+        )?;
+        if let Some(edge) = owner_edges.elements.first() {
+            owner_of.insert(article, edge.from);
+        }
+        let tag_edges = guard.exec(
+            QueryBuilder::search()
+                .from(article)
+                .where_()
+                .distance(agdb::CountComparison::Equal(1))
+                .and()
+                .edge()
+                .and()
+                .key(KEY_TYPE)
+                .value(EDGE_ARTICLE_APPLY_TAG)
+                .query(),
+        )?;
+        let article_tag_nodes: Vec<agdb::DbId> =
+            tag_edges.elements.iter().map(|edge| edge.to).collect();
+        for tag_node in &article_tag_nodes {
+            tag_nodes.insert(*tag_node);
+        }
+        tags_by_article.insert(article, article_tag_nodes);
+    }
 
-    let owner_edges = guard.exec(
-        QueryBuilder::search()
-            .elements()
-            .where_()
-            .key(KEY_TYPE)
-            .value(EDGE_USER_AUTHOR_ARTICLE)
-            .query(),
-    )?;
-    let owner_of: HashMap<agdb::DbId, agdb::DbId> = owner_edges
-        .elements
-        .iter()
-        .filter(|edge| node_set.contains(&edge.to))
-        .map(|edge| (edge.to, edge.from))
-        .collect();
     let owner_ids: Vec<agdb::DbId> = owner_of.values().copied().collect();
     let author_by_node: HashMap<agdb::DbId, UserRow> =
         read_rows_sync::<UserRow>(guard, &owner_ids)?
@@ -343,15 +369,6 @@ fn enrich_articles(guard: &agdb::DbAny, ids: &[agdb::DbId]) -> Result<Vec<Articl
             .filter_map(|row| row.db_id.map(|node| (node, row)))
             .collect();
 
-    let tag_edges = guard.exec(
-        QueryBuilder::search()
-            .elements()
-            .where_()
-            .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_APPLY_TAG)
-            .query(),
-    )?;
-    let tag_nodes: HashSet<agdb::DbId> = tag_edges.elements.iter().map(|edge| edge.to).collect();
     let tag_node_list: Vec<agdb::DbId> = tag_nodes.iter().copied().collect();
     let tag_name_by_node: HashMap<agdb::DbId, String> =
         read_rows_sync::<TagRow>(guard, &tag_node_list)?
@@ -363,24 +380,6 @@ fn enrich_articles(guard: &agdb::DbAny, ids: &[agdb::DbId]) -> Result<Vec<Articl
             .into_iter()
             .filter_map(|row| row.db_id.map(|node| (node, row.id)))
             .collect();
-
-    let mut tags_by_article: HashMap<agdb::DbId, Vec<TagRef>> = HashMap::new();
-    for edge in &tag_edges.elements {
-        if !node_set.contains(&edge.from) {
-            continue;
-        }
-        let (Some(name), Some(id)) = (tag_name_by_node.get(&edge.to), tag_id_by_node.get(&edge.to))
-        else {
-            continue;
-        };
-        tags_by_article.entry(edge.from).or_default().push(TagRef {
-            id: id.clone(),
-            name: name.clone(),
-        });
-    }
-    for tags in tags_by_article.values_mut() {
-        tags.sort_by(|left, right| left.id.cmp(&right.id));
-    }
 
     let latest_ids: Vec<String> = article_by_node
         .values()
@@ -401,13 +400,30 @@ fn enrich_articles(guard: &agdb::DbAny, ids: &[agdb::DbId]) -> Result<Vec<Articl
             .get(latest_version_id.as_str())
             .cloned()
             .unwrap_or_default();
+        let mut tags: Vec<TagRef> = tags_by_article
+            .get(id)
+            .map(|tag_nodes| {
+                tag_nodes
+                    .iter()
+                    .filter_map(|tag_node| {
+                        let name = tag_name_by_node.get(tag_node)?;
+                        let tag_id = tag_id_by_node.get(tag_node)?;
+                        Some(TagRef {
+                            id: tag_id.clone(),
+                            name: name.clone(),
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        tags.sort_by(|left, right| left.id.cmp(&right.id));
         items.push(ArticleView {
             id: row.id.clone(),
             title: row.title.clone(),
             summary: row.summary.clone(),
             author_id,
             author_name,
-            tags: tags_by_article.remove(id).unwrap_or_default(),
+            tags,
             latest_version,
             latest_version_id,
         });
