@@ -127,8 +127,6 @@ pub struct ArticleSearchParams {
     #[serde(default)]
     pub ranges: Option<String>,
     #[serde(default)]
-    pub sort: Option<String>,
-    #[serde(default)]
     pub from: Option<String>,
     #[serde(default)]
     pub to: Option<String>,

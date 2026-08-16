@@ -101,31 +101,6 @@ body {
   outline: none;
   background: #fff;
 }
-.searchbar .sort-btn {
-  font-size: 13px;
-  padding: 5px 12px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: #fff;
-  color: var(--ink);
-  cursor: pointer;
-}
-.searchbar .sort-btn:hover { border-color: var(--accent); color: var(--accent); }
-.searchbar .sort-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  padding: 5px 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  background: var(--accent-soft);
-  color: var(--ink);
-}
-.searchbar .sort-chip .dir { cursor: pointer; }
-.searchbar .sort-chip .rm { cursor: pointer; color: var(--muted); }
-.searchbar .sort-chip .rm:hover { color: #dc2626; }
-
 .wrap {
   max-width: 860px;
   margin: 0 auto;
@@ -360,7 +335,6 @@ const RANGE_LABELS: [&str; 7] = [
     "tag",
     "version number",
 ];
-const SORT_KEYS: [&str; 3] = ["time", "title", "author"];
 const SEARCH_PATHNAME: &str = "/public/article/search";
 
 fn normalize_iso8601(value: &str) -> Option<String> {
@@ -381,27 +355,6 @@ fn normalize_iso8601(value: &str) -> Option<String> {
         return None;
     }
     Some(normalized)
-}
-
-fn sort_label(key: &str) -> &str {
-    match key {
-        "time" => "time",
-        "title" => "title",
-        "author" => "author",
-        _ => key,
-    }
-}
-
-fn default_sort_dir(key: &str) -> String {
-    if key == "time" {
-        "desc".to_string()
-    } else {
-        "asc".to_string()
-    }
-}
-
-fn dir_arrow(dir: &str) -> &'static str {
-    if dir == "desc" { "↓" } else { "↑" }
 }
 
 #[component]
@@ -529,7 +482,6 @@ pub fn Search() -> impl IntoView {
     let ranges = RwSignal::new(vec![true; 7]);
     let from_time = RwSignal::new(String::new());
     let to_time = RwSignal::new(String::new());
-    let sort_order = RwSignal::new(Vec::<(String, String)>::new());
     let current_page = RwSignal::new(1u64);
     let per_page = RwSignal::new(limits.get_untracked().search_page_size);
 
@@ -545,19 +497,6 @@ pub fn Search() -> impl IntoView {
             }
         }
         ranges.set(checked);
-    }
-    if let Some(sort_param) = params.get("sort") {
-        let mut order = Vec::new();
-        for piece in sort_param.split(',') {
-            let mut parts = piece.splitn(2, ':');
-            let key = parts.next().unwrap_or("");
-            let default_dir = default_sort_dir(key);
-            let direction = parts.next().unwrap_or(&default_dir);
-            if SORT_KEYS.contains(&key) {
-                order.push((key.to_string(), direction.to_string()));
-            }
-        }
-        sort_order.set(order);
     }
     from_time.set(params.get("from").unwrap_or_default());
     to_time.set(params.get("to").unwrap_or_default());
@@ -590,15 +529,6 @@ pub fn Search() -> impl IntoView {
                 .collect::<Vec<_>>()
                 .join(",");
             pairs.push(format!("ranges={}", encode_component(&subset)));
-            let order = sort_order.get();
-            if !order.is_empty() {
-                let serialized = order
-                    .iter()
-                    .map(|(key, direction)| format!("{key}:{direction}"))
-                    .collect::<Vec<_>>()
-                    .join(",");
-                pairs.push(format!("sort={}", encode_component(&serialized)));
-            }
             let from = from_time.get();
             if !from.trim().is_empty() {
                 pairs.push(format!("from={}", encode_component(from.trim())));
@@ -693,15 +623,6 @@ pub fn Search() -> impl IntoView {
                 .collect::<Vec<_>>()
                 .join(",");
             pairs.push(("ranges".to_string(), subset));
-            let order = sort_order.get_untracked();
-            if !order.is_empty() {
-                let serialized = order
-                    .iter()
-                    .map(|(key, direction)| format!("{key}:{direction}"))
-                    .collect::<Vec<_>>()
-                    .join(",");
-                pairs.push(("sort".to_string(), serialized));
-            }
             let from = from_time.get_untracked();
             if !from.trim().is_empty() {
                 pairs.push(("from".to_string(), from.trim().to_string()));
@@ -732,39 +653,6 @@ pub fn Search() -> impl IntoView {
         let trigger_search = trigger_search.clone();
         move |index: usize, event: web_sys::Event| {
             ranges.update(|checked| checked[index] = event_target_checked(&event));
-            trigger_search();
-        }
-    };
-    let on_add_sort = {
-        let trigger_search = trigger_search.clone();
-        move |key: String| {
-            sort_order.update(|order| {
-                if !order.iter().any(|(sort_key, _)| *sort_key == key) {
-                    order.push((key.clone(), default_sort_dir(&key)));
-                }
-            });
-            trigger_search();
-        }
-    };
-    let on_toggle_dir = {
-        let trigger_search = trigger_search.clone();
-        move |key: String| {
-            sort_order.update(|order| {
-                if let Some(entry) = order.iter_mut().find(|(sort_key, _)| *sort_key == key) {
-                    entry.1 = if entry.1 == "asc" {
-                        "desc".to_string()
-                    } else {
-                        "asc".to_string()
-                    };
-                }
-            });
-            trigger_search();
-        }
-    };
-    let on_remove_sort = {
-        let trigger_search = trigger_search.clone();
-        move |key: String| {
-            sort_order.update(|order| order.retain(|(sort_key, _)| *sort_key != key));
             trigger_search();
         }
     };
@@ -818,7 +706,6 @@ pub fn Search() -> impl IntoView {
             ranges.get(),
             from_time.get(),
             to_time.get(),
-            sort_order.get(),
             current_page.get(),
         );
         if previous.is_none() {
@@ -878,47 +765,6 @@ pub fn Search() -> impl IntoView {
                                 prop:value=to_time
                                 on:change=on_to_change
                             />
-                        </div>
-                        <div class="group">
-                            <span class="group-title">sort</span>
-                            {SORT_KEYS
-                                .iter()
-                                .map(|key| {
-                                    let on_add_sort = on_add_sort.clone();
-                                    let key = key.to_string();
-                                    let label = sort_label(&key).to_string();
-                                    view! {
-                                        <button type="button" class="sort-btn" on:click=move |_| on_add_sort(key.clone())>
-                                            {label}
-                                        </button>
-                                    }
-                                })
-                                .collect_view()}
-                            {move || {
-                                let order = sort_order.get();
-                                order
-                                    .into_iter()
-                                    .map(|(key, direction)| {
-                                        let on_toggle_dir = on_toggle_dir.clone();
-                                        let on_remove_sort = on_remove_sort.clone();
-                                        let toggle_key = key.clone();
-                                        let remove_key = key.clone();
-                                        let label = sort_label(&key).to_string();
-                                        let arrow = dir_arrow(&direction).to_string();
-                                        view! {
-                                            <span class="sort-chip">
-                                                <span class="dir" on:click=move |_| on_toggle_dir(toggle_key.clone())>
-                                                    {arrow}
-                                                </span>
-                                                {label}
-                                                <span class="rm" on:click=move |_| on_remove_sort(remove_key.clone())>
-                                                    {"×"}
-                                                </span>
-                                            </span>
-                                        }
-                                    })
-                                    .collect_view()
-                            }}
                         </div>
                     </div>
                 </form>
@@ -1011,7 +857,3 @@ pub fn Search() -> impl IntoView {
         </div>
     }
 }
-
-#[cfg(test)]
-#[path = "../../../../../../test/unit/front/page/public/article/search/tests.rs"]
-mod tests;

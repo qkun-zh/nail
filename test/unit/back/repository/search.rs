@@ -39,7 +39,6 @@ fn empty_request(limit: u64) -> SearchRequest {
     SearchRequest {
         query: None,
         ranges: vec![nail_common::search::SearchRange::Title],
-        sort: Vec::new(),
         from_seconds: None,
         to_seconds: None,
         offset: 0,
@@ -51,7 +50,6 @@ fn query_request(query: &str, ranges: Vec<nail_common::search::SearchRange>) -> 
     SearchRequest {
         query: Some(query.to_string()),
         ranges,
-        sort: Vec::new(),
         from_seconds: None,
         to_seconds: None,
         offset: 0,
@@ -466,7 +464,6 @@ async fn probe_live_data_58() {
                     SearchRange::Tag,
                     SearchRange::VersionNumber,
                 ],
-                sort: Vec::new(),
                 from_seconds: None,
                 to_seconds: None,
                 offset: 0,
@@ -523,7 +520,6 @@ async fn probe_live_data_58() {
     let params = nail_common::request::ArticleSearchParams {
         q: Some("58".to_string()),
         ranges: Some("title,summary,author_name,comment,note,tag,version_number".to_string()),
-        sort: None,
         from: None,
         to: None,
         page: None,

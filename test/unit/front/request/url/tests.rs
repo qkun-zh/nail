@@ -50,9 +50,9 @@ fn appends_encoded_query_parameters() {
     assert_eq!(
         build_path_with_query(
             &["article", "read"],
-            &[("key_word", "hello world"), ("sort", "time:desc")]
+            &[("key_word", "hello world"), ("from", "2024-01-15T10:30:00")]
         ),
-        "/article/read?key_word=hello%20world&sort=time%3Adesc"
+        "/article/read?key_word=hello%20world&from=2024-01-15T10%3A30%3A00"
     );
 }
 

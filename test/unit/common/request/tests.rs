@@ -318,7 +318,6 @@ fn article_search_params_round_trip_all_fields() -> anyhow::Result<()> {
     let params = crate::request::ArticleSearchParams {
         q: Some("rust".to_string()),
         ranges: Some("title,author".to_string()),
-        sort: Some("time:desc".to_string()),
         from: Some("2023-11-14T22:13:20Z".to_string()),
         to: Some("2023-11-14T23:00:00Z".to_string()),
         limit: Some(8),

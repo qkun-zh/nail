@@ -23,7 +23,6 @@ fn params(q: Option<&str>) -> ArticleSearchParams {
     ArticleSearchParams {
         q: q.map(str::to_string),
         ranges: Some(ALL_RANGES.to_string()),
-        sort: None,
         from: None,
         to: None,
         limit: None,
@@ -203,7 +202,7 @@ async fn seed_article(
 }
 
 #[tokio::test]
-async fn search_combines_keyword_range_time_author_tag_and_sort() {
+async fn search_combines_keyword_range_time_author_tag() {
     let context = TestCtx::new().await.expect("test context");
     let alice = member(&context, "alice@example.com").await;
     let bob = member(&context, "bob@example.com").await;
@@ -329,7 +328,7 @@ async fn search_combines_keyword_range_time_author_tag_and_sort() {
 }
 
 #[tokio::test]
-async fn search_sorts_by_time_title_and_author_and_paginates() {
+async fn search_paginates_with_limit_and_page() {
     let context = TestCtx::new().await.expect("test context");
     let alice = member(&context, "alice@example.com").await;
     let bob = member(&context, "bob@example.com").await;
@@ -370,46 +369,6 @@ async fn search_sorts_by_time_title_and_author_and_paginates() {
         now - 10 * 3_600_000,
     )
     .await;
-
-    let mut sort_time = params(Some("rust"));
-    sort_time.sort = Some("time:desc".to_string());
-    let page = crate::logic::search::search_articles(&context.state, &sort_time)
-        .await
-        .expect("time desc");
-    let titles: Vec<&str> = page.article_list.iter().map(|a| a.title.as_str()).collect();
-    assert_eq!(titles, vec!["Banana", "Apple", "Cherry"], "time desc");
-
-    let mut sort_time_asc = params(Some("rust"));
-    sort_time_asc.sort = Some("time:asc".to_string());
-    let page = crate::logic::search::search_articles(&context.state, &sort_time_asc)
-        .await
-        .expect("time asc");
-    let titles: Vec<&str> = page.article_list.iter().map(|a| a.title.as_str()).collect();
-    assert_eq!(titles, vec!["Cherry", "Apple", "Banana"], "time asc");
-
-    let mut sort_title = params(Some("rust"));
-    sort_title.sort = Some("title:asc".to_string());
-    let page = crate::logic::search::search_articles(&context.state, &sort_title)
-        .await
-        .expect("title asc");
-    let titles: Vec<&str> = page.article_list.iter().map(|a| a.title.as_str()).collect();
-    assert_eq!(titles, vec!["Apple", "Banana", "Cherry"], "title asc");
-
-    let mut sort_author = params(Some("rust"));
-    sort_author.sort = Some("author:asc".to_string());
-    let page = crate::logic::search::search_articles(&context.state, &sort_author)
-        .await
-        .expect("author asc");
-    let authors: Vec<&str> = page
-        .article_list
-        .iter()
-        .map(|a| a.author_name.as_str())
-        .collect();
-    assert_eq!(
-        authors,
-        vec!["alice-smith", "alice-smith", "bob-jones"],
-        "author asc"
-    );
 
     let page = crate::logic::search::search_articles(
         &context.state,

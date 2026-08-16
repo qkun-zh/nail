@@ -1,6 +1,4 @@
 use crate::search::SearchRange;
-use crate::search::SearchSortDirection;
-use crate::search::SearchSortField;
 
 #[test]
 fn search_range_serializes_as_lowercase_strings() -> anyhow::Result<()> {
@@ -61,26 +59,4 @@ fn search_range_labels_are_english() {
     for (range, label) in expected {
         assert_eq!(range.label(), label);
     }
-}
-
-#[test]
-fn search_sort_enums_serialize_as_lowercase_strings() -> anyhow::Result<()> {
-    assert_eq!(serde_json::to_string(&SearchSortField::Time)?, r#""time""#);
-    assert_eq!(
-        serde_json::to_string(&SearchSortField::Title)?,
-        r#""title""#
-    );
-    assert_eq!(
-        serde_json::to_string(&SearchSortField::Author)?,
-        r#""author""#
-    );
-    assert_eq!(
-        serde_json::to_string(&SearchSortDirection::Asc)?,
-        r#""asc""#
-    );
-    assert_eq!(
-        serde_json::to_string(&SearchSortDirection::Desc)?,
-        r#""desc""#
-    );
-    Ok(())
 }

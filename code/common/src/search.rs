@@ -29,21 +29,6 @@ impl SearchRange {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum SearchSortField {
-    Time,
-    Title,
-    Author,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum SearchSortDirection {
-    Asc,
-    Desc,
-}
-
 #[cfg(test)]
 #[path = "../../../test/unit/common/search/tests.rs"]
 mod tests;

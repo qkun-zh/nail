@@ -4,13 +4,11 @@ use nail_common::request::ArticleSearchParams;
 use nail_common::response::search::{
     SearchArticleItem, SearchCommentItem, SearchHit, SearchPage, SearchVersionItem,
 };
-use nail_common::search::{SearchRange, SearchSortDirection, SearchSortField};
+use nail_common::search::SearchRange;
 
 use crate::infrastructure::state::AppState;
 use crate::logic::error::LogicError;
-use crate::repository::search::{
-    SearchCommentOutcome, SearchDocOutcome, SearchRequest, SearchSort,
-};
+use crate::repository::search::{SearchCommentOutcome, SearchDocOutcome, SearchRequest};
 
 const MAX_PAGE_SIZE: u64 = 200;
 const MAX_PAGE: u64 = 10_000;
@@ -39,7 +37,6 @@ pub async fn search_articles(
     };
 
     let ranges = parse_ranges(params.ranges.as_deref())?;
-    let sort = parse_sort(params.sort.as_deref())?;
 
     let from_seconds = parse_iso8601_bound(params.from.as_deref(), "from")?;
     let to_seconds = parse_iso8601_bound(params.to.as_deref(), "to")?;
@@ -63,7 +60,6 @@ pub async fn search_articles(
             SearchRequest {
                 query,
                 ranges,
-                sort,
                 from_seconds,
                 to_seconds,
                 offset,
@@ -266,45 +262,6 @@ fn parse_ranges(raw: Option<&str>) -> Result<Vec<SearchRange>, LogicError> {
         }
     }
     Ok(ranges)
-}
-
-fn parse_sort(raw: Option<&str>) -> Result<Vec<SearchSort>, LogicError> {
-    let Some(raw) = raw else {
-        return Ok(Vec::new());
-    };
-    let mut sort = Vec::new();
-    for token in raw.split(',') {
-        let token = token.trim();
-        if token.is_empty() {
-            continue;
-        }
-        let Some((field, direction)) = token.split_once(':') else {
-            return Err(LogicError::bad_request(format!(
-                "invalid sort entry: {token}"
-            )));
-        };
-        let field = match field.trim() {
-            "time" => SearchSortField::Time,
-            "title" => SearchSortField::Title,
-            "author" => SearchSortField::Author,
-            _ => {
-                return Err(LogicError::bad_request(format!(
-                    "unknown sort field: {field}"
-                )));
-            }
-        };
-        let direction = match direction.trim() {
-            "asc" => SearchSortDirection::Asc,
-            "desc" => SearchSortDirection::Desc,
-            _ => {
-                return Err(LogicError::bad_request(format!(
-                    "unknown sort direction: {direction}"
-                )));
-            }
-        };
-        sort.push(SearchSort { field, direction });
-    }
-    Ok(sort)
 }
 
 fn format_search_time(timestamp_seconds: i64) -> String {

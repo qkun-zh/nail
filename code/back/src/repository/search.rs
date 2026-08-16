@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use agdb::{DbError, QueryBuilder};
-use nail_common::search::{SearchRange, SearchSortDirection, SearchSortField};
+use nail_common::search::SearchRange;
 use seekstorm::commit::Commit;
 use seekstorm::highlighter::{Highlight, highlighter};
 use seekstorm::index::{
@@ -10,10 +10,7 @@ use seekstorm::index::{
     FrequentwordType, IndexArc, IndexDocuments, IndexMetaObject, LexicalSimilarity, NgramSet,
     SchemaField, StemmerType, StopwordType, TokenizerType, create_index, open_index,
 };
-use seekstorm::search::{
-    FacetFilter, FacetValue, QueryRewriting, QueryType, ResultSort, ResultType, Search, SearchMode,
-    SortOrder,
-};
+use seekstorm::search::{FacetFilter, QueryRewriting, QueryType, ResultType, Search, SearchMode};
 use seekstorm::vector::Inference;
 
 use crate::repository::graph::{DbHandle, read_rows_sync, resolve_node_id_sync};
@@ -43,17 +40,10 @@ const MAX_DOCS_PER_ARTICLE: u64 = 32;
 const INDEX_SCHEMA_VERSION: &str = "2";
 const SCHEMA_VERSION_FILENAME: &str = "nail_schema_version";
 
-#[derive(Debug, Clone)]
-pub struct SearchSort {
-    pub field: SearchSortField,
-    pub direction: SearchSortDirection,
-}
-
 #[derive(Debug, Clone, Default)]
 pub struct SearchRequest {
     pub query: Option<String>,
     pub ranges: Vec<SearchRange>,
-    pub sort: Vec<SearchSort>,
     pub from_seconds: Option<u64>,
     pub to_seconds: Option<u64>,
     pub offset: u64,
@@ -261,19 +251,6 @@ impl SearchIndex {
             });
         }
 
-        let result_sort: Vec<ResultSort> = request
-            .sort
-            .iter()
-            .map(|sort| ResultSort {
-                field: sort_field_name(sort.field).to_string(),
-                order: match sort.direction {
-                    SearchSortDirection::Desc => SortOrder::Descending,
-                    SearchSortDirection::Asc => SortOrder::Ascending,
-                },
-                base: FacetValue::None,
-            })
-            .collect();
-
         let top_k = usize::try_from((request.offset + request.limit * MAX_DOCS_PER_ARTICLE).max(1))
             .unwrap_or(usize::MAX);
 
@@ -292,7 +269,7 @@ impl SearchIndex {
                 field_names.clone(),
                 Vec::new(),
                 facet_filter,
-                result_sort,
+                Vec::new(),
                 QueryRewriting::SearchOnly,
             )
             .await;
@@ -410,14 +387,6 @@ fn range_field_name(range: SearchRange) -> &'static str {
         SearchRange::Note => FIELD_NOTE,
         SearchRange::Tag => FIELD_TAGS,
         SearchRange::VersionNumber => FIELD_VERSION_NUMBER,
-    }
-}
-
-fn sort_field_name(field: SearchSortField) -> &'static str {
-    match field {
-        SearchSortField::Time => FIELD_TS,
-        SearchSortField::Title => FIELD_TITLE,
-        SearchSortField::Author => FIELD_AUTHOR_NAME,
     }
 }
 
