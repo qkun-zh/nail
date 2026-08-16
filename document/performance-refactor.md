@@ -145,9 +145,9 @@ the theoretical optimum (O(R) instead of O(R²)).
 
 ## Open decisions for the user (behavior-changing, not yet approved)
 
-- **Keep `total` vs cursor.** Keeping `total` costs an O(A) full scan on agdb *list*
-  endpoints; the search-page `total` is free (SeekStorm, no agdb scan). Dropping it for
-  cursor is viable only if jump-to-page is not a product need.
+- **Keep `total` vs cursor on agdb *list* endpoints.** Keeping `total` costs an O(A) full
+  scan; dropping it for cursor is viable only if jump-to-page is not a product need. The
+  search-page `total` is already dropped — it was not a true count (see footer).
 - **Master-doc-per-article (P1) vs version/comment-indexed.** The current design is
   version+comment granular, which keeps highlight cost O(single field) but makes article
   paging O(offset). Master-doc reverses it: cheap article paging, loses per-version/
@@ -165,14 +165,20 @@ the theoretical optimum (O(R) instead of O(R²)).
 | P5 pagination sort + slice | **Done** (commit c2f62ec) — drop sort + total, default order |
 | P6 recycler O(R²) → HashSet | **Done** (verified + user-approved) |
 | Search: no ORDER BY | **Done** (commit af09b00) — drop time/title/author sort, default relevance order; removed `SearchSort*` common types + sort UI |
-| Search: no total / cursor | **Open** — user decides |
+| Search: no total | **Done** — drop `total`/`total_pages`/`has_prev`/`truncated` from `SearchPage`; `has_next` derived from the assembled top_k window; frontend uses prev/next |
+| List endpoints: keep total | **Open** — O(A) full scan; search-page total no longer the free case |
 
-_Last updated: P5 implemented (c2f62ec) — lists use agdb offset/limit, no order-by/total.
-Search ORDER BY removed (af09b00) — default relevance order, sort UI gone.
-P1 rejected (highlight behavior), P4 accepted (inherent), P6 non-problem (O(R), exclude
-length 1). Remaining: total/cursor decision on list endpoints + search total (only
-affects keeping `total`; offset nav works without it). Baseline: build green, 308 back
-tests + 109 common + 69 front pass._
+_Last updated: search total removed — `SearchPage` is now `{article_list, page, has_next}`.
+Search `total` was NOT a true count: `total = article_list.len()` over docs assembled from
+the top_k window (`top_k = offset + limit*32`, `repository/search.rs:254`, `logic/search.rs`),
+which SeekStorm caps via `results.truncate(length)` (`seekstorm search.rs:2118`);
+`result_count_total` is only accurate for `TopkCount` (`:197`). Probe: 34 matching articles,
+limit=1 -> reported total 32, `has_next` true but window-exhausted -> total drifted per page
+and `total_pages`/`truncated` were unreliable. Removing it drops the truncated-warning and
+numbered pagination (now prev/next). Follow-up: `server.max_search_pages` config is now a
+dead knob (was only consumed by the removed truncated warning). P1 rejected (highlight
+behavior), P4 accepted (inherent), P6 non-problem (O(R), exclude length 1). Baseline:
+build green, 311 back tests + 109 common + 69 front pass._
 
 ## Probe evidence log
 
@@ -180,3 +186,5 @@ tests + 109 common + 69 front pass._
 | --- | --- | --- |
 | P3 | `probe.rs::probe_batch_comment_enrichment_matches_per_comment` | Passed. 4 comment pairs (2 distinct articles, 2 versions, 1 author; incl. duplicate + cross pair): batch path returns identical (title, author, version) to per-comment. |
 | P5 | `probe.rs::probe_offset_limit_pagination_tiles_default_order` | Passed. 4 versions; `.offset().limit()` (no sort) tiles default-order full set, no gaps/overlaps/dups; `has_next` via limit+1 peek. |
+| Search total (pre-removal) | `probe_search_total_truncates_when_matches_exceed_topk` | Passed. 34 matching articles, limit=1 -> top_k=32 -> reported total 32 (true 34). Proves `total` is a truncated top_k-window count, not a real count. |
+| Search no total | `probe.rs::probe_search_has_next_pages_cover_all_matches_without_total` | Passed. limit=1 over 34 articles; prev/next-style paging via `has_next` alone collects all 34 with no gaps/dups. |
