@@ -1,23 +1,19 @@
-use nail_common::request::ArticleSearchParams;
 use nail_common::request::DeleteMode;
-use nail_common::response::article::{
-    ArticleIdView, ArticleListItem, ArticleListPage, ArticleView,
-};
-use nail_common::response::search::SearchPage;
+use nail_common::response::article::{ArticleIdView, ArticleView};
 use uuid::Uuid;
 
 use crate::infrastructure::pdf::PdfUpload;
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{authorize_create, authorize_or};
 use crate::logic::error::{LogicError, database_error};
-use crate::logic::search::{search_articles, sync_article_best_effort};
+use crate::logic::search::sync_article_best_effort;
 use crate::logic::version::{
     place_uploaded_pdf, remove_orphaned_pdfs, validate_note, validate_version,
 };
 use crate::repository::article::{
     ArticleDraft, ArticleUpdate, CreateArticleError, UpdateArticleError,
     create_article as create_article_node, read_article as read_article_node,
-    read_articles as read_article_nodes, update_article as update_article_node,
+    update_article as update_article_node,
 };
 use crate::repository::authorization::Resource;
 use crate::repository::role::{
@@ -26,13 +22,6 @@ use crate::repository::role::{
 };
 use crate::repository::transfer::{TransferTargetError, transfer_article};
 use crate::repository::version::{VersionDraft, content_hash_owner, read_version};
-
-#[derive(Debug, serde::Serialize)]
-#[serde(untagged)]
-pub enum ArticleReadPage {
-    Search(SearchPage),
-    List(ArticleListPage),
-}
 
 pub struct ArticleCreateInput<'a> {
     pub title: &'a str,
@@ -114,53 +103,6 @@ pub async fn read_article(state: &AppState, article_id: &str) -> Result<ArticleV
         tags: article.tags,
     };
     Ok(view)
-}
-
-pub async fn read_articles(
-    state: &AppState,
-    params: &ArticleSearchParams,
-) -> Result<ArticleReadPage, LogicError> {
-    if is_search_request(params) {
-        let page = search_articles(state, params).await?;
-        return Ok(ArticleReadPage::Search(page));
-    }
-
-    let (page, limit) = crate::logic::pagination::clamp_page_limit(
-        params.page,
-        params.limit,
-        state.config.server.search_page_size,
-    );
-    let offset = page.saturating_sub(1).saturating_mul(limit);
-    let (items, total) = read_article_nodes(&state.graph, limit, offset)
-        .await
-        .map_err(database_error)?;
-
-    let article_list: Vec<ArticleListItem> = items
-        .into_iter()
-        .map(|item| ArticleListItem {
-            id: item.id,
-            title: item.title,
-            summary: item.summary,
-            author_id: item.author_id,
-            author_name: item.author_name,
-            tags: item.tags,
-            latest_version: item.latest_version,
-            latest_version_id: item.latest_version_id,
-        })
-        .collect();
-
-    let raw_total_pages = total.div_ceil(limit);
-    let total_pages = raw_total_pages.min(state.config.server.max_search_pages);
-    let truncated = raw_total_pages > state.config.server.max_search_pages;
-    Ok(ArticleReadPage::List(ArticleListPage {
-        article_list,
-        page,
-        total,
-        total_pages,
-        has_next: page < total_pages,
-        has_prev: page > 1,
-        truncated,
-    }))
 }
 
 pub async fn update_article(
@@ -274,14 +216,6 @@ async fn reject_duplicate_content_hash(state: &AppState, hash: &str) -> Result<(
         "identical PDF already exists (version {owned_version} of \"{}\")",
         owner.article_title
     )))
-}
-
-fn is_search_request(params: &ArticleSearchParams) -> bool {
-    params.q.is_some()
-        || params.ranges.is_some()
-        || params.sort.is_some()
-        || params.from.is_some()
-        || params.to.is_some()
 }
 
 fn validate_title(raw: &str, max_chars: u64) -> Result<String, LogicError> {

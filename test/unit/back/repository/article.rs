@@ -2,7 +2,7 @@ use super::context::{build_state, test_config};
 
 use crate::repository::article::{
     ArticleDraft, ArticleUpdate, CreateArticleError, UpdateArticleError, create_article, owner_of,
-    read_article, read_articles, update_article,
+    read_article, update_article,
 };
 use crate::repository::version::VersionDraft;
 
@@ -153,26 +153,6 @@ async fn create_article_rejects_a_duplicate_content_hash() {
     .await
     .expect_err("duplicate content hash");
     assert!(matches!(error, CreateArticleError::ContentHashTaken));
-}
-
-#[tokio::test]
-async fn read_articles_returns_id_desc_with_enrichment() {
-    let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    create_article_fixture(&state, &author_id, "First", &pdf_hash(1)).await;
-    create_article_fixture(&state, &author_id, "Second", &pdf_hash(2)).await;
-
-    let (items, total) = read_articles(&state.graph, 10, 0)
-        .await
-        .expect("read articles");
-    assert_eq!(total, 2);
-    assert_eq!(items.len(), 2);
-    assert_eq!(items[0].title, "Second");
-    assert_eq!(items[0].author_id, author_id);
-    assert_eq!(items[0].latest_version, "1.0.0");
-    assert!(!items[0].latest_version_id.is_empty());
-    assert_eq!(items[0].tags.len(), 1);
-    assert_eq!(items[1].title, "First");
 }
 
 #[tokio::test]

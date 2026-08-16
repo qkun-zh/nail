@@ -190,35 +190,6 @@ pub async fn read_article(db: &DbHandle, article_id: &str) -> Result<Option<Arti
     Ok(enrich_articles(&guard, &[id])?.into_iter().next())
 }
 
-pub async fn read_articles(
-    db: &DbHandle,
-    limit: u64,
-    offset: u64,
-) -> Result<(Vec<ArticleView>, u64), DbError> {
-    let guard = db.read().await;
-    let result = guard.exec(
-        QueryBuilder::search()
-            .elements()
-            .order_by([agdb::DbKeyOrder::Desc(agdb::DbValue::String(
-                crate::repository::schema::KEY_ID.to_string(),
-            ))])
-            .where_()
-            .key(KEY_TYPE)
-            .value(ENTITY_TYPE_ARTICLE)
-            .query(),
-    )?;
-    let total = result.elements.len() as u64;
-    let page_ids: Vec<agdb::DbId> = result
-        .elements
-        .into_iter()
-        .skip(usize::try_from(offset).unwrap_or(usize::MAX))
-        .take(usize::try_from(limit).unwrap_or(usize::MAX))
-        .map(|element| element.id)
-        .collect();
-    let items = enrich_articles(&guard, &page_ids)?;
-    Ok((items, total))
-}
-
 pub async fn update_article(
     db: &DbHandle,
     article_id: &str,

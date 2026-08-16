@@ -2,7 +2,7 @@ use nail_common::pow::Pow;
 use nail_common::request::{DeleteMode, UserDeleteRequest, UserUpdateRequest};
 use nail_common::response::EmptyView;
 use nail_common::response::session::SessionTokenView;
-use nail_common::response::user::{UserIdView, UserListItem, UserListPage, UserNameView, UserView};
+use nail_common::response::user::{UserIdView, UserNameView, UserView};
 
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::authorize;
@@ -163,33 +163,6 @@ pub async fn delete_user(
             "missing or unsupported delete mode (expected \"transfer\" or \"hard\")",
         )),
     }
-}
-
-pub async fn read_users(
-    state: &AppState,
-    actor_id: &str,
-    page: u64,
-    limit: u64,
-) -> Result<UserListPage, LogicError> {
-    authorize(state, actor_id, PERMISSION_USER_READ, &admin_console()).await?;
-    let offset = page.saturating_sub(1).saturating_mul(limit);
-    let (items, total) = crate::repository::user::read_users(&state.graph, limit, offset)
-        .await
-        .map_err(database_error)?;
-    let user_list: Vec<UserListItem> = items
-        .into_iter()
-        .map(|item| UserListItem {
-            id: item.id,
-            name: item.name,
-            email_hash: item.email_address_hash,
-        })
-        .collect();
-    let has_next = page < total.div_ceil(limit);
-    Ok(UserListPage {
-        user_list,
-        has_next,
-        total,
-    })
 }
 
 async fn handle_update_name(

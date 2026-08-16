@@ -3,7 +3,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use nail_common::request::{TokenRequest, UserDeleteRequest, UserUpdateRequest};
 use nail_common::response::session::SessionTokenView;
-use nail_common::response::user::{UserListPage, UserView};
+use nail_common::response::user::UserView;
 use serde::Deserialize;
 
 use crate::infrastructure::state::AppState;
@@ -47,26 +47,6 @@ pub async fn read_user(
     )
     .await?;
     Ok(json_response::<UserView>(StatusCode::OK, data, "ok"))
-}
-
-#[derive(Debug, Default, Deserialize)]
-pub struct UsersReadParams {
-    pub page: Option<u64>,
-    pub limit: Option<u64>,
-}
-
-pub async fn read_users(
-    State(state): State<AppState>,
-    principal: Principal,
-    AppQuery(params): AppQuery<UsersReadParams>,
-) -> Result<impl IntoResponse, ApiError> {
-    let (page, limit) = crate::logic::pagination::clamp_page_limit(
-        params.page,
-        params.limit,
-        state.config.server.search_page_size,
-    );
-    let data = crate::logic::user::read_users(&state, &principal.user_id, page, limit).await?;
-    Ok(json_response::<UserListPage>(StatusCode::OK, data, "ok"))
 }
 
 pub async fn update_user(

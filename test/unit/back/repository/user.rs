@@ -1,8 +1,8 @@
 use super::context::{build_state, test_config};
 
 use crate::repository::user::{
-    UserWriteError, create_user, read_user, read_user_by_email_address_hash, read_users,
-    update_user_email, update_user_name,
+    UserWriteError, create_user, read_user, read_user_by_email_address_hash, update_user_email,
+    update_user_name,
 };
 
 #[tokio::test]
@@ -41,33 +41,6 @@ async fn read_user_returns_none_for_an_unknown_id() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let entry = read_user(&state.graph, "missing").await.expect("read");
     assert_eq!(entry, None);
-}
-
-#[tokio::test]
-async fn read_users_returns_users_sorted_by_id_desc() {
-    let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    create_user(&state.graph, &nail_common::hash::email("a@example.com"))
-        .await
-        .expect("first");
-    create_user(&state.graph, &nail_common::hash::email("b@example.com"))
-        .await
-        .expect("second");
-
-    let (page, total) = read_users(&state.graph, 10, 0).await.expect("read users");
-    assert_eq!(total, 3);
-    assert_eq!(page.len(), 3);
-    let ids: Vec<&str> = page.iter().map(|row| row.id.as_str()).collect();
-    let mut sorted = ids.clone();
-    sorted.sort_by(|left, right| right.cmp(left));
-    assert_eq!(ids, sorted);
-}
-
-#[tokio::test]
-async fn read_users_paginates_by_limit_and_offset() {
-    let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let (page, total) = read_users(&state.graph, 1, 0).await.expect("read users");
-    assert_eq!(total, 1);
-    assert_eq!(page.len(), 1);
 }
 
 #[tokio::test]

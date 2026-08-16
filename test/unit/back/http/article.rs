@@ -3,10 +3,8 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::context::{TestCtx, test_config, unique_pdf, valid_pdf};
-use crate::repository::article::{ArticleDraft, create_article};
 use crate::repository::cache::{SessionTokenEntry, token_key};
 use crate::repository::role::{ROLE_MEMBER, hold_role};
-use crate::repository::version::VersionDraft;
 
 async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
@@ -199,40 +197,6 @@ async fn read_article_over_http() {
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["data"]["title"].as_str(), Some("Titled"));
     assert_eq!(body["data"]["author_id"].as_str(), Some(user_id.as_str()));
-}
-
-#[tokio::test]
-async fn read_articles_plain_list_over_http() {
-    let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
-
-    let fields: Vec<(&str, &str)> = vec![
-        ("title", "Listed"),
-        ("summary", "summary"),
-        ("tags", "rust"),
-        ("version", "1.0.0"),
-        ("note", "note"),
-    ];
-    let _ = context
-        .post_multipart(
-            "/article/create",
-            Some(&token),
-            &fields,
-            "file",
-            "article.pdf",
-            &valid_pdf(),
-        )
-        .await;
-
-    let (status, body) = context
-        .get("/article/read?page=1&limit=8", Some(&token))
-        .await;
-    assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert_eq!(body["data"]["total"].as_u64(), Some(1));
-    assert_eq!(
-        body["data"]["article_list"].as_array().map(Vec::len),
-        Some(1)
-    );
 }
 
 #[tokio::test]
@@ -464,47 +428,6 @@ async fn create_article_reports_body_too_large() {
         body["message"].as_str(),
         Some("Request payload is too large")
     );
-}
-
-#[tokio::test]
-async fn read_articles_clamps_page_and_limit() {
-    let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    for index in 0..201 {
-        let article_id = Uuid::now_v7().to_string();
-        let version_id = Uuid::now_v7().to_string();
-        let title = format!("Clamp Article {index}");
-        create_article(
-            &context.state.graph,
-            &ArticleDraft {
-                article_id: article_id.clone(),
-                author_id: user_id.clone(),
-                title: title.clone(),
-                summary: "summary".to_string(),
-                tags: vec!["rust".to_string()],
-                first_version: VersionDraft {
-                    version_id: version_id.clone(),
-                    version_number: "1.0.0".to_string(),
-                    content_hash: nail_common::hash::pdf(&unique_pdf(&title)),
-                    note: "note".to_string(),
-                },
-            },
-        )
-        .await
-        .expect("create article");
-    }
-    let (status, body) = context
-        .get("/article/read?page=0&limit=9999", Some(&token))
-        .await;
-    assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert_eq!(body["data"]["page"].as_u64(), Some(1));
-    assert_eq!(
-        body["data"]["article_list"].as_array().map(Vec::len),
-        Some(200)
-    );
-    assert_eq!(body["data"]["total_pages"].as_u64(), Some(2));
-    assert_eq!(body["data"]["has_next"].as_bool(), Some(true));
-    assert_eq!(body["data"]["has_prev"].as_bool(), Some(false));
 }
 
 #[tokio::test]

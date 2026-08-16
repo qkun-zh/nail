@@ -19,17 +19,3 @@ pub struct UserNameView {
 pub struct UserIdView {
     pub user_id: String,
 }
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct UserListItem {
-    pub id: String,
-    pub name: String,
-    pub email_hash: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct UserListPage {
-    pub user_list: Vec<UserListItem>,
-    pub has_next: bool,
-    pub total: u64,
-}

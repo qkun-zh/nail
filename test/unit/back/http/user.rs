@@ -90,30 +90,6 @@ async fn user_read_other_by_admin_returns_profile() {
 }
 
 #[tokio::test]
-async fn user_list_by_member_is_forbidden() {
-    let context = TestCtx::new().await.expect("test context");
-    let (_, token) = session_for(&context, "alice@example.com").await;
-    let (status, body) = context.get("/user/read", Some(&token)).await;
-    assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
-}
-
-#[tokio::test]
-async fn user_list_by_admin_returns_paginated_users() {
-    let context = TestCtx::new().await.expect("test context");
-    let (_, admin_token) = admin_session(&context).await;
-    session_for(&context, "alice@example.com").await;
-    session_for(&context, "bob@example.com").await;
-
-    let (status, body) = context
-        .get("/user/read?page=1&limit=2", Some(&admin_token))
-        .await;
-    assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert_eq!(body["data"]["total"].as_u64(), Some(3));
-    assert_eq!(body["data"]["user_list"].as_array().map(Vec::len), Some(2));
-    assert_eq!(body["data"]["has_next"].as_bool(), Some(true));
-}
-
-#[tokio::test]
 async fn user_update_self_rename_via_pow() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = session_for(&context, "alice@example.com").await;

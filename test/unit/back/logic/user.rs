@@ -76,31 +76,6 @@ async fn read_user_other_by_admin_returns_profile() {
 }
 
 #[tokio::test]
-async fn read_users_by_member_is_forbidden() {
-    let context = TestCtx::new().await.expect("test context");
-    let (actor, _) = session_for(&context, "alice@example.com").await;
-    let error = crate::logic::user::read_users(&context.state, &actor, 1, 8)
-        .await
-        .unwrap_err();
-    assert_eq!(error, LogicError::forbidden("you are denied"));
-}
-
-#[tokio::test]
-async fn read_users_by_admin_returns_paginated_users() {
-    let context = TestCtx::new().await.expect("test context");
-    let (admin, _) = admin_session(&context).await;
-    session_for(&context, "alice@example.com").await;
-    session_for(&context, "bob@example.com").await;
-
-    let data = crate::logic::user::read_users(&context.state, &admin, 1, 2)
-        .await
-        .expect("read users");
-    assert_eq!(data.total, 3);
-    assert_eq!(data.user_list.len(), 2);
-    assert!(data.has_next);
-}
-
-#[tokio::test]
 async fn update_user_self_rename_via_pow() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, _) = session_for(&context, "alice@example.com").await;

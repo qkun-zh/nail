@@ -12,12 +12,12 @@ use crate::interface::extractor::{AppJson, AppMultipart, AppPath, AppQuery};
 use crate::interface::principal::Principal;
 use nail_common::hash::PdfHasher;
 
-pub async fn read_articles(
+pub async fn search_articles(
     State(state): State<AppState>,
     _principal: Principal,
     AppQuery(params): AppQuery<nail_common::request::ArticleSearchParams>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data = crate::logic::article::read_articles(&state, &params).await?;
+    let data = crate::logic::search::search_articles(&state, &params).await?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 

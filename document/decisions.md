@@ -46,6 +46,38 @@ diverging. Grouped by area; each entry states the outcome and its key consequenc
   via `is_search_request`, `search_page_size=8`, `max_search_pages=1024`,
   `<mark>` highlight convention.
 
+## Listing, ordering, and pagination
+
+- **No ordering in listing queries (agdb).** `versions_of` drops all ordering
+  (DB `order_by` and Rust-side `sort`). agdb's `elements()` scan is
+  storage-slot ordered; removing `order_by` enables the `LimitOffsetHandler`
+  short-circuit (O(offset+limit) instead of a full scan). Order is therefore
+  insertion/storage order, not time or id order — accepted.
+- **Dead list interfaces are deleted, not kept.** `read_articles` (the plain
+  list branch) and `read_users` were frontend-unused; they are removed outright.
+  `/user/read` is deleted; `/article/read` now serves only the full-text search
+  path (`search_articles`) — a bare `/article/read` no longer returns a list.
+  `read_article` (single read by id) and `versions_of` remain, as the frontend
+  uses them.
+- **User-facing sort is removed.** The full-text search `sort` controls (time /
+  title / author, direction, URL serialization) are deleted as a product feature.
+- **Total page count is kept.** List responses still return `total` /
+  `total_pages` for jump-to-page and `"/ {total_pages}"` display. Counting the
+  total requires one full scan of the type (O(A)/O(U)) and is an accepted,
+  irreducible cost under the current storage model. Search-page `total` is
+  unaffected (it comes from SeekStorm, no agdb scan).
+
+## Performance remediation (open plan)
+
+- **`enrich_articles` must be localized (pending).** The shared enrich helper
+  (`read_article`) builds three all-library HashMaps (author edges, tag edges)
+  per call. A companion to the ordering removal. Fix: query the author/tag edges
+  with `where_.ids(article_ids)` and batch `read_rows`, giving O(page·degree)
+  instead of O(A+edges). No behavior change.
+- **`find_document_ids_by_article` is intentionally left alone.** It is on the
+  non-hot rebuild path and already uses an index facet; any real gain lives in
+  the SeekStorm layer, out of scope.
+
 ## Conventions
 
 - **URL updates from reactive state use `replace: true`** (draft persist, search

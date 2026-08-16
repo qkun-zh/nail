@@ -19,7 +19,6 @@ pub const EDGE_ROLE_GRANT_PERMISSION: &str = "role_grant_permission";
 pub const EDGE_ROLE_APPLY_TAG: &str = "role_apply_tag";
 
 pub const KEY_TYPE: &str = "type";
-pub const KEY_ID: &str = "id";
 pub const KEY_EMAIL_ADDRESS_HASH: &str = "email_address_hash";
 pub const KEY_USER_NAME: &str = "name";
 pub const KEY_TITLE: &str = "title";
