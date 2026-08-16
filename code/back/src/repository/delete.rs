@@ -121,7 +121,8 @@ pub fn has_soft_deleted_flag(guard: &agdb::DbAny, id: agdb::DbId) -> Result<bool
             .where_()
             .ids([agdb::QueryId::from(id)])
             .and()
-            .keys(KEY_SOFT_DELETED)
+            .key(KEY_SOFT_DELETED)
+            .value(agdb::Comparison::GreaterThan(agdb::DbValue::U64(0)))
             .query(),
     )?;
     Ok(!result.elements.is_empty())
@@ -182,7 +183,8 @@ fn has_soft_deleted_flag_in_txn(
             .where_()
             .ids([agdb::QueryId::from(id)])
             .and()
-            .keys(KEY_SOFT_DELETED)
+            .key(KEY_SOFT_DELETED)
+            .value(agdb::Comparison::GreaterThan(agdb::DbValue::U64(0)))
             .query(),
     )?;
     Ok(!result.elements.is_empty())
@@ -374,62 +376,191 @@ fn incoming_node_id(
 }
 
 pub async fn soft_delete_article(db: &DbHandle, article_id: &str) -> Result<(), DbError> {
-    set_soft_deleted_flag(db, ENTITY_TYPE_ARTICLE, article_id).await
+    adjust_soft_delete_count(db, ENTITY_TYPE_ARTICLE, article_id, 1).await
 }
 
 pub async fn soft_delete_version(db: &DbHandle, version_id: &str) -> Result<(), DbError> {
-    set_soft_deleted_flag(db, ENTITY_TYPE_VERSION, version_id).await
+    adjust_soft_delete_count(db, ENTITY_TYPE_VERSION, version_id, 1).await
 }
 
 pub async fn soft_delete_comment(db: &DbHandle, comment_id: &str) -> Result<(), DbError> {
-    set_soft_deleted_flag(db, ENTITY_TYPE_COMMENT, comment_id).await
+    adjust_soft_delete_count(db, ENTITY_TYPE_COMMENT, comment_id, 1).await
 }
 
 #[cfg_attr(not(test), allow(dead_code))]
 pub async fn clear_soft_deleted_flag(db: &DbHandle, business_id: &str) -> Result<(), DbError> {
     let mut guard = db.write().await;
-    let Some(id) = resolve_node_id_sync(&guard, ENTITY_TYPE_ARTICLE, business_id)
-        .ok()
-        .flatten()
-        .or(
-            resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, business_id)
-                .ok()
-                .flatten(),
-        )
-        .or(
-            resolve_node_id_sync(&guard, ENTITY_TYPE_COMMENT, business_id)
-                .ok()
-                .flatten(),
-        )
-    else {
+    let Some((kind, id)) = resolve_any_node_id_sync(&guard, business_id)? else {
         return Ok(());
     };
-    guard.exec_mut(
-        QueryBuilder::remove()
-            .values([KEY_SOFT_DELETED])
-            .ids([id])
-            .query(),
-    )?;
+    guard.transaction_mut(|transaction| {
+        adjust_soft_delete_count_in_txn(transaction, kind.as_str(), id, -1)
+    })?;
     Ok(())
 }
 
-async fn set_soft_deleted_flag(
+fn resolve_any_node_id_sync(
+    guard: &agdb::DbAny,
+    business_id: &str,
+) -> Result<Option<(String, agdb::DbId)>, DbError> {
+    for kind in [ENTITY_TYPE_ARTICLE, ENTITY_TYPE_VERSION, ENTITY_TYPE_COMMENT] {
+        if let Some(id) = resolve_node_id_sync(guard, kind, business_id)? {
+            return Ok(Some((kind.to_string(), id)));
+        }
+    }
+    Ok(None)
+}
+
+async fn adjust_soft_delete_count(
     db: &DbHandle,
     entity_type: &str,
     business_id: &str,
+    delta: i64,
 ) -> Result<(), DbError> {
     let mut guard = db.write().await;
     let Some(id) = resolve_node_id_sync(&guard, entity_type, business_id)? else {
         return Ok(());
     };
-    guard.exec_mut(
+    guard.transaction_mut(|transaction| {
+        adjust_soft_delete_count_in_txn(transaction, entity_type, id, delta)
+    })?;
+    Ok(())
+}
+
+fn adjust_soft_delete_count_in_txn(
+    transaction: &mut agdb::DbAnyTransactionMut,
+    kind: &str,
+    id: agdb::DbId,
+    delta: i64,
+) -> Result<(), DbError> {
+    match kind {
+        ENTITY_TYPE_ARTICLE => adjust_article_subtree_in_txn(transaction, id, delta),
+        ENTITY_TYPE_VERSION => adjust_version_subtree_in_txn(transaction, id, delta),
+        ENTITY_TYPE_COMMENT => adjust_comment_tree_in_txn(transaction, id, delta),
+        _ => Ok(()),
+    }
+}
+
+fn adjust_article_subtree_in_txn(
+    transaction: &mut agdb::DbAnyTransactionMut,
+    article: agdb::DbId,
+    delta: i64,
+) -> Result<(), DbError> {
+    let version_edges = transaction.exec(
+        QueryBuilder::search()
+            .from(article)
+            .where_()
+            .distance(agdb::CountComparison::Equal(1))
+            .and()
+            .edge()
+            .and()
+            .key(KEY_TYPE)
+            .value(EDGE_ARTICLE_HOLD_VERSION)
+            .query(),
+    )?;
+    for edge in &version_edges.elements {
+        adjust_version_subtree_in_txn(transaction, edge.to, delta)?;
+    }
+    adjust_node_soft_delete_count_in_txn(transaction, article, delta)?;
+    Ok(())
+}
+
+fn adjust_version_subtree_in_txn(
+    transaction: &mut agdb::DbAnyTransactionMut,
+    version: agdb::DbId,
+    delta: i64,
+) -> Result<(), DbError> {
+    let comment_edges = transaction.exec(
+        QueryBuilder::search()
+            .to(version)
+            .where_()
+            .distance(agdb::CountComparison::Equal(1))
+            .and()
+            .edge()
+            .and()
+            .key(KEY_TYPE)
+            .value(EDGE_COMMENT_ATTACH_VERSION)
+            .query(),
+    )?;
+    for edge in &comment_edges.elements {
+        adjust_comment_tree_in_txn(transaction, edge.from, delta)?;
+    }
+    adjust_node_soft_delete_count_in_txn(transaction, version, delta)?;
+    Ok(())
+}
+
+fn adjust_comment_tree_in_txn(
+    transaction: &mut agdb::DbAnyTransactionMut,
+    comment: agdb::DbId,
+    delta: i64,
+) -> Result<(), DbError> {
+    let reply_edges = transaction.exec(
+        QueryBuilder::search()
+            .to(comment)
+            .where_()
+            .distance(agdb::CountComparison::Equal(1))
+            .and()
+            .edge()
+            .and()
+            .key(KEY_TYPE)
+            .value(EDGE_COMMENT_REPLY_COMMENT)
+            .query(),
+    )?;
+    for edge in &reply_edges.elements {
+        adjust_comment_tree_in_txn(transaction, edge.from, delta)?;
+    }
+    adjust_node_soft_delete_count_in_txn(transaction, comment, delta)?;
+    Ok(())
+}
+
+fn adjust_node_soft_delete_count_in_txn(
+    transaction: &mut agdb::DbAnyTransactionMut,
+    id: agdb::DbId,
+    delta: i64,
+) -> Result<(), DbError> {
+    let current = soft_delete_count_in_txn(transaction, id)?;
+    let next = i64::try_from(current).unwrap_or(i64::MAX).saturating_add(delta);
+    if next <= 0 {
+        transaction.exec_mut(
+            QueryBuilder::remove()
+                .values([KEY_SOFT_DELETED])
+                .ids([id])
+                .query(),
+        )?;
+        return Ok(());
+    }
+    transaction.exec_mut(
         QueryBuilder::insert()
             .nodes()
             .ids([id])
-            .values([[(KEY_SOFT_DELETED, 1).into()]])
+            .values([[(KEY_SOFT_DELETED, u64::try_from(next).unwrap_or(u64::MAX)).into()]])
             .query(),
     )?;
     Ok(())
+}
+
+fn soft_delete_count_in_txn(
+    transaction: &agdb::DbAnyTransactionMut,
+    id: agdb::DbId,
+) -> Result<u64, DbError> {
+    let result = match transaction.exec(
+        QueryBuilder::select()
+            .values([KEY_SOFT_DELETED])
+            .ids([agdb::QueryId::from(id)])
+            .query(),
+    ) {
+        Ok(result) => result,
+        Err(error) if crate::repository::graph::is_not_found(&error) => return Ok(0),
+        Err(error) => return Err(error),
+    };
+    let Some(element) = result.elements.first() else {
+        return Ok(0);
+    };
+    let Some(key_value) = element.values.iter().find(|value| value.key == KEY_SOFT_DELETED.into())
+    else {
+        return Ok(0);
+    };
+    Ok(key_value.value.to_u64().unwrap_or(0))
 }
 
 fn delete_article_in_txn(

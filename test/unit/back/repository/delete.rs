@@ -326,7 +326,7 @@ async fn has_soft_deleted_flag(
 }
 
 #[tokio::test]
-async fn soft_delete_article_flags_only_the_article_node() {
+async fn soft_delete_article_cascades_the_flag_over_the_subtree() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = create_user(&state, "alice@example.com").await;
     let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
@@ -337,7 +337,7 @@ async fn soft_delete_article_flags_only_the_article_node() {
         .expect("soft delete");
 
     assert!(has_soft_deleted_flag(&state, "article", &article_id).await);
-    assert!(!has_soft_deleted_flag(&state, "version", &version_id).await);
+    assert!(has_soft_deleted_flag(&state, "version", &version_id).await);
     let (remaining, _) = versions_of(&state.graph, &article_id, 10, 0)
         .await
         .expect("versions");
@@ -352,7 +352,7 @@ async fn soft_delete_article_flags_only_the_article_node() {
 }
 
 #[tokio::test]
-async fn soft_delete_version_flags_only_the_version_node() {
+async fn soft_delete_version_cascades_the_flag_over_versions_and_comments() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = create_user(&state, "alice@example.com").await;
     let (article_id, first_version) =
@@ -370,6 +370,7 @@ async fn soft_delete_version_flags_only_the_version_node() {
     )
     .await
     .expect("v2");
+    insert_comment(&state, &second_version, &author_id).await;
 
     soft_delete_version(&state.graph, &second_version)
         .await
@@ -378,10 +379,15 @@ async fn soft_delete_version_flags_only_the_version_node() {
     assert!(has_soft_deleted_flag(&state, "version", &second_version).await);
     assert!(!has_soft_deleted_flag(&state, "version", &first_version).await);
     assert!(!has_soft_deleted_flag(&state, "article", &article_id).await);
+    let (page, _) =
+        crate::repository::comment::read_comments_page_by_version(&state.graph, &second_version, 10, 0)
+            .await
+            .expect("comment page");
+    assert!(page.is_empty(), "comments hidden under a soft-deleted version");
 }
 
 #[tokio::test]
-async fn soft_delete_comment_flags_only_the_comment_node() {
+async fn soft_delete_comment_cascades_the_flag_over_the_reply_subtree() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = create_user(&state, "alice@example.com").await;
     let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
@@ -393,13 +399,13 @@ async fn soft_delete_comment_flags_only_the_comment_node() {
         .expect("soft delete");
 
     assert!(has_soft_deleted_flag(&state, "comment", &top).await);
-    assert!(!has_soft_deleted_flag(&state, "comment", &reply).await);
+    assert!(has_soft_deleted_flag(&state, "comment", &reply).await);
     assert!(
         crate::repository::comment::read_comment_item(&state.graph, &reply)
             .await
             .expect("read reply")
             .is_none(),
-        "reply node has no flag but is hidden through its parent chain"
+        "reply node carries the cascade flag"
     );
 }
 
