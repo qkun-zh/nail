@@ -38,9 +38,10 @@ Planned solution:
 2. Call `index.search(offset, limit)` natively; post-processing touches only `limit`
    docs and `assemble_tree` becomes trivial.
 
-**Approved? NO — OPEN.** This changes the index shape and the search highlight
-granularity (per-version/per-comment hits), i.e. observable behavior the user has not
-agreed to change. Requires an explicit user decision (see "Open decisions").
+**DECIDED — NOT DOING IT.** User rejected the master-doc fix: it changes the search
+highlight granularity (per-version/per-comment hits → article-level), and the user does
+not want that behavior changed. The O(offset) pagination cost is therefore accepted as-is.
+No code change for P1.
 
 ## P3. `enrich_comment_headers` per-comment round trips — O(C) time
 
@@ -92,18 +93,27 @@ Location: `code/back/src/repository/version.rs:180-221`, `code/back/src/reposito
 
 Problem: `versions_of`, `read_comments_page_by_version` and
 `read_comment_children_page` load **all** sibling ids, sort them O(n log n), then slice
-`[offset, offset+limit)`.
+`[offset, offset+limit)`. They also compute `total` (a full count).
 
-Library evidence (verified): agdb `LimitOffsetHandler` (`db_search_handlers.rs:134-151`)
-walks storage-slot order and `Finish` once it has counted `limit + offset` matches. A
-listing with **no `order_by` short-circuits at O(offset+limit)** instead of a full
-scan + sort.
+Library evidence (verified): agdb `.offset(offset).limit(limit)` on a search query
+short-circuits and returns once `limit + offset` matches are hit
+(`query_builder/search.rs:542-543`); requesting **ordering disables that short-circuit**
+(`:544-545`), so dropping the order is what unlocks it. Default order is storage order.
+`SelectOffset::limit` / `.offset().limit()` chain documented at `:552`.
 
-Planned solution: drop the ordering for the short-circuit (O(n log n) → O(offset+limit)).
+Probe evidence (`test/unit/back/repository/probe.rs::probe_offset_limit_pagination_tiles_default_order`,
+passed): 4 versions on one article; paging with `.from(article).offset(offset).limit(limit)`
+(no sort) tiles the full default-order set with no gaps/overlaps/duplicates, and `has_next`
+is determinable by fetching `limit+1`. Verification: full test suite green.
 
-**Approved? NO — OPEN.** Removing the order changes observable behavior: the code
-currently sorts versions newest-first by id descending (`version.rs:214`). Whether
-newest-first is required is a product call the user must make.
+Planned solution (user-approved): drop the newest-first sort and the `total` count
+everywhere (frontend + backend). `versions_of` and both comment paginators issue a single
+`.offset().limit()` query over the sibling edges (default order), derive `has_next` from a
+`limit+1` peek, and return no `total`. O(n log n) + full count → O(offset+limit).
+
+**Approved? YES — user decision: "total 和排序我都可以去" + use default order.** No need for a
+cursor primitive; both libraries page by native `offset`. Behavior change is intended
+(newest-first order and `total` removed).
 
 ## P6. `pick_recycler_target` — O(R²) dedup
 
@@ -112,12 +122,23 @@ Location: `code/back/src/repository/transfer.rs:222-250`
 Problem: for each recycler, `exclude.contains(&user_id)` scans the exclude list, so R
 recyclers cost O(R²).
 
-Planned solution: replace `exclude.contains` with a `HashSet<String>` of excluded ids
-(O(1) membership). Selection result is identical (same excluded set, same best-pick).
+Library evidence: `Vec::contains` is a linear scan (std `slice` `contains`,
+`core/src/slice/mod.rs:2589`); `HashSet::contains` is amortized O(1) (std hashbrown).
+Converting the exclude slice to a `HashSet` once makes each membership test O(1).
 
-**Approved? NO — OPEN.** User has not approved P6. No observable behavior change (the
-recycler chosen is unchanged); no risk; reaches the theoretical optimum (O(R) instead of
-O(R²)) — but it awaits explicit user approval before implementation.
+Probe evidence (`test/unit/back/repository/probe.rs::probe_recycler_selection_hashset_matches_vec_exclude`,
+passed): with 3 candidates of distinct workload (r1=2 articles, r2=1, r3=0) and an
+exclude list `[r1, r1, r3]` (duplicate + mixed), membership is equal per candidate and the
+chosen recycler is **identical** (r2) whether membership is tested via `Vec::contains` or a
+built `HashSet`. Behavior preserved.
+
+Planned solution: replace `exclude.contains` with a `HashSet<String>` built once from the
+exclude slice (O(1) membership). Selection result is identical (same excluded set, same
+best-pick).
+
+**Approved? YES — verified, then implemented per user directive ("先验证p6，通过后可做").**
+No observable behavior change (probe-verified identical recycler choice); no risk; reaches
+the theoretical optimum (O(R) instead of O(R²)).
 
 ## Open decisions for the user (behavior-changing, not yet approved)
 
@@ -137,11 +158,11 @@ O(R²)) — but it awaits explicit user approval before implementation.
 
 | Item | Status |
 | --- | --- |
-| P1 deep pagination (master doc) | **Open** — behavior change (index shape + highlight) |
+| P1 deep pagination (master doc) | **Closed** — rejected by user (would change highlight) |
 | P3 enrich_comment_headers batching | **Done** (commit cf701c4) |
 | P4 sync_all | Accepted as inherent (no change) |
-| P5 pagination sort + slice | **Open** — drops newest-first ordering |
-| P6 recycler O(R²) → HashSet | **Open** — not approved |
+| P5 pagination sort + slice | **Approved** — drop sort + total, use default order (user decision) |
+| P6 recycler O(R²) → HashSet | **Done** (verified + user-approved) |
 | Search: no ORDER BY / cursor / no total | **Open** — user decides |
 
 _Last updated: P2 and P3 both implemented (20fdeb4, cf701c4) and removed from pending
@@ -153,3 +174,4 @@ green, 306 tests pass._
 | # | Probe | Result |
 | --- | --- | --- |
 | P3 | `probe.rs::probe_batch_comment_enrichment_matches_per_comment` | Passed. 4 comment pairs (2 distinct articles, 2 versions, 1 author; incl. duplicate + cross pair): batch path returns identical (title, author, version) to per-comment. |
+| P5 | `probe.rs::probe_offset_limit_pagination_tiles_default_order` | Passed. 4 versions; `.offset().limit()` (no sort) tiles default-order full set, no gaps/overlaps/dups; `has_next` via limit+1 peek. |

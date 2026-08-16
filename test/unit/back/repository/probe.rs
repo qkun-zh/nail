@@ -3,10 +3,10 @@ use super::context::{build_state, test_config};
 use crate::repository::article::{ArticleDraft, create_article};
 use crate::repository::graph::resolve_node_id_sync;
 use crate::repository::schema::{
-    ArticleRow, EDGE_ARTICLE_APPLY_TAG, EDGE_USER_AUTHOR_ARTICLE, ENTITY_TYPE_ARTICLE,
-    ENTITY_TYPE_VERSION, KEY_TYPE, UserRow, VersionRow,
+    ArticleRow, EDGE_ARTICLE_APPLY_TAG, EDGE_ARTICLE_HOLD_VERSION, EDGE_USER_AUTHOR_ARTICLE,
+    ENTITY_TYPE_ARTICLE, ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, KEY_TYPE, UserRow, VersionRow,
 };
-use crate::repository::version::VersionDraft;
+use crate::repository::version::{VersionDraft, create_version};
 use agdb::QueryBuilder;
 use std::collections::{HashMap, HashSet};
 
@@ -375,5 +375,209 @@ async fn probe_batch_comment_enrichment_matches_per_comment() {
         article_by_id.len(),
         version_by_id.len(),
         user_names.len(),
+    );
+}
+
+#[tokio::test]
+async fn probe_recycler_selection_hashset_matches_vec_exclude() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let r1 = create_user(&state, "probe-r1@example.com").await;
+    let r2 = create_user(&state, "probe-r2@example.com").await;
+    let r3 = create_user(&state, "probe-r3@example.com").await;
+    // Distinct workload totals: r1 owns 2 articles, r2 owns 1, r3 owns 0.
+    for i in 0..2u8 {
+        make_article(&state, &r1, &format!("r1-{i}"), &pdf_hash(10 + i)).await;
+    }
+    make_article(&state, &r2, "r2-0", &pdf_hash(20)).await;
+
+    let candidates = vec![r1.clone(), r2.clone(), r3.clone()];
+    // Duplicate entries plus entries absent from the list stress the dedup behavior.
+    let exclude: Vec<String> = vec![r1.clone(), r1.clone(), r3.clone()];
+
+    let guard = state.graph.read().await;
+    let total_of = |user_id: &str| -> u64 {
+        let node = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)
+            .unwrap()
+            .unwrap();
+        guard
+            .exec(
+                QueryBuilder::search()
+                    .from(node)
+                    .where_()
+                    .distance(agdb::CountComparison::Equal(1))
+                    .and()
+                    .edge()
+                    .and()
+                    .key(KEY_TYPE)
+                    .value(EDGE_USER_AUTHOR_ARTICLE)
+                    .query(),
+            )
+            .unwrap()
+            .elements
+            .len() as u64
+    };
+
+    // Replicates pick_recycler_target's loop; the only variable is how exclusions are tested.
+    let select = |recyclers: &[String], is_excluded: &dyn Fn(&str) -> bool| -> Option<String> {
+        let mut best: Option<(String, u64)> = None;
+        for user_id in recyclers {
+            if is_excluded(user_id) {
+                continue;
+            }
+            let total = total_of(user_id);
+            let better = match &best {
+                None => true,
+                Some((best_id, best_total)) => {
+                    total < *best_total || (total == *best_total && *user_id > *best_id)
+                }
+            };
+            if better {
+                best = Some((user_id.clone(), total));
+            }
+        }
+        best.map(|(id, _)| id)
+    };
+
+    let vec_best = select(&candidates, &|id| exclude.iter().any(|x| x.as_str() == id));
+    let exclude_set: HashSet<String> = exclude.iter().cloned().collect();
+    let set_best = select(&candidates, &|id| exclude_set.contains(id));
+
+    // Membership equivalence over every candidate: the only behavioral difference.
+    for id in &candidates {
+        assert_eq!(exclude.contains(id), exclude_set.contains(id));
+    }
+    assert_eq!(vec_best, set_best);
+    assert_eq!(set_best.as_deref(), Some(r2.as_str()));
+
+    eprintln!(
+        "PROBE candidates={} exclude_len={} distinct_exclude={} vec_best={:?} set_best={:?}",
+        candidates.len(),
+        exclude.len(),
+        exclude_set.len(),
+        vec_best,
+        set_best,
+    );
+}
+
+#[tokio::test]
+async fn probe_offset_limit_pagination_tiles_default_order() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author = create_user(&state, "probe-p5-author@example.com").await;
+    let article_id = {
+        let article_id = uuid::Uuid::now_v7().to_string();
+        create_article(
+            &state.graph,
+            &ArticleDraft {
+                article_id: article_id.clone(),
+                author_id: author.clone(),
+                title: "p5 versions".to_string(),
+                summary: "s".to_string(),
+                tags: vec!["rust".to_string()],
+                first_version: VersionDraft {
+                    version_id: uuid::Uuid::now_v7().to_string(),
+                    version_number: "1.0.0".to_string(),
+                    content_hash: pdf_hash(30),
+                    note: "n".to_string(),
+                },
+            },
+        )
+        .await
+        .expect("create article");
+        article_id
+    };
+    // Add 3 more versions; semver must strictly increase and content hashes be unique.
+    for (i, version_number) in ["1.0.1", "1.0.2", "1.0.3"].iter().enumerate() {
+        create_version(
+            &state.graph,
+            &article_id,
+            &VersionDraft {
+                version_id: uuid::Uuid::now_v7().to_string(),
+                version_number: version_number.to_string(),
+                content_hash: pdf_hash(40 + i as u8),
+                note: "n".to_string(),
+            },
+        )
+        .await
+        .expect("create version");
+    }
+
+    let guard = state.graph.read().await;
+    let article = resolve_node_id_sync(&guard, ENTITY_TYPE_ARTICLE, &article_id)
+        .unwrap()
+        .unwrap();
+
+    let version_edges = |offset: u64, limit: u64| -> Vec<agdb::DbId> {
+        guard
+            .exec(
+                QueryBuilder::search()
+                    .from(article)
+                    .offset(offset)
+                    .limit(limit)
+                    .where_()
+                    .distance(agdb::CountComparison::Equal(1))
+                    .and()
+                    .edge()
+                    .and()
+                    .key(KEY_TYPE)
+                    .value(EDGE_ARTICLE_HOLD_VERSION)
+                    .query(),
+            )
+            .unwrap()
+            .elements
+            .iter()
+            .map(|edge| edge.to)
+            .collect()
+    };
+
+    // Full default (storage) order, no limit/offset.
+    let all_edges = guard
+        .exec(
+            QueryBuilder::search()
+                .from(article)
+                .where_()
+                .distance(agdb::CountComparison::Equal(1))
+                .and()
+                .edge()
+                .and()
+                .key(KEY_TYPE)
+                .value(EDGE_ARTICLE_HOLD_VERSION)
+                .query(),
+        )
+        .unwrap();
+    let all_ids: Vec<agdb::DbId> = all_edges.elements.iter().map(|edge| edge.to).collect();
+    assert_eq!(all_ids.len(), 4, "first version + 3 added = 4 versions");
+
+    // Page through with offset/limit; must tile the full set, no gaps, no overlaps.
+    let limit = 2u64;
+    let mut paged: Vec<agdb::DbId> = Vec::new();
+    let mut offset = 0u64;
+    loop {
+        let page = version_edges(offset, limit);
+        assert!(page.len() as u64 <= limit, "page never exceeds limit");
+        if page.is_empty() {
+            break;
+        }
+        let peek = version_edges(offset, limit + 1);
+        let has_next = peek.len() as u64 > page.len() as u64;
+        let before = paged.len();
+        paged.extend(page.clone());
+        // No duplicate ids within or across pages.
+        let unique: std::collections::HashSet<&agdb::DbId> = paged.iter().collect();
+        assert_eq!(unique.len(), paged.len(), "no duplicate ids across pages");
+        assert_eq!(paged.len() - before, page.len(), "page appended in order");
+        offset += page.len() as u64;
+        if !has_next {
+            break;
+        }
+    }
+
+    // The paged union equals the full default-order list (identical order).
+    assert_eq!(all_ids, paged, "offset/limit pages tile the default-order full set");
+
+    eprintln!(
+        "PROBE versions={} paged={} limit={} tiled_in_default_order=true",
+        all_ids.len(),
+        paged.len(),
+        limit,
     );
 }
