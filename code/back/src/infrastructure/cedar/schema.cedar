@@ -2,12 +2,11 @@
 // type declarations. This is the single handwritten source of the action names;
 // the permission nodes are seeded from these names. Static, requires restart.
 
-entity User in [Role] { global_role: Bool, scopes: Set<Tag> };
+entity User in [Role];
 entity Role;
-entity Tag;
-entity Article  { owner: User, required_scopes: Set<Tag> };
-entity Version  { owner: User, required_scopes: Set<Tag> };
-entity Comment  { owner: User, required_scopes: Set<Tag> };
+entity Article  { owner: User };
+entity Version  { owner: User };
+entity Comment  { owner: User };
 entity System;
 
 action "Article::Create"            appliesTo { principal: [User], resource: [Article] };

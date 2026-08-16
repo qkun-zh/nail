@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 pub struct RoleView {
     pub name: String,
     pub permissions: Vec<String>,
-    pub scopes: Vec<String>,
     pub members: Vec<String>,
 }
 
@@ -12,7 +11,6 @@ pub struct RoleView {
 pub struct RoleListItem {
     pub name: String,
     pub permissions: Vec<String>,
-    pub scopes: Vec<String>,
     pub member_count: u64,
 }
 

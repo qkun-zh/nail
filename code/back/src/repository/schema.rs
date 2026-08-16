@@ -16,7 +16,6 @@ pub const EDGE_COMMENT_REPLY_COMMENT: &str = "comment_reply_comment";
 pub const EDGE_ARTICLE_APPLY_TAG: &str = "article_apply_tag";
 pub const EDGE_USER_HOLD_ROLE: &str = "user_hold_role";
 pub const EDGE_ROLE_GRANT_PERMISSION: &str = "role_grant_permission";
-pub const EDGE_ROLE_APPLY_TAG: &str = "role_apply_tag";
 
 pub const KEY_TYPE: &str = "type";
 pub const KEY_EMAIL_ADDRESS_HASH: &str = "email_address_hash";

@@ -157,15 +157,14 @@ wired via `harness.rs`; all green, baseline 429 green, fmt/clippy clean):
 - U1 · `create_holder_is_allowed_on_the_virtual_desk`: `principal in action`
   allows a member holding `Article::Create` against `Virtual::"article-create"`.
 - U1 · `create_non_holder_is_denied_on_the_virtual_desk`: non-holder → Deny.
-- U1 · `current_scope_policy_denies_create_on_the_virtual_desk`: the **shipped**
-  policy 3 (with `global_role || scopes.containsAny(required_scopes)`) denies
-  creates on a Virtual desk — confirms A1 must simplify policy 3 to
-  `principal in action`.
+- U1 · `scope_free_policy_allows_create_on_the_virtual_desk`: with policy 3
+  simplified to `principal in action`, a member holding `Article::Create` is
+  allowed on the Virtual desk (flipped from the A0 Deny observation in A1).
 - U2 · `schema_actions_equal_seed_vocabulary_and_parse_as_uids`: `SCHEMA` parses
   at runtime; **26 actions**; equals `ALL_PERMISSIONS`; every name parses as an
   `Action::"..."` UID via `action_uid` — the A5 seeding source is proven.
 
-#### A1 — Remove the scope axis (O3)
+#### A1 — Remove the scope axis (O3) — **DONE**
 **Changes**:
 - `schema.cedar`: delete the `scopes`/`global_role` User attributes,
   `required_scopes` on Article/Version/Comment, and the `Tag` entity.
@@ -184,6 +183,11 @@ role authorizes purely via `principal in action`; the orphan-tag cleanup test
 pins that article tags are the only tag usage.
 **Exit**: no `EDGE_ROLE_APPLY_TAG`, no scope attributes, no `Tag` in schema;
 suite green.
+**Evidence (green)**: red observed on `scope_free_policy_allows_create_on_the_virtual_desk`
+and `role_permission_grants_via_principal_in_action` before the change; after —
+grep clean (no `scopes`/`global_role`/`required_scopes`/`EDGE_ROLE_APPLY_TAG`),
+back 426 (was 429: 3 obsolete scope tests deleted), common 109, clippy 0
+warnings (back/common/front), frontend `trunk build` clean.
 
 #### A2 — Policy coverage test (O4)
 **Changes**:

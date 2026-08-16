@@ -116,8 +116,6 @@ pub struct RoleUpdateRequest {
     #[serde(default)]
     pub permissions: Option<ChangeList>,
     #[serde(default)]
-    pub tags: Option<ChangeList>,
-    #[serde(default)]
     pub users: Option<ChangeList>,
 }
 

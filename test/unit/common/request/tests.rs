@@ -304,10 +304,6 @@ fn role_update_request_round_trips_change_lists() -> anyhow::Result<()> {
             add: vec!["Article::Create".to_string()],
             remove: Vec::new(),
         }),
-        tags: Some(crate::request::ChangeList {
-            add: vec!["rust".to_string()],
-            remove: vec!["old".to_string()],
-        }),
         users: None,
     };
     let json = serde_json::to_string(&request)?;

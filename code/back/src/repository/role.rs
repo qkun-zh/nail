@@ -4,9 +4,9 @@ use crate::repository::graph::{
     DbHandle, find_by_index_sync, read_node_sync, read_rows_sync, resolve_node_id_sync,
 };
 use crate::repository::schema::{
-    EDGE_ROLE_APPLY_TAG, EDGE_ROLE_GRANT_PERMISSION, EDGE_USER_HOLD_ROLE, ENTITY_TYPE_PERMISSION,
-    ENTITY_TYPE_ROLE, ENTITY_TYPE_TAG, ENTITY_TYPE_USER, IdRow, KEY_PERMISSION_NAME, KEY_ROLE_NAME,
-    KEY_TAG_NAME, KEY_TYPE, PermissionRow, RoleRow, TagRow, alias_of,
+    EDGE_ROLE_GRANT_PERMISSION, EDGE_USER_HOLD_ROLE, ENTITY_TYPE_PERMISSION, ENTITY_TYPE_ROLE,
+    ENTITY_TYPE_USER, IdRow, KEY_PERMISSION_NAME, KEY_ROLE_NAME, KEY_TYPE, PermissionRow, RoleRow,
+    alias_of,
 };
 
 pub const PERMISSION_ARTICLE_CREATE: &str = "Article::Create";
@@ -284,7 +284,6 @@ pub async fn user_holds_permission(
 pub struct RoleView {
     pub role_name: String,
     pub permissions: Vec<String>,
-    pub scopes: Vec<String>,
 }
 
 pub async fn read_role(db: &DbHandle, role_name: &str) -> Result<Option<RoleView>, DbError> {
@@ -348,35 +347,6 @@ pub async fn unhold_role(db: &DbHandle, user_id: &str, role_name: &str) -> Resul
     Ok(())
 }
 
-pub async fn apply_tag_to_role(
-    db: &DbHandle,
-    role_name: &str,
-    tag_name: &str,
-) -> Result<(), DbError> {
-    let mut guard = db.write().await;
-    let role_id = resolve_node_id_sync(&guard, ENTITY_TYPE_ROLE, role_name)?
-        .ok_or_else(|| not_found(ENTITY_TYPE_ROLE, role_name))?;
-    let tag_id = get_or_create_tag_sync(&mut guard, tag_name)?;
-    insert_edge_if_absent(&mut guard, role_id, tag_id, EDGE_ROLE_APPLY_TAG)?;
-    Ok(())
-}
-
-pub async fn remove_tag_from_role(
-    db: &DbHandle,
-    role_name: &str,
-    tag_name: &str,
-) -> Result<(), DbError> {
-    let mut guard = db.write().await;
-    let role_id = resolve_node_id_sync(&guard, ENTITY_TYPE_ROLE, role_name)?
-        .ok_or_else(|| not_found(ENTITY_TYPE_ROLE, role_name))?;
-    let tag_ids = find_by_index_sync(&guard, KEY_TAG_NAME, tag_name)?;
-    let tag_id = *tag_ids
-        .first()
-        .ok_or_else(|| not_found(ENTITY_TYPE_TAG, tag_name))?;
-    remove_outgoing_edge(&mut guard, role_id, tag_id, EDGE_ROLE_APPLY_TAG)?;
-    Ok(())
-}
-
 pub async fn delete_role(db: &DbHandle, role_name: &str) -> Result<(), DbError> {
     let mut guard = db.write().await;
     if let Some(role_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_ROLE, role_name)? {
@@ -394,9 +364,6 @@ fn read_role_view_sync(db: &agdb::DbAny, role_id: agdb::DbId) -> Result<RoleView
     };
     for permission in read_edge_rows::<PermissionRow>(db, role_id, EDGE_ROLE_GRANT_PERMISSION)? {
         role.permissions.push(permission.permission_name);
-    }
-    for tag in read_edge_rows::<TagRow>(db, role_id, EDGE_ROLE_APPLY_TAG)? {
-        role.scopes.push(tag.tag_name);
     }
     Ok(role)
 }
@@ -422,59 +389,6 @@ where
         return Ok(Vec::new());
     }
     read_rows_sync::<T>(db, &ids)
-}
-
-fn get_or_create_tag_sync(db: &mut agdb::DbAny, name: &str) -> Result<agdb::DbId, DbError> {
-    let ids = find_by_index_sync(db, KEY_TAG_NAME, name)?;
-    if let Some(id) = ids.first() {
-        return Ok(*id);
-    }
-    let tag_id = uuid::Uuid::now_v7().to_string();
-    db.exec_mut(
-        QueryBuilder::insert()
-            .nodes()
-            .aliases([alias_of(ENTITY_TYPE_TAG, &tag_id)])
-            .values(TagRow {
-                db_id: None,
-                entity_type: ENTITY_TYPE_TAG.to_string(),
-                id: tag_id.clone(),
-                tag_name: name.to_string(),
-            })
-            .query(),
-    )?;
-    resolve_node_id_sync(db, ENTITY_TYPE_TAG, &tag_id)?
-        .ok_or_else(|| not_found(ENTITY_TYPE_TAG, &tag_id))
-}
-
-fn insert_edge_if_absent(
-    db: &mut agdb::DbAny,
-    from: agdb::DbId,
-    to: agdb::DbId,
-    edge_type: &str,
-) -> Result<(), DbError> {
-    let edges = db.exec(
-        QueryBuilder::search()
-            .from(from)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(edge_type)
-            .query(),
-    )?;
-    if !edges.elements.iter().any(|edge| edge.to == to) {
-        db.exec_mut(
-            QueryBuilder::insert()
-                .edges()
-                .from(from)
-                .to([to])
-                .values([[(KEY_TYPE, edge_type).into()]])
-                .query(),
-        )?;
-    }
-    Ok(())
 }
 
 fn remove_outgoing_edge(

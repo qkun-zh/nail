@@ -60,13 +60,10 @@ pub async fn update_role(
     AppJson(payload): AppJson<RoleUpdateRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     let permissions = payload.permissions.unwrap_or_default();
-    let tags = payload.tags.unwrap_or_default();
     let users = payload.users.unwrap_or_default();
     let update = crate::logic::role::RoleUpdate {
         permissions_add: &permissions.add,
         permissions_remove: &permissions.remove,
-        tags_add: &tags.add,
-        tags_remove: &tags.remove,
         users_add: &users.add,
         users_remove: &users.remove,
     };

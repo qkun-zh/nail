@@ -1,9 +1,9 @@
 use super::context::{build_state, test_config};
 
 use crate::repository::role::{
-    PERMISSION_USER_READ, ROLE_MEMBER, ROLE_RECYCLER, apply_tag_to_role, create_permission,
-    create_role, grant_permission_to_role, hold_role, read_role, remove_tag_from_role,
-    user_holds_permission, user_holds_role, users_holding_role,
+    PERMISSION_USER_READ, ROLE_MEMBER, ROLE_RECYCLER, create_permission, create_role,
+    grant_permission_to_role, hold_role, user_holds_permission, user_holds_role,
+    users_holding_role,
 };
 
 #[tokio::test]
@@ -138,69 +138,4 @@ async fn users_holding_role_lists_recycler_holders() {
         .await
         .expect("list");
     assert_eq!(recyclers, vec![user_zero]);
-}
-
-async fn role_apply_tag_edge_count(
-    state: &crate::infrastructure::state::AppState,
-    role_name: &str,
-) -> usize {
-    let guard = state.graph.read().await;
-    let role_node = crate::repository::graph::resolve_node_id_sync(
-        &guard,
-        crate::repository::schema::ENTITY_TYPE_ROLE,
-        role_name,
-    )
-    .expect("role lookup")
-    .expect("role exists");
-    let edges = guard
-        .exec(
-            agdb::QueryBuilder::search()
-                .from(role_node)
-                .where_()
-                .distance(agdb::CountComparison::Equal(1))
-                .and()
-                .edge()
-                .and()
-                .key(crate::repository::schema::KEY_TYPE)
-                .value(crate::repository::schema::EDGE_ROLE_APPLY_TAG)
-                .query(),
-        )
-        .expect("role_apply_tag edge query");
-    edges.elements.len()
-}
-
-#[tokio::test]
-async fn role_tag_scopes_apply_read_and_remove() {
-    let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    create_role(&state.graph, "editor").await.expect("role");
-    apply_tag_to_role(&state.graph, "editor", "rust")
-        .await
-        .expect("apply rust");
-    apply_tag_to_role(&state.graph, "editor", "db")
-        .await
-        .expect("apply db");
-
-    let role = read_role(&state.graph, "editor")
-        .await
-        .expect("read")
-        .expect("role");
-    let mut scopes = role.scopes.clone();
-    scopes.sort();
-    assert_eq!(scopes, vec!["db", "rust"]);
-    assert!(role.permissions.is_empty());
-
-    apply_tag_to_role(&state.graph, "editor", "rust")
-        .await
-        .expect("apply rust again");
-    assert_eq!(role_apply_tag_edge_count(&state, "editor").await, 2);
-
-    remove_tag_from_role(&state.graph, "editor", "rust")
-        .await
-        .expect("remove rust");
-    let role = read_role(&state.graph, "editor")
-        .await
-        .expect("read")
-        .expect("role");
-    assert_eq!(role.scopes, vec!["db"]);
-    assert_eq!(role_apply_tag_edge_count(&state, "editor").await, 1);
 }

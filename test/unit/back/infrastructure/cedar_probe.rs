@@ -4,8 +4,8 @@
 //      crate; probe confirms the U1 design assumption for A1/A3).
 //   2. `principal in action` authorizes a member holding `Article::Create`
 //      against `Virtual::"article-create"` and denies a non-holder (U1).
-//   3. The shipped policy 3 (with `global_role || scopes.containsAny(...)`)
-//      denies creates on a Virtual desk, so A1 must simplify it (U1).
+//   3. `principal in action` (the A1-simplified policy 3) allows a member
+//      holding Article::Create on the Virtual desk (U1).
 //   4. `Schema::actions()` at runtime yields the seed vocabulary (26 actions)
 //      and every name parses as an `Action::"..."` UID (U2) — the A5 seeding
 //      source is proven.
@@ -96,7 +96,7 @@ fn create_non_holder_is_denied_on_the_virtual_desk() {
 }
 
 #[test]
-fn current_scope_policy_denies_create_on_the_virtual_desk() {
+fn scope_free_policy_allows_create_on_the_virtual_desk() {
     let member = Entity::new_no_attrs(
         uid("Role::\"member\""),
         HashSet::from([uid("Action::\"Article::Create\"")]),
@@ -113,9 +113,9 @@ fn current_scope_policy_denies_create_on_the_virtual_desk() {
     )
     .expect("decide");
     assert!(
-        !allowed,
-        "the shipped scope policy must deny creates on a Virtual desk until policy 3 \
-         is simplified to `principal in action` (A1)"
+        allowed,
+        "policy 3 must be `principal in action` so a member holding Article::Create \
+         can create on the Virtual desk (A1)"
     );
 }
 

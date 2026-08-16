@@ -27,13 +27,10 @@ permit (principal, action in [Action::"Article::Read", Action::"Version::Read",
                               Action::"Comment::Read"],
         resource);
 
-// 3. Role permission + scope: the principal's role ancestor closure contains
-//    the action, and the scope matches (a role with no tag edges is global).
+// 3. Role permission: the principal's role ancestor closure contains the
+//    action. Roles are pure sets of users; the scope axis was removed (D1).
 permit (principal, action, resource)
-  when {
-      principal in action
-      && (principal.global_role || principal.scopes.containsAny(resource.required_scopes))
-  };
+  when { principal in action };
 
 // 4. Admin-console meta-permission: User::Read/Update/Delete and Role::Manage
 //    are only judged against System::"admin-console".

@@ -197,7 +197,7 @@ async fn comment_author_can_update_own_comment_but_article_owner_cannot() {
     );
 }
 #[tokio::test]
-async fn global_role_grants_permission_on_any_article() {
+async fn role_grant_authorizes_any_article() {
     let context = TestCtx::new().await.expect("test context");
     let editor = create_user(&context, "alice@example.com").await;
     let owner = create_user(&context, "bob@example.com").await;
@@ -225,42 +225,6 @@ async fn global_role_grants_permission_on_any_article() {
         )
         .await
         .is_ok()
-    );
-}
-
-#[tokio::test]
-async fn scoped_role_denies_when_tags_do_not_intersect() {
-    let context = TestCtx::new().await.expect("test context");
-    let editor = create_user(&context, "alice@example.com").await;
-    let owner = create_user(&context, "bob@example.com").await;
-    crate::repository::role::create_role(&context.state.graph, "editor")
-        .await
-        .expect("role");
-    crate::repository::role::grant_permission_to_role(
-        &context.state.graph,
-        "editor",
-        PERMISSION_ARTICLE_UPDATE,
-    )
-    .await
-    .expect("grant");
-    crate::repository::role::apply_tag_to_role(&context.state.graph, "editor", "go")
-        .await
-        .expect("scope");
-    crate::repository::role::hold_role(&context.state.graph, &editor, "editor")
-        .await
-        .expect("hold editor");
-    let (article_id, _) = create_article_fixture(&context, &owner, "Scoped").await;
-
-    assert_eq!(
-        authorize(
-            &context.state,
-            &editor,
-            PERMISSION_ARTICLE_UPDATE,
-            &Resource::Article(article_id),
-        )
-        .await
-        .unwrap_err(),
-        LogicError::forbidden("you are denied")
     );
 }
 

@@ -3,10 +3,10 @@ use crate::logic::authorize::authorize;
 use crate::logic::error::{LogicError, database_error};
 use crate::repository::authorization::Resource;
 use crate::repository::role::{
-    PERMISSION_ROLE_MANAGE, REQUIRED_ROLES, RoleView as RepositoryRoleView, apply_tag_to_role,
+    PERMISSION_ROLE_MANAGE, REQUIRED_ROLES, RoleView as RepositoryRoleView,
     create_role as create_role_node, delete_role as delete_role_node, grant_permission_to_role,
     hold_role, read_role as read_role_node, read_role_members, read_roles as read_role_nodes,
-    remove_tag_from_role, revoke_permission_from_role, unhold_role,
+    revoke_permission_from_role, unhold_role,
 };
 use nail_common::response::role::{RoleListItem, RoleListPage, RoleNameView, RoleView};
 
@@ -17,8 +17,6 @@ fn admin_console() -> Resource {
 pub struct RoleUpdate<'a> {
     pub permissions_add: &'a [String],
     pub permissions_remove: &'a [String],
-    pub tags_add: &'a [String],
-    pub tags_remove: &'a [String],
     pub users_add: &'a [String],
     pub users_remove: &'a [String],
 }
@@ -88,7 +86,6 @@ pub async fn read_roles(
         role_list.push(RoleListItem {
             name: role.role_name.clone(),
             permissions: role.permissions.clone(),
-            scopes: role.scopes.clone(),
             member_count,
         });
     }
@@ -116,7 +113,6 @@ pub async fn read_role(
     Ok(RoleView {
         name: role.role_name,
         permissions: role.permissions,
-        scopes: role.scopes,
         members,
     })
 }
@@ -130,8 +126,6 @@ pub async fn update_role(
     let RoleUpdate {
         permissions_add,
         permissions_remove,
-        tags_add,
-        tags_remove,
         users_add,
         users_remove,
     } = update;
@@ -144,8 +138,7 @@ pub async fn update_role(
         return Err(LogicError::not_found("role not found"));
     }
     if REQUIRED_ROLES.contains(&name) {
-        let destructive =
-            !permissions_remove.is_empty() || !tags_remove.is_empty() || !users_remove.is_empty();
+        let destructive = !permissions_remove.is_empty() || !users_remove.is_empty();
         if destructive {
             return Err(LogicError::bad_request(format!(
                 "role {name} is a required role and cannot be modified destructively"
@@ -164,18 +157,6 @@ pub async fn update_role(
             .await
             .map_err(|error| {
                 LogicError::internal(format!("failed to revoke {permission}: {error}"))
-            })?;
-    }
-    for tag in tags_add {
-        apply_tag_to_role(&state.graph, name, tag)
-            .await
-            .map_err(|error| LogicError::internal(format!("failed to apply tag {tag}: {error}")))?;
-    }
-    for tag in tags_remove {
-        remove_tag_from_role(&state.graph, name, tag)
-            .await
-            .map_err(|error| {
-                LogicError::internal(format!("failed to remove tag {tag}: {error}"))
             })?;
     }
     for user in users_add {

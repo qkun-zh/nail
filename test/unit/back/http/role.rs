@@ -220,43 +220,6 @@ async fn delete_role_over_http() {
 }
 
 #[tokio::test]
-async fn update_role_applies_and_removes_tag_scopes() {
-    let context = TestCtx::new().await.expect("test context");
-    let (_, token) = admin_session(&context).await;
-    crate::repository::role::create_role(&context.state.graph, "editor")
-        .await
-        .expect("create role");
-
-    let (status, body) = context
-        .post(
-            "/role/editor/update",
-            json!({ "tags": { "add": ["rust", "db"] } }),
-            Some(&token),
-        )
-        .await;
-    assert_eq!(status, StatusCode::OK, "body: {body}");
-
-    let (_, detail) = context.get("/role/editor/read", Some(&token)).await;
-    let scopes = detail["data"]["scopes"].as_array().expect("scopes");
-    assert!(scopes.iter().any(|s| s.as_str() == Some("rust")));
-    assert!(scopes.iter().any(|s| s.as_str() == Some("db")));
-
-    let (status, body) = context
-        .post(
-            "/role/editor/update",
-            json!({ "tags": { "remove": ["rust"] } }),
-            Some(&token),
-        )
-        .await;
-    assert_eq!(status, StatusCode::OK, "body: {body}");
-
-    let (_, detail) = context.get("/role/editor/read", Some(&token)).await;
-    let scopes = detail["data"]["scopes"].as_array().expect("scopes");
-    assert!(!scopes.iter().any(|s| s.as_str() == Some("rust")));
-    assert!(scopes.iter().any(|s| s.as_str() == Some("db")));
-}
-
-#[tokio::test]
 async fn update_required_role_rejects_destructive_changes() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = admin_session(&context).await;
