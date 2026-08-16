@@ -35,6 +35,7 @@ pub const PERMISSION_USER_UPDATE: &str = "User::Update";
 pub const PERMISSION_USER_DELETE_HARD: &str = "User::Delete::Hard";
 pub const PERMISSION_USER_DELETE_TRANSFER: &str = "User::Delete::Transfer";
 pub const PERMISSION_ROLE_MANAGE: &str = "Role::Manage";
+pub const PERMISSION_ROLE_REVOKE: &str = "Role::Revoke";
 
 pub const ALL_PERMISSIONS: &[&str] = &[
     PERMISSION_ARTICLE_CREATE,
@@ -63,6 +64,7 @@ pub const ALL_PERMISSIONS: &[&str] = &[
     PERMISSION_USER_DELETE_HARD,
     PERMISSION_USER_DELETE_TRANSFER,
     PERMISSION_ROLE_MANAGE,
+    PERMISSION_ROLE_REVOKE,
 ];
 
 pub const ROLE_ADMIN: &str = "admin";

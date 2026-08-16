@@ -291,6 +291,23 @@ async fn admin_console_action_on_a_non_admin_console_resource_is_denied() {
 }
 
 #[tokio::test]
+async fn role_resource_assembly_covers_role_uids() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = create_user(&context, "alice@example.com").await;
+    for name in ["admin", "editor", "recycler"] {
+        let assembly = crate::repository::authorization::assemble(
+            &context.state.graph,
+            &actor,
+            Resource::Role(name.to_string()),
+        )
+        .await
+        .expect("assemble");
+        let expected: cedar_policy::EntityUid = format!("Role::\"{name}\"").parse().expect("uid");
+        assert_eq!(assembly.resource, expected);
+    }
+}
+
+#[tokio::test]
 async fn version_owner_is_the_article_owner() {
     let context = TestCtx::new().await.expect("test context");
     let owner = create_user(&context, "alice@example.com").await;

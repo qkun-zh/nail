@@ -239,6 +239,57 @@ async fn update_required_role_rejects_destructive_changes() {
 }
 
 #[tokio::test]
+async fn revoke_from_the_admin_role_is_forbidden() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = admin_session(&context).await;
+
+    let (status, body) = context
+        .post(
+            "/role/admin/update",
+            json!({ "permissions": { "remove": ["Article::Update"] } }),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("you are denied"));
+}
+
+#[tokio::test]
+async fn revoke_a_permission_from_a_custom_role_succeeds() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = admin_session(&context).await;
+    crate::repository::role::create_role(&context.state.graph, "editor")
+        .await
+        .expect("create role");
+    crate::repository::role::grant_permission_to_role(
+        &context.state.graph,
+        "editor",
+        "Article::Update",
+    )
+    .await
+    .expect("grant");
+
+    let (status, body) = context
+        .post(
+            "/role/editor/update",
+            json!({ "permissions": { "remove": ["Article::Update"] } }),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+
+    let (_, detail) = context.get("/role/editor/read", Some(&token)).await;
+    let permissions = detail["data"]["permissions"]
+        .as_array()
+        .expect("permissions");
+    assert!(
+        !permissions
+            .iter()
+            .any(|p| p.as_str() == Some("Article::Update"))
+    );
+}
+
+#[tokio::test]
 async fn update_role_holds_and_unholds_users() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = admin_session(&context).await;

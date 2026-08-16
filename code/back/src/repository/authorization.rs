@@ -18,6 +18,7 @@ pub enum Resource {
     Article(String),
     Version(String),
     Comment(String),
+    Role(String),
     Virtual(String),
 }
 
@@ -227,6 +228,11 @@ pub async fn assemble_resource(
                 comment_entity_uid,
                 vec![article_entity, version_entity, comment_entity],
             ))
+        }
+        Resource::Role(name) => {
+            let resource_uid = role_uid(&name)?;
+            let entity = Entity::new_no_attrs(resource_uid.clone(), HashSet::new());
+            Ok((resource_uid, vec![entity]))
         }
         Resource::Virtual(name) => {
             let resource_uid = virtual_uid(&name)?;

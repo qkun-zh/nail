@@ -6,7 +6,7 @@
 //      against `Virtual::"article-create"` and denies a non-holder (U1).
 //   3. `principal in action` (the A1-simplified policy 3) allows a member
 //      holding Article::Create on the Virtual desk (U1).
-//   4. `Schema::actions()` at runtime yields the seed vocabulary (26 actions)
+//   4. `Schema::actions()` at runtime yields the seed vocabulary (27 actions)
 //      and every name parses as an `Action::"..."` UID (U2) — the A5 seeding
 //      source is proven.
 //   Acceptance questions answered: "is the Virtual-desk design safe?" and "can
@@ -134,7 +134,11 @@ fn schema_actions_equal_seed_vocabulary_and_parse_as_uids() {
         .collect();
     seeded.sort();
 
-    assert_eq!(declared.len(), 26, "stale test name says twenty_three");
+    assert_eq!(
+        declared.len(),
+        27,
+        "schema action count (added Role::Revoke in A4)"
+    );
     assert_eq!(declared, seeded, "schema drift vs seed vocabulary");
 
     for name in &declared {

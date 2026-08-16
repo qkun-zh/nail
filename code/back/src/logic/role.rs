@@ -3,9 +3,10 @@ use crate::logic::authorize::authorize;
 use crate::logic::error::{LogicError, database_error};
 use crate::repository::authorization::Resource;
 use crate::repository::role::{
-    PERMISSION_ROLE_MANAGE, REQUIRED_ROLES, RoleView as RepositoryRoleView,
-    create_role as create_role_node, delete_role as delete_role_node, grant_permission_to_role,
-    hold_role, read_role as read_role_node, read_role_members, read_roles as read_role_nodes,
+    PERMISSION_ROLE_MANAGE, PERMISSION_ROLE_REVOKE, REQUIRED_ROLES, ROLE_ADMIN,
+    RoleView as RepositoryRoleView, create_role as create_role_node,
+    delete_role as delete_role_node, grant_permission_to_role, hold_role,
+    read_role as read_role_node, read_role_members, read_roles as read_role_nodes,
     revoke_permission_from_role, unhold_role,
 };
 use nail_common::response::role::{RoleListItem, RoleListPage, RoleNameView, RoleView};
@@ -129,7 +130,20 @@ pub async fn update_role(
         users_add,
         users_remove,
     } = update;
-    require_role_manage(state, actor_id).await?;
+    let has_adds = !permissions_add.is_empty() || !users_add.is_empty();
+    let has_removes = !permissions_remove.is_empty() || !users_remove.is_empty();
+    if has_adds {
+        require_role_manage(state, actor_id).await?;
+    }
+    if has_removes {
+        authorize(
+            state,
+            actor_id,
+            PERMISSION_ROLE_REVOKE,
+            &Resource::Role(name.to_string()),
+        )
+        .await?;
+    }
     if read_role_node(&state.graph, name)
         .await
         .map_err(database_error)?
@@ -137,7 +151,7 @@ pub async fn update_role(
     {
         return Err(LogicError::not_found("role not found"));
     }
-    if REQUIRED_ROLES.contains(&name) {
+    if REQUIRED_ROLES.contains(&name) && name != ROLE_ADMIN {
         let destructive = !permissions_remove.is_empty() || !users_remove.is_empty();
         if destructive {
             return Err(LogicError::bad_request(format!(
