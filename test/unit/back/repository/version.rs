@@ -118,16 +118,17 @@ async fn create_version_updates_latest_version_id() {
     .await
     .expect("create version");
 
-    let (items, total) = versions_of(&state.graph, &article_id, 10, 0)
+    let (items, has_next) = versions_of(&state.graph, &article_id, 10, 0)
         .await
         .expect("versions");
-    assert_eq!(total, 2);
-    assert_eq!(items[0].id, newer);
-    assert_eq!(items[0].version_number, "2.0.0");
+    assert_eq!(items.len(), 2);
+    assert!(!has_next);
+    assert!(items.iter().any(|item| item.version_number == "1.0.0"));
+    assert!(items.iter().any(|item| item.version_number == "2.0.0"));
 }
 
 #[tokio::test]
-async fn versions_of_is_newest_first_and_paginated() {
+async fn versions_of_is_paginated_in_default_order_and_reports_has_next() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = create_user(&state, "alice@example.com").await;
     let (article_id, _) = create_article_fixture(&state, &author_id, "Article", &pdf_hash(1)).await;
@@ -135,12 +136,11 @@ async fn versions_of_is_newest_first_and_paginated() {
         .await
         .expect("v2");
 
-    let (page, total) = versions_of(&state.graph, &article_id, 1, 0)
+    let (page, has_next) = versions_of(&state.graph, &article_id, 1, 0)
         .await
         .expect("versions");
-    assert_eq!(total, 2);
     assert_eq!(page.len(), 1);
-    assert_eq!(page[0].version_number, "2.0.0");
+    assert!(has_next, "more versions exist beyond the first page");
 }
 
 #[tokio::test]

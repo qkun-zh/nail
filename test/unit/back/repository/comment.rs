@@ -114,19 +114,19 @@ async fn create_reply_links_to_the_parent_and_is_not_top_level() {
         Some(version_id.clone())
     );
 
-    let (items, total) = read_comments_page_by_version(&state.graph, &version_id, 10, 0)
+    let (items, has_next) = read_comments_page_by_version(&state.graph, &version_id, 10, 0)
         .await
         .expect("read");
-    assert_eq!(total, 1);
+    assert!(!has_next);
     assert_eq!(items.len(), 1);
     assert_eq!(items[0].id, top_id);
     assert_eq!(items[0].parent_id, None);
     assert_eq!(items[0].child_count, 1);
 
-    let (children, children_total) = read_comment_children_page(&state.graph, &top_id, 10, 0)
+    let (children, children_has_next) = read_comment_children_page(&state.graph, &top_id, 10, 0)
         .await
         .expect("children");
-    assert_eq!(children_total, 1);
+    assert!(!children_has_next);
     assert_eq!(children.len(), 1);
     assert_eq!(children[0].id, reply_id);
     assert_eq!(children[0].parent_id.as_deref(), Some(top_id.as_str()));
@@ -191,7 +191,7 @@ async fn create_reply_rejects_a_thread_deeper_than_the_cap() {
 }
 
 #[tokio::test]
-async fn read_comments_pages_top_level_comments_newest_first() {
+async fn read_comments_pages_top_level_comments_in_default_order() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = create_user(&state, "alice@example.com").await;
     let version_id = create_version_fixture(&state, &author_id).await;
@@ -202,13 +202,20 @@ async fn read_comments_pages_top_level_comments_newest_first() {
             .expect("create");
     }
 
-    let (items, total) = read_comments_page_by_version(&state.graph, &version_id, 2, 0)
+    let (items, has_next) = read_comments_page_by_version(&state.graph, &version_id, 2, 0)
         .await
         .expect("read");
-    assert_eq!(total, 3);
     assert_eq!(items.len(), 2);
-    assert_eq!(items[0].id, "top-3");
-    assert_eq!(items[1].id, "top-2");
+    assert!(has_next, "a third comment exists beyond the two-item page");
+    let created = ["top-1", "top-2", "top-3"];
+    for item in &items {
+        assert!(
+            created.contains(&item.id.as_str()),
+            "page item {} must be one of the created comments",
+            item.id
+        );
+    }
+    assert_ne!(items[0].id, items[1].id, "page items are distinct");
 }
 
 #[tokio::test]

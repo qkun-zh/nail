@@ -306,7 +306,7 @@ pub fn CommentSection() -> impl IntoView {
                         let Some(list) = roots.get() else {
                             return ().into_any();
                         };
-                        let total_pages = list.total.div_ceil(COMMENTS_PER_PAGE);
+                        let has_next = list.has_next;
                         let rows = comment_rows(
                             &list.comments,
                             &base_path,
@@ -336,7 +336,7 @@ pub fn CommentSection() -> impl IntoView {
                                 {list_view}
                                 <LevelPagination
                                     current=current_page
-                                    total_pages=total_pages
+                                    has_next=has_next
                                     base_href=format!("{base_path}/comment")
                                 />
                             </div>
@@ -372,9 +372,9 @@ pub fn CommentSection() -> impl IntoView {
                                 )
                             })
                             .unwrap_or_default();
-                        let total_pages = child_list
+                        let has_next = child_list
                             .as_ref()
-                            .map_or(0, |list| list.total.div_ceil(COMMENTS_PER_PAGE));
+                            .is_some_and(|list| list.has_next);
                         let children_view = if rows.is_empty() {
                             view! { <p class="cmt-empty">no replies yet</p> }.into_any()
                         } else {
@@ -387,7 +387,7 @@ pub fn CommentSection() -> impl IntoView {
                                 {children_view}
                                 <LevelPagination
                                     current=current_page
-                                    total_pages=total_pages
+                                    has_next=has_next
                                     base_href=format!("{base_path}/comment/{comment_id}")
                                 />
                             </div>

@@ -68,6 +68,40 @@ where
 }
 
 #[component]
+pub fn PrevNext(
+    #[prop(into)] current: Signal<u64>,
+    #[prop(into)] has_prev: Signal<bool>,
+    #[prop(into)] has_next: Signal<bool>,
+    on_go: Callback<u64>,
+    #[prop(optional)] pagination_class: Option<&'static str>,
+) -> impl IntoView {
+    let class = pagination_class.unwrap_or("pagination");
+    let prev_disabled = move || !has_prev.get();
+    let next_disabled = move || !has_next.get();
+    move || {
+        if !has_prev.get() && !has_next.get() {
+            return ().into_any();
+        }
+        view! {
+            <div class=class>
+                <button
+                    type="button"
+                    on:click=move |_| on_go.run(current.get().saturating_sub(1).max(1))
+                    disabled=prev_disabled
+                >prev</button>
+                <span>{move || current.get()}</span>
+                <button
+                    type="button"
+                    on:click=move |_| on_go.run(current.get() + 1)
+                    disabled=next_disabled
+                >next</button>
+            </div>
+        }
+        .into_any()
+    }
+}
+
+#[component]
 pub fn Pagination(
     #[prop(into)] current: Signal<u64>,
     #[prop(into)] total_pages: Signal<u64>,

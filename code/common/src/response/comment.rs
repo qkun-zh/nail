@@ -17,7 +17,6 @@ pub struct CommentView {
 pub struct CommentListPage {
     pub comments: Vec<CommentView>,
     pub has_next: bool,
-    pub total: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

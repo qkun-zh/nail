@@ -182,14 +182,17 @@ pub async fn versions_of(
     article_id: &str,
     limit: u64,
     offset: u64,
-) -> Result<(Vec<VersionListItem>, u64), DbError> {
+) -> Result<(Vec<VersionListItem>, bool), DbError> {
     let guard = db.read().await;
     let Some(article) = resolve_node_id_sync(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
-        return Ok((Vec::new(), 0));
+        return Ok((Vec::new(), false));
     };
+    let limit = usize::try_from(limit).unwrap_or(usize::MAX);
     let edges = guard.exec(
         QueryBuilder::search()
             .from(article)
+            .offset(offset)
+            .limit(limit.saturating_add(1) as u64)
             .where_()
             .distance(agdb::CountComparison::Equal(1))
             .and()
@@ -199,11 +202,16 @@ pub async fn versions_of(
             .value(EDGE_ARTICLE_HOLD_VERSION)
             .query(),
     )?;
-    let version_ids: Vec<agdb::DbId> = edges.elements.iter().map(|edge| edge.to).collect();
-    let total = version_ids.len() as u64;
-    let id_rows = read_rows_sync::<IdRow>(&guard, &version_ids)?;
-    let version_rows = read_rows_sync::<VersionRow>(&guard, &version_ids)?;
-    let mut list: Vec<VersionListItem> = id_rows
+    let has_next = edges.elements.len() > limit;
+    let version_nodes: Vec<agdb::DbId> = edges
+        .elements
+        .iter()
+        .take(limit)
+        .map(|edge| edge.to)
+        .collect();
+    let id_rows = read_rows_sync::<IdRow>(&guard, &version_nodes)?;
+    let version_rows = read_rows_sync::<VersionRow>(&guard, &version_nodes)?;
+    let list: Vec<VersionListItem> = id_rows
         .into_iter()
         .zip(version_rows)
         .map(|(id_row, version_row)| VersionListItem {
@@ -211,13 +219,7 @@ pub async fn versions_of(
             version_number: version_row.version_number,
         })
         .collect();
-    list.sort_by(|left, right| right.id.cmp(&left.id));
-    let page = list
-        .into_iter()
-        .skip(usize::try_from(offset).unwrap_or(usize::MAX))
-        .take(usize::try_from(limit).unwrap_or(usize::MAX))
-        .collect();
-    Ok((page, total))
+    Ok((list, has_next))
 }
 
 pub async fn content_hash_owner(

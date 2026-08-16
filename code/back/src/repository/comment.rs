@@ -220,22 +220,15 @@ pub async fn read_comments_page_by_version(
     version_id: &str,
     limit: u64,
     offset: u64,
-) -> Result<(Vec<CommentTreeItem>, u64), DbError> {
+) -> Result<(Vec<CommentTreeItem>, bool), DbError> {
     let guard = db.read().await;
     let Some(version) = resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, version_id)? else {
-        return Ok((Vec::new(), 0));
+        return Ok((Vec::new(), false));
     };
-    let mut top_ids: Vec<String> =
-        incoming_comment_ids(&guard, version, EDGE_COMMENT_ATTACH_VERSION)?;
-    top_ids.sort_by(|left, right| right.cmp(left));
-    let total = top_ids.len() as u64;
-    let page_ids: Vec<String> = top_ids
-        .into_iter()
-        .skip(usize::try_from(offset).unwrap_or(usize::MAX))
-        .take(usize::try_from(limit).unwrap_or(usize::MAX))
-        .collect();
+    let (page_ids, has_next) =
+        incoming_comment_ids_page(&guard, version, EDGE_COMMENT_ATTACH_VERSION, limit, offset)?;
     let items = read_comment_items(&guard, &page_ids)?;
-    Ok((items, total))
+    Ok((items, has_next))
 }
 
 pub async fn read_comment_children_page(
@@ -243,22 +236,15 @@ pub async fn read_comment_children_page(
     parent_comment_id: &str,
     limit: u64,
     offset: u64,
-) -> Result<(Vec<CommentTreeItem>, u64), DbError> {
+) -> Result<(Vec<CommentTreeItem>, bool), DbError> {
     let guard = db.read().await;
     let Some(parent) = resolve_node_id_sync(&guard, ENTITY_TYPE_COMMENT, parent_comment_id)? else {
-        return Ok((Vec::new(), 0));
+        return Ok((Vec::new(), false));
     };
-    let mut child_ids: Vec<String> =
-        incoming_comment_ids(&guard, parent, EDGE_COMMENT_REPLY_COMMENT)?;
-    child_ids.sort();
-    let total = child_ids.len() as u64;
-    let page_ids: Vec<String> = child_ids
-        .into_iter()
-        .skip(usize::try_from(offset).unwrap_or(usize::MAX))
-        .take(usize::try_from(limit).unwrap_or(usize::MAX))
-        .collect();
+    let (page_ids, has_next) =
+        incoming_comment_ids_page(&guard, parent, EDGE_COMMENT_REPLY_COMMENT, limit, offset)?;
     let items = read_comment_items(&guard, &page_ids)?;
-    Ok((items, total))
+    Ok((items, has_next))
 }
 
 pub async fn read_comment_item(
@@ -269,14 +255,19 @@ pub async fn read_comment_item(
     read_comment_item_sync(&guard, comment_id)
 }
 
-fn incoming_comment_ids(
+fn incoming_comment_ids_page(
     guard: &agdb::DbAny,
     node: agdb::DbId,
     edge_type: &str,
-) -> Result<Vec<String>, DbError> {
+    limit: u64,
+    offset: u64,
+) -> Result<(Vec<String>, bool), DbError> {
+    let limit = usize::try_from(limit).unwrap_or(usize::MAX);
     let edges = guard.exec(
         QueryBuilder::search()
             .to(node)
+            .offset(offset)
+            .limit(limit.saturating_add(1) as u64)
             .where_()
             .distance(agdb::CountComparison::Equal(1))
             .and()
@@ -286,8 +277,9 @@ fn incoming_comment_ids(
             .value(edge_type)
             .query(),
     )?;
-    let mut ids = Vec::with_capacity(edges.elements.len());
-    for edge in &edges.elements {
+    let has_next = edges.elements.len() > limit;
+    let mut ids = Vec::with_capacity(edges.elements.len().min(limit));
+    for edge in edges.elements.iter().take(limit) {
         if let Some(id) = read_rows_sync::<IdRow>(guard, &[edge.from])?
             .into_iter()
             .next()
@@ -296,7 +288,7 @@ fn incoming_comment_ids(
             ids.push(id);
         }
     }
-    Ok(ids)
+    Ok((ids, has_next))
 }
 
 fn child_count_sync(guard: &agdb::DbAny, comment: agdb::DbId) -> Result<u64, DbError> {

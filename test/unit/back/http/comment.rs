@@ -121,8 +121,8 @@ async fn read_comments_over_http() {
         )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert_eq!(body["data"]["total"].as_u64(), Some(1));
     assert_eq!(body["data"]["comments"].as_array().map(Vec::len), Some(1));
+    assert_eq!(body["data"]["has_next"].as_bool(), Some(false));
     assert!(body["data"]["comments"][0]["user_name"].as_str().is_some());
 }
 

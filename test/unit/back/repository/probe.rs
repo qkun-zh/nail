@@ -572,7 +572,10 @@ async fn probe_offset_limit_pagination_tiles_default_order() {
     }
 
     // The paged union equals the full default-order list (identical order).
-    assert_eq!(all_ids, paged, "offset/limit pages tile the default-order full set");
+    assert_eq!(
+        all_ids, paged,
+        "offset/limit pages tile the default-order full set"
+    );
 
     eprintln!(
         "PROBE versions={} paged={} limit={} tiled_in_default_order=true",

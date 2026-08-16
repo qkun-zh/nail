@@ -12,14 +12,12 @@ pub struct VersionView {
 pub struct VersionListItem {
     pub id: String,
     pub version: String,
-    pub created_at: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VersionListPage {
     pub version_list: Vec<VersionListItem>,
     pub page: u64,
-    pub total: u64,
     pub has_next: bool,
 }
 

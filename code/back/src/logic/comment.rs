@@ -79,19 +79,13 @@ pub async fn read_comments(
     }
 
     let offset = page.saturating_sub(1).saturating_mul(limit);
-    let (items, total) = read_comments_page_by_version(&state.graph, version_id, limit, offset)
+    let (items, has_next) = read_comments_page_by_version(&state.graph, version_id, limit, offset)
         .await
         .map_err(database_error)?;
 
     let comments = build_comment_views(state, items).await?;
 
-    let has_next = page < total.div_ceil(limit);
-    let view = CommentListPage {
-        comments,
-        has_next,
-        total,
-    };
-    Ok(view)
+    Ok(CommentListPage { comments, has_next })
 }
 
 pub async fn read_comment(
@@ -123,16 +117,12 @@ pub async fn read_comment_children(
         return Err(LogicError::not_found("comment not found"));
     }
     let offset = page.saturating_sub(1).saturating_mul(limit);
-    let (items, total) = read_comment_children_page(&state.graph, parent_comment_id, limit, offset)
-        .await
-        .map_err(database_error)?;
+    let (items, has_next) =
+        read_comment_children_page(&state.graph, parent_comment_id, limit, offset)
+            .await
+            .map_err(database_error)?;
     let comments = build_comment_views(state, items).await?;
-    let has_next = page < total.div_ceil(limit);
-    Ok(CommentListPage {
-        comments,
-        has_next,
-        total,
-    })
+    Ok(CommentListPage { comments, has_next })
 }
 
 async fn build_comment_views(

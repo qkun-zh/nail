@@ -6,7 +6,7 @@ use nail_common::response::version::VersionListPage;
 
 use crate::infrastructure::limits::use_limits;
 use crate::page::notify::{notify_error, use_notifications};
-use crate::page::pagination::{Pagination, clamp_page_size};
+use crate::page::pagination::{PrevNext, clamp_page_size};
 
 #[derive(Clone)]
 enum VersionPage {
@@ -48,9 +48,8 @@ pub fn VersionList() -> impl IntoView {
             let article_id = params.get().get("article_id").unwrap_or_default();
             let create_href = format!("/public/article/{article_id}/version/create");
             let current_page = current_page();
-            let limit = clamp_page_size(limits.get().search_page_size, 8);
-            let total_pages = view.total.div_ceil(limit);
             let has_next = view.has_next;
+            let has_prev = current_page > 1;
             let rows = view
                 .version_list
                 .into_iter()
@@ -74,10 +73,10 @@ pub fn VersionList() -> impl IntoView {
                 );
             });
             let pagination = view! {
-                <Pagination
+                <PrevNext
                     current=move || current_page
-                    total_pages=move || total_pages
-                    has_more=move || has_next
+                    has_prev=move || has_prev
+                    has_next=move || has_next
                     on_go=on_go
                 />
             };

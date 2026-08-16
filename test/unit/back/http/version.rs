@@ -113,11 +113,11 @@ async fn read_versions_over_http() {
         )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert_eq!(body["data"]["total"].as_u64(), Some(1));
     assert_eq!(
         body["data"]["version_list"].as_array().map(Vec::len),
         Some(1)
     );
+    assert_eq!(body["data"]["has_next"].as_bool(), Some(false));
 }
 
 #[tokio::test]

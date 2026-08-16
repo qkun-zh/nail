@@ -232,10 +232,10 @@ async fn delete_version_removes_only_the_version_and_refreshes_latest() {
         .expect("delete");
     assert_eq!(outcome.removed_pdf_hashes, vec![pdf_hash(2)]);
 
-    let (remaining, total) = versions_of(&state.graph, &article_id, 10, 0)
+    let (remaining, _) = versions_of(&state.graph, &article_id, 10, 0)
         .await
         .expect("versions");
-    assert_eq!(total, 1);
+    assert_eq!(remaining.len(), 1);
     assert_eq!(remaining[0].id, first_version);
 }
 

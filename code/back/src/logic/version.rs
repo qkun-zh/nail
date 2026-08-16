@@ -163,7 +163,7 @@ pub async fn read_versions(
     limit: u64,
 ) -> Result<VersionListPage, LogicError> {
     let offset = page.saturating_sub(1).saturating_mul(limit);
-    let (items, total) = versions_of(&state.graph, article_id, limit, offset)
+    let (items, has_next) = versions_of(&state.graph, article_id, limit, offset)
         .await
         .map_err(database_error)?;
     let version_list: Vec<VersionListItem> = items
@@ -171,14 +171,11 @@ pub async fn read_versions(
         .map(|item| VersionListItem {
             id: item.id.clone(),
             version: item.version_number,
-            created_at: nail_common::time::uuidv7_timestamp_secs(&item.id).unwrap_or(0),
         })
         .collect();
-    let has_next = page < total.div_ceil(limit);
     Ok(VersionListPage {
         version_list,
         page,
-        total,
         has_next,
     })
 }
