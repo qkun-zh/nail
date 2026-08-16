@@ -18,7 +18,8 @@
 - **Authz refactor (in progress, plan `document/authz-refactor.md`)**: A1 done
   (`8698ecc`), A2 done (`208e94c`), A3 done (`9a92e1e`), A4 done (`0d3e7de`),
   A5 done (`2b1f02c`), A6 done (docs, `document/authz.md`), B0 done (baseline
-  probe `probe_001`). Next: B1 (read enforcement).
+  probe `probe_001`), B1 done (`295ff6e`). Next: B2 (`read_user` self-view to
+  Cedar).
 - **Soft-delete refcount + restore API (committed bac4e65, c40608b, 6c33fac,
   97fd467, 6883a5b)**: done — `KEY_SOFT_DELETED` is a u64 count, soft-delete
   cascades `+1` over the subtree, restore `-1` (key deleted at 0; invariant key
@@ -29,6 +30,23 @@
 
 ## Done
 
+- **Authz B1 — read enforcement through Cedar (committed 295ff6e)**: threaded
+  `actor_id` through the read logic and interface handlers (`read_article`,
+  `search_articles`, `read_version`/`read_versions`,
+  `read_comments`/`read_comment`/`read_comment_children`). Single-resource reads
+  gate with `authorize_or` against the resource (not-found message wins);
+  collection reads gate once with `authorize` against the coarse
+  `Virtual::"read"` desk, placed before validation (fail-closed). Seeded the D5
+  member read grants (`Article::Read`/`Version::Read`/`Comment::Read`), promoted
+  `PERMISSION_ARTICLE_READ`/`PERMISSION_COMMENT_READ` to production, deleted
+  read-open policy 2 (policy numbering stable). Red: 8 interface tests (403
+  expected, 200 observed pre-change). Green: 446 back tests; new logic-level
+  denial tests for all seven read functions; the cedar read-open test rewritten
+  to `read_requires_a_role_grant`; `logic/authorize.rs` read-open test renamed
+  `member_can_read_articles_and_versions_via_role_grant`. Probe re-run (dev
+  profile, nightly + Cranelift per `run.md`): per-item ×8 41.1 ms vs coarse desk
+  3.5 ms (11.9×, matches B0's ~10.5×); release re-run pending (LLVM rebuild
+  slow, was aborted).
 - **Authz B0 — read-gate baseline benchmark**: new probe
   `logic/probe_001_read_gate_assembly_baseline.rs` (wired into `harness.rs`)
   measures the marginal cost B1 adds to hot read paths. Release means:
@@ -161,11 +179,12 @@
 ## Next
 
 - Commit the uncommitted slices (one commit each, clean tree).
-- Authz: A1 (`8698ecc`) + A2 (`208e94c`) + A3 (`9a92e1e`) + A4 (`0d3e7de`) +
-  A5 (`2b1f02c`) + A6 (docs) + B0 (baseline probe `probe_001`) done. Next: B1
-  (read enforcement — thread `actor_id` through read logic, gate single-resource
-  reads, gate collections once on the coarse `Virtual::"read"` desk; D5 member
-  read grants already seeded).
+- Authz: A1–A6 + B0 + B1 done (B1 `295ff6e`). Next: B2 (`read_user` self-view
+  to Cedar — build a `User` resource entity, `resource.owner == principal` for
+  self-view, admin rides the `User::Read` grant; drop the
+  `target_id == actor_id` bypass in `logic/user.rs`), then B3 (central
+  operation→action inventory + router coverage test). Open follow-up: release
+  re-run of `probe_001` (B1 numbers so far are dev-profile).
 - Perf: P2, P3, P5, search-ORDER-BY closed. P1 rejected (highlight behavior);
   P6 non-problem (O(R)); P4 accepted (inherent). Open: total/cursor on list endpoints
   + search total.
