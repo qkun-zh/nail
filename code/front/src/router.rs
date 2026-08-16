@@ -20,6 +20,7 @@ use crate::page::public::article::detail::ArticleDetail;
 use crate::page::public::article::index::ArticleIndex;
 use crate::page::public::article::search::Search;
 use crate::page::public::article::update::UpdateArticle;
+use crate::page::public::article::version::comment::CommentSection;
 use crate::page::public::article::version::create::CreateVersion;
 use crate::page::public::article::version::detail::VersionDetail;
 use crate::page::public::article::version::index::VersionList;
@@ -44,9 +45,10 @@ pub fn AppRouter() -> impl IntoView {
                         <Route path=path!("/article/:article_id/delete") view=DeleteArticle/>
                         <Route path=path!("/article/:article_id/version") view=VersionList/>
                         <Route path=path!("/article/:article_id/version/create") view=CreateVersion/>
+                        <Route path=path!("/article/:article_id/version/:version_id") view=VersionDetail/>
                         <Route
                             path=path!("/article/:article_id/version/:version_id/*comment_path")
-                            view=VersionDetail
+                            view=CommentSection
                         />
                     </ParentRoute>
                     <ParentRoute path=path!("/private") view=PrivateLayout>

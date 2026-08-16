@@ -4,7 +4,6 @@ use leptos_router::hooks::use_params_map;
 use nail_common::response::version::VersionView;
 
 use crate::page::notify::{notify_error, use_notifications};
-use crate::page::public::article::version::comment::CommentSection;
 use crate::page::time_format::format_timestamp;
 
 #[component]
@@ -41,10 +40,6 @@ pub fn VersionDetail() -> impl IntoView {
 
     let effect_notifications = notifications.clone();
     Effect::new(move |_| {
-        let comment_path = params.get().get("comment_path").unwrap_or_default();
-        if !comment_path.is_empty() {
-            return;
-        }
         let version_id = params.get().get("version_id").unwrap_or_default();
         let article_id = params.get().get("article_id").unwrap_or_default();
         let notifications = effect_notifications.clone();
@@ -71,10 +66,6 @@ pub fn VersionDetail() -> impl IntoView {
     });
 
     let render = move || {
-        let comment_path = params.get().get("comment_path").unwrap_or_default();
-        if !comment_path.is_empty() {
-            return view! { <CommentSection/> }.into_any();
-        }
         if let Some(message) = error.get() {
             return view! { <p>{message}</p> }.into_any();
         }
