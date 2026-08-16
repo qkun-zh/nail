@@ -30,7 +30,7 @@ fn article_entity(id: &str, owner: &str) -> Entity {
 }
 
 #[test]
-fn schema_actions_equal_the_seed_vocabulary() {
+fn schema_actions_equal_the_permission_constants() {
     let schema: cedar_policy::Schema = SCHEMA.parse().expect("schema");
     let mut declared: Vec<String> = schema
         .actions()
@@ -38,13 +38,13 @@ fn schema_actions_equal_the_seed_vocabulary() {
         .collect();
     declared.sort();
 
-    let mut seeded: Vec<String> = crate::repository::role::ALL_PERMISSIONS
+    let mut constants: Vec<String> = crate::repository::role::permission_vocabulary()
         .iter()
         .map(std::string::ToString::to_string)
         .collect();
-    seeded.sort();
+    constants.sort();
 
-    assert_eq!(declared, seeded);
+    assert_eq!(declared, constants);
 }
 
 fn policy_action_names() -> Vec<String> {
@@ -160,8 +160,28 @@ fn role_permission_grants_via_principal_in_action() {
 }
 
 #[test]
-fn admin_role_allows_everything() {
+fn admin_without_a_grant_is_denied() {
     let admin = Entity::new_no_attrs(uid("Role::\"admin\""), HashSet::new());
+    let principal = user_entity("alice", HashSet::from([uid("Role::\"admin\"")]));
+    let resource = article_entity("article-1", "bob");
+
+    assert!(
+        !decide(
+            &uid("User::\"alice\""),
+            "User::Delete::Hard",
+            &uid("Virtual::\"admin-console\""),
+            vec![principal, admin, resource],
+        )
+        .expect("admin without grant")
+    );
+}
+
+#[test]
+fn admin_holding_a_grant_is_allowed() {
+    let admin = Entity::new_no_attrs(
+        uid("Role::\"admin\""),
+        HashSet::from([uid("Action::\"User::Delete::Hard\"")]),
+    );
     let principal = user_entity("alice", HashSet::from([uid("Role::\"admin\"")]));
     let resource = article_entity("article-1", "bob");
 
@@ -170,18 +190,8 @@ fn admin_role_allows_everything() {
             &uid("User::\"alice\""),
             "User::Delete::Hard",
             &uid("Virtual::\"admin-console\""),
-            vec![principal.clone(), admin.clone(), resource.clone()],
-        )
-        .expect("admin all")
-    );
-
-    assert!(
-        decide(
-            &uid("User::\"alice\""),
-            "Role::Manage",
-            &uid("Virtual::\"admin-console\""),
             vec![principal, admin, resource],
         )
-        .expect("admin role manage")
+        .expect("admin with grant")
     );
 }

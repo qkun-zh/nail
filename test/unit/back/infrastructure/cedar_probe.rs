@@ -128,7 +128,7 @@ fn schema_actions_equal_seed_vocabulary_and_parse_as_uids() {
         .collect();
     declared.sort();
 
-    let mut seeded: Vec<String> = crate::repository::role::ALL_PERMISSIONS
+    let mut seeded: Vec<String> = crate::repository::role::permission_vocabulary()
         .iter()
         .map(std::string::ToString::to_string)
         .collect();

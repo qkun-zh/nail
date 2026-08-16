@@ -139,3 +139,25 @@ async fn users_holding_role_lists_recycler_holders() {
         .expect("list");
     assert_eq!(recyclers, vec![user_zero]);
 }
+
+#[tokio::test]
+async fn every_schema_action_is_seeded_as_a_permission_and_granted_to_admin() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let hash = nail_common::hash::email("user-zero@example.com");
+    let user_zero = crate::repository::user::read_user_by_email_address_hash(&state.graph, &hash)
+        .await
+        .expect("lookup")
+        .expect("user zero");
+    let schema: cedar_policy::Schema = crate::infrastructure::cedar::SCHEMA
+        .parse()
+        .expect("schema");
+    for action in schema.actions() {
+        let name = action.id().unescaped().to_string();
+        assert!(
+            user_holds_permission(&state.graph, &user_zero, &name)
+                .await
+                .expect("check"),
+            "admin must hold every schema action: {name}"
+        );
+    }
+}

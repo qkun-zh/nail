@@ -3,11 +3,23 @@ use std::sync::OnceLock;
 use anyhow::Context;
 use cedar_policy::{Authorizer, Decision, Entities, Entity, EntityUid, PolicySet, Request};
 
-#[cfg(test)]
 pub const SCHEMA: &str = include_str!("cedar/schema.cedar");
 pub const POLICY: &str = include_str!("cedar/policy.cedar");
 
 static POLICY_SET: OnceLock<Result<PolicySet, String>> = OnceLock::new();
+
+pub fn schema_actions() -> anyhow::Result<Vec<String>> {
+    let schema: cedar_policy::Schema = SCHEMA
+        .parse()
+        .map_err(|error| anyhow::anyhow!("invalid authorization schema: {error}"))?;
+    let mut names: Vec<String> = schema
+        .actions()
+        .map(|action| action.id().unescaped().to_string())
+        .collect();
+    names.sort();
+    names.dedup();
+    Ok(names)
+}
 
 fn policies() -> anyhow::Result<&'static PolicySet> {
     let result = POLICY_SET.get_or_init(|| {

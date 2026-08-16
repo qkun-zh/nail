@@ -3,8 +3,7 @@ use anyhow::Context;
 
 use crate::repository::graph::{DbHandle, existing_index_keys};
 use crate::repository::role::{
-    ALL_PERMISSIONS, PERMISSION_ARTICLE_CREATE, PERMISSION_COMMENT_CREATE, REQUIRED_ROLES,
-    ROLE_ADMIN, ROLE_MEMBER,
+    PERMISSION_ARTICLE_CREATE, PERMISSION_COMMENT_CREATE, REQUIRED_ROLES, ROLE_ADMIN, ROLE_MEMBER,
 };
 use crate::repository::schema::{
     KEY_CONTENT_HASH, KEY_EMAIL_ADDRESS_HASH, KEY_PERMISSION_NAME, KEY_ROLE_NAME, KEY_TAG_NAME,
@@ -51,10 +50,11 @@ async fn seed_roles_and_permissions(db: &DbHandle) -> anyhow::Result<()> {
     for role_name in REQUIRED_ROLES {
         crate::repository::role::create_role(db, role_name).await?;
     }
-    for permission_name in ALL_PERMISSIONS {
+    let actions = crate::infrastructure::cedar::schema_actions()?;
+    for permission_name in &actions {
         crate::repository::role::create_permission(db, permission_name).await?;
     }
-    for permission_name in ALL_PERMISSIONS {
+    for permission_name in &actions {
         crate::repository::role::grant_permission_to_role(db, ROLE_ADMIN, permission_name).await?;
     }
     crate::repository::role::grant_permission_to_role(db, ROLE_MEMBER, PERMISSION_ARTICLE_CREATE)

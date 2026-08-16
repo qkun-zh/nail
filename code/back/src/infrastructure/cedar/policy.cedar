@@ -50,10 +50,6 @@ forbid (principal in Role::"recycler",
                    Action::"Version::Delete::Transfer"],
         resource);
 
-// 6. Admin override: holding the admin role allows everything.
-permit (principal, action, resource)
-  when { principal in Role::"admin" };
-
-// 7. Admin role is terminal for revocation (D7-b): nobody — not even admin via
-//    the override — may revoke from the admin role. Forbid beats permit.
+// 6. Admin role is terminal for revocation (D7-b): nobody — not even an admin
+//    with a grant — may revoke from the admin role. Forbid beats permit.
 forbid (principal, action == Action::"Role::Revoke", resource == Role::"admin");
