@@ -45,6 +45,7 @@ pub fn CommentSection() -> impl IntoView {
     let error = RwSignal::new(None::<String>);
     let loading = RwSignal::new(true);
     let posting = RwSignal::new(false);
+    let delete_mode = RwSignal::new(DeleteMode::Transfer);
     let body = RwSignal::new(query.get_untracked().get("body").unwrap_or_default());
     let reply_body = RwSignal::new(query.get_untracked().get("reply").unwrap_or_default());
 
@@ -422,33 +423,39 @@ pub fn CommentSection() -> impl IntoView {
                         if !authenticated {
                             return who_are_you();
                         }
-                        let transfer = on_submit_delete.clone();
-                        let hard = on_submit_delete.clone();
-                        let soft = on_submit_delete.clone();
+                        let submit_delete = on_submit_delete.clone();
+                        let delete_mode = delete_mode.clone();
+                        let is_transfer = move || delete_mode.get() == DeleteMode::Transfer;
+                        let is_soft = move || delete_mode.get() == DeleteMode::Soft;
+                        let is_hard = move || delete_mode.get() == DeleteMode::Hard;
                         view! {
                             <div>
                                 <p class="cmt-empty">confirm delete comment</p>
                                 <div>
+                                    <label>
+                                        <input type="radio" name="comment_delete_mode" prop:checked=is_transfer on:change=move |_| delete_mode.set(DeleteMode::Transfer)/>
+                                        "transfer"
+                                    </label>
+                                </div>
+                                <div>
+                                    <label>
+                                        <input type="radio" name="comment_delete_mode" prop:checked=is_soft on:change=move |_| delete_mode.set(DeleteMode::Soft)/>
+                                        "soft"
+                                    </label>
+                                </div>
+                                <div>
+                                    <label>
+                                        <input type="radio" name="comment_delete_mode" prop:checked=is_hard on:change=move |_| delete_mode.set(DeleteMode::Hard)/>
+                                        "hard"
+                                    </label>
+                                </div>
+                                <div>
                                     <button
                                         class="cmt-btn cmt-btn-danger"
                                         disabled=move || posting.get()
-                                        on:click=move |_| transfer(DeleteMode::Transfer)
+                                        on:click=move |_| submit_delete(delete_mode.get())
                                     >
-                                        transfer
-                                    </button>
-                                    <button
-                                        class="cmt-btn cmt-btn-danger"
-                                        disabled=move || posting.get()
-                                        on:click=move |_| soft(DeleteMode::Soft)
-                                    >
-                                        soft
-                                    </button>
-                                    <button
-                                        class="cmt-btn cmt-btn-danger"
-                                        disabled=move || posting.get()
-                                        on:click=move |_| hard(DeleteMode::Hard)
-                                    >
-                                        delete
+                                        {move || if posting.get() { "deleting..." } else { "delete" }}
                                     </button>
                                 </div>
                             </div>
