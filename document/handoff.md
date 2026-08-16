@@ -16,8 +16,8 @@
 - Uncommitted (other agent): `document/workflow.md`, `AGENTS.md`, `README.md` —
   the double-evidence workflow refactor (see Done).
 - **Authz refactor (in progress, plan `document/authz-refactor.md`)**: A1 done
-  (`8698ecc`), A2 done (`208e94c`), A3 done (`9a92e1e`), A4 done (`0d3e7de`).
-  Next slice: A5 (vocab single source + policy 6 deletion).
+  (`8698ecc`), A2 done (`208e94c`), A3 done (`9a92e1e`), A4 done (`0d3e7de`),
+  A5 done (`2b1f02c`). Next slice: A6 (documentation).
 - **Soft-delete refcount + restore API (committed bac4e65, c40608b, 6c33fac,
   97fd467, 6883a5b)**: done — `KEY_SOFT_DELETED` is a u64 count, soft-delete
   cascades `+1` over the subtree, restore `-1` (key deleted at 0; invariant key
@@ -28,6 +28,22 @@
 
 ## Done
 
+- **Authz A5 — vocabulary single source + policy 6 deleted (committed 2b1f02c)**:
+  `SCHEMA` is now production (`infrastructure/cedar.rs`) with a new
+  `schema_actions()` helper (parses the schema, returns sorted action names).
+  `seed.rs` derives every permission node and the admin grant loop from
+  `schema_actions()`; `ALL_PERMISSIONS` deleted from `repository/role.rs`; the
+  `PERMISSION_*` constants production no longer uses became `#[cfg(test)]` and
+  the drift test now compares schema vs `permission_vocabulary()`. Policy 6
+  (admin override permit) deleted in the same slice as the schema-derived admin
+  grants — admin power moved from rule to data with no gap; D7's forbid
+  protects the admin role. `admin_role_allows_everything` split into
+  `admin_holding_a_grant_is_allowed` + `admin_without_a_grant_is_denied`; new
+  `every_schema_action_is_seeded_as_a_permission_and_granted_to_admin`. Red
+  evidence: restoring policy 6 failed `admin_without_a_grant_is_denied`
+  (grantless admin allowed); a schema-only `RED::Probe` action failed the seed
+  test under a constants-driven seed (propagates only with the schema-driven
+  seed). Back 433, common 109, clippy 0, frontend trunk build clean.
 - **Authz A4 — Role::Revoke protection in policy (committed 0d3e7de)**:
   `Role::Revoke` joins the vocabulary (27 actions, seeded to admin).
   `policy.cedar` adds `forbid(principal, action == Role::Revoke, resource ==
@@ -129,8 +145,8 @@
 ## Next
 
 - Commit the uncommitted slices (one commit each, clean tree).
-- Authz: A1 (`8698ecc`) + A2 (`208e94c`) + A3 (`9a92e1e`) + A4 (`0d3e7de`) done;
-  A5 (vocab single source + policy 6 deletion) next, then A6 (docs).
+- Authz: A1 (`8698ecc`) + A2 (`208e94c`) + A3 (`9a92e1e`) + A4 (`0d3e7de`) +
+  A5 (`2b1f02c`) done; A6 (docs) next.
 - Perf: P2, P3, P5, search-ORDER-BY closed. P1 rejected (highlight behavior);
   P6 non-problem (O(R)); P4 accepted (inherent). Open: total/cursor on list endpoints
   + search total.

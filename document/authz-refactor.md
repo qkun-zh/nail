@@ -260,23 +260,34 @@ routes removals via `Role::Revoke` on `Resource::Role(target)`, additions keep
 admin via `ALL_PERMISSIONS`. Probe count pinned to 27. Back 431 (was 428 +3
 tests), common 109, clippy 0, frontend `trunk build` clean.
 
-#### A5 — Vocabulary single source + delete policy 6 (O4, D3)
+#### A5 — Vocabulary single source + delete policy 6 (O4, D3) — **DONE** (commit `2b1f02c`)
 **Changes**:
-- Make `SCHEMA` non-`#[cfg(test)]` (`infrastructure/cedar.rs:6`).
-- `seed.rs`: seed permission nodes from parsed schema actions; keep the admin
-  grant loop but derive it from schema (every action → admin); delete
-  `ALL_PERMISSIONS` (`repository/role.rs:39`); keep `PERMISSION_*` constants
-  (compile-time call-site vocabulary) with the A2 test guarding drift. The A0
-  probe `schema_actions_equal_seed_vocabulary_and_parse_as_uids` must stop
-  referencing `ALL_PERMISSIONS` (compare schema actions vs the `PERMISSION_*`
-  constants instead).
-- Delete policy 6 (`policy.cedar:57-58`) — only after the schema-derived admin
-  grants land in the same slice, so admin's power moves from the rule to the
-  data without a gap. D7's forbid still protects the admin role.
-**Red test**: adding an action to `schema.cedar` alone propagates to a seeded
-permission node and to the admin grant; an admin without the grant is denied.
+- `SCHEMA` is now production (`infrastructure/cedar.rs`); added
+  `schema_actions()` which parses the schema and returns the sorted, deduped
+  action names (the single seeding source, A0-proven).
+- `seed.rs`: permission nodes and the admin grant loop derive from
+  `schema_actions()` (every schema action → permission node → admin role);
+  `ALL_PERMISSIONS` deleted from `repository/role.rs`; the `PERMISSION_*`
+  constants that production no longer touches became `#[cfg(test)]`, and the
+  drift test compares schema actions against `permission_vocabulary()` (the
+  same constant list).
+- Policy 6 (admin override `permit ... principal in Role::"admin"`) deleted in
+  the same slice as the schema-derived admin grants — admin's power moved from
+  the rule to the data with no gap. D7's forbid still protects the admin role.
+- Tests: `admin_role_allows_everything` split into `admin_holding_a_grant_is_allowed`
+  and `admin_without_a_grant_is_denied`; drift test renamed
+  `schema_actions_equal_the_permission_constants`; new
+  `every_schema_action_is_seeded_as_a_permission_and_granted_to_admin`.
+**Red evidence** (captured, then reverted):
+- Temporarily restoring policy 6 makes `admin_without_a_grant_is_denied` fail
+  (assertion failed: !decide) — the rule permits a grantless admin.
+- Temporarily adding `action "RED::Probe"` to `schema.cedar` with a constants-
+  driven seed makes the seed test fail (`admin must hold every schema action:
+  RED::Probe`) — a schema-only action does not propagate to seed. With the
+  schema-driven seed the same mutation propagates (test passes).
 **Exit**: `ALL_PERMISSIONS` deleted; seeds derive from schema; no policy grants
 power to a role (admin's power is data, not a permit); cross-check test green.
+Gate: back 433 / common 109, clippy 0, front `trunk build` clean.
 
 #### A6 — Documentation (O6)
 **Changes**:
