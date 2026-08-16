@@ -450,9 +450,8 @@ user explicitly adopts this plan before any slice starts.
 
 ## 9. Phase B4 — Codegen single-source + policy validation
 
-Status: **adopted by user** ("修复这三个吧，同时加上测试保证不会修错"),
-B4.0 evidence collected, B4.1 done, B4.2 done, B4.3 done. Three fixes, each with guard tests so a wrong
-"repair" cannot pass:
+Status: **B4 done** — all three fixes complete, tests green, docs updated.
+Back: 454 tests, fmt/clippy 0, common 109, frontend trunk build clean.
 
 1. **Fix 2 (point 2) — `PERMISSION_*` constants generated from `schema.cedar`**:
    replace the hand-written mirror in `repository/role.rs` with a `build.rs`
