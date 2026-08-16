@@ -4,8 +4,13 @@
 
 2. Backend
    Path: `/home/qkun/nail/code/back`
-   Run: `cd /home/qkun/nail/code/back && cargo run --bin nail_back`
-   Background: `cd /home/qkun/nail/code/back && setsid nohup cargo run --bin nail_back > /home/qkun/nail/log/back/run.log 2>&1 < /dev/null &`
+   Run: `cd /home/qkun/nail/code/back && env CARGO_PROFILE_DEV_DEBUG=line-tables-only RUSTFLAGS=-Zcodegen-backend=cranelift cargo +nightly run --bin nail_back`
+   Background: `cd /home/qkun/nail/code/back && setsid nohup env CARGO_PROFILE_DEV_DEBUG=line-tables-only RUSTFLAGS=-Zcodegen-backend=cranelift cargo +nightly run --bin nail_back > /home/qkun/nail/log/back/run.log 2>&1 < /dev/null &`
+
+   Dev build acceleration: line-tables-only debug info plus the Cranelift codegen
+   backend (nightly) compile the backend roughly 16% faster (130s vs 155s clean
+   build) with slightly lower peak memory. Requires the nightly toolchain with
+   the `rustc-codegen-cranelift` component; a release build still uses LLVM.
 
 3. Proxy
    Path: `/home/qkun/nail/code/proxy/pingap-linux-gnu-x86-full`
