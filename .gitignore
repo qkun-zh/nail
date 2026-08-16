@@ -4,13 +4,13 @@ target/
 dist/
 **/dist/
 
-# --- runtime data and logs (regenerated at startup; never commit) ---
-data/*
-!data/.gitkeep
-log/*
-!log/.gitkeep
+# --- runtime data (agdb db, pdf, search; reseeded at startup) ---
+data/
 
-# --- secrets: never commit ---
+# --- runtime logs (regenerated at startup; never commit) ---
+log/
+
+# --- sensitive configuration (credentials); template: smtp.toml.example ---
 configuration/smtp.toml
 
 # --- downloaded tooling (proxy binary is fetched, not vendored) ---
