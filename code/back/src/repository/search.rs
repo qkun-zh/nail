@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use agdb::{DbError, QueryBuilder};
@@ -429,65 +429,81 @@ async fn enrich_comment_headers(
         return Ok(());
     }
     let guard = db.read().await;
+
+    let article_ids: HashSet<String> = comments.iter().map(|c| c.article_id.clone()).collect();
+    let version_ids: HashSet<String> = comments.iter().map(|c| c.version_id.clone()).collect();
+
+    let mut article_by_id: HashMap<String, agdb::DbId> = HashMap::new();
+    for id in &article_ids {
+        if let Some(node) = resolve_node_id_sync(&guard, ENTITY_TYPE_ARTICLE, id)? {
+            article_by_id.insert(id.clone(), node);
+        }
+    }
+    let mut version_by_id: HashMap<String, agdb::DbId> = HashMap::new();
+    for id in &version_ids {
+        if let Some(node) = resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, id)? {
+            version_by_id.insert(id.clone(), node);
+        }
+    }
+
+    let article_nodes: Vec<agdb::DbId> = article_by_id.values().copied().collect();
+    let title_by_node: HashMap<agdb::DbId, String> =
+        read_rows_sync::<ArticleRow>(&guard, &article_nodes)?
+            .into_iter()
+            .filter_map(|row| row.db_id.map(|node| (node, row.title)))
+            .collect();
+
+    let version_nodes: Vec<agdb::DbId> = version_by_id.values().copied().collect();
+    let version_number_by_node: HashMap<agdb::DbId, String> =
+        read_rows_sync::<VersionRow>(&guard, &version_nodes)?
+            .into_iter()
+            .filter_map(|row| row.db_id.map(|node| (node, row.version_number)))
+            .collect();
+
+    let mut author_by_article: HashMap<agdb::DbId, agdb::DbId> = HashMap::new();
+    let mut user_nodes: Vec<agdb::DbId> = Vec::new();
+    for article_node in &article_nodes {
+        let edges = guard.exec(
+            QueryBuilder::search()
+                .to(*article_node)
+                .where_()
+                .distance(agdb::CountComparison::Equal(1))
+                .and()
+                .edge()
+                .and()
+                .key(KEY_TYPE)
+                .value(EDGE_USER_AUTHOR_ARTICLE)
+                .query(),
+        )?;
+        if let Some(edge) = edges.elements.first() {
+            author_by_article.insert(*article_node, edge.from);
+            user_nodes.push(edge.from);
+        }
+    }
+    let author_name_by_node: HashMap<agdb::DbId, String> =
+        read_rows_sync::<UserRow>(&guard, &user_nodes)?
+            .into_iter()
+            .filter_map(|row| row.db_id.map(|node| (node, row.name)))
+            .collect();
+
     for comment in comments.iter_mut() {
-        let article_title = read_article_title(&guard, &comment.article_id)?;
-        let article_author = read_article_author(&guard, &comment.article_id)?;
-        let version_number = read_version_number(&guard, &comment.version_id)?;
-        comment.article_title = article_title;
-        comment.article_author_name = article_author;
-        comment.version_number = version_number;
+        let article_node = article_by_id.get(comment.article_id.as_str());
+        comment.article_title = article_node
+            .and_then(|node| title_by_node.get(node))
+            .cloned()
+            .unwrap_or_default();
+        comment.article_author_name = article_node
+            .and_then(|node| author_by_article.get(node))
+            .and_then(|user_node| author_name_by_node.get(user_node))
+            .cloned()
+            .unwrap_or_default();
+        comment.version_number = version_by_id
+            .get(comment.version_id.as_str())
+            .and_then(|node| version_number_by_node.get(node))
+            .cloned()
+            .unwrap_or_default();
     }
     Ok(())
-}
-
-fn read_article_title(guard: &agdb::DbAny, article_id: &str) -> Result<String, DbError> {
-    let Some(article) = resolve_node_id_sync(guard, ENTITY_TYPE_ARTICLE, article_id)? else {
-        return Ok(String::new());
-    };
-    Ok(read_rows_sync::<ArticleRow>(guard, &[article])?
-        .into_iter()
-        .next()
-        .map(|row| row.title)
-        .unwrap_or_default())
-}
-
-fn read_article_author(guard: &agdb::DbAny, article_id: &str) -> Result<String, DbError> {
-    let Some(article) = resolve_node_id_sync(guard, ENTITY_TYPE_ARTICLE, article_id)? else {
-        return Ok(String::new());
-    };
-    let edges = guard.exec(
-        QueryBuilder::search()
-            .to(article)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_USER_AUTHOR_ARTICLE)
-            .query(),
-    )?;
-    Ok(edges
-        .elements
-        .first()
-        .and_then(|edge| {
-            read_rows_sync::<UserRow>(guard, &[edge.from])
-                .ok()
-                .and_then(|rows| rows.into_iter().next())
-                .map(|row| row.name)
-        })
-        .unwrap_or_default())
-}
-
-fn read_version_number(guard: &agdb::DbAny, version_id: &str) -> Result<String, DbError> {
-    let Some(version) = resolve_node_id_sync(guard, ENTITY_TYPE_VERSION, version_id)? else {
-        return Ok(String::new());
-    };
-    Ok(read_rows_sync::<VersionRow>(guard, &[version])?
-        .into_iter()
-        .next()
-        .map(|row| row.version_number)
-        .unwrap_or_default())
 }
 
 async fn article_ids_of_user(db: &DbHandle, user_id: &str) -> Result<Vec<String>, DbError> {

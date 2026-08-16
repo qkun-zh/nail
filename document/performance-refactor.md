@@ -50,13 +50,24 @@ Problem: for each of C comment hits, 3 separate graph queries are issued (articl
 title, article author, version number), and the author lookup traverses the owner edge
 each time. O(C) round trips.
 
-Library evidence: agdb `read_rows_sync(&ids)` batch reads and targeted edge queries
-resolve many articles/versions in a handful of queries (targeted `to`/`from` is used
-in-repo in `version.rs:236`, `comment.rs:198`, `document.rs:141`).
+Library evidence: agdb `read_rows_sync(&ids)` (`graph.rs:128`) batch-reads a slice of node
+ids in **one** query; `resolve_node_id_sync` (`graph.rs:36`) resolves one business id via a
+direct alias select (O(1) each). Targeted `.to(article)` owner-edge queries exist
+(`article.rs`, `version.rs:236`).
 
-Planned solution: collect all article ids and version ids, resolve and `read_rows_sync`
-them in batch; fetch authors with one targeted edge query. O(C) → constant number of
-queries. Output is identical.
+Probe evidence (`test/unit/back/repository/probe.rs::probe_batch_comment_enrichment_matches_per_comment`,
+passed): with 2 articles (2 versions, 1 shared author) and 4 fabricated `(article_id,
+version_id)` comment pairs — including a duplicate and a cross article/version pair — the
+batch path (resolve each distinct id once, `read_rows_sync` the article/version/user rows
+in bulk, one targeted owner-edge query per distinct article) produces the **identical**
+`(article_title, article_author_name, version_number)` tuple as the current per-comment
+helpers, per pair (assert_eq). Behavior preserved.
+
+Planned solution: collect the distinct article ids and version ids from all comments;
+resolve each once and batch `read_rows_sync` the `ArticleRow`/`VersionRow`/`UserRow`;
+fetch authors with one targeted owner-edge query per distinct article; look up by node
+per comment. O(C) round trips → O(#distinct articles + #distinct versions) resolves plus
+a constant number of batch reads. Output is identical.
 
 **Approved? YES.** No observable behavior change (same enriched comment fields); no
 risk; reaches the theoretical optimum (bounded batch queries instead of O(C) round
@@ -141,3 +152,4 @@ open. Baseline: build green, 305 tests pass._
 
 | # | Probe | Result |
 | --- | --- | --- |
+| P3 | `probe.rs::probe_batch_comment_enrichment_matches_per_comment` | Passed. 4 comment pairs (2 distinct articles, 2 versions, 1 author; incl. duplicate + cross pair): batch path returns identical (title, author, version) to per-comment. |

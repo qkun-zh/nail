@@ -3,10 +3,12 @@ use super::context::{build_state, test_config};
 use crate::repository::article::{ArticleDraft, create_article};
 use crate::repository::graph::resolve_node_id_sync;
 use crate::repository::schema::{
-    EDGE_ARTICLE_APPLY_TAG, EDGE_USER_AUTHOR_ARTICLE, ENTITY_TYPE_ARTICLE, KEY_TYPE,
+    ArticleRow, EDGE_ARTICLE_APPLY_TAG, EDGE_USER_AUTHOR_ARTICLE, ENTITY_TYPE_ARTICLE,
+    ENTITY_TYPE_VERSION, KEY_TYPE, UserRow, VersionRow,
 };
 use crate::repository::version::VersionDraft;
 use agdb::QueryBuilder;
+use std::collections::{HashMap, HashSet};
 
 fn pdf_hash(seed: u8) -> String {
     format!("{seed:x}").repeat(32)
@@ -157,4 +159,221 @@ async fn probe_targeted_queries_localize_by_endpoint() {
     );
     assert_eq!(all_tag.elements.len(), 2, "two articles => two tag edges");
     assert!(a2_node != a1_node);
+}
+
+#[tokio::test]
+async fn probe_batch_comment_enrichment_matches_per_comment() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author = create_user(&state, "probe-p3-author@example.com").await;
+
+    // Two articles, each with a known first version (article_id, version_id) pair.
+    let (a1, v1) = {
+        let article_id = uuid::Uuid::now_v7().to_string();
+        let version_id = uuid::Uuid::now_v7().to_string();
+        create_article(
+            &state.graph,
+            &ArticleDraft {
+                article_id: article_id.clone(),
+                author_id: author.clone(),
+                title: "p3 alpha".to_string(),
+                summary: "s".to_string(),
+                tags: vec!["rust".to_string()],
+                first_version: VersionDraft {
+                    version_id: version_id.clone(),
+                    version_number: "1.0.0".to_string(),
+                    content_hash: pdf_hash(1),
+                    note: "n".to_string(),
+                },
+            },
+        )
+        .await
+        .expect("create article");
+        (article_id, version_id)
+    };
+    let (a2, v2) = {
+        let article_id = uuid::Uuid::now_v7().to_string();
+        let version_id = uuid::Uuid::now_v7().to_string();
+        create_article(
+            &state.graph,
+            &ArticleDraft {
+                article_id: article_id.clone(),
+                author_id: author.clone(),
+                title: "p3 beta".to_string(),
+                summary: "s".to_string(),
+                tags: vec!["rust".to_string()],
+                first_version: VersionDraft {
+                    version_id: version_id.clone(),
+                    version_number: "2.0.0".to_string(),
+                    content_hash: pdf_hash(2),
+                    note: "n".to_string(),
+                },
+            },
+        )
+        .await
+        .expect("create article");
+        (article_id, version_id)
+    };
+
+    // Comment hits are (article_id, version_id) pairs. Include a duplicate to show the
+    // batch path resolves each distinct id only once.
+    let comments: Vec<(&str, &str)> = vec![
+        (&a1, &v1),
+        (&a1, &v1),
+        (&a2, &v2),
+        (&a1, &v2), // cross-reference: same article, different version
+    ];
+
+    let guard = state.graph.read().await;
+
+    // --- Current per-comment path (mirrors read_article_title/author/version_number) ---
+    let current = |article_id: &str, version_id: &str| {
+        let article_node = resolve_node_id_sync(&guard, ENTITY_TYPE_ARTICLE, article_id)
+            .unwrap()
+            .unwrap();
+        let title = crate::repository::graph::read_rows_sync::<ArticleRow>(
+            &guard,
+            std::slice::from_ref(&article_node),
+        )
+        .unwrap()
+        .into_iter()
+        .next()
+        .map(|row| row.title)
+        .unwrap_or_default();
+        let edges = guard
+            .exec(
+                QueryBuilder::search()
+                    .to(article_node)
+                    .where_()
+                    .distance(agdb::CountComparison::Equal(1))
+                    .and()
+                    .edge()
+                    .and()
+                    .key(KEY_TYPE)
+                    .value(EDGE_USER_AUTHOR_ARTICLE)
+                    .query(),
+            )
+            .unwrap();
+        let author = edges
+            .elements
+            .first()
+            .and_then(|edge| {
+                crate::repository::graph::read_rows_sync::<UserRow>(
+                    &guard,
+                    std::slice::from_ref(&edge.from),
+                )
+                .ok()
+                .and_then(|rows| rows.into_iter().next())
+                .map(|row| row.name)
+            })
+            .unwrap_or_default();
+        let version_node = resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, version_id)
+            .unwrap()
+            .unwrap();
+        let version_number = crate::repository::graph::read_rows_sync::<VersionRow>(
+            &guard,
+            std::slice::from_ref(&version_node),
+        )
+        .unwrap()
+        .into_iter()
+        .next()
+        .map(|row| row.version_number)
+        .unwrap_or_default();
+        (title, author, version_number)
+    };
+
+    // --- Candidate batch path: resolve each distinct id once, batch-read rows ---
+    let distinct_article_ids: HashSet<&str> = comments.iter().map(|(a, _)| *a).collect();
+    let distinct_version_ids: HashSet<&str> = comments.iter().map(|(_, v)| *v).collect();
+
+    let mut article_by_id: HashMap<&str, agdb::DbId> = HashMap::new();
+    for id in &distinct_article_ids {
+        article_by_id.insert(
+            id,
+            resolve_node_id_sync(&guard, ENTITY_TYPE_ARTICLE, id)
+                .unwrap()
+                .unwrap(),
+        );
+    }
+    let mut version_by_id: HashMap<&str, agdb::DbId> = HashMap::new();
+    for id in &distinct_version_ids {
+        version_by_id.insert(
+            id,
+            resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, id)
+                .unwrap()
+                .unwrap(),
+        );
+    }
+
+    let article_nodes: Vec<agdb::DbId> = article_by_id.values().copied().collect();
+    let article_titles: HashMap<agdb::DbId, String> =
+        crate::repository::graph::read_rows_sync::<ArticleRow>(&guard, &article_nodes)
+            .unwrap()
+            .into_iter()
+            .filter_map(|row| row.db_id.map(|node| (node, row.title)))
+            .collect();
+
+    let version_nodes: Vec<agdb::DbId> = version_by_id.values().copied().collect();
+    let version_numbers: HashMap<agdb::DbId, String> =
+        crate::repository::graph::read_rows_sync::<VersionRow>(&guard, &version_nodes)
+            .unwrap()
+            .into_iter()
+            .filter_map(|row| row.db_id.map(|node| (node, row.version_number)))
+            .collect();
+
+    // Authors: one targeted edge query per distinct article, then batch-read the users.
+    let mut author_user_nodes: HashSet<agdb::DbId> = HashSet::new();
+    let mut author_by_article: HashMap<agdb::DbId, agdb::DbId> = HashMap::new();
+    for (_, article_node) in &article_by_id {
+        let edges = guard
+            .exec(
+                QueryBuilder::search()
+                    .to(*article_node)
+                    .where_()
+                    .distance(agdb::CountComparison::Equal(1))
+                    .and()
+                    .edge()
+                    .and()
+                    .key(KEY_TYPE)
+                    .value(EDGE_USER_AUTHOR_ARTICLE)
+                    .query(),
+            )
+            .unwrap();
+        if let Some(edge) = edges.elements.first() {
+            author_by_article.insert(*article_node, edge.from);
+            author_user_nodes.insert(edge.from);
+        }
+    }
+    let user_nodes: Vec<agdb::DbId> = author_user_nodes.into_iter().collect();
+    let user_names: HashMap<agdb::DbId, String> =
+        crate::repository::graph::read_rows_sync::<UserRow>(&guard, &user_nodes)
+            .unwrap()
+            .into_iter()
+            .filter_map(|row| row.db_id.map(|node| (node, row.name)))
+            .collect();
+
+    for (article_id, version_id) in &comments {
+        let article_node = article_by_id[article_id];
+        let batch = (
+            article_titles[&article_node].clone(),
+            author_by_article
+                .get(&article_node)
+                .and_then(|user_node| user_names.get(user_node))
+                .cloned()
+                .unwrap_or_default(),
+            version_numbers[&version_by_id[version_id]].clone(),
+        );
+        let per_comment = current(article_id, version_id);
+        assert_eq!(
+            batch, per_comment,
+            "batch enrichment must match per-comment for {article_id}/{version_id}"
+        );
+    }
+
+    eprintln!(
+        "PROBE comments={} distinct_articles={} distinct_versions={} distinct_authors={}",
+        comments.len(),
+        article_by_id.len(),
+        version_by_id.len(),
+        user_names.len(),
+    );
 }
