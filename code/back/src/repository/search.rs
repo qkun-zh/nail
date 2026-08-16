@@ -18,8 +18,8 @@ use seekstorm::vector::Inference;
 
 use crate::repository::graph::{DbHandle, read_rows_sync, resolve_node_id_sync};
 use crate::repository::schema::{
-    ArticleRow, EDGE_ARTICLE_TO_VERSION, EDGE_COMMENT_TO_VERSION, EDGE_USER_TO_ARTICLE,
-    EDGE_USER_TO_COMMENT, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, IdRow,
+    ArticleRow, EDGE_ARTICLE_HOLD_VERSION, EDGE_COMMENT_ATTACH_VERSION, EDGE_USER_AUTHOR_ARTICLE,
+    EDGE_USER_AUTHOR_COMMENT, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, IdRow,
     KEY_TYPE, UserRow, VersionRow,
 };
 
@@ -464,7 +464,7 @@ fn read_article_author(guard: &agdb::DbAny, article_id: &str) -> Result<String, 
             .edge()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_USER_TO_ARTICLE)
+            .value(EDGE_USER_AUTHOR_ARTICLE)
             .query(),
     )?;
     Ok(edges
@@ -506,7 +506,7 @@ async fn article_ids_of_user(db: &DbHandle, user_id: &str) -> Result<Vec<String>
             .edge()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_USER_TO_ARTICLE)
+            .value(EDGE_USER_AUTHOR_ARTICLE)
             .query(),
     )?;
     for edge in &edges.elements {
@@ -528,7 +528,7 @@ async fn article_ids_of_user(db: &DbHandle, user_id: &str) -> Result<Vec<String>
             .edge()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_USER_TO_COMMENT)
+            .value(EDGE_USER_AUTHOR_COMMENT)
             .query(),
     )?;
     for edge in &comment_edges.elements {
@@ -554,7 +554,7 @@ fn article_id_of_comment(
             .edge()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_COMMENT_TO_VERSION)
+            .value(EDGE_COMMENT_ATTACH_VERSION)
             .query(),
     )?;
     let Some(version_edge) = version_edges.elements.first() else {
@@ -569,7 +569,7 @@ fn article_id_of_comment(
             .edge()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_TO_VERSION)
+            .value(EDGE_ARTICLE_HOLD_VERSION)
             .query(),
     )?;
     let Some(article_edge) = article_edges.elements.first() else {

@@ -5,7 +5,7 @@ use crate::repository::graph::{
     resolve_node_id_sync,
 };
 use crate::repository::schema::{
-    CommentRow, EDGE_COMMENT_TO_COMMENT, EDGE_COMMENT_TO_VERSION, EDGE_USER_TO_COMMENT,
+    CommentRow, EDGE_COMMENT_ATTACH_VERSION, EDGE_COMMENT_REPLY_COMMENT, EDGE_USER_AUTHOR_COMMENT,
     ENTITY_TYPE_COMMENT, ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, IdRow, KEY_COMMENT_CONTENT,
     KEY_TYPE, alias_of,
 };
@@ -80,13 +80,13 @@ pub async fn create_top_level_comment(
         )?;
         insert_edge(
             transaction,
-            EDGE_USER_TO_COMMENT,
+            EDGE_USER_AUTHOR_COMMENT,
             user.into(),
             comment_alias.clone().into(),
         )?;
         insert_edge(
             transaction,
-            EDGE_COMMENT_TO_VERSION,
+            EDGE_COMMENT_ATTACH_VERSION,
             comment_alias.into(),
             version.into(),
         )?;
@@ -135,13 +135,13 @@ pub async fn create_reply_comment(
         )?;
         insert_edge(
             transaction,
-            EDGE_USER_TO_COMMENT,
+            EDGE_USER_AUTHOR_COMMENT,
             user.into(),
             comment_alias.clone().into(),
         )?;
         insert_edge(
             transaction,
-            EDGE_COMMENT_TO_COMMENT,
+            EDGE_COMMENT_REPLY_COMMENT,
             comment_alias.into(),
             parent.into(),
         )?;
@@ -171,7 +171,7 @@ fn parent_chain_depth_in_txn(
                 .edge()
                 .and()
                 .key(KEY_TYPE)
-                .value(EDGE_COMMENT_TO_COMMENT)
+                .value(EDGE_COMMENT_REPLY_COMMENT)
                 .query(),
         )?;
         let Some(parent_node) = edges.elements.first().map(|edge| edge.to) else {
@@ -204,7 +204,7 @@ pub async fn owner_of_comment(db: &DbHandle, comment_id: &str) -> Result<Option<
             .edge()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_USER_TO_COMMENT)
+            .value(EDGE_USER_AUTHOR_COMMENT)
             .query(),
     )?;
     Ok(edges.elements.first().and_then(|edge| {
@@ -225,7 +225,8 @@ pub async fn read_comments_page_by_version(
     let Some(version) = resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, version_id)? else {
         return Ok((Vec::new(), 0));
     };
-    let mut top_ids: Vec<String> = incoming_comment_ids(&guard, version, EDGE_COMMENT_TO_VERSION)?;
+    let mut top_ids: Vec<String> =
+        incoming_comment_ids(&guard, version, EDGE_COMMENT_ATTACH_VERSION)?;
     top_ids.sort_by(|left, right| right.cmp(left));
     let total = top_ids.len() as u64;
     let page_ids: Vec<String> = top_ids
@@ -247,7 +248,8 @@ pub async fn read_comment_children_page(
     let Some(parent) = resolve_node_id_sync(&guard, ENTITY_TYPE_COMMENT, parent_comment_id)? else {
         return Ok((Vec::new(), 0));
     };
-    let mut child_ids: Vec<String> = incoming_comment_ids(&guard, parent, EDGE_COMMENT_TO_COMMENT)?;
+    let mut child_ids: Vec<String> =
+        incoming_comment_ids(&guard, parent, EDGE_COMMENT_REPLY_COMMENT)?;
     child_ids.sort();
     let total = child_ids.len() as u64;
     let page_ids: Vec<String> = child_ids
@@ -307,7 +309,7 @@ fn child_count_sync(guard: &agdb::DbAny, comment: agdb::DbId) -> Result<u64, DbE
             .edge()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_COMMENT_TO_COMMENT)
+            .value(EDGE_COMMENT_REPLY_COMMENT)
             .query(),
     )?;
     Ok(edges.elements.len() as u64)
@@ -325,8 +327,8 @@ fn read_comment_item_sync(
         .next()
         .map(|row| row.content)
         .unwrap_or_default();
-    let author_id = read_incoming_node_id(guard, comment, EDGE_USER_TO_COMMENT)?;
-    let parent_id = read_outgoing_node_id(guard, comment, EDGE_COMMENT_TO_COMMENT)?;
+    let author_id = read_incoming_node_id(guard, comment, EDGE_USER_AUTHOR_COMMENT)?;
+    let parent_id = read_outgoing_node_id(guard, comment, EDGE_COMMENT_REPLY_COMMENT)?;
     let child_count = child_count_sync(guard, comment)?;
     Ok(Some(CommentTreeItem {
         id: comment_id.to_string(),
@@ -442,7 +444,7 @@ pub async fn version_of_comment(
                 .edge()
                 .and()
                 .key(KEY_TYPE)
-                .value(EDGE_COMMENT_TO_COMMENT)
+                .value(EDGE_COMMENT_REPLY_COMMENT)
                 .query(),
         )?;
         if let Some(parent_node) = parent_edges.elements.first().map(|edge| edge.to)
@@ -463,7 +465,7 @@ pub async fn version_of_comment(
                 .edge()
                 .and()
                 .key(KEY_TYPE)
-                .value(EDGE_COMMENT_TO_VERSION)
+                .value(EDGE_COMMENT_ATTACH_VERSION)
                 .query(),
         )?;
         return Ok(version_edges.elements.first().and_then(|edge| {

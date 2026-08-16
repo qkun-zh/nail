@@ -8,9 +8,9 @@ use crate::repository::comment::{owner_of_comment, version_of_comment};
 use crate::repository::graph::{DbHandle, read_node_sync, read_rows_sync, resolve_node_id_sync};
 use crate::repository::role::RoleView;
 use crate::repository::schema::{
-    EDGE_ARTICLE_TO_TAG, EDGE_ROLE_APPLY_TAG, EDGE_ROLE_GRANT_PERMISSION, EDGE_USER_HOLD_ROLE,
-    EDGE_USER_TO_ARTICLE, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_USER, IdRow, KEY_TYPE, PermissionRow,
-    RoleRow, TagRow,
+    EDGE_ARTICLE_APPLY_TAG, EDGE_ROLE_APPLY_TAG, EDGE_ROLE_GRANT_PERMISSION,
+    EDGE_USER_AUTHOR_ARTICLE, EDGE_USER_HOLD_ROLE, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_USER, IdRow,
+    KEY_TYPE, PermissionRow, RoleRow, TagRow,
 };
 use crate::repository::version::parent_article_of;
 
@@ -127,7 +127,7 @@ pub async fn read_article_authorization(
             .edge()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_USER_TO_ARTICLE)
+            .value(EDGE_USER_AUTHOR_ARTICLE)
             .query(),
     )?;
     if let Some(edge) = owner_edges.elements.first() {
@@ -135,7 +135,7 @@ pub async fn read_article_authorization(
             .map(|row| row.id)
             .unwrap_or_default();
     }
-    for name in read_edges::<TagRow>(&guard, article, EDGE_ARTICLE_TO_TAG)?
+    for name in read_edges::<TagRow>(&guard, article, EDGE_ARTICLE_APPLY_TAG)?
         .into_iter()
         .map(|row| row.tag_name)
     {

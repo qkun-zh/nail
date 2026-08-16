@@ -5,8 +5,8 @@ use crate::repository::graph::{
 };
 use crate::repository::role::{ROLE_RECYCLER, users_holding_role};
 use crate::repository::schema::{
-    EDGE_USER_TO_ARTICLE, EDGE_USER_TO_COMMENT, ENTITY_TYPE_COMMENT, ENTITY_TYPE_USER, IdRow,
-    KEY_TYPE,
+    EDGE_USER_AUTHOR_ARTICLE, EDGE_USER_AUTHOR_COMMENT, ENTITY_TYPE_COMMENT, ENTITY_TYPE_USER,
+    IdRow, KEY_TYPE,
 };
 
 pub struct AccountTransferOutcome {
@@ -75,8 +75,8 @@ pub async fn transfer_account_assets(
         let recycler = resolve_node_id_in_txn(transaction, ENTITY_TYPE_USER, &target)?
             .ok_or(TransferError::NoRecycler)?;
         let article_ids =
-            repoint_from_user(transaction, recycler, author_id, EDGE_USER_TO_ARTICLE)?;
-        repoint_from_user(transaction, recycler, author_id, EDGE_USER_TO_COMMENT)?;
+            repoint_from_user(transaction, recycler, author_id, EDGE_USER_AUTHOR_ARTICLE)?;
+        repoint_from_user(transaction, recycler, author_id, EDGE_USER_AUTHOR_COMMENT)?;
         if let Some(user_node) = resolve_node_id_in_txn(transaction, ENTITY_TYPE_USER, author_id)? {
             transaction.exec_mut(QueryBuilder::remove().ids([user_node]).query())?;
         }
@@ -90,14 +90,20 @@ pub async fn transfer_article(db: &DbHandle, article_id: &str) -> Result<(), Tra
     transfer_target_ownership(
         db,
         crate::repository::schema::ENTITY_TYPE_ARTICLE,
-        EDGE_USER_TO_ARTICLE,
+        EDGE_USER_AUTHOR_ARTICLE,
         article_id,
     )
     .await
 }
 
 pub async fn transfer_comment(db: &DbHandle, comment_id: &str) -> Result<(), TransferTargetError> {
-    transfer_target_ownership(db, ENTITY_TYPE_COMMENT, EDGE_USER_TO_COMMENT, comment_id).await
+    transfer_target_ownership(
+        db,
+        ENTITY_TYPE_COMMENT,
+        EDGE_USER_AUTHOR_COMMENT,
+        comment_id,
+    )
+    .await
 }
 
 async fn transfer_target_ownership(
@@ -227,8 +233,8 @@ async fn pick_recycler_target(
         let Some(node) = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, &user_id)? else {
             continue;
         };
-        let articles = count_edges_sync(&guard, node, EDGE_USER_TO_ARTICLE)?;
-        let comments = count_edges_sync(&guard, node, EDGE_USER_TO_COMMENT)?;
+        let articles = count_edges_sync(&guard, node, EDGE_USER_AUTHOR_ARTICLE)?;
+        let comments = count_edges_sync(&guard, node, EDGE_USER_AUTHOR_COMMENT)?;
         let total = articles + comments;
         let better = match &best {
             None => true,

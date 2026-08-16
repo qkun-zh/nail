@@ -6,7 +6,7 @@ use crate::repository::graph::{
     read_rows_sync, resolve_node_id_in_txn, resolve_node_id_sync,
 };
 use crate::repository::schema::{
-    ArticleRow, EDGE_ARTICLE_TO_VERSION, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_VERSION, IdRow,
+    ArticleRow, EDGE_ARTICLE_HOLD_VERSION, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_VERSION, IdRow,
     KEY_CONTENT_HASH, KEY_LATEST_VERSION_ID, KEY_TYPE, KEY_VERSION_NOTE, VersionRow, alias_of,
 };
 
@@ -89,7 +89,7 @@ pub async fn create_version(
                 .edge()
                 .and()
                 .key(KEY_TYPE)
-                .value(EDGE_ARTICLE_TO_VERSION)
+                .value(EDGE_ARTICLE_HOLD_VERSION)
                 .query(),
         )?;
         let mut max_existing: Option<Version> = None;
@@ -128,7 +128,7 @@ pub async fn create_version(
         )?;
         insert_edge(
             transaction,
-            EDGE_ARTICLE_TO_VERSION,
+            EDGE_ARTICLE_HOLD_VERSION,
             article.into(),
             alias_of(ENTITY_TYPE_VERSION, &draft.version_id).into(),
         )?;
@@ -196,7 +196,7 @@ pub async fn versions_of(
             .edge()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_TO_VERSION)
+            .value(EDGE_ARTICLE_HOLD_VERSION)
             .query(),
     )?;
     let version_ids: Vec<agdb::DbId> = edges.elements.iter().map(|edge| edge.to).collect();
@@ -242,7 +242,7 @@ pub async fn content_hash_owner(
             .edge()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_TO_VERSION)
+            .value(EDGE_ARTICLE_HOLD_VERSION)
             .query(),
     )?;
     let article_title = match edges.elements.first() {
@@ -272,7 +272,7 @@ pub async fn parent_article_of(db: &DbHandle, version_id: &str) -> Result<Option
             .edge()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_TO_VERSION)
+            .value(EDGE_ARTICLE_HOLD_VERSION)
             .query(),
     )?;
     Ok(edges.elements.first().and_then(|edge| {

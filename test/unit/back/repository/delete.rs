@@ -3,7 +3,7 @@ use super::context::{build_state, test_config};
 use crate::repository::article::{ArticleDraft, create_article};
 use crate::repository::delete::{delete_article, delete_user, delete_version};
 use crate::repository::schema::{
-    CommentRow, EDGE_COMMENT_TO_COMMENT, EDGE_COMMENT_TO_VERSION, EDGE_USER_TO_COMMENT,
+    CommentRow, EDGE_COMMENT_ATTACH_VERSION, EDGE_COMMENT_REPLY_COMMENT, EDGE_USER_AUTHOR_COMMENT,
     ENTITY_TYPE_COMMENT, ENTITY_TYPE_USER, KEY_TYPE, alias_of,
 };
 use crate::repository::version::{VersionDraft, versions_of};
@@ -73,7 +73,7 @@ async fn insert_comment_node(
                 .edges()
                 .from(alias_of(ENTITY_TYPE_USER, author_id))
                 .to([alias_of(ENTITY_TYPE_COMMENT, &comment_id)])
-                .values([[(KEY_TYPE, EDGE_USER_TO_COMMENT).into()]])
+                .values([[(KEY_TYPE, EDGE_USER_AUTHOR_COMMENT).into()]])
                 .query(),
         )
         .expect("user comment edge");
@@ -93,7 +93,7 @@ async fn insert_comment(
                 .edges()
                 .from(alias_of(ENTITY_TYPE_COMMENT, &comment_id))
                 .to([alias_of("version", version_id)])
-                .values([[(KEY_TYPE, EDGE_COMMENT_TO_VERSION).into()]])
+                .values([[(KEY_TYPE, EDGE_COMMENT_ATTACH_VERSION).into()]])
                 .query(),
         )
         .expect("version comment edge");
@@ -113,7 +113,7 @@ async fn insert_reply(
                 .edges()
                 .from(alias_of(ENTITY_TYPE_COMMENT, &comment_id))
                 .to([alias_of(ENTITY_TYPE_COMMENT, parent_comment_id)])
-                .values([[(KEY_TYPE, EDGE_COMMENT_TO_COMMENT).into()]])
+                .values([[(KEY_TYPE, EDGE_COMMENT_REPLY_COMMENT).into()]])
                 .query(),
         )
         .expect("parent comment edge");
@@ -148,9 +148,9 @@ fn count_by_type(guard: &agdb::DbAny, type_value: &str) -> usize {
 async fn assert_no_comment_subtree_remains(state: &crate::infrastructure::state::AppState) {
     let guard = state.graph.read().await;
     assert_eq!(count_by_type(&guard, ENTITY_TYPE_COMMENT), 0);
-    assert_eq!(count_by_type(&guard, EDGE_COMMENT_TO_COMMENT), 0);
-    assert_eq!(count_by_type(&guard, EDGE_COMMENT_TO_VERSION), 0);
-    assert_eq!(count_by_type(&guard, EDGE_USER_TO_COMMENT), 0);
+    assert_eq!(count_by_type(&guard, EDGE_COMMENT_REPLY_COMMENT), 0);
+    assert_eq!(count_by_type(&guard, EDGE_COMMENT_ATTACH_VERSION), 0);
+    assert_eq!(count_by_type(&guard, EDGE_USER_AUTHOR_COMMENT), 0);
 }
 
 #[tokio::test]

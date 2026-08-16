@@ -2,8 +2,8 @@ use agdb::{DbError, QueryBuilder};
 
 use crate::repository::graph::{DbHandle, read_node_in_txn, resolve_node_id_in_txn};
 use crate::repository::schema::{
-    EDGE_ARTICLE_TO_VERSION, EDGE_COMMENT_TO_COMMENT, EDGE_COMMENT_TO_VERSION,
-    EDGE_USER_TO_ARTICLE, EDGE_USER_TO_COMMENT, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_COMMENT,
+    EDGE_ARTICLE_HOLD_VERSION, EDGE_COMMENT_ATTACH_VERSION, EDGE_COMMENT_REPLY_COMMENT,
+    EDGE_USER_AUTHOR_ARTICLE, EDGE_USER_AUTHOR_COMMENT, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_COMMENT,
     ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, KEY_LATEST_VERSION_ID, KEY_TYPE, VersionRow,
 };
 
@@ -28,7 +28,7 @@ pub async fn delete_user(db: &DbHandle, user_id: &str) -> Result<DeleteOutcome, 
                 .edge()
                 .and()
                 .key(KEY_TYPE)
-                .value(EDGE_USER_TO_ARTICLE)
+                .value(EDGE_USER_AUTHOR_ARTICLE)
                 .query(),
         )?;
         for edge in &article_edges.elements {
@@ -43,7 +43,7 @@ pub async fn delete_user(db: &DbHandle, user_id: &str) -> Result<DeleteOutcome, 
                 .edge()
                 .and()
                 .key(KEY_TYPE)
-                .value(EDGE_USER_TO_COMMENT)
+                .value(EDGE_USER_AUTHOR_COMMENT)
                 .query(),
         )?;
         for edge in &comment_edges.elements {
@@ -98,7 +98,7 @@ pub async fn delete_version(db: &DbHandle, version_id: &str) -> Result<DeleteOut
                     .edge()
                     .and()
                     .key(KEY_TYPE)
-                    .value(EDGE_ARTICLE_TO_VERSION)
+                    .value(EDGE_ARTICLE_HOLD_VERSION)
                     .query(),
             )?
             .elements
@@ -126,7 +126,7 @@ fn delete_article_in_txn(
             .edge()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_TO_VERSION)
+            .value(EDGE_ARTICLE_HOLD_VERSION)
             .query(),
     )?;
     for edge in &version_edges.elements {
@@ -150,7 +150,7 @@ fn delete_version_in_txn(
             .edge()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_COMMENT_TO_VERSION)
+            .value(EDGE_COMMENT_ATTACH_VERSION)
             .query(),
     )?;
     for edge in &comment_edges.elements {
@@ -176,7 +176,7 @@ fn delete_comment_tree_in_txn(
             .edge()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_COMMENT_TO_COMMENT)
+            .value(EDGE_COMMENT_REPLY_COMMENT)
             .query(),
     )?;
     for edge in &reply_edges.elements {
@@ -199,7 +199,7 @@ fn refresh_latest_version_in_txn(
             .edge()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_TO_VERSION)
+            .value(EDGE_ARTICLE_HOLD_VERSION)
             .query(),
     )?;
     let latest_id = version_edges

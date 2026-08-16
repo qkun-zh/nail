@@ -8,7 +8,7 @@ use crate::repository::graph::{
     resolve_node_id_sync,
 };
 use crate::repository::schema::{
-    ArticleRow, EDGE_ARTICLE_TO_TAG, EDGE_ARTICLE_TO_VERSION, EDGE_USER_TO_ARTICLE,
+    ArticleRow, EDGE_ARTICLE_APPLY_TAG, EDGE_ARTICLE_HOLD_VERSION, EDGE_USER_AUTHOR_ARTICLE,
     ENTITY_TYPE_ARTICLE, ENTITY_TYPE_TAG, ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, IdRow,
     KEY_CONTENT_HASH, KEY_SUMMARY, KEY_TITLE, KEY_TYPE, TagRow, UserRow, VersionRow, alias_of,
 };
@@ -160,20 +160,20 @@ pub async fn create_article(db: &DbHandle, draft: &ArticleDraft) -> Result<(), C
 
         insert_edge(
             transaction,
-            EDGE_USER_TO_ARTICLE,
+            EDGE_USER_AUTHOR_ARTICLE,
             alias_of(ENTITY_TYPE_USER, &draft.author_id).into(),
             article_alias.clone().into(),
         )?;
         insert_edge(
             transaction,
-            EDGE_ARTICLE_TO_VERSION,
+            EDGE_ARTICLE_HOLD_VERSION,
             article_alias.clone().into(),
             alias_of(ENTITY_TYPE_VERSION, &draft.first_version.version_id).into(),
         )?;
         for tag_id in &tag_ids {
             insert_edge(
                 transaction,
-                EDGE_ARTICLE_TO_TAG,
+                EDGE_ARTICLE_APPLY_TAG,
                 article_alias.clone().into(),
                 alias_of(ENTITY_TYPE_TAG, tag_id).into(),
             )?;
@@ -257,7 +257,7 @@ pub async fn update_article(
                 .edge()
                 .and()
                 .key(KEY_TYPE)
-                .value(EDGE_ARTICLE_TO_TAG)
+                .value(EDGE_ARTICLE_APPLY_TAG)
                 .query(),
         )?;
         let old_ids: HashSet<agdb::DbId> = old_edges.elements.iter().map(|edge| edge.to).collect();
@@ -277,7 +277,7 @@ pub async fn update_article(
             if !old_ids.contains(tag_id) {
                 insert_edge(
                     transaction,
-                    EDGE_ARTICLE_TO_TAG,
+                    EDGE_ARTICLE_APPLY_TAG,
                     article.into(),
                     (*tag_id).into(),
                 )?;
@@ -328,7 +328,7 @@ pub async fn owner_of(db: &DbHandle, article_id: &str) -> Result<Option<String>,
             .edge()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_USER_TO_ARTICLE)
+            .value(EDGE_USER_AUTHOR_ARTICLE)
             .query(),
     )?;
     Ok(edges.elements.first().and_then(|edge| {
@@ -356,7 +356,7 @@ fn enrich_articles(guard: &agdb::DbAny, ids: &[agdb::DbId]) -> Result<Vec<Articl
             .elements()
             .where_()
             .key(KEY_TYPE)
-            .value(EDGE_USER_TO_ARTICLE)
+            .value(EDGE_USER_AUTHOR_ARTICLE)
             .query(),
     )?;
     let owner_of: HashMap<agdb::DbId, agdb::DbId> = owner_edges
@@ -377,7 +377,7 @@ fn enrich_articles(guard: &agdb::DbAny, ids: &[agdb::DbId]) -> Result<Vec<Articl
             .elements()
             .where_()
             .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_TO_TAG)
+            .value(EDGE_ARTICLE_APPLY_TAG)
             .query(),
     )?;
     let tag_nodes: HashSet<agdb::DbId> = tag_edges.elements.iter().map(|edge| edge.to).collect();

@@ -6,9 +6,9 @@ use seekstorm::index::Document;
 
 use crate::repository::graph::{DbHandle, read_rows_sync, resolve_node_id_sync};
 use crate::repository::schema::{
-    ArticleRow, CommentRow, EDGE_ARTICLE_TO_TAG, EDGE_ARTICLE_TO_VERSION, EDGE_COMMENT_TO_COMMENT,
-    EDGE_COMMENT_TO_VERSION, EDGE_USER_TO_ARTICLE, EDGE_USER_TO_COMMENT, ENTITY_TYPE_ARTICLE,
-    KEY_TYPE, TagRow, UserRow, VersionRow,
+    ArticleRow, CommentRow, EDGE_ARTICLE_APPLY_TAG, EDGE_ARTICLE_HOLD_VERSION,
+    EDGE_COMMENT_ATTACH_VERSION, EDGE_COMMENT_REPLY_COMMENT, EDGE_USER_AUTHOR_ARTICLE,
+    EDGE_USER_AUTHOR_COMMENT, ENTITY_TYPE_ARTICLE, KEY_TYPE, TagRow, UserRow, VersionRow,
 };
 
 use super::{
@@ -135,7 +135,7 @@ pub(super) async fn build_documents(
         .as_ref()
         .map(|row| row.summary.clone())
         .unwrap_or_default();
-    let author_name = read_owner_name(&guard, article, EDGE_USER_TO_ARTICLE)?;
+    let author_name = read_owner_name(&guard, article, EDGE_USER_AUTHOR_ARTICLE)?;
     let tags = read_tag_names(&guard, article)?;
 
     let version_edges = guard.exec(
@@ -147,7 +147,7 @@ pub(super) async fn build_documents(
             .edge()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_TO_VERSION)
+            .value(EDGE_ARTICLE_HOLD_VERSION)
             .query(),
     )?;
 
@@ -193,7 +193,7 @@ pub(super) async fn build_documents(
                 continue;
             };
             let comment_id = comment_row.id;
-            let comment_author = read_owner_name(&guard, comment_node, EDGE_USER_TO_COMMENT)?;
+            let comment_author = read_owner_name(&guard, comment_node, EDGE_USER_AUTHOR_COMMENT)?;
             let comment_ts = nail_common::time::uuidv7_timestamp_secs(&comment_id)
                 .map_or(0, |secs| i64::try_from(secs).unwrap_or(0));
 
@@ -227,13 +227,13 @@ fn comments_of_version(
     let mut seen = HashSet::new();
     let mut result = Vec::new();
     let mut stack: Vec<agdb::DbId> =
-        incoming_comment_nodes(guard, version, EDGE_COMMENT_TO_VERSION)?;
+        incoming_comment_nodes(guard, version, EDGE_COMMENT_ATTACH_VERSION)?;
     while let Some(node) = stack.pop() {
         if !seen.insert(node) {
             continue;
         }
         result.push(node);
-        let replies = incoming_comment_nodes(guard, node, EDGE_COMMENT_TO_COMMENT)?;
+        let replies = incoming_comment_nodes(guard, node, EDGE_COMMENT_REPLY_COMMENT)?;
         stack.extend(replies);
     }
     Ok(result)
@@ -296,7 +296,7 @@ fn read_tag_names(guard: &agdb::DbAny, article: agdb::DbId) -> Result<Vec<String
             .edge()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_TO_TAG)
+            .value(EDGE_ARTICLE_APPLY_TAG)
             .query(),
     )?;
     let mut tags = Vec::with_capacity(edges.elements.len());
