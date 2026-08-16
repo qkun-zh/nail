@@ -1,8 +1,0 @@
-allowed_domains = [
-  "qq.com",
-  "foxmail.com",
-  "163.com",
-  "126.com",
-  "gmail.com",
-  "outlook.com",
-]

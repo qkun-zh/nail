@@ -1,23 +1,22 @@
-# --- build artifacts ---
+# --- Rust build artifacts ---
 target/
 **/target/
 dist/
 **/dist/
 
-# --- runtime data and logs ---
+# --- runtime data and logs (regenerated at startup; never commit) ---
 data/*
 !data/.gitkeep
 log/*
 !log/.gitkeep
 
 # --- secrets: never commit ---
-.env
 configuration/smtp.toml
 
-# --- downloaded tooling ---
+# --- downloaded tooling (proxy binary is fetched, not vendored) ---
 code/proxy/pingap-linux-gnu-x86-full
 
-# --- editor / misc ---
+# --- editor / OS / misc ---
 .vscode/
 .idea/
 .DS_Store

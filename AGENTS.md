@@ -1,23 +1,28 @@
 # Agent instructions
 
-The project constitution is `README.md` — architecture layering, coding
-standards, and build rules are mandatory, not advisory. This file tells agents
-which engineering skills to reach for and which tool operations are allowed or
-forbidden in this repo.
+## Read these first, in order, before any work
+
+1. `README.md` — the project constitution: repository layout, architecture
+   layering, coding standards, robustness, configuration, and build rules.
+   Mandatory, not advisory.
+2. `document/agent-code-workflow.md` — the mandatory execution loop for any
+   code change: baseline green, clean commits, requirement interrogation, todo
+   plan, research via source/probe tests, red→green→gate→commit per slice,
+   final gate.
+
+Everything below — the skills to reach for and the tool operations allowed or
+forbidden — is secondary to those two documents. If this file ever conflicts
+with either, the README and the workflow doc win.
 
 ## Documentation map
 
 - `README.md` — constitution (layering, standards, robustness, config, build).
+- `document/agent-code-workflow.md` — the mandatory code-execution loop.
 - `document/handoff.md` — progress tracker: current state, what was done, what
   comes next. Update it at the end of every completed slice, before reporting.
-- `document/agent-code-workflow.md` — the mandatory execution loop for writing
-  code: baseline green, clean commits, requirement interrogation, todo plan,
-  research via source/probe tests, red→green→gate→commit per slice, final gate.
 - `document/adr/` — adjudicated decisions, numbered `0001-…`. Follow the
   numbering; do not reopen a frozen decision without a new ADR.
-- `document/legacy/` — the original `nail` code. **Read-only reference**; never
-  edit, delete, or depend on it for new work.
-- `document/run.md` — full-stack build/restart procedure.
+- `document/run.md` — full-stack build/restart procedure and health checks.
 
 There is no issue tracker (no git remote, no `.scratch/`). Work is tracked in
 `document/handoff.md`; specs/decisions live in `document/adr/`.
@@ -32,7 +37,7 @@ one exception below, and it is a reference to consult, not a session to run.
 | --- | --- |
 | `codebase-design` | designing or restructuring a module's interface, deciding where a seam goes, deepening a module, or making code more testable/AI-navigable. A vocabulary to consult during any design work, not a standalone session. |
 | `diagnosing-bugs` | the user reports something broken, throwing, failing, or slow (or says "diagnose"/"debug"). Build a tight red-capable repro first; never hypothesise before it. |
-| `tdd` | building a feature or fixing a bug test-first ("red-green-refactor", or tests were requested). Seams = the README §2 layer boundaries; tests live under `test/unit/{common,back,front}`, pulled in via `#[path]`. |
+| `tdd` | building a feature or fixing a bug test-first ("red-green-refactor", or tests were requested). Seams = the README layer boundaries; tests live under `test/unit/{common,back,front}`, pulled in via `#[path]`. |
 | `domain-modeling` | pinning down domain terminology, sharpening a fuzzy term, or recording an architectural decision (writes ADRs under `document/adr/`). |
 | `grilling` | the user wants a plan/decision stress-tested ("grill me"). User-invoked; do not self-initiate. |
 | `grill-with-docs` | a grilling session that should also produce glossary/ADR docs as it goes. User-invoked. |
@@ -48,8 +53,7 @@ one exception below, and it is a reference to consult, not a session to run.
 
 - **Search**: Glob/Grep tools with `target/` and `dist/` excluded (add path
   limits or include filters like `*.rs`); for wide scans use `rg` with
-  `-g '!target' -g '!dist'` in bash. The `document/legacy/` tree is 1.8 GB —
-  never search it unless the task explicitly concerns legacy behavior.
+  `-g '!target' -g '!dist'` in bash.
 - **File edits**: Read/Edit/Write tools. Bash is for build, test, git, and
   infra commands — not for file manipulation (`sed`/`awk`/`cat >` are
   forbidden for editing).
@@ -63,9 +67,8 @@ one exception below, and it is a reference to consult, not a session to run.
 
 ### Prohibited
 
-- **Never edit `document/legacy/`** — read-only reference.
 - **Never hand-edit `Cargo.lock`** — change dependencies only via `cargo add`
-  (README §12); commit the lock.
+  (README §Dependencies); commit the lock.
 - **Never touch runtime/generated data**: `target/`, `dist/`, `data/`, `log/`.
   `data/agdb` is reset and reseeded at startup; deleting the dir forces a
   fresh init. Do not commit any of these (see `.gitignore`).
@@ -83,14 +86,14 @@ one exception below, and it is a reference to consult, not a session to run.
   recovery. To revert a file, recover it from a commit/bundle first, or ask the
   user. Discarding a file's uncommitted changes requires explicit user approval
   every time.
-- **No `unwrap`/`expect`** and no new panics — README §5 is mandatory.
-- **No comments restating the code** — README §4.5.
+- **No `unwrap`/`expect`** and no new panics — README §Robustness is mandatory.
+- **No comments restating the code** — README §Comments.
 
 ### Conventions to hold
 
-- English only — code, docs, comments, UI strings (README §4.1).
+- English only — code, docs, comments, UI strings (README §Language).
 - CRUD-only verbs for resource operations; node-op names, not frontend flow
-  vocabulary (README §4.2).
+  vocabulary (README §Naming).
 - Every response is `{code, data, message}`; errors propagate with `?`
-  (README §5, §7).
-- Config lives in toml, never hardcoded (README §4.4).
+  (README §Robustness, §Backend rules).
+- Config lives in toml, never hardcoded (README §Configuration).

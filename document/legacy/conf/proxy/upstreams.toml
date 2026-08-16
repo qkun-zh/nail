@@ -1,3 +1,0 @@
-[upstreams.back]
-addrs = ["localhost:3000"]
-discovery = "static"

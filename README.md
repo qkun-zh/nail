@@ -1,10 +1,14 @@
 # nail
 
-`nail` is a versioned-article knowledge
-base: authors publish articles as versioned revisions, attach notes and
-comments, tag content, and search across the whole tree — protected by
-email-challenge authentication with proof-of-work, Cedar policy authorization,
-and PDF download with short-lived tokens.
+`nail` is a versioned-article knowledge base: authors publish articles as
+versioned revisions, attach notes and comments, tag content, and search across
+the whole tree. Access is protected by email-challenge authentication with
+proof-of-work, Cedar policy authorization, and PDF download with short-lived
+tokens.
+
+This README is the project constitution: its layering, standards, and build
+rules are mandatory. Agents must read it (and
+`document/agent-code-workflow.md`) before any work — see `AGENTS.md`.
 
 ## 1. Repository layout
 
@@ -16,12 +20,14 @@ and PDF download with short-lived tokens.
   database is reset and reseeded at startup; deleting it forces a fresh init.
 - `log/` — backend and proxy logs.
 - `document/` — progress tracker (`handoff.md`), ADRs (`adr/`), run guide
-  (`run.md`), legacy code (`legacy/`).
+  (`run.md`), code workflow (`agent-code-workflow.md`).
 - `test/` — shared unit-test sources pulled in by the crates via `#[path]`.
 
 ## 2. Architecture
 
-### 2.1 Backend layering and dependency direction (mandatory)
+Layering is mandatory; dependencies point strictly inward as shown.
+
+### 2.1 Backend layering and dependency direction
 
 ```mermaid
 graph TD
@@ -37,11 +43,11 @@ graph TD
 - `interface` — the axum route surface: one `<verb>_<resource>` handler per
   route, request extraction, response envelope.
 - `logic` — business rules, authorization, search tree assembly, pagination.
-- `repository` — persistence: agdb graph access, the SeekStorm index, and the
-  moka cache.
+- `repository` — persistence: agdb graph access, the SeekStorm index, the moka
+  cache.
 - `infrastructure` — config, logging, email/SMTP, PDF, server bootstrap.
 
-### 2.2 Frontend layering and dependency direction (mandatory)
+### 2.2 Frontend layering and dependency direction
 
 ```mermaid
 graph TD
@@ -63,24 +69,23 @@ graph TD
 
 ### 2.3 Shared crate (`common`)
 
-`common` holds data structures and methods shared by front and back. Both
-depend on it; it depends on nothing internal.
+`common` holds data structures and methods shared by front and back (hash, PoW,
+name, tag, text, search, time, request/response). Both depend on it; it depends
+on nothing internal.
 
 ### 2.4 Module organization
 
 - Never use `mod.rs`. Every module = a same-named `.rs` file + folder.
-- Prefer well-formed trees; if a directory holds more than 16 files, deepen
-  the hierarchy.
+- If a directory holds more than 16 files, deepen the hierarchy.
 
 ## 3. Technology stack
 
-- Frontend: Leptos CSR (client-side rendering) built with trunk; proxy: pingap
-  (static assets + reverse proxy, forwards `/api/*` to the backend).
-- Backend: axum, agdb (graph database), SeekStorm (search), moka (cache),
+- Frontend: Leptos CSR built with trunk; proxy: pingap (static assets + reverse
+  proxy, forwards `/api/*` to the backend).
+- Backend: axum, agdb (graph), SeekStorm (search), moka (cache),
   cedar-policy (authorization), lettre (SMTP), tokio, tracing.
 - Hashing: ascon family; IDs and tokens: UUIDv7.
-- Versions are pinned by each crate's `Cargo.lock` — re-check the lock after
-  every `cargo add`. The local cargo registry
+- Versions are pinned by each crate's `Cargo.lock`. The local cargo registry
   (`~/.cargo/registry/src/index.crates.io-*/`) holds the pinned crate sources
   for reference.
 
@@ -88,7 +93,7 @@ depend on it; it depends on nothing internal.
 
 ### 4.1 Language
 
-- English only — code, docs, comments, UI strings.
+English only — code, docs, comments, UI strings.
 
 ### 4.2 Naming
 
@@ -122,28 +127,32 @@ depend on it; it depends on nothing internal.
 
 ### 4.5 Comments
 
-- Code must be self-explanatory. Comments only for non-obvious intent,
-  constraints, or tradeoffs. A comment that restates the code is a defect.
+Code must be self-explanatory. Comments only for non-obvious intent,
+constraints, or tradeoffs. A comment that restates the code is a defect.
 
 ## 5. Robustness and security
 
 - Panic-free: never `unwrap`, `expect`, or similar.
 - Errors propagate with `?`; convert error types only at layer boundaries; the
-  interface layer maps the final error into the `{code, data, message}`
-  envelope.
+  interface layer maps the final error into the `{code, data, message}` envelope.
 - Search IDs and tokens: UUIDv7. Hashing: ascon family only.
 - Authorization is enforced in the logic layer against Cedar policies; every
   request goes through a principal session.
 
 ## 6. Configuration
 
-- Backend config is read from `configuration/*.toml` at startup — editing
-  config needs no rebuild. Secrets (SMTP credentials) stay out of version
-  control (`smtp.toml.example` is the template).
-- Frontend deployment parameters (e.g. `api_base_url`) are embedded at compile
-  time from `configuration/front.toml` and fail fast.
-- The backend serves a config-read endpoint (`/config/read`) holding the
-  runtime configuration the frontend fetches.
+Config lives as toml under `configuration/`, never hardcoded:
+
+- `server.toml` — backend runtime config (listen addr, paths, limits, logging),
+  read at startup; editing needs no rebuild.
+- `front.toml` — frontend deployment params (e.g. `api_base_url`), embedded at
+  compile time via `include_str!` and fail fast.
+- `email.toml` — allowed email domains.
+- `smtp.toml` — SMTP credentials (secrets). Gitignored; the committed template
+  is `smtp.toml.example`.
+
+The backend serves a config-read endpoint (`/config/read`) holding the runtime
+configuration the frontend fetches.
 
 ## 7. Backend rules
 
@@ -162,9 +171,8 @@ depend on it; it depends on nothing internal.
 
 ## 9. Design order
 
-- Define data structures first, then the logic around them — for request/
-  response payloads, the database node/edge shapes, and the cache key-value
-  layout.
+Define data structures first, then the logic around them — for request/response
+payloads, the database node/edge shapes, and the cache key-value layout.
 
 ## 10. Testing
 
@@ -173,7 +181,8 @@ depend on it; it depends on nothing internal.
 - Unit tests live under `test/unit/{common,back,front}` and are pulled into the
   crates via `#[path]`.
 - Run `cargo test` inside `code/back`, `code/common`, and `code/front`; keep the
-  zero-warning gate (`cargo clippy`, `cargo fmt`) green.
+  zero-warning gate (`cargo clippy`, `cargo fmt`) green. The clippy gate runs
+  plain `cargo clippy` (no `--all-targets`) so test code is exempt.
 
 ## 11. Building and running
 
@@ -197,4 +206,4 @@ depend on it; it depends on nothing internal.
 - `document/handoff.md` tracks current state, what was done, and what comes
   next.
 - `document/adr/` records adjudicated architectural decisions.
-- `document/legacy/` holds the original `nail` code, kept as reference only.
+- `document/agent-code-workflow.md` defines the mandatory code-execution loop.
