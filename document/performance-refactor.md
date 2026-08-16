@@ -111,9 +111,12 @@ everywhere (frontend + backend). `versions_of` and both comment paginators issue
 `.offset().limit()` query over the sibling edges (default order), derive `has_next` from a
 `limit+1` peek, and return no `total`. O(n log n) + full count → O(offset+limit).
 
-**Approved? YES — user decision: "total 和排序我都可以去" + use default order.** No need for a
-cursor primitive; both libraries page by native `offset`. Behavior change is intended
-(newest-first order and `total` removed).
+**Approved? YES — IMPLEMENTED (commit c2f62ec).** User decision: drop newest-first order
+and `total`; use default (storage) order. `versions_of` and both comment paginators now
+issue a single `.offset().limit()` query over sibling edges (default order), derive
+`has_next` from a `limit+1` peek, and return no `total`. DTOs drop `total` (and
+`VersionListItem.created_at`, unused). Frontend uses a new `PrevNext` control instead of
+numbered pagination. 308 tests pass; frontend trunk build clean.
 
 ## P6. `pick_recycler_target` — O(R²) dedup
 
@@ -161,13 +164,14 @@ the theoretical optimum (O(R) instead of O(R²)).
 | P1 deep pagination (master doc) | **Closed** — rejected by user (would change highlight) |
 | P3 enrich_comment_headers batching | **Done** (commit cf701c4) |
 | P4 sync_all | Accepted as inherent (no change) |
-| P5 pagination sort + slice | **Approved** — drop sort + total, use default order (user decision) |
+| P5 pagination sort + slice | **Done** (commit c2f62ec) — drop sort + total, default order |
 | P6 recycler O(R²) → HashSet | **Done** (verified + user-approved) |
 | Search: no ORDER BY / cursor / no total | **Open** — user decides |
 
-_Last updated: P2 and P3 both implemented (20fdeb4, cf701c4) and removed from pending
-tracking. P6 marked **not approved** (open). P1/P5/total/cursor open. Baseline: build
-green, 306 tests pass._
+_Last updated: P5 implemented (c2f62ec) — lists use agdb offset/limit, no order-by/total.
+P1 rejected (highlight behavior), P4 accepted (inherent), P6 non-problem (O(R), exclude
+length 1). Remaining: total/cursor decision on list endpoints (only affects keeping
+`total`; offset nav works without it). Baseline: build green, 308 tests pass._
 
 ## Probe evidence log
 

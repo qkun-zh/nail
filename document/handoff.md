@@ -4,6 +4,10 @@
 > and verified), remove it from this file — don't let completed items pile up.
 > Keep only: current state, tasks not yet finished, and unresolved decisions.
 > If the file stops being a compact handover, prune it.
+> Rule: any code change that introduces a new scenario (new behavior, branch,
+> input domain, or edge case) MUST add matching formal tests to the real suite
+> — more than 3 tests per new scenario. A scenario without >3 formal tests is
+> incomplete.
 
 ## State
 
@@ -28,9 +32,16 @@
   → O(#distinct ids) resolves + constant batch reads). Probes verified identical output
   and refuted the old `where_.ids` plan. 306 tests pass. Tracked in
   `document/performance-refactor.md`.
+- **P5 list pagination (committed c2f62ec)**: `versions_of` and both comment paginators
+  now use a single agdb `.offset().limit()` query (default storage order), dropping the
+  newest-first sort and the `total` count; `has_next` from a `limit+1` peek. DTOs drop
+  `total` (`VersionListPage`, `CommentListPage`) and `VersionListItem.created_at`
+  (unused). Frontend uses a new `PrevNext` control instead of numbered pagination.
+  308 tests pass; frontend trunk build clean.
 
 ## Next
 
 - Commit the uncommitted slices (one commit each, clean tree).
 - Soft delete (mode Soft, delete-flag 1) still undecided.
-- Perf: P2, P3 closed. P6 recycler HashSet not approved. P1/P5/total-cursor open.
+- Perf: P2, P3, P5 closed. P1 rejected (highlight behavior); P6 non-problem (O(R));
+  P4 accepted (inherent). Open: total/cursor on list endpoints.
