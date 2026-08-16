@@ -17,6 +17,15 @@ fn user_entity(id: &str, parents: HashSet<EntityUid>) -> Entity {
     Entity::new_no_attrs(uid(&format!("User::\"{id}\"")), parents)
 }
 
+fn user_entity_owned(id: &str) -> Entity {
+    Entity::new(
+        uid(&format!("User::\"{id}\"")),
+        HashMap::from([("owner".to_string(), expression(&format!("User::\"{id}\"")))]),
+        HashSet::new(),
+    )
+    .expect("user entity")
+}
+
 fn article_entity(id: &str, owner: &str) -> Entity {
     Entity::new(
         uid(&format!("Article::\"{id}\"")),
@@ -113,6 +122,48 @@ fn read_requires_a_role_grant() {
             vec![grantless, member_role, action, article],
         )
         .expect("grantless read")
+    );
+}
+
+#[test]
+fn user_self_view_allows_anyone_and_other_users_need_a_grant() {
+    let alice_owned = user_entity_owned("alice");
+    assert!(
+        decide(
+            &uid("User::\"alice\""),
+            "User::Read",
+            &uid("User::\"alice\""),
+            vec![alice_owned],
+        )
+        .expect("self view")
+    );
+
+    let alice = user_entity("alice", HashSet::new());
+    let bob_owned = user_entity_owned("bob");
+    assert!(
+        !decide(
+            &uid("User::\"alice\""),
+            "User::Read",
+            &uid("User::\"bob\""),
+            vec![alice, bob_owned.clone()],
+        )
+        .expect("other view denied")
+    );
+
+    let admin_role = Entity::new_no_attrs(
+        uid("Role::\"admin\""),
+        HashSet::from([uid("Action::\"User::Read\"")]),
+    );
+    let action = Entity::new_no_attrs(uid("Action::\"User::Read\""), HashSet::new());
+    let admin = user_entity("admin", HashSet::from([uid("Role::\"admin\"")]));
+    assert!(
+        decide(
+            &uid("User::\"admin\""),
+            "User::Read",
+            &uid("User::\"bob\""),
+            vec![admin, admin_role, action, bob_owned],
+        )
+        .expect("granted other view")
     );
 }
 

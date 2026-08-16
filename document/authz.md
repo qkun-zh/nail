@@ -46,6 +46,13 @@ The B1 thread: `actor_id` runs through the read entry points (`logic/article.rs`
 `read_version`/`read_versions`, `logic/comment.rs` `read_comments`/`read_comment`/
 `read_comment_children`) and their interface handlers.
 
+`User::Read` (B2) is judged against a `User` resource, not the admin console:
+the target's own record authorizes via policy 1 (`resource.owner == principal`,
+self-view, needs no role), and viewing other users rides the admin role's
+`User::Read` grant through policy 3. The old `target_id == actor_id` bypass in
+`logic/user.rs` is deleted; the self-view response omits `id`, other-view
+includes it.
+
 ## Decision records
 
 - **D1 — scope axis removed**: roles are pure sets of users. The scope mechanism

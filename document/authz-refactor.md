@@ -363,13 +363,32 @@ conclusion (one coarse desk gate per collection page, not per item) holds.
 **Exit**: met — no session-only read gate remains; member reads succeed; non-member
 denied.
 
-#### B2 — `read_user` self-view to Cedar (O5)
-**Changes**:
-- Build a `User` resource entity (`owner` = target); policy: `resource.owner ==
-  principal` (self view); admin's view of other users rides the admin role's
-  `User::Read` grant through the generic rule (policy 6 is gone, so no
-  `Role::"admin"` clause is needed). Remove the `target_id == actor_id` bypass
-  (`logic/user.rs:73`).
+#### B2 — `read_user` self-view to Cedar (O5) — **DONE**
+**Changes** (as planned):
+- Built a `User` resource entity (`owner` = target; schema `entity User in
+  [Role] { owner?: User }` — optional so the attr-less principal entity stays
+  valid). `User::Read` now applies to a `User` resource (schema) and is judged
+  by policy 1 (`resource.owner == principal`, self-view) or by policy 3 (admin
+  rides the admin role's `User::Read` grant — no `Role::"admin"` clause needed,
+  policy 6 is gone). `User::Read` left policy 4 (admin-console), which now
+  covers only `User::Update`/`Delete`/`Role::Manage`.
+- Removed the `target_id == actor_id` bypass (`logic/user.rs`): `read_user` gates
+  once with `authorize_or` against `Resource::User(target_id)` ("user not found"
+  message). Response contract preserved: self-view omits `id`, other-view (admin)
+  includes it. `admin_console()` remains for `update_user`/`delete_user`.
+- `Resource::User` assembly checks the user node exists (`ResourceNotFound`
+  when deleted → 404) and attaches `owner` = target. Duplicate-Uid assembly
+  (self-view: principal and resource are the same `User::"<id>"`) merges by
+  keeping the resource entity so `resource.owner` is present.
+**Red→Green**: 2 red tests — cedar policy test
+`user_self_view_allows_anyone_and_other_users_need_a_grant` (self-view was
+Denied pre-change) and http test `user_read_self_after_hard_delete_is_not_found`
+(401 observed vs 404 target). Green: **448 back tests** — self-view succeeds for
+role-less users (owner bypass, no grant needed), admin views of other users stay
+allowed via the seeded grant, plain-member views of other users stay 403, and
+hard-deleted self-read is 404. fmt/clippy 0, common 109, frontend trunk build
+clean.
+**Exit**: met — no `read_user` policy decision is duplicated in Rust.
 
 #### B3 — Central operation→action inventory + router coverage test (O1, O2)
 **Changes**:

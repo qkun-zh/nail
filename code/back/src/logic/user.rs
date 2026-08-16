@@ -5,7 +5,7 @@ use nail_common::response::session::SessionTokenView;
 use nail_common::response::user::{UserIdView, UserNameView, UserView};
 
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::authorize;
+use crate::logic::authorize::{authorize, authorize_or};
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::pow::verify_issued_pow;
 use crate::logic::search::{sync_all_best_effort, sync_article_best_effort, sync_user_best_effort};
@@ -69,34 +69,30 @@ pub async fn read_user(
     name_requested: bool,
     email_hash_requested: bool,
 ) -> Result<UserView, LogicError> {
-    let mut view = UserView::default();
-    if target_id == actor_id {
-        if name_requested || email_hash_requested {
-            let entry = read_user_node(&state.graph, actor_id)
-                .await
-                .map_err(database_error)?
-                .ok_or_else(|| LogicError::unauthorized("user not found"))?;
-            if name_requested {
-                view.name = Some(entry.name);
-            }
-            if email_hash_requested {
-                view.email_hash = Some(entry.email_address_hash);
-            }
-        }
-        return Ok(view);
-    }
+    authorize_or(
+        state,
+        actor_id,
+        PERMISSION_USER_READ,
+        &Resource::User(target_id.to_string()),
+        "user not found",
+    )
+    .await?;
 
-    authorize(state, actor_id, PERMISSION_USER_READ, &admin_console()).await?;
-    let entry = read_user_node(&state.graph, target_id)
-        .await
-        .map_err(database_error)?
-        .ok_or_else(|| LogicError::not_found("user not found"))?;
-    view.id = Some(target_id.to_string());
-    if name_requested {
-        view.name = Some(entry.name);
+    let mut view = UserView::default();
+    if target_id != actor_id {
+        view.id = Some(target_id.to_string());
     }
-    if email_hash_requested {
-        view.email_hash = Some(entry.email_address_hash);
+    if name_requested || email_hash_requested {
+        let entry = read_user_node(&state.graph, target_id)
+            .await
+            .map_err(database_error)?
+            .ok_or_else(|| LogicError::not_found("user not found"))?;
+        if name_requested {
+            view.name = Some(entry.name);
+        }
+        if email_hash_requested {
+            view.email_hash = Some(entry.email_address_hash);
+        }
     }
     Ok(view)
 }

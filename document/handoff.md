@@ -18,8 +18,8 @@
 - **Authz refactor (in progress, plan `document/authz-refactor.md`)**: A1 done
   (`8698ecc`), A2 done (`208e94c`), A3 done (`9a92e1e`), A4 done (`0d3e7de`),
   A5 done (`2b1f02c`), A6 done (docs, `document/authz.md`), B0 done (baseline
-  probe `probe_001`), B1 done (`295ff6e`). Next: B2 (`read_user` self-view to
-  Cedar).
+  probe `probe_001`), B1 done (`295ff6e`), B2 done. Next: B3 (central
+  operation→action inventory + router coverage test).
 - **Soft-delete refcount + restore API (committed bac4e65, c40608b, 6c33fac,
   97fd467, 6883a5b)**: done — `KEY_SOFT_DELETED` is a u64 count, soft-delete
   cascades `+1` over the subtree, restore `-1` (key deleted at 0; invariant key
@@ -30,6 +30,21 @@
 
 ## Done
 
+- **Authz B2 — `read_user` self-view to Cedar (O5)**: `User::Read` now judged
+  against a `User` resource entity (`owner` = target, schema
+  `entity User in [Role] { owner?: User }`), not the admin console. Policy 1
+  (`resource.owner == principal`) permits self-view without any role; admin
+  views of other users ride the admin role's `User::Read` grant through policy
+  3. `User::Read` left policy 4 (now only `User::Update`/`Delete`/`Role::Manage`).
+  Deleted the `target_id == actor_id` bypass in `logic/user.rs`: `read_user`
+  gates once with `authorize_or` against `Resource::User(target_id)` ("user not
+  found" wins). Response contract preserved (self omits `id`, other includes
+  it). `Resource::User` assembly checks existence (404 on hard-deleted self)
+  and attaches `owner`; duplicate-Uid assembly (self-view) keeps the resource
+  entity so the attribute survives. Red: cedar policy test
+  `user_self_view_allows_anyone_and_other_users_need_a_grant` (self-view was
+  Denied) + http `user_read_self_after_hard_delete_is_not_found` (401 vs 404).
+  Green: 448 back tests; fmt/clippy 0, common 109, frontend trunk build clean.
 - **Authz B1 — read enforcement through Cedar (committed 295ff6e)**: threaded
   `actor_id` through the read logic and interface handlers (`read_article`,
   `search_articles`, `read_version`/`read_versions`,
@@ -179,12 +194,11 @@
 ## Next
 
 - Commit the uncommitted slices (one commit each, clean tree).
-- Authz: A1–A6 + B0 + B1 done (B1 `295ff6e`). Next: B2 (`read_user` self-view
-  to Cedar — build a `User` resource entity, `resource.owner == principal` for
-  self-view, admin rides the `User::Read` grant; drop the
-  `target_id == actor_id` bypass in `logic/user.rs`), then B3 (central
-  operation→action inventory + router coverage test). Open follow-up: release
-  re-run of `probe_001` (B1 numbers so far are dev-profile).
+- Authz: A1–A6 + B0 + B1 + B2 done. Next: B3 (central operation→action
+  inventory + router coverage test — one table consumed by handlers, a test
+  walks every route in `interface/router.rs` and asserts a matching entry).
+  Open follow-up: release re-run of `probe_001` (B1 numbers so far are
+  dev-profile).
 - Perf: P2, P3, P5, search-ORDER-BY closed. P1 rejected (highlight behavior);
   P6 non-problem (O(R)); P4 accepted (inherent). Open: total/cursor on list endpoints
   + search total.

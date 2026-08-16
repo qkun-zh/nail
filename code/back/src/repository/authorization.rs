@@ -19,6 +19,7 @@ pub enum Resource {
     Version(String),
     Comment(String),
     Role(String),
+    User(String),
     Virtual(String),
 }
 
@@ -234,6 +235,25 @@ pub async fn assemble_resource(
             let entity = Entity::new_no_attrs(resource_uid.clone(), HashSet::new());
             Ok((resource_uid, vec![entity]))
         }
+        Resource::User(user_id) => {
+            let exists = {
+                let guard = db.read().await;
+                resolve_node_id_sync(&guard, ENTITY_TYPE_USER, &user_id)
+                    .map_err(|error| AssemblyError::Internal(error.to_string()))?
+                    .is_some()
+            };
+            if !exists {
+                return Err(AssemblyError::ResourceNotFound);
+            }
+            let resource_uid = user_uid(&user_id)?;
+            let entity = Entity::new(
+                resource_uid.clone(),
+                resource_attrs(&user_id)?,
+                HashSet::new(),
+            )
+            .map_err(|error| AssemblyError::Internal(error.to_string()))?;
+            Ok((resource_uid, vec![entity]))
+        }
         Resource::Virtual(name) => {
             let resource_uid = virtual_uid(&name)?;
             let entity = Entity::new_no_attrs(resource_uid.clone(), HashSet::new());
@@ -249,11 +269,15 @@ pub async fn assemble(
 ) -> Result<AuthAssembly, AssemblyError> {
     let (principal, mut principal_entities) = assemble_principal(db, user_id).await?;
     let (resource_uid, resource_entities) = assemble_resource(db, resource).await?;
-    let mut seen: HashSet<EntityUid> = HashSet::new();
+    let mut positions: HashMap<EntityUid, usize> = HashMap::new();
     let mut entities: Vec<Entity> =
         Vec::with_capacity(principal_entities.len() + resource_entities.len());
     for entity in principal_entities.drain(..).chain(resource_entities) {
-        if seen.insert(entity.uid().clone()) {
+        if let Some(index) = positions.get(&entity.uid()) {
+            let index = *index;
+            entities[index] = entity;
+        } else {
+            positions.insert(entity.uid().clone(), entities.len());
             entities.push(entity);
         }
     }

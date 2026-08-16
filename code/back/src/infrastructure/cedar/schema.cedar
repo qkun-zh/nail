@@ -2,7 +2,7 @@
 // type declarations. This is the single handwritten source of the action names;
 // the permission nodes are seeded from these names. Static, requires restart.
 
-entity User in [Role];
+entity User in [Role] { owner?: User };
 entity Role;
 entity Article  { owner: User };
 entity Version  { owner: User };
@@ -30,7 +30,7 @@ action "Comment::Delete::Hard"      appliesTo { principal: [User], resource: [Co
 action "Comment::Delete::Transfer"  appliesTo { principal: [User], resource: [Comment] };
 action "Comment::Delete::Soft"      appliesTo { principal: [User], resource: [Comment] };
 action "Comment::Restore"           appliesTo { principal: [User], resource: [Comment] };
-action "User::Read"                 appliesTo { principal: [User], resource: [Virtual] };
+action "User::Read"                 appliesTo { principal: [User], resource: [User] };
 action "User::Update"               appliesTo { principal: [User], resource: [Virtual] };
 action "User::Delete::Hard"         appliesTo { principal: [User], resource: [Virtual] };
 action "User::Delete::Transfer"     appliesTo { principal: [User], resource: [Virtual] };

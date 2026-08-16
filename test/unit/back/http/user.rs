@@ -90,6 +90,21 @@ async fn user_read_other_by_admin_returns_profile() {
 }
 
 #[tokio::test]
+async fn user_read_self_after_hard_delete_is_not_found() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, token) = session_for(&context, "alice@example.com").await;
+    crate::repository::delete::delete_user(&context.state.graph, &user_id)
+        .await
+        .expect("hard delete");
+
+    let (status, body) = context
+        .get(&format!("/user/{user_id}/read"), Some(&token))
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
+    assert_eq!(body["message"].as_str(), Some("user not found"));
+}
+
+#[tokio::test]
 async fn user_update_self_rename_via_pow() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = session_for(&context, "alice@example.com").await;

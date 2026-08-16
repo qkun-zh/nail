@@ -3,12 +3,14 @@
 // these policies.
 
 // 1. Owner bypass: the resource owner may read/update, create new versions,
-//    and transfer (soft-delete) their own content. Published content is a
-//    platform asset, so the owner can never hard-delete it: the Delete actions
-//    listed here are the Transfer and Soft variants only. Version::Update/Delete
-//    and Comment::Update keep the author stories in FR-20/FR-21; version
-//    hard-delete is admin-only. Members hold no global Transfer/Soft grants:
-//    the owner bypass is the only member path to delete/transfer content.
+//    and transfer (soft-delete) their own content. User::Read is the self-view:
+//    the target user's own record (resource.owner == principal). Published
+//    content is a platform asset, so the owner can never hard-delete it: the
+//    Delete actions listed here are the Transfer and Soft variants only.
+//    Version::Update/Delete and Comment::Update keep the author stories in
+//    FR-20/FR-21; version hard-delete is admin-only. Members hold no global
+//    Transfer/Soft grants: the owner bypass is the only member path to
+//    delete/transfer content.
 permit (principal, action in [Action::"Article::Read", Action::"Version::Read",
                               Action::"Comment::Read",
                               Action::"Comment::Delete::Transfer",
@@ -18,7 +20,8 @@ permit (principal, action in [Action::"Article::Read", Action::"Version::Read",
                               Action::"Version::Create", Action::"Version::Update",
                               Action::"Version::Delete::Transfer",
                               Action::"Version::Delete::Soft",
-                              Action::"Comment::Update"],
+                              Action::"Comment::Update",
+                              Action::"User::Read"],
         resource)
   when { resource.owner == principal };
 
@@ -30,9 +33,11 @@ permit (principal, action in [Action::"Article::Read", Action::"Version::Read",
 permit (principal, action, resource)
   when { principal in action };
 
-// 4. Admin-console meta-permission: User::Read/Update/Delete and Role::Manage
-//    are only judged against Virtual::"admin-console".
-permit (principal, action in [Action::"User::Read", Action::"User::Update",
+// 4. Admin-console meta-permission: User::Update/Delete and Role::Manage are
+//    only judged against Virtual::"admin-console". User::Read left this rule in
+//    B2: it now rides the User resource self-view (policy 1) or the admin
+//    role's User::Read grant through the generic rule (policy 3).
+permit (principal, action in [Action::"User::Update",
                               Action::"User::Delete::Hard",
                               Action::"User::Delete::Transfer",
                               Action::"Role::Manage"],
