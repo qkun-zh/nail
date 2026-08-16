@@ -16,8 +16,8 @@
 - Uncommitted (other agent): `document/workflow.md`, `AGENTS.md`, `README.md` —
   the double-evidence workflow refactor (see Done).
 - **Authz refactor (in progress, plan `document/authz-refactor.md`)**: A1 done
-  (`8698ecc`), A2 done (`208e94c`). Next slice: A3 (Virtual entities + single
-  create entry).
+  (`8698ecc`), A2 done (`208e94c`), A3 done (`9a92e1e`). Next slice: A4
+  (Role::Revoke protection).
 - **Soft-delete refcount + restore API (committed bac4e65, c40608b, 6c33fac,
   97fd467, 6883a5b)**: done — `KEY_SOFT_DELETED` is a u64 count, soft-delete
   cascades `+1` over the subtree, restore `-1` (key deleted at 0; invariant key
@@ -28,6 +28,15 @@
 
 ## Done
 
+- **Authz A3 — System → Virtual + single create entry (committed 9a92e1e)**:
+  the synthetic entity is `Virtual` (D4): `article-create`, `comment-create`
+  and `admin-console` desks. `schema.cedar` declares `entity Virtual`;
+  `Article::Create`/`Comment::Create` apply to `[Virtual]` (D6);
+  `Version::Create` stays `[Article]`. `Resource::System` → `Resource::Virtual`
+  with `virtual_uid` assembly. `authorize_create` deleted; creates route through
+  the single `authorize` entry against `Virtual::"article-create"`/
+  `"comment-create"`. Red = rewritten tests failed to compile against the old
+  enum. Back 428, common 109, clippy 0, frontend trunk build clean.
 - **Authz A2 — policy-schema action cross-check (committed 208e94c)**:
   `every_action_referenced_by_policy_exists_in_the_schema` scans every
   `Action::"..."` literal in the policy source and fails if one is missing from
@@ -110,9 +119,8 @@
 ## Next
 
 - Commit the uncommitted slices (one commit each, clean tree).
-- Authz: A1 (`8698ecc`) + A2 (`208e94c`) done; A3 (Virtual entities + single
-  create entry) next, then A4 (Role::Revoke protection), A5 (vocab single
-  source + policy 6 deletion), A6 (docs).
+- Authz: A1 (`8698ecc`) + A2 (`208e94c`) + A3 (`9a92e1e`) done; A4 (Role::Revoke
+  protection) next, then A5 (vocab single source + policy 6 deletion), A6 (docs).
 - Perf: P2, P3, P5, search-ORDER-BY closed. P1 rejected (highlight behavior);
   P6 non-problem (O(R)); P4 accepted (inherent). Open: total/cursor on list endpoints
   + search total.

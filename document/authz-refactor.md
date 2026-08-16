@@ -204,7 +204,7 @@ policy source for `Action::"..."` literals; red shown by temporarily removing
 comment fixed. Back 427 (was 426 +1 new test), common 109, clippy 0, frontend
 `trunk build` clean.
 
-#### A3 — Unify create authorization (O2)
+#### A3 — Unify create authorization (O2) — **DONE** (commit `9a92e1e`)
 **Changes**:
 - Rename the synthetic entity `System` → `Virtual` (`schema.cedar`,
   `policy.cedar` `System::"admin-console"`, `Resource::System` enum + assembly,
@@ -221,6 +221,13 @@ comment fixed. Back 427 (was 426 +1 new test), common 109, clippy 0, frontend
 `Resource::Virtual` assembly covers the new uids.
 **Exit**: no `authorize_create` remains; create requests route through the
 single entry.
+**Evidence**: red = the rewritten create tests and
+`virtual_desk_assembly_covers_the_create_and_admin_uids` failed to compile
+against `Resource::System` (no `Virtual` variant). After: `authorize_create`
+deleted; creates route through `authorize` against
+`Resource::Virtual("article-create")` / `("comment-create")`; assembly produces
+`Virtual::"..."` uids; grep clean (`System::`/`authorize_create` zero hits).
+Back 428, common 109, clippy 0, frontend `trunk build` clean.
 
 #### A4 — Role revocation protection in policy (O5, D7-b)
 **Changes**:
