@@ -16,6 +16,9 @@ pub mod infrastructure_logging;
 #[path = "infrastructure/cedar.rs"]
 pub mod infrastructure_cedar;
 
+#[path = "infrastructure/cedar_probe.rs"]
+pub mod infrastructure_cedar_probe;
+
 #[path = "repository/cache.rs"]
 pub mod repository_cache;
 
