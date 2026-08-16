@@ -76,6 +76,15 @@
   transfer/soft-delete to self-owned content (removed the global member grants from
   `seed.rs`; owner bypass is the only member path). Gates green at each commit:
   back 340, common 109, frontend trunk build clean.
+- **Frontend URL-aligned comment UI (committed bd514fd, 6065d69, 8b66dc6)**:
+  comment delete page unified to three radio circles (transfer/soft/hard) + one
+  delete button; `comment.rs` split by URL into `comment/index.rs`
+  (`/comment` list), `comment/detail.rs` (`/comment/:cid`), `comment/delete.rs`
+  (`/comment/:cid/delete`) with a shared `CommentViewContext`; the `*comment_path`
+  wildcard route now renders `CommentSection` directly while `VersionDetail` owns
+  only `/version/:version_id` (declaration-order matching verified equivalent).
+  Backend `get_document` loop hoisted out of per-hit lock/alloc (cba939b). Frontend
+  69 tests pass, clippy clean, trunk build clean.
 
 ## Next
 
