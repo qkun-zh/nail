@@ -544,8 +544,8 @@ async fn delete_article_soft_hides_the_article_over_http() {
             .expect("versions");
     assert_eq!(
         versions.len(),
-        1,
-        "versions stay public after article soft delete"
+        0,
+        "versions hidden after article soft delete"
     );
 }
 

@@ -361,7 +361,7 @@ async fn sync_removes_documents_for_a_deleted_article() {
 }
 
 #[tokio::test]
-async fn sync_excludes_a_soft_deleted_version_doc_but_keeps_its_comments() {
+async fn sync_excludes_a_soft_deleted_version_doc_and_its_comments() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
         &state.graph,
@@ -444,7 +444,11 @@ async fn sync_excludes_a_soft_deleted_version_doc_but_keeps_its_comments() {
             SearchDocOutcome::Version(_) => None,
         })
         .collect::<Vec<_>>();
-    assert_eq!(comments, vec![comment_id], "comment stays public");
+    assert_eq!(
+        comments,
+        Vec::<String>::new(),
+        "comments hidden with their version"
+    );
 
     index.close().await;
     let _ = std::fs::remove_dir_all(&directory);
@@ -543,7 +547,7 @@ async fn sync_excludes_a_soft_deleted_comment_doc() {
 }
 
 #[tokio::test]
-async fn sync_keeps_children_docs_of_a_soft_deleted_article() {
+async fn sync_drops_all_docs_of_a_soft_deleted_article() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
         &state.graph,
@@ -597,10 +601,9 @@ async fn sync_keeps_children_docs_of_a_soft_deleted_article() {
         .await
         .expect("read");
     let versions = version_articles(&outcome);
-    assert_eq!(
-        versions.len(),
-        1,
-        "soft-deleted article keeps its version docs (children stay public)"
+    assert!(
+        versions.is_empty(),
+        "soft-deleted article keeps no docs (subtree hidden)"
     );
 
     index.close().await;

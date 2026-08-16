@@ -206,7 +206,7 @@ async fn read_article_missing_is_not_found() {
 }
 
 #[tokio::test]
-async fn delete_article_soft_hides_the_article_but_keeps_versions_public() {
+async fn delete_article_soft_hides_the_article_and_its_versions() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
     let (article_id, _) = crate::logic::article::create_article(
@@ -242,7 +242,11 @@ async fn delete_article_soft_hides_the_article_but_keeps_versions_public() {
         crate::repository::version::versions_of(&context.state.graph, &article_id, 10, 0)
             .await
             .expect("versions");
-    assert_eq!(versions.len(), 1, "versions stay public");
+    assert_eq!(
+        versions.len(),
+        0,
+        "versions hidden after article soft delete"
+    );
 }
 
 #[tokio::test]

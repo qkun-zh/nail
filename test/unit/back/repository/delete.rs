@@ -341,13 +341,13 @@ async fn soft_delete_article_flags_only_the_article_node() {
     let (remaining, _) = versions_of(&state.graph, &article_id, 10, 0)
         .await
         .expect("versions");
-    assert_eq!(remaining.len(), 1, "versions untouched by article flag");
+    assert_eq!(remaining.len(), 0, "versions hidden by article flag");
     assert!(
         crate::repository::version::read_version(&state.graph, &version_id)
             .await
             .expect("read version")
-            .is_some(),
-        "version content still readable"
+            .is_none(),
+        "version content hidden under a soft-deleted article"
     );
 }
 
@@ -398,8 +398,8 @@ async fn soft_delete_comment_flags_only_the_comment_node() {
         crate::repository::comment::read_comment_item(&state.graph, &reply)
             .await
             .expect("read reply")
-            .is_some(),
-        "reply node untouched by parent flag"
+            .is_none(),
+        "reply node has no flag but is hidden through its parent chain"
     );
 }
 
@@ -471,10 +471,10 @@ async fn clearing_the_soft_deleted_flag_revives_the_node() {
 }
 
 #[tokio::test]
-async fn soft_deleted_article_read_returns_none_but_versions_stay_public() {
+async fn soft_deleted_article_read_returns_none_and_versions_hidden() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let (article_id, _version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
 
     soft_delete_article(&state.graph, &article_id)
         .await
@@ -490,8 +490,11 @@ async fn soft_deleted_article_read_returns_none_but_versions_stay_public() {
     let (remaining, _) = versions_of(&state.graph, &article_id, 10, 0)
         .await
         .expect("versions");
-    assert_eq!(remaining.len(), 1, "versions stay public");
-    assert_eq!(remaining[0].id, version_id);
+    assert_eq!(
+        remaining.len(),
+        0,
+        "versions hidden after article soft delete"
+    );
 }
 
 #[tokio::test]
@@ -630,12 +633,12 @@ async fn read_version_returns_none_for_a_soft_deleted_version() {
 }
 
 #[tokio::test]
-async fn comment_page_hides_soft_deleted_comments_but_keeps_replies_visible() {
+async fn comment_page_hides_soft_deleted_comments_and_their_replies() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = create_user(&state, "alice@example.com").await;
     let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
     let top = insert_comment(&state, &version_id, &author_id).await;
-    let reply = insert_reply(&state, &top, &author_id).await;
+    let _reply = insert_reply(&state, &top, &author_id).await;
 
     soft_delete_comment(&state.graph, &top)
         .await
@@ -651,8 +654,7 @@ async fn comment_page_hides_soft_deleted_comments_but_keeps_replies_visible() {
         crate::repository::comment::read_comment_children_page(&state.graph, &top, 10, 0)
             .await
             .expect("children page");
-    assert_eq!(children.len(), 1, "reply of deleted parent still visible");
-    assert_eq!(children[0].id, reply);
+    assert!(children.is_empty(), "reply hidden with its deleted parent");
     assert!(
         crate::repository::comment::read_comment_item(&state.graph, &top)
             .await

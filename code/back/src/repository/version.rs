@@ -78,6 +78,13 @@ pub async fn create_version(
         else {
             return Err(CreateVersionError::ArticleMissing);
         };
+        if crate::repository::delete::content_path_soft_deleted_in_txn(
+            transaction,
+            ENTITY_TYPE_ARTICLE,
+            article_id,
+        )? {
+            return Err(CreateVersionError::ArticleMissing);
+        }
         if !find_by_index_in_txn(transaction, KEY_CONTENT_HASH, &draft.content_hash)?.is_empty() {
             return Err(CreateVersionError::ContentHashTaken);
         }
@@ -152,7 +159,11 @@ pub async fn read_version(
     let Some(id) = resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, version_id)? else {
         return Ok(None);
     };
-    if crate::repository::delete::has_soft_deleted_flag(&guard, id)? {
+    if crate::repository::delete::content_path_soft_deleted_sync(
+        &guard,
+        ENTITY_TYPE_VERSION,
+        version_id,
+    )? {
         return Ok(None);
     }
     let row = read_rows_sync::<VersionRow>(&guard, &[id])?
@@ -171,6 +182,13 @@ pub async fn update_version(db: &DbHandle, version_id: &str, note: &str) -> Resu
     let Some(id) = resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, version_id)? else {
         return Ok(());
     };
+    if crate::repository::delete::content_path_soft_deleted_sync(
+        &guard,
+        ENTITY_TYPE_VERSION,
+        version_id,
+    )? {
+        return Ok(());
+    }
     guard.exec_mut(
         QueryBuilder::insert()
             .nodes()
@@ -191,6 +209,13 @@ pub async fn versions_of(
     let Some(article) = resolve_node_id_sync(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
         return Ok((Vec::new(), false));
     };
+    if crate::repository::delete::content_path_soft_deleted_sync(
+        &guard,
+        ENTITY_TYPE_ARTICLE,
+        article_id,
+    )? {
+        return Ok((Vec::new(), false));
+    }
     let limit = usize::try_from(limit).unwrap_or(usize::MAX);
     let nodes = guard.exec(
         QueryBuilder::search()

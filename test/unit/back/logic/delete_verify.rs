@@ -666,3 +666,265 @@ async fn soft_delete_keeps_article_identity_while_hiding_it() {
         "the node must survive for identity/occupancy"
     );
 }
+
+#[tokio::test]
+async fn soft_deleted_article_hides_its_whole_subtree_and_rejects_writes() {
+    let context = TestCtx::new().await.expect("test context");
+    let owner = member(&context, "alice@example.com").await;
+    let (article_id, version_id) =
+        create_seeded_article(&context, &owner, "Subtree Hidden", "1.0.0", "note").await;
+    let top = crate::logic::comment::create_comment(
+        &context.state,
+        &owner,
+        &version_id,
+        "subtree top comment",
+    )
+    .await
+    .expect("top comment");
+    crate::logic::comment::create_reply(&context.state, &owner, &top, "subtree reply")
+        .await
+        .expect("reply");
+
+    crate::logic::article::delete_article(
+        &context.state,
+        &owner,
+        &article_id,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect("soft delete");
+
+    let (versions, _) =
+        crate::repository::version::versions_of(&context.state.graph, &article_id, 10, 0)
+            .await
+            .expect("versions");
+    assert!(versions.is_empty(), "version list hidden");
+    assert!(
+        crate::repository::version::read_version(&context.state.graph, &version_id)
+            .await
+            .expect("read version")
+            .is_none(),
+        "version detail hidden"
+    );
+    let comments = crate::logic::comment::read_comments(&context.state, &version_id, 1, 50)
+        .await
+        .expect_err("comment page hidden");
+    assert_eq!(comments, LogicError::not_found("version not found"));
+    assert_eq!(
+        crate::logic::comment::read_comment(&context.state, &owner, &top)
+            .await
+            .expect_err("comment hidden"),
+        LogicError::not_found("comment not found")
+    );
+
+    assert_eq!(
+        crate::logic::version::create_version(
+            &context.state,
+            &owner,
+            &article_id,
+            "2.0.0",
+            "n",
+            context.upload(&unique_pdf("subtree-hidden")),
+        )
+        .await
+        .expect_err("create version on hidden article"),
+        LogicError::not_found("article not found")
+    );
+    assert_eq!(
+        crate::logic::comment::create_comment(&context.state, &owner, &version_id, "late")
+            .await
+            .expect_err("create comment on hidden version"),
+        LogicError::not_found("comment target not found (the version may have been removed)")
+    );
+    assert_eq!(
+        crate::logic::comment::create_reply(&context.state, &owner, &top, "late reply")
+            .await
+            .expect_err("create reply on hidden thread"),
+        LogicError::not_found("reply target not found (the parent comment may have been removed)")
+    );
+
+    let page = crate::logic::search::search_articles(
+        &context.state,
+        &nail_common::request::ArticleSearchParams {
+            q: Some("subtree".to_string()),
+            ranges: Some("title".to_string()),
+            from: None,
+            to: None,
+            limit: None,
+            page: None,
+        },
+    )
+    .await
+    .expect("search");
+    assert!(page.article_list.is_empty(), "article gone from search");
+}
+
+#[tokio::test]
+async fn soft_deleted_article_restore_brings_back_the_whole_subtree() {
+    let context = TestCtx::new().await.expect("test context");
+    let owner = member(&context, "alice@example.com").await;
+    let (article_id, version_id) =
+        create_seeded_article(&context, &owner, "Restore All", "1.0.0", "note").await;
+    crate::logic::comment::create_comment(&context.state, &owner, &version_id, "restored comment")
+        .await
+        .expect("comment");
+
+    crate::logic::article::delete_article(
+        &context.state,
+        &owner,
+        &article_id,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect("soft delete");
+
+    crate::repository::delete::clear_soft_deleted_flag(&context.state.graph, &article_id)
+        .await
+        .expect("restore");
+
+    assert!(
+        crate::repository::article::read_article(&context.state.graph, &article_id)
+            .await
+            .expect("read article")
+            .is_some(),
+        "article readable again"
+    );
+    let (versions, _) =
+        crate::repository::version::versions_of(&context.state.graph, &article_id, 10, 0)
+            .await
+            .expect("versions");
+    assert_eq!(versions.len(), 1, "version list back");
+    let comments = crate::logic::comment::read_comments(&context.state, &version_id, 1, 50)
+        .await
+        .expect("comments back");
+    assert_eq!(comments.comments.len(), 1, "comments back");
+}
+
+#[tokio::test]
+async fn soft_deleted_version_hides_its_comments_and_download() {
+    let context = TestCtx::new().await.expect("test context");
+    let owner = member(&context, "alice@example.com").await;
+    let (article_id, version_id) =
+        create_seeded_article(&context, &owner, "Version Hide", "1.0.0", "note").await;
+    let top = crate::logic::comment::create_comment(
+        &context.state,
+        &owner,
+        &version_id,
+        "version comment",
+    )
+    .await
+    .expect("comment");
+
+    crate::logic::version::delete_version(
+        &context.state,
+        &owner,
+        &version_id,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect("soft delete version");
+
+    assert!(
+        crate::repository::version::read_version(&context.state.graph, &version_id)
+            .await
+            .expect("read version")
+            .is_none(),
+        "version hidden"
+    );
+    assert_eq!(
+        crate::logic::comment::read_comments(&context.state, &version_id, 1, 50)
+            .await
+            .expect_err("comments hidden"),
+        LogicError::not_found("version not found")
+    );
+    assert_eq!(
+        crate::logic::comment::read_comment(&context.state, &owner, &top)
+            .await
+            .expect_err("comment hidden"),
+        LogicError::not_found("comment not found")
+    );
+
+    crate::repository::delete::clear_soft_deleted_flag(&context.state.graph, &version_id)
+        .await
+        .expect("restore version");
+    assert!(
+        crate::repository::version::read_version(&context.state.graph, &version_id)
+            .await
+            .expect("read version")
+            .is_some(),
+        "version back after restore"
+    );
+    assert_eq!(
+        crate::logic::comment::read_comment(&context.state, &owner, &top)
+            .await
+            .expect("comment back")
+            .id,
+        top,
+        "comment back after version restore"
+    );
+    let (versions, _) =
+        crate::repository::version::versions_of(&context.state.graph, &article_id, 10, 0)
+            .await
+            .expect("versions");
+    assert_eq!(versions.len(), 1, "version listed again");
+}
+
+#[tokio::test]
+async fn soft_deleted_comment_hides_its_reply_subtree() {
+    let context = TestCtx::new().await.expect("test context");
+    let owner = member(&context, "alice@example.com").await;
+    let (_, version_id) =
+        create_seeded_article(&context, &owner, "Reply Hide", "1.0.0", "note").await;
+    let top =
+        crate::logic::comment::create_comment(&context.state, &owner, &version_id, "top level")
+            .await
+            .expect("top");
+    let reply = crate::logic::comment::create_reply(&context.state, &owner, &top, "first reply")
+        .await
+        .expect("reply");
+    crate::logic::comment::create_reply(&context.state, &owner, &reply, "nested reply")
+        .await
+        .expect("nested");
+
+    crate::logic::comment::delete_comment(
+        &context.state,
+        &owner,
+        &top,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect("soft delete top");
+
+    assert_eq!(
+        crate::logic::comment::read_comment(&context.state, &owner, &top)
+            .await
+            .expect_err("top hidden"),
+        LogicError::not_found("comment not found")
+    );
+    assert_eq!(
+        crate::logic::comment::read_comment(&context.state, &owner, &reply)
+            .await
+            .expect_err("reply hidden with parent"),
+        LogicError::not_found("comment not found")
+    );
+
+    crate::repository::delete::clear_soft_deleted_flag(&context.state.graph, &top)
+        .await
+        .expect("restore top");
+    assert_eq!(
+        crate::logic::comment::read_comment(&context.state, &owner, &top)
+            .await
+            .expect("top back")
+            .id,
+        top,
+        "top back after restore"
+    );
+    assert_eq!(
+        crate::logic::comment::read_comment(&context.state, &owner, &reply)
+            .await
+            .expect("reply back")
+            .id,
+        reply,
+        "reply back after restore"
+    );
+}

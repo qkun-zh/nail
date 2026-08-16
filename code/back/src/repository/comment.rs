@@ -62,6 +62,13 @@ pub async fn create_top_level_comment(
         else {
             return Err(CreateCommentError::TargetNotFound);
         };
+        if crate::repository::delete::content_path_soft_deleted_in_txn(
+            transaction,
+            ENTITY_TYPE_VERSION,
+            version_id,
+        )? {
+            return Err(CreateCommentError::TargetNotFound);
+        }
         if resolve_node_id_in_txn(transaction, ENTITY_TYPE_COMMENT, comment_id)?.is_some() {
             return Err(CreateCommentError::CommentIdExists);
         }
@@ -112,6 +119,13 @@ pub async fn create_reply_comment(
         else {
             return Err(CreateCommentError::TargetNotFound);
         };
+        if crate::repository::delete::content_path_soft_deleted_in_txn(
+            transaction,
+            ENTITY_TYPE_COMMENT,
+            parent_comment_id,
+        )? {
+            return Err(CreateCommentError::TargetNotFound);
+        }
         if parent_chain_depth_in_txn(transaction, parent_comment_id, max_tree_depth)?
             >= max_tree_depth
         {
@@ -225,6 +239,13 @@ pub async fn read_comments_page_by_version(
     let Some(version) = resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, version_id)? else {
         return Ok((Vec::new(), false));
     };
+    if crate::repository::delete::content_path_soft_deleted_sync(
+        &guard,
+        ENTITY_TYPE_VERSION,
+        version_id,
+    )? {
+        return Ok((Vec::new(), false));
+    }
     let (page_ids, has_next) = incoming_comment_ids_page(&guard, version, limit, offset)?;
     let items = read_comment_items(&guard, &page_ids)?;
     Ok((items, has_next))
@@ -240,6 +261,13 @@ pub async fn read_comment_children_page(
     let Some(parent) = resolve_node_id_sync(&guard, ENTITY_TYPE_COMMENT, parent_comment_id)? else {
         return Ok((Vec::new(), false));
     };
+    if crate::repository::delete::content_path_soft_deleted_sync(
+        &guard,
+        ENTITY_TYPE_COMMENT,
+        parent_comment_id,
+    )? {
+        return Ok((Vec::new(), false));
+    }
     let (page_ids, has_next) = incoming_comment_ids_page(&guard, parent, limit, offset)?;
     let items = read_comment_items(&guard, &page_ids)?;
     Ok((items, has_next))
@@ -314,7 +342,11 @@ fn read_comment_item_sync(
     let Some(comment) = resolve_node_id_sync(guard, ENTITY_TYPE_COMMENT, comment_id)? else {
         return Ok(None);
     };
-    if crate::repository::delete::has_soft_deleted_flag(guard, comment)? {
+    if crate::repository::delete::content_path_soft_deleted_sync(
+        guard,
+        ENTITY_TYPE_COMMENT,
+        comment_id,
+    )? {
         return Ok(None);
     }
     let content = read_rows_sync::<CommentRow>(guard, &[comment])?
@@ -410,6 +442,13 @@ pub async fn update_comment_content(
     let Some(node) = resolve_node_id_sync(&guard, ENTITY_TYPE_COMMENT, comment_id)? else {
         return Ok(false);
     };
+    if crate::repository::delete::content_path_soft_deleted_sync(
+        &guard,
+        ENTITY_TYPE_COMMENT,
+        comment_id,
+    )? {
+        return Ok(false);
+    }
     guard.exec_mut(
         QueryBuilder::insert()
             .nodes()

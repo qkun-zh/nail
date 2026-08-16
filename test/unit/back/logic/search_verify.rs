@@ -72,7 +72,7 @@ fn strip_marks(text: &str) -> String {
 }
 
 #[tokio::test]
-async fn search_keeps_a_soft_deleted_article_findable_via_its_children_docs() {
+async fn search_hides_a_soft_deleted_article() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
     let (article_id, _) = create_seeded_article(
@@ -105,13 +105,13 @@ async fn search_keeps_a_soft_deleted_article_findable_via_its_children_docs() {
         .expect("after delete");
     assert_eq!(
         page.article_list.len(),
-        1,
-        "soft-deleted article keeps its children docs public (W2.2)"
+        0,
+        "soft-deleted article hidden from search (subtree hidden)"
     );
 }
 
 #[tokio::test]
-async fn search_keeps_the_versions_of_a_soft_deleted_article_public() {
+async fn search_hides_the_versions_of_a_soft_deleted_article() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
     let (article_id, _) = create_seeded_article(
@@ -137,18 +137,15 @@ async fn search_keeps_the_versions_of_a_soft_deleted_article_public() {
     let page = crate::logic::search::search_articles(&context.state, &params(Some("1.0.0")))
         .await
         .expect("search version number");
-    assert!(
-        page.article_list.iter().any(|item| {
-            item.versions
-                .iter()
-                .any(|version| strip_marks(&version.version_number) == "1.0.0")
-        }),
-        "the version card of a soft-deleted article stays searchable"
+    assert_eq!(
+        page.article_list.len(),
+        0,
+        "the versions of a soft-deleted article are hidden from search"
     );
 }
 
 #[tokio::test]
-async fn search_keeps_the_comments_of_a_soft_deleted_article_public() {
+async fn search_hides_the_comments_of_a_soft_deleted_article() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
     let (_, version_id) = create_seeded_article(
@@ -182,15 +179,10 @@ async fn search_keeps_the_comments_of_a_soft_deleted_article_public() {
     let page = crate::logic::search::search_articles(&context.state, &params(Some("distinct")))
         .await
         .expect("search comment");
-    assert!(
-        page.article_list
-            .iter()
-            .any(|item| item.versions.iter().any(|version| {
-                version.comments.iter().any(|comment| {
-                    strip_marks(&comment.content).contains("distinct comment phrase")
-                })
-            })),
-        "the comment of a soft-deleted article stays searchable"
+    assert_eq!(
+        page.article_list.len(),
+        0,
+        "the comment of a soft-deleted article is hidden from search"
     );
 }
 
@@ -266,7 +258,7 @@ async fn search_hides_a_soft_deleted_version_but_keeps_siblings() {
 }
 
 #[tokio::test]
-async fn search_hides_a_soft_deleted_version_but_keeps_its_comments() {
+async fn search_hides_a_soft_deleted_version_and_its_comments() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
     let (_, version_id) = create_seeded_article(
@@ -300,15 +292,10 @@ async fn search_hides_a_soft_deleted_version_but_keeps_its_comments() {
     let page = crate::logic::search::search_articles(&context.state, &params(Some("marker")))
         .await
         .expect("search marker");
-    assert!(
-        page.article_list
-            .iter()
-            .any(|item| item.versions.iter().any(|version| {
-                version.comments.iter().any(|comment| {
-                    strip_marks(&comment.content).contains("persistent comment marker")
-                })
-            })),
-        "comment doc of a soft-deleted version remains"
+    assert_eq!(
+        page.article_list.len(),
+        0,
+        "comment doc of a soft-deleted version is hidden"
     );
     let page = crate::logic::search::search_articles(&context.state, &params(Some("note")))
         .await
@@ -322,7 +309,7 @@ async fn search_hides_a_soft_deleted_version_but_keeps_its_comments() {
 }
 
 #[tokio::test]
-async fn search_hides_a_soft_deleted_comment_but_keeps_replies() {
+async fn search_hides_a_soft_deleted_comment_and_its_replies() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
     let (_, version_id) = create_seeded_article(
@@ -374,16 +361,10 @@ async fn search_hides_a_soft_deleted_comment_but_keeps_replies() {
     let page = crate::logic::search::search_articles(&context.state, &params(Some("kept")))
         .await
         .expect("search kept reply");
-    assert!(
-        page.article_list
-            .iter()
-            .any(|item| item.versions.iter().any(|version| {
-                version
-                    .comments
-                    .iter()
-                    .any(|comment| strip_marks(&comment.content).contains("kept reply marker"))
-            })),
-        "reply doc of a soft-deleted parent remains"
+    assert_eq!(
+        page.article_list.len(),
+        0,
+        "reply doc of a soft-deleted parent is hidden"
     );
 }
 

@@ -295,7 +295,7 @@ async fn delete_comment_hard_is_forbidden_for_a_member_owner() {
 }
 
 #[tokio::test]
-async fn delete_comment_soft_hides_the_comment_but_keeps_replies_visible() {
+async fn delete_comment_soft_hides_the_comment_and_its_replies() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = member(&state, "alice@example.com").await;
     let version_id = create_version_fixture(&state, &author_id).await;
@@ -324,10 +324,9 @@ async fn delete_comment_soft_hides_the_comment_but_keeps_replies_visible() {
     assert!(
         read_comment(&state, &author_id, &reply)
             .await
-            .expect("read reply")
-            .id
-            == reply,
-        "reply stays readable after its parent is soft-deleted"
+            .expect_err("reply hidden with its parent")
+            == LogicError::not_found("comment not found"),
+        "reply is hidden once its parent is soft-deleted"
     );
 }
 

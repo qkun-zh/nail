@@ -100,8 +100,7 @@ pub async fn create_version(
             .map(|entry| entry.version_number)
             .unwrap_or_default();
         return Err(LogicError::bad_request(format!(
-            "identical PDF already exists (version {owned_version} of \"{}\")",
-            owner.article_title
+            "identical PDF already exists (version {owned_version})"
         )));
     }
 

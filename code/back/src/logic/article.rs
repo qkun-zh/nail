@@ -230,8 +230,7 @@ async fn reject_duplicate_content_hash(state: &AppState, hash: &str) -> Result<(
         .map(|entry| entry.version_number)
         .unwrap_or_default();
     Err(LogicError::bad_request(format!(
-        "identical PDF already exists (version {owned_version} of \"{}\")",
-        owner.article_title
+        "identical PDF already exists (version {owned_version})"
     )))
 }
 
