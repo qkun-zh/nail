@@ -336,3 +336,46 @@ async fn delete_article_soft_keeps_the_title_and_content_hash_held() {
         "deleted node still holds its title: {message}"
     );
 }
+
+#[tokio::test]
+async fn delete_article_soft_is_rejected_for_an_already_hidden_article() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let (article_id, _) = crate::logic::article::create_article(
+        &context.state,
+        &actor,
+        crate::logic::article::ArticleCreateInput {
+            title: "Double Soft",
+            summary: "Summary",
+            tags: "rust",
+            version: "1.0.0",
+            note: "note",
+            upload: context.upload(&valid_pdf()),
+        },
+    )
+    .await
+    .expect("create");
+
+    crate::logic::article::delete_article(
+        &context.state,
+        &actor,
+        &article_id,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect("first soft delete");
+
+    let error = crate::logic::article::delete_article(
+        &context.state,
+        &actor,
+        &article_id,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect_err("second soft delete");
+    assert_eq!(
+        error,
+        LogicError::bad_request("already soft-deleted"),
+        "repeated soft delete is rejected at the logic layer"
+    );
+}

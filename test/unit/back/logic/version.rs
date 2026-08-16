@@ -357,3 +357,34 @@ async fn delete_version_soft_keeps_the_content_hash_held() {
         "soft-deleted version still holds its content hash: {message}"
     );
 }
+
+#[tokio::test]
+async fn delete_version_soft_is_rejected_for_an_already_hidden_version() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let admin_id = admin(&context).await;
+    let (_, version_id) = article_fixture(&context, &actor, "Article").await;
+
+    crate::logic::version::delete_version(
+        &context.state,
+        &admin_id,
+        &version_id,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect("first soft delete");
+
+    let error = crate::logic::version::delete_version(
+        &context.state,
+        &admin_id,
+        &version_id,
+        Some(nail_common::request::DeleteMode::Soft),
+    )
+    .await
+    .expect_err("second soft delete");
+    assert_eq!(
+        error,
+        LogicError::bad_request("already soft-deleted"),
+        "repeated soft delete is rejected at the logic layer"
+    );
+}

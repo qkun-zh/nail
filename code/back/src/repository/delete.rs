@@ -181,6 +181,18 @@ fn resolve_any_node_id_sync(
     Ok(None)
 }
 
+pub async fn is_soft_deleted(
+    db: &DbHandle,
+    entity_type: &str,
+    business_id: &str,
+) -> Result<bool, DbError> {
+    let guard = db.read().await;
+    let Some(id) = resolve_node_id_sync(&guard, entity_type, business_id)? else {
+        return Ok(false);
+    };
+    has_soft_deleted_flag(&guard, id)
+}
+
 async fn adjust_soft_delete_count(
     db: &DbHandle,
     entity_type: &str,

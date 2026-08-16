@@ -246,6 +246,13 @@ pub async fn delete_comment(
                 "comment not found",
             )
             .await?;
+            let already_deleted =
+                crate::repository::delete::is_soft_deleted(&state.graph, "comment", comment_id)
+                    .await
+                    .map_err(database_error)?;
+            if already_deleted {
+                return Err(LogicError::bad_request("already soft-deleted"));
+            }
             crate::repository::delete::soft_delete_comment(&state.graph, comment_id)
                 .await
                 .map_err(database_error)?;

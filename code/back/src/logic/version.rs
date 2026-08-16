@@ -222,6 +222,13 @@ pub async fn delete_version(
             let parent_article = parent_article_of(&state.graph, version_id)
                 .await
                 .map_err(database_error)?;
+            let already_deleted =
+                crate::repository::delete::is_soft_deleted(&state.graph, "version", version_id)
+                    .await
+                    .map_err(database_error)?;
+            if already_deleted {
+                return Err(LogicError::bad_request("already soft-deleted"));
+            }
             soft_delete_version(&state.graph, version_id)
                 .await
                 .map_err(database_error)?;

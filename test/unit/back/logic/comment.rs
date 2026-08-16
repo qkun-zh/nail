@@ -376,3 +376,26 @@ async fn delete_comment_soft_keeps_the_owner_edge() {
         "soft delete keeps the author edge"
     );
 }
+
+#[tokio::test]
+async fn delete_comment_soft_is_rejected_for_an_already_hidden_comment() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = member(&state, "alice@example.com").await;
+    let version_id = create_version_fixture(&state, &author_id).await;
+    let comment_id = create_comment(&state, &author_id, &version_id, "hello")
+        .await
+        .expect("create");
+
+    delete_comment(&state, &author_id, &comment_id, Some(DeleteMode::Soft))
+        .await
+        .expect("first soft delete");
+
+    let error = delete_comment(&state, &author_id, &comment_id, Some(DeleteMode::Soft))
+        .await
+        .expect_err("second soft delete");
+    assert_eq!(
+        error,
+        LogicError::bad_request("already soft-deleted"),
+        "repeated soft delete is rejected at the logic layer"
+    );
+}

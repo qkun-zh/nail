@@ -203,6 +203,13 @@ pub async fn delete_article(
                 "article not found",
             )
             .await?;
+            let already_deleted =
+                crate::repository::delete::is_soft_deleted(&state.graph, "article", article_id)
+                    .await
+                    .map_err(database_error)?;
+            if already_deleted {
+                return Err(LogicError::bad_request("already soft-deleted"));
+            }
             crate::repository::delete::soft_delete_article(&state.graph, article_id)
                 .await
                 .map_err(database_error)?;
