@@ -416,3 +416,231 @@ async fn soft_delete_is_idempotent_for_a_missing_node() {
         .await
         .expect("soft delete");
 }
+
+#[tokio::test]
+async fn soft_deleted_article_read_returns_none_but_versions_stay_public() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+
+    soft_delete_article(&state.graph, &article_id)
+        .await
+        .expect("soft delete");
+
+    assert!(
+        crate::repository::article::read_article(&state.graph, &article_id)
+            .await
+            .expect("read article")
+            .is_none(),
+        "deleted article is not found"
+    );
+    let (remaining, _) = versions_of(&state.graph, &article_id, 10, 0)
+        .await
+        .expect("versions");
+    assert_eq!(remaining.len(), 1, "versions stay public");
+    assert_eq!(remaining[0].id, version_id);
+}
+
+#[tokio::test]
+async fn soft_deleted_latest_version_falls_back_to_the_live_latest() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let (article_id, first_version) =
+        create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let second_version = uuid::Uuid::now_v7().to_string();
+    crate::repository::version::create_version(
+        &state.graph,
+        &article_id,
+        &VersionDraft {
+            version_id: second_version.clone(),
+            version_number: "2.0.0".to_string(),
+            content_hash: pdf_hash(2),
+            note: "note".to_string(),
+        },
+    )
+    .await
+    .expect("v2");
+
+    soft_delete_version(&state.graph, &second_version)
+        .await
+        .expect("soft delete v2");
+
+    let view = crate::repository::article::read_article(&state.graph, &article_id)
+        .await
+        .expect("read article")
+        .expect("article");
+    assert_eq!(
+        view.latest_version_id, first_version,
+        "falls back to live latest"
+    );
+    assert_eq!(view.latest_version, "1.0.0");
+}
+
+#[tokio::test]
+async fn soft_deleted_only_version_leaves_no_dangling_latest() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+
+    soft_delete_version(&state.graph, &version_id)
+        .await
+        .expect("soft delete");
+
+    let view = crate::repository::article::read_article(&state.graph, &article_id)
+        .await
+        .expect("read article")
+        .expect("article");
+    assert!(view.latest_version_id.is_empty(), "no dangling latest id");
+    assert!(view.latest_version.is_empty(), "no dangling latest number");
+}
+
+#[tokio::test]
+async fn versions_of_excludes_soft_deleted_versions_and_reports_has_next() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let (article_id, first_version) =
+        create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let second_version = uuid::Uuid::now_v7().to_string();
+    crate::repository::version::create_version(
+        &state.graph,
+        &article_id,
+        &VersionDraft {
+            version_id: second_version.clone(),
+            version_number: "2.0.0".to_string(),
+            content_hash: pdf_hash(2),
+            note: "note".to_string(),
+        },
+    )
+    .await
+    .expect("v2");
+    let third_version = uuid::Uuid::now_v7().to_string();
+    crate::repository::version::create_version(
+        &state.graph,
+        &article_id,
+        &VersionDraft {
+            version_id: third_version.clone(),
+            version_number: "3.0.0".to_string(),
+            content_hash: pdf_hash(3),
+            note: "note".to_string(),
+        },
+    )
+    .await
+    .expect("v3");
+
+    soft_delete_version(&state.graph, &second_version)
+        .await
+        .expect("soft delete v2");
+
+    let (page, has_next) = versions_of(&state.graph, &article_id, 1, 0)
+        .await
+        .expect("page one");
+    assert_eq!(page.len(), 1, "page one has one live version");
+    assert!(has_next, "second live version exists");
+    assert!(
+        page.iter().all(|item| item.id != second_version),
+        "deleted version excluded"
+    );
+
+    let (page_two, has_next) = versions_of(&state.graph, &article_id, 1, 1)
+        .await
+        .expect("page two");
+    assert_eq!(page_two.len(), 1);
+    assert!(!has_next, "no further live versions");
+    let mut seen: Vec<&str> = page
+        .iter()
+        .chain(&page_two)
+        .map(|item| item.id.as_str())
+        .collect();
+    seen.sort_unstable();
+    let mut live: Vec<&str> = vec![first_version.as_str(), third_version.as_str()];
+    live.sort_unstable();
+    assert_eq!(seen, live, "pages tile exactly the live versions");
+}
+
+#[tokio::test]
+async fn read_version_returns_none_for_a_soft_deleted_version() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+
+    soft_delete_version(&state.graph, &version_id)
+        .await
+        .expect("soft delete");
+
+    assert!(
+        crate::repository::version::read_version(&state.graph, &version_id)
+            .await
+            .expect("read version")
+            .is_none(),
+        "deleted version is not found"
+    );
+}
+
+#[tokio::test]
+async fn comment_page_hides_soft_deleted_comments_but_keeps_replies_visible() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let top = insert_comment(&state, &version_id, &author_id).await;
+    let reply = insert_reply(&state, &top, &author_id).await;
+
+    soft_delete_comment(&state.graph, &top)
+        .await
+        .expect("soft delete top");
+
+    let (page, has_next) =
+        crate::repository::comment::read_comments_page_by_version(&state.graph, &version_id, 10, 0)
+            .await
+            .expect("comment page");
+    assert!(page.is_empty(), "deleted top-level comment hidden");
+    assert!(!has_next);
+    let (children, _) =
+        crate::repository::comment::read_comment_children_page(&state.graph, &top, 10, 0)
+            .await
+            .expect("children page");
+    assert_eq!(children.len(), 1, "reply of deleted parent still visible");
+    assert_eq!(children[0].id, reply);
+    assert!(
+        crate::repository::comment::read_comment_item(&state.graph, &top)
+            .await
+            .expect("read top")
+            .is_none(),
+        "deleted comment item hidden"
+    );
+}
+
+#[tokio::test]
+async fn comment_page_tiles_around_soft_deleted_comments() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let first = insert_comment(&state, &version_id, &author_id).await;
+    let second = insert_comment(&state, &version_id, &author_id).await;
+    let third = insert_comment(&state, &version_id, &author_id).await;
+
+    soft_delete_comment(&state.graph, &second)
+        .await
+        .expect("soft delete second");
+
+    let (page_one, has_next) =
+        crate::repository::comment::read_comments_page_by_version(&state.graph, &version_id, 1, 0)
+            .await
+            .expect("page one");
+    assert_eq!(page_one.len(), 1);
+    assert!(has_next, "one of two live comments remains");
+    let (page_two, has_next) =
+        crate::repository::comment::read_comments_page_by_version(&state.graph, &version_id, 1, 1)
+            .await
+            .expect("page two");
+    assert_eq!(page_two.len(), 1);
+    assert!(!has_next);
+    let mut seen: Vec<String> = page_one
+        .into_iter()
+        .chain(page_two)
+        .map(|item| item.id)
+        .collect();
+    seen.sort_unstable();
+    let mut live: Vec<String> = vec![first.clone(), third.clone()];
+    live.sort_unstable();
+    assert_eq!(seen, live, "pages tile exactly the live comments");
+}

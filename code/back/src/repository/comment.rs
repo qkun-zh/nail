@@ -7,7 +7,7 @@ use crate::repository::graph::{
 use crate::repository::schema::{
     CommentRow, EDGE_COMMENT_ATTACH_VERSION, EDGE_COMMENT_REPLY_COMMENT, EDGE_USER_AUTHOR_COMMENT,
     ENTITY_TYPE_COMMENT, ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, IdRow, KEY_COMMENT_CONTENT,
-    KEY_TYPE, alias_of,
+    KEY_SOFT_DELETED, KEY_TYPE, alias_of,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -225,8 +225,7 @@ pub async fn read_comments_page_by_version(
     let Some(version) = resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, version_id)? else {
         return Ok((Vec::new(), false));
     };
-    let (page_ids, has_next) =
-        incoming_comment_ids_page(&guard, version, EDGE_COMMENT_ATTACH_VERSION, limit, offset)?;
+    let (page_ids, has_next) = incoming_comment_ids_page(&guard, version, limit, offset)?;
     let items = read_comment_items(&guard, &page_ids)?;
     Ok((items, has_next))
 }
@@ -241,8 +240,7 @@ pub async fn read_comment_children_page(
     let Some(parent) = resolve_node_id_sync(&guard, ENTITY_TYPE_COMMENT, parent_comment_id)? else {
         return Ok((Vec::new(), false));
     };
-    let (page_ids, has_next) =
-        incoming_comment_ids_page(&guard, parent, EDGE_COMMENT_REPLY_COMMENT, limit, offset)?;
+    let (page_ids, has_next) = incoming_comment_ids_page(&guard, parent, limit, offset)?;
     let items = read_comment_items(&guard, &page_ids)?;
     Ok((items, has_next))
 }
@@ -258,29 +256,31 @@ pub async fn read_comment_item(
 fn incoming_comment_ids_page(
     guard: &agdb::DbAny,
     node: agdb::DbId,
-    edge_type: &str,
     limit: u64,
     offset: u64,
 ) -> Result<(Vec<String>, bool), DbError> {
     let limit = usize::try_from(limit).unwrap_or(usize::MAX);
-    let edges = guard.exec(
+    let comments = guard.exec(
         QueryBuilder::search()
             .to(node)
             .offset(offset)
             .limit(limit.saturating_add(1) as u64)
             .where_()
-            .distance(agdb::CountComparison::Equal(1))
+            .distance(agdb::CountComparison::Equal(2))
             .and()
-            .edge()
+            .node()
             .and()
             .key(KEY_TYPE)
-            .value(edge_type)
+            .value(ENTITY_TYPE_COMMENT)
+            .and()
+            .not()
+            .keys(KEY_SOFT_DELETED)
             .query(),
     )?;
-    let has_next = edges.elements.len() > limit;
-    let mut ids = Vec::with_capacity(edges.elements.len().min(limit));
-    for edge in edges.elements.iter().take(limit) {
-        if let Some(id) = read_rows_sync::<IdRow>(guard, &[edge.from])?
+    let has_next = comments.elements.len() > limit;
+    let mut ids = Vec::with_capacity(comments.elements.len().min(limit));
+    for element in comments.elements.iter().take(limit) {
+        if let Some(id) = read_rows_sync::<IdRow>(guard, &[element.id])?
             .into_iter()
             .next()
             .map(|row| row.id)
@@ -314,6 +314,9 @@ fn read_comment_item_sync(
     let Some(comment) = resolve_node_id_sync(guard, ENTITY_TYPE_COMMENT, comment_id)? else {
         return Ok(None);
     };
+    if crate::repository::delete::has_soft_deleted_flag(guard, comment)? {
+        return Ok(None);
+    }
     let content = read_rows_sync::<CommentRow>(guard, &[comment])?
         .into_iter()
         .next()

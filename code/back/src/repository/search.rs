@@ -17,7 +17,7 @@ use crate::repository::graph::{DbHandle, read_rows_sync, resolve_node_id_sync};
 use crate::repository::schema::{
     ArticleRow, EDGE_ARTICLE_HOLD_VERSION, EDGE_COMMENT_ATTACH_VERSION, EDGE_USER_AUTHOR_ARTICLE,
     EDGE_USER_AUTHOR_COMMENT, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, IdRow,
-    KEY_TYPE, UserRow, VersionRow,
+    KEY_SOFT_DELETED, KEY_TYPE, UserRow, VersionRow,
 };
 
 pub mod document;
@@ -482,20 +482,23 @@ async fn article_ids_of_user(db: &DbHandle, user_id: &str) -> Result<Vec<String>
     };
     let mut ids = Vec::new();
     let mut seen = HashSet::new();
-    let edges = guard.exec(
+    let articles = guard.exec(
         QueryBuilder::search()
             .from(user)
             .where_()
-            .distance(agdb::CountComparison::Equal(1))
+            .distance(agdb::CountComparison::Equal(2))
             .and()
-            .edge()
+            .node()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_USER_AUTHOR_ARTICLE)
+            .value(ENTITY_TYPE_ARTICLE)
+            .and()
+            .not()
+            .keys(KEY_SOFT_DELETED)
             .query(),
     )?;
-    for edge in &edges.elements {
-        if let Some(row) = read_rows_sync::<IdRow>(&guard, &[edge.to])?
+    for element in &articles.elements {
+        if let Some(row) = read_rows_sync::<IdRow>(&guard, &[element.id])?
             .into_iter()
             .next()
             && seen.insert(row.id.clone())
@@ -560,6 +563,9 @@ fn article_id_of_comment(
     let Some(article_edge) = article_edges.elements.first() else {
         return Ok(None);
     };
+    if crate::repository::delete::has_soft_deleted_flag(guard, article_edge.from)? {
+        return Ok(None);
+    }
     Ok(read_rows_sync::<IdRow>(guard, &[article_edge.from])?
         .into_iter()
         .next()
@@ -574,6 +580,9 @@ async fn all_article_ids(db: &DbHandle) -> Result<Vec<String>, DbError> {
             .where_()
             .key(KEY_TYPE)
             .value(ENTITY_TYPE_ARTICLE)
+            .and()
+            .not()
+            .keys(KEY_SOFT_DELETED)
             .query(),
     )?;
     let mut ids = Vec::with_capacity(all.elements.len());

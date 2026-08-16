@@ -104,6 +104,54 @@ async fn sync_and_read_round_trips_an_article() {
 }
 
 #[tokio::test]
+async fn sync_all_and_sync_user_skip_soft_deleted_articles() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = crate::repository::user::create_user(
+        &state.graph,
+        &nail_common::hash::email("alice@example.com"),
+    )
+    .await
+    .expect("user");
+    let index = state.search.clone();
+
+    let first = create_fixture_with_hash(&state, &author_id, "Soft Del First", &pdf_hash(4)).await;
+    let second =
+        create_fixture_with_hash(&state, &author_id, "Soft Del Second", &pdf_hash(5)).await;
+    index.sync(&state.graph, &first).await.expect("sync first");
+    index
+        .sync(&state.graph, &second)
+        .await
+        .expect("sync second");
+
+    crate::repository::delete::soft_delete_article(&state.graph, &first)
+        .await
+        .expect("soft delete");
+
+    let synced_all = index.sync_all(&state.graph).await.expect("sync all");
+    assert_eq!(synced_all, 1, "deleted article excluded from sync_all");
+
+    let synced_user = index
+        .sync_user(&state.graph, &author_id)
+        .await
+        .expect("sync user");
+    assert_eq!(synced_user, 1, "deleted article excluded from sync_user");
+
+    let rebuilt = version_articles(
+        &index
+            .read(
+                &state.graph,
+                query_request("soft", vec![nail_common::search::SearchRange::Title]),
+            )
+            .await
+            .expect("read"),
+    )
+    .len();
+    assert_eq!(rebuilt, 1, "only the live article remains indexed");
+
+    index.close().await;
+}
+
+#[tokio::test]
 async fn keyword_read_returns_highlighted_hits() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(

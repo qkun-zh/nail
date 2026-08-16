@@ -10,7 +10,8 @@ use crate::repository::graph::{
 use crate::repository::schema::{
     ArticleRow, EDGE_ARTICLE_APPLY_TAG, EDGE_ARTICLE_HOLD_VERSION, EDGE_USER_AUTHOR_ARTICLE,
     ENTITY_TYPE_ARTICLE, ENTITY_TYPE_TAG, ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, IdRow,
-    KEY_CONTENT_HASH, KEY_SUMMARY, KEY_TITLE, KEY_TYPE, TagRow, UserRow, VersionRow, alias_of,
+    KEY_CONTENT_HASH, KEY_SOFT_DELETED, KEY_SUMMARY, KEY_TITLE, KEY_TYPE, TagRow, UserRow,
+    VersionRow, alias_of,
 };
 use crate::repository::tag::create_tag_in_txn;
 use crate::repository::version::VersionDraft;
@@ -187,6 +188,9 @@ pub async fn read_article(db: &DbHandle, article_id: &str) -> Result<Option<Arti
     let Some(id) = resolve_node_id_sync(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
         return Ok(None);
     };
+    if crate::repository::delete::has_soft_deleted_flag(&guard, id)? {
+        return Ok(None);
+    }
     Ok(enrich_articles(&guard, &[id])?.into_iter().next())
 }
 
@@ -395,11 +399,22 @@ fn enrich_articles(guard: &agdb::DbAny, ids: &[agdb::DbId]) -> Result<Vec<Articl
         let owner = owner_of.get(id).and_then(|node| author_by_node.get(node));
         let author_id = owner.map(|row| row.id.clone()).unwrap_or_default();
         let author_name = owner.map(|row| row.name.clone()).unwrap_or_default();
-        let latest_version_id = row.latest_version_id.clone().unwrap_or_default();
-        let latest_version = version_by_business
-            .get(latest_version_id.as_str())
+        let stored_latest_id = row.latest_version_id.clone().unwrap_or_default();
+        let mut latest_version_id = stored_latest_id.clone();
+        let mut latest_version = version_by_business
+            .get(stored_latest_id.as_str())
             .cloned()
             .unwrap_or_default();
+        if latest_version.is_empty()
+            && !stored_latest_id.is_empty()
+            && let Some((live_id, live_number)) = live_latest_version(guard, *id)?
+        {
+            latest_version_id = live_id;
+            latest_version = live_number;
+        }
+        if latest_version.is_empty() && !stored_latest_id.is_empty() {
+            latest_version_id = String::new();
+        }
         let mut tags: Vec<TagRef> = tags_by_article
             .get(id)
             .map(|tag_nodes| {
@@ -437,7 +452,9 @@ fn read_version_numbers(
 ) -> Result<HashMap<String, String>, DbError> {
     let mut resolved = Vec::with_capacity(version_ids.len());
     for version_id in version_ids {
-        if let Some(node) = resolve_node_id_sync(guard, ENTITY_TYPE_VERSION, version_id)? {
+        if let Some(node) = resolve_node_id_sync(guard, ENTITY_TYPE_VERSION, version_id)?
+            && !crate::repository::delete::has_soft_deleted_flag(guard, node)?
+        {
             resolved.push(node);
         }
     }
@@ -447,4 +464,44 @@ fn read_version_numbers(
         map.insert(row.id, row.version_number);
     }
     Ok(map)
+}
+
+fn live_latest_version(
+    guard: &agdb::DbAny,
+    article: agdb::DbId,
+) -> Result<Option<(String, String)>, DbError> {
+    let nodes = guard.exec(
+        QueryBuilder::search()
+            .from(article)
+            .where_()
+            .distance(agdb::CountComparison::Equal(2))
+            .and()
+            .node()
+            .and()
+            .key(KEY_TYPE)
+            .value(ENTITY_TYPE_VERSION)
+            .and()
+            .not()
+            .keys(KEY_SOFT_DELETED)
+            .query(),
+    )?;
+    let rows = read_rows_sync::<VersionRow>(
+        guard,
+        &nodes
+            .elements
+            .iter()
+            .map(|element| element.id)
+            .collect::<Vec<_>>(),
+    )?;
+    Ok(rows
+        .into_iter()
+        .max_by(|left, right| {
+            let left_version = semver::Version::parse(&left.version_number);
+            let right_version = semver::Version::parse(&right.version_number);
+            match (left_version, right_version) {
+                (Ok(left), Ok(right)) => left.cmp(&right),
+                _ => left.version_number.cmp(&right.version_number),
+            }
+        })
+        .map(|row| (row.id, row.version_number)))
 }

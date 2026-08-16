@@ -115,6 +115,19 @@ pub async fn delete_version(db: &DbHandle, version_id: &str) -> Result<DeleteOut
     })
 }
 
+pub fn has_soft_deleted_flag(guard: &agdb::DbAny, id: agdb::DbId) -> Result<bool, DbError> {
+    let result = guard.exec(
+        QueryBuilder::search()
+            .elements()
+            .where_()
+            .ids([agdb::QueryId::from(id)])
+            .and()
+            .keys(KEY_SOFT_DELETED)
+            .query(),
+    )?;
+    Ok(!result.elements.is_empty())
+}
+
 pub async fn soft_delete_article(db: &DbHandle, article_id: &str) -> Result<(), DbError> {
     set_soft_deleted_flag(db, ENTITY_TYPE_ARTICLE, article_id).await
 }

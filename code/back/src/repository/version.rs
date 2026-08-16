@@ -7,7 +7,8 @@ use crate::repository::graph::{
 };
 use crate::repository::schema::{
     ArticleRow, EDGE_ARTICLE_HOLD_VERSION, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_VERSION, IdRow,
-    KEY_CONTENT_HASH, KEY_LATEST_VERSION_ID, KEY_TYPE, KEY_VERSION_NOTE, VersionRow, alias_of,
+    KEY_CONTENT_HASH, KEY_LATEST_VERSION_ID, KEY_SOFT_DELETED, KEY_TYPE, KEY_VERSION_NOTE,
+    VersionRow, alias_of,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -151,6 +152,9 @@ pub async fn read_version(
     let Some(id) = resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, version_id)? else {
         return Ok(None);
     };
+    if crate::repository::delete::has_soft_deleted_flag(&guard, id)? {
+        return Ok(None);
+    }
     let row = read_rows_sync::<VersionRow>(&guard, &[id])?
         .into_iter()
         .next()
@@ -188,26 +192,29 @@ pub async fn versions_of(
         return Ok((Vec::new(), false));
     };
     let limit = usize::try_from(limit).unwrap_or(usize::MAX);
-    let edges = guard.exec(
+    let nodes = guard.exec(
         QueryBuilder::search()
             .from(article)
             .offset(offset)
             .limit(limit.saturating_add(1) as u64)
             .where_()
-            .distance(agdb::CountComparison::Equal(1))
+            .distance(agdb::CountComparison::Equal(2))
             .and()
-            .edge()
+            .node()
             .and()
             .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_HOLD_VERSION)
+            .value(ENTITY_TYPE_VERSION)
+            .and()
+            .not()
+            .keys(KEY_SOFT_DELETED)
             .query(),
     )?;
-    let has_next = edges.elements.len() > limit;
-    let version_nodes: Vec<agdb::DbId> = edges
+    let has_next = nodes.elements.len() > limit;
+    let version_nodes: Vec<agdb::DbId> = nodes
         .elements
         .iter()
         .take(limit)
-        .map(|edge| edge.to)
+        .map(|element| element.id)
         .collect();
     let id_rows = read_rows_sync::<IdRow>(&guard, &version_nodes)?;
     let version_rows = read_rows_sync::<VersionRow>(&guard, &version_nodes)?;
