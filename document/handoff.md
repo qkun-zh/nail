@@ -30,6 +30,12 @@
 
 ## Done
 
+- **Seed guard test**: `member_role_holds_exactly_the_seeded_baseline_permissions`
+  (repository/role.rs) asserts the member role holds exactly the five seeded
+  baseline grants (`Article::Create`/`Comment::Create`/`Article::Read`/`Version::Read`/
+  `Comment::Read`) — admin coverage was already guarded; the member list now
+  can't drift by accident. RED shown by temporarily granting `User::Read` to
+  member (test named it). Back 451 tests, clippy 0.
 - **Authz B3 — central route→action inventory + router coverage test (O1, O2)**:
   new `logic/operations.rs` holds `ROUTE_ACTIONS`, the one table mapping every
   route in `interface/router.rs` to its Cedar action(s) (empty = no Cedar gate;

@@ -1,9 +1,10 @@
 use super::context::{build_state, test_config};
 
 use crate::repository::role::{
-    PERMISSION_USER_READ, ROLE_MEMBER, ROLE_RECYCLER, create_permission, create_role,
-    grant_permission_to_role, hold_role, user_holds_permission, user_holds_role,
-    users_holding_role,
+    PERMISSION_ARTICLE_CREATE, PERMISSION_ARTICLE_READ, PERMISSION_COMMENT_CREATE,
+    PERMISSION_COMMENT_READ, PERMISSION_USER_READ, PERMISSION_VERSION_READ, ROLE_MEMBER,
+    ROLE_RECYCLER, create_permission, create_role, grant_permission_to_role, hold_role, read_role,
+    user_holds_permission, user_holds_role, users_holding_role,
 };
 
 #[tokio::test]
@@ -138,6 +139,28 @@ async fn users_holding_role_lists_recycler_holders() {
         .await
         .expect("list");
     assert_eq!(recyclers, vec![user_zero]);
+}
+
+#[tokio::test]
+async fn member_role_holds_exactly_the_seeded_baseline_permissions() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let role = read_role(&state.graph, ROLE_MEMBER)
+        .await
+        .expect("read")
+        .expect("member role");
+
+    let mut actual: Vec<&str> = role.permissions.iter().map(String::as_str).collect();
+    actual.sort();
+    let mut expected: Vec<&str> = vec![
+        PERMISSION_ARTICLE_CREATE,
+        PERMISSION_COMMENT_CREATE,
+        PERMISSION_ARTICLE_READ,
+        PERMISSION_VERSION_READ,
+        PERMISSION_COMMENT_READ,
+    ];
+    expected.sort();
+
+    assert_eq!(actual, expected);
 }
 
 #[tokio::test]
