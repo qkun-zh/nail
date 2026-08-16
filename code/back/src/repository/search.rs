@@ -296,12 +296,18 @@ impl SearchIndex {
 
         let mut version_hits = Vec::new();
         let mut comment_hits = Vec::new();
+        let index = self.index.read().await;
+        let empty_fields = HashSet::new();
+        let empty_distance_fields = Vec::new();
         for hit in &result.results {
-            let document = self
-                .index
-                .read()
-                .await
-                .get_document(hit.doc_id, false, &highlights, &HashSet::new(), &Vec::new())
+            let document = index
+                .get_document(
+                    hit.doc_id,
+                    false,
+                    &highlights,
+                    &empty_fields,
+                    &empty_distance_fields,
+                )
                 .await
                 .map_err(|error| anyhow::anyhow!("fetch search document failed: {error}"))?;
             if document.contains_key(FIELD_COMMENT_ID) {
