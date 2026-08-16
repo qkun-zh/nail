@@ -15,9 +15,9 @@
   graph, SeekStorm search, email-challenge + PoW auth, Cedar authz.
 - Uncommitted (other agent): `document/workflow.md`, `AGENTS.md`, `README.md` —
   the double-evidence workflow refactor (see Done).
-- **Authz refactor (in progress, plan `document/authz-refactor.md`)**: A1 —
-  scope-axis removal — done (`8698ecc`). Next slice: A2 (policy coverage test +
-  vocab count, 26 actions).
+- **Authz refactor (in progress, plan `document/authz-refactor.md`)**: A1 done
+  (`8698ecc`), A2 done (`208e94c`). Next slice: A3 (Virtual entities + single
+  create entry).
 - **Soft-delete refcount + restore API (committed bac4e65, c40608b, 6c33fac,
   97fd467, 6883a5b)**: done — `KEY_SOFT_DELETED` is a u64 count, soft-delete
   cascades `+1` over the subtree, restore `-1` (key deleted at 0; invariant key
@@ -28,6 +28,14 @@
 
 ## Done
 
+- **Authz A2 — policy-schema action cross-check (committed 208e94c)**:
+  `every_action_referenced_by_policy_exists_in_the_schema` scans every
+  `Action::"..."` literal in the policy source and fails if one is missing from
+  the schema (red shown by temporarily removing `Article::Read`). Renamed the
+  stale `..._twenty_three_seeded_actions` test to `schema_actions_equal_the_seed_vocabulary`
+  (count read from schema, not hardcoded); fixed the `schema.cedar` header
+  comment (23 → 26 actions). Back 427, common 109, clippy 0, frontend trunk
+  build clean.
 - **Authz A1 — scope axis removed (committed 8698ecc)**: roles are pure user
   sets; tags stay article content metadata only. `policy.cedar` rule 3 is
   `principal in action`; `scopes`/`global_role`/`required_scopes` and the `Tag`
@@ -102,9 +110,9 @@
 ## Next
 
 - Commit the uncommitted slices (one commit each, clean tree).
-- Authz: A1 done (`8698ecc`); A2 (policy coverage test + vocab count) next, then
-  A3 (Virtual entities + single create entry), A4 (Role::Revoke protection),
-  A5 (vocab single source + policy 6 deletion), A6 (docs).
+- Authz: A1 (`8698ecc`) + A2 (`208e94c`) done; A3 (Virtual entities + single
+  create entry) next, then A4 (Role::Revoke protection), A5 (vocab single
+  source + policy 6 deletion), A6 (docs).
 - Perf: P2, P3, P5, search-ORDER-BY closed. P1 rejected (highlight behavior);
   P6 non-problem (O(R)); P4 accepted (inherent). Open: total/cursor on list endpoints
   + search total.

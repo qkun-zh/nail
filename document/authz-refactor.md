@@ -189,7 +189,7 @@ grep clean (no `scopes`/`global_role`/`required_scopes`/`EDGE_ROLE_APPLY_TAG`),
 back 426 (was 429: 3 obsolete scope tests deleted), common 109, clippy 0
 warnings (back/common/front), frontend `trunk build` clean.
 
-#### A2 — Policy coverage test (O4)
+#### A2 — Policy coverage test (O4) — **DONE** (commit `208e94c`)
 **Changes**:
 - Extend the cross-check: every action referenced by `policy.cedar` exists in
   `schema.cedar` (red test for a removed action).
@@ -197,6 +197,12 @@ warnings (back/common/front), frontend `trunk build` clean.
   26 today); fix the stale header comment in `schema.cedar` ("23 actions" → 26).
   A4 adds `Role::Revoke` (27), so the name must not hardcode the count.
 **Exit**: renaming/removing an action from policy fails the suite.
+**Evidence**: `every_action_referenced_by_policy_exists_in_the_schema` scans the
+policy source for `Action::"..."` literals; red shown by temporarily removing
+`Article::Read` from `schema.cedar` (test failed) then restoring. Renamed
+`schema_actions_equal_the_seed_vocabulary` (reads count from schema). Header
+comment fixed. Back 427 (was 426 +1 new test), common 109, clippy 0, frontend
+`trunk build` clean.
 
 #### A3 — Unify create authorization (O2)
 **Changes**:
