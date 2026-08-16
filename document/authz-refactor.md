@@ -451,7 +451,7 @@ user explicitly adopts this plan before any slice starts.
 ## 9. Phase B4 — Codegen single-source + policy validation
 
 Status: **adopted by user** ("修复这三个吧，同时加上测试保证不会修错"),
-B4.0 evidence collected, B4.1 done, B4.2 done. Three fixes, each with guard tests so a wrong
+B4.0 evidence collected, B4.1 done, B4.2 done, B4.3 done. Three fixes, each with guard tests so a wrong
 "repair" cannot pass:
 
 1. **Fix 2 (point 2) — `PERMISSION_*` constants generated from `schema.cedar`**:
@@ -540,23 +540,28 @@ fmt/clippy 0, common 109, frontend trunk build clean).
 `schema.cedar` recompiles constants and (via A5 tests) propagates to seed;
 suite green (453 back tests; fmt/clippy 0).
 
-### B4.3 — Fix 1: route constants via build.rs
+### B4.3 — Fix 1: route constants via build.rs (done)
 
 **Changes**:
-- `build.rs` also parses `src/interface/router.rs` `.route("...", ...)`
-  literals → emit `pub const ROUTE_ARTICLE_ID_READ: &str = "/article/{id}/read";`
-  (slug: split path segments, strip `{`/`}`, upper-snake) into
-  `OUT_DIR/routes.rs`. Emit `cargo:rerun-if-changed=src/interface/router.rs`.
-- `logic/operations.rs`: add
-  `include!(concat!(env!("OUT_DIR"), "/routes.rs"));` and write `ROUTE_ACTIONS`
-  keys as `ROUTE_*` constants.
+- `build.rs` (extended): also parses `src/interface/router.rs`
+  `.route("...", ...)` literals → emits `pub const ROUTE_<SLUG>: &str = "...";`
+  (slug: strip leading `/`, split on `/`, strip `{`/`}` from segments,
+  join `_`, upper-case) into `OUT_DIR/routes.rs`. Emits
+  `cargo:rerun-if-changed=src/interface/router.rs`.
+- `logic/operations.rs`: adds
+  `include!(concat!(env!("OUT_DIR"), "/routes.rs"));` and writes `ROUTE_ACTIONS`
+  keys as `ROUTE_*` constants (no more string literals for route paths).
 **Guard tests**:
 - existing `every_route_in_router_has_an_inventory_entry` (walks router.rs
-  literals) now verifies the generated constants keep agreeing with the
-  literal source;
-- new spot-check asserting a few `ROUTE_*` constants equal their literal
-  paths.
-**Exit**: route → inventory-key consistency is constructive; suite green.
+  literals via `include_str!`) now verifies the generated constants keep
+  agreeing with the literal source;
+- new `generated_route_constants_match_their_literal_paths` spot-checks five
+  `ROUTE_*` constants (including the longest `ARTICLE..VERSION..CONTENT_READ`
+  path) against their literal values.
+**Red→Green**: generated output byte-identical to the replaced string literals
+(verified against the current `ROUTE_ACTIONS` table).
+**Exit**: route → inventory-key consistency is constructive; suite green
+(454 back tests; fmt/clippy 0, common 109, frontend trunk build clean).
 
 ### B4.4 — Gate & docs
 

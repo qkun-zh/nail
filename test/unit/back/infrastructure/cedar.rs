@@ -189,6 +189,25 @@ fn every_action_referenced_by_policy_exists_in_the_schema() {
 }
 
 #[test]
+fn generated_route_constants_match_their_literal_paths() {
+    use crate::logic::operations::{
+        ROUTE_ARTICLE_ID_VERSION_VERSION_ID_CONTENT_READ, ROUTE_CHALLENGE_CREATE,
+        ROUTE_COMMENT_ID_DELETE, ROUTE_USER_ID_READ, ROUTE_VERSION_ID_COMMENTS_CREATE,
+    };
+    assert_eq!(ROUTE_CHALLENGE_CREATE, "/challenge/create");
+    assert_eq!(ROUTE_USER_ID_READ, "/user/{id}/read");
+    assert_eq!(
+        ROUTE_ARTICLE_ID_VERSION_VERSION_ID_CONTENT_READ,
+        "/article/{id}/version/{version_id}/content/read"
+    );
+    assert_eq!(
+        ROUTE_VERSION_ID_COMMENTS_CREATE,
+        "/version/{id}/comments/create"
+    );
+    assert_eq!(ROUTE_COMMENT_ID_DELETE, "/comment/{id}/delete");
+}
+
+#[test]
 fn read_requires_a_role_grant() {
     let member_role = Entity::new_no_attrs(
         uid("Role::\"member\""),
