@@ -91,6 +91,39 @@ async fn search_articles_rejects_from_greater_than_to() {
 }
 
 #[tokio::test]
+async fn search_articles_rejects_an_invalid_from_bound() {
+    let context = TestCtx::new().await.expect("test context");
+    let request = ArticleSearchParams {
+        from: Some("not-a-datetime".to_string()),
+        ..params(None)
+    };
+    let error =
+        crate::logic::search::search_articles(&context.state, &admin(&context).await, &request)
+            .await
+            .unwrap_err();
+    assert_eq!(
+        error,
+        LogicError::bad_request(
+            "from must be an ISO8601 datetime (year to second precision, no timezone means UTC)"
+        )
+    );
+}
+
+#[tokio::test]
+async fn search_articles_accepts_an_empty_from_bound() {
+    let context = TestCtx::new().await.expect("test context");
+    let request = ArticleSearchParams {
+        from: Some("   ".to_string()),
+        to: Some("   ".to_string()),
+        ..params(None)
+    };
+    let result =
+        crate::logic::search::search_articles(&context.state, &admin(&context).await, &request)
+            .await;
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
 async fn search_articles_rejects_an_overlong_query() {
     let context = TestCtx::new().await.expect("test context");
     let long = "a".repeat(513);

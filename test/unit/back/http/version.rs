@@ -99,6 +99,31 @@ async fn create_version_over_http() {
 }
 
 #[tokio::test]
+async fn create_version_ignores_unknown_multipart_fields() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, token) = member_session(&context, "alice@example.com").await;
+    let (article_id, _) = article_fixture(&context, &user_id).await;
+
+    let fields: Vec<(&str, &str)> = vec![
+        ("version", "1.1.0"),
+        ("note", "next"),
+        ("unexpected_field", "ignored value"),
+    ];
+    let (status, body) = context
+        .post_multipart(
+            &format!("/article/{article_id}/version/create"),
+            Some(&token),
+            &fields,
+            "file",
+            "version.pdf",
+            &unique_pdf("version-1.1.0"),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "body: {body}");
+    assert!(body["data"]["version_id"].as_str().is_some());
+}
+
+#[tokio::test]
 async fn create_version_requires_a_session() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, _) = member_session(&context, "alice@example.com").await;
