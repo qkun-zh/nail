@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod author_gate;
 pub mod draft;
 pub mod index;

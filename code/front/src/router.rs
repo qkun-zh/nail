@@ -2,6 +2,8 @@ use leptos::prelude::*;
 use leptos_router::components::{ParentRoute, Route, Router, Routes};
 use leptos_router::path;
 
+use crate::page::admin::user::AdminUserDetail;
+use crate::page::admin::{AdminIndex, AdminLayout};
 use crate::page::index::Index;
 use crate::page::not_found::NotFound;
 use crate::page::private::PrivateLayout;
@@ -59,6 +61,10 @@ pub fn AppRouter() -> impl IntoView {
                         <Route path=path!("/email/update") view=EmailUpdate/>
                         <Route path=path!("/logout") view=Logout/>
                         <Route path=path!("/deregister") view=Deregister/>
+                    </ParentRoute>
+                    <ParentRoute path=path!("/admin") view=AdminLayout>
+                        <Route path=path!("") view=AdminIndex/>
+                        <Route path=path!("/user/:user_id") view=AdminUserDetail/>
                     </ParentRoute>
                 </ParentRoute>
             </Routes>
