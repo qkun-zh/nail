@@ -441,6 +441,65 @@ fn user_create_is_permitted_for_the_anonymous_principal() {
 }
 
 #[test]
+fn role_crud_requires_the_admin_console_and_grant_revoke_the_role_resource() {
+    let admin_role = Entity::new_no_attrs(
+        uid("Role::\"admin\""),
+        HashSet::from([
+            uid("Action::\"Role::Create\""),
+            uid("Action::\"Role::Read\""),
+            uid("Action::\"Role::Update\""),
+            uid("Action::\"Role::Delete\""),
+        ]),
+    );
+    let admin = user_entity("admin", HashSet::from([uid("Role::\"admin\"")]));
+    for action in ["Role::Create", "Role::Read", "Role::Update", "Role::Delete"] {
+        let action_entity =
+            Entity::new_no_attrs(uid(&format!("Action::\"{action}\"")), HashSet::new());
+        assert!(
+            decide(
+                &uid("User::\"admin\""),
+                action,
+                &uid("Virtual::\"admin-console\""),
+                vec![admin.clone(), admin_role.clone(), action_entity],
+            )
+            .expect("admin role crud")
+        );
+    }
+
+    let grant_role = Entity::new_no_attrs(
+        uid("Role::\"admin\""),
+        HashSet::from([
+            uid("Action::\"Role::Grant\""),
+            uid("Action::\"Role::Revoke\""),
+        ]),
+    );
+    for action in ["Role::Grant", "Role::Revoke"] {
+        let action_entity =
+            Entity::new_no_attrs(uid(&format!("Action::\"{action}\"")), HashSet::new());
+        assert!(
+            decide(
+                &uid("User::\"admin\""),
+                action,
+                &uid("Role::\"editor\""),
+                vec![admin.clone(), grant_role.clone(), action_entity],
+            )
+            .expect("admin role grant/revoke")
+        );
+    }
+
+    let member = user_entity("alice", HashSet::from([uid("Role::\"member\"")]));
+    assert!(
+        !decide(
+            &uid("User::\"alice\""),
+            "Role::Read",
+            &uid("Virtual::\"admin-console\""),
+            vec![member],
+        )
+        .expect("member role read denied")
+    );
+}
+
+#[test]
 fn admin_without_a_grant_is_denied() {
     let admin = Entity::new_no_attrs(uid("Role::\"admin\""), HashSet::new());
     let principal = user_entity("alice", HashSet::from([uid("Role::\"admin\"")]));

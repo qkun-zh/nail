@@ -36,5 +36,9 @@ action "User::Delete::Hard"         appliesTo { principal: [User], resource: [Vi
 action "User::Delete::Transfer"     appliesTo { principal: [User], resource: [User] };
 action "User::Delete::Soft"         appliesTo { principal: [User], resource: [User] };
 action "User::Undelete::Soft"       appliesTo { principal: [User], resource: [User] };
-action "Role::Manage"               appliesTo { principal: [User], resource: [Virtual] };
+action "Role::Create"               appliesTo { principal: [User], resource: [Virtual] };
+action "Role::Read"                 appliesTo { principal: [User], resource: [Virtual] };
+action "Role::Update"               appliesTo { principal: [User], resource: [Virtual] };
+action "Role::Delete"               appliesTo { principal: [User], resource: [Virtual] };
+action "Role::Grant"                appliesTo { principal: [User], resource: [Role] };
 action "Role::Revoke"               appliesTo { principal: [User], resource: [Role] };

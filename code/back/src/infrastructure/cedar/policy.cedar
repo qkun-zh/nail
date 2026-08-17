@@ -42,16 +42,21 @@ permit (principal, action in [Action::"User::Read",
 permit (principal, action, resource)
   when { principal in action };
 
-// 4. Admin-console meta-permission: User::Update/Delete::Hard and Role::Manage
-//    are only judged against Virtual::"admin-console". User::Read and the
-//    self-service deletes (Soft/Transfer) left this rule: User::Read rides the
-//    User resource self-service (policy 1b), and deregistration rides the same
-//    self rule, so this rule keeps the admin-only hard-delete and user update
+// 4. Admin-console meta-permission: User::Update/Delete::Hard and the
+//    role-management CRUD actions are only judged against
+//    Virtual::"admin-console". User::Read and the self-service deletes
+//    (Soft/Transfer) left this rule: User::Read rides the User resource
+//    self-service (policy 1b), and deregistration rides the same self rule, so
+//    this rule keeps the admin-only hard-delete, user update and role CRUD
 //    actions. An admin with the grant still reaches them through the generic
-//    role rule (policy 3) on Virtual::"admin-console".
+//    role rule (policy 3) on Virtual::"admin-console". Role::Grant and
+//    Role::Revoke act on the concrete Role resource (policy 3).
 permit (principal, action in [Action::"User::Update",
                               Action::"User::Delete::Hard",
-                              Action::"Role::Manage"],
+                              Action::"Role::Create",
+                              Action::"Role::Read",
+                              Action::"Role::Update",
+                              Action::"Role::Delete"],
         resource)
   when { resource == Virtual::"admin-console" && principal in action };
 

@@ -3,7 +3,8 @@ use crate::logic::authorize::authorize;
 use crate::logic::error::{LogicError, database_error};
 use crate::repository::authorization::Resource;
 use crate::repository::role::{
-    PERMISSION_ROLE_MANAGE, PERMISSION_ROLE_REVOKE, REQUIRED_ROLES, ROLE_ADMIN,
+    PERMISSION_ROLE_CREATE, PERMISSION_ROLE_DELETE, PERMISSION_ROLE_GRANT, PERMISSION_ROLE_READ,
+    PERMISSION_ROLE_REVOKE, PERMISSION_ROLE_UPDATE, REQUIRED_ROLES, ROLE_ADMIN,
     RoleView as RepositoryRoleView, create_role as create_role_node,
     delete_role as delete_role_node, grant_permission_to_role, hold_role,
     read_role as read_role_node, read_role_members, read_roles as read_role_nodes,
@@ -22,8 +23,12 @@ pub struct RoleUpdate<'a> {
     pub users_remove: &'a [String],
 }
 
-async fn require_role_manage(state: &AppState, actor_id: &str) -> Result<(), LogicError> {
-    authorize(state, actor_id, PERMISSION_ROLE_MANAGE, &admin_console()).await
+async fn require_role_action(
+    state: &AppState,
+    actor_id: &str,
+    action: &str,
+) -> Result<(), LogicError> {
+    authorize(state, actor_id, action, &admin_console()).await
 }
 
 pub fn validate_role_name(raw: &str) -> Result<String, LogicError> {
@@ -45,7 +50,7 @@ pub async fn create_role(
     actor_id: &str,
     raw_name: &str,
 ) -> Result<String, LogicError> {
-    require_role_manage(state, actor_id).await?;
+    require_role_action(state, actor_id, PERMISSION_ROLE_CREATE).await?;
     let name = validate_role_name(raw_name)?;
     if read_role_node(&state.graph, &name)
         .await
@@ -66,7 +71,7 @@ pub async fn read_roles(
     page: u64,
     limit: u64,
 ) -> Result<RoleListPage, LogicError> {
-    require_role_manage(state, actor_id).await?;
+    require_role_action(state, actor_id, PERMISSION_ROLE_READ).await?;
     let roles = read_role_nodes(&state.graph)
         .await
         .map_err(database_error)?;
@@ -103,7 +108,7 @@ pub async fn read_role(
     actor_id: &str,
     name: &str,
 ) -> Result<RoleView, LogicError> {
-    require_role_manage(state, actor_id).await?;
+    require_role_action(state, actor_id, PERMISSION_ROLE_READ).await?;
     let role = read_role_node(&state.graph, name)
         .await
         .map_err(database_error)?
@@ -132,8 +137,17 @@ pub async fn update_role(
     } = update;
     let has_adds = !permissions_add.is_empty() || !users_add.is_empty();
     let has_removes = !permissions_remove.is_empty() || !users_remove.is_empty();
+    if has_adds || has_removes {
+        require_role_action(state, actor_id, PERMISSION_ROLE_UPDATE).await?;
+    }
     if has_adds {
-        require_role_manage(state, actor_id).await?;
+        authorize(
+            state,
+            actor_id,
+            PERMISSION_ROLE_GRANT,
+            &Resource::Role(name.to_string()),
+        )
+        .await?;
     }
     if has_removes {
         authorize(
@@ -193,7 +207,7 @@ pub async fn delete_role(
     actor_id: &str,
     name: &str,
 ) -> Result<RoleNameView, LogicError> {
-    require_role_manage(state, actor_id).await?;
+    require_role_action(state, actor_id, PERMISSION_ROLE_DELETE).await?;
     if REQUIRED_ROLES.contains(&name) {
         return Err(LogicError::bad_request(format!(
             "role {name} is a required role and cannot be deleted"
