@@ -93,16 +93,8 @@ pub fn Deregister() -> impl IntoView {
         </form>
         <form on:submit=confirm>
             <input type="text" prop:value=token on:input=move |event| token.set(event_target_value(&event)) placeholder="token"/>
-            <select on:change=move |event| {
-                let value = event_target_value(&event);
-                match value.as_str() {
-                    "soft" => mode.set(DeleteMode::Soft),
-                    _ => mode.set(DeleteMode::Transfer),
-                }
-            }>
-                <option value="transfer">Transfer (content moves to platform)</option>
-                <option value="soft">Soft (data preserved, admin can restore)</option>
-            </select>
+            <label><input type="radio" name="mode" value="transfer" prop:checked=true on:change=move |_| mode.set(DeleteMode::Transfer)/> Transfer (content moves to platform)</label>
+            <label><input type="radio" name="mode" value="soft" on:change=move |_| mode.set(DeleteMode::Soft)/> Soft (data preserved, admin can restore)</label>
             <button type="submit" disabled=move || working.get()>
                 {move || if working.get() { "deregistering..." } else { "deregister" }}
             </button>
