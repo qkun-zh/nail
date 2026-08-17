@@ -59,7 +59,12 @@ fn route_const(route: &str) -> String {
     let name = route
         .trim_start_matches('/')
         .split('/')
-        .map(|segment| segment.trim_matches(['{', '}']).to_ascii_uppercase())
+        .map(|segment| {
+            segment
+                .trim_matches(['{', '}'])
+                .replace('-', "_")
+                .to_ascii_uppercase()
+        })
         .collect::<Vec<_>>()
         .join("_");
     format!("pub const ROUTE_{name}: &str = \"{route}\";\n")

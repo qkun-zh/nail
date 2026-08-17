@@ -23,8 +23,7 @@
 - Task "Fix 10 code quality defects": **completed and cleared** (see commits
   03d1c7c..2707dd8). Back coverage 89.10%, all three crates fmt/clippy clean,
   back 499 tests and front 69 tests green.
-- Current sole pending item: **Permission System Overhaul** (see below,
-  ownership unclaimed).
+- Current sole pending item: **Permission System Overhaul** (see below).
 
 ## Remaining risks (inherited from the completed task, for reference)
 
@@ -35,73 +34,111 @@ Coverage capped at 89.10%; the uncovered remainder are all non-user-input paths
 
 # Task: Permission System Overhaul
 
-**Ownership**: claimed by the agent receiving this handoff. **Status**: not started.
+**Ownership**: this agent (permission overhaul). **Status**: in progress.
 This is this task's exclusive area; others must not modify it.
 
 ## Decisions (final, do not change)
 
-1. `Restore` → `Undelete::Soft`
-2. Remove `User::Delete::Transfer`, keep `Version::Delete::Transfer`
+1. `Restore` → `Undelete::Soft` (all of Article/Version/Comment/User)
+2. Transfer exists only for Article/User/Comment. Article/Comment transfer:
+   move the target and its subtree to the recycler. User transfer: move the
+   user's subtree (excluding the user node) to the recycler, then delete the
+   user. Remove `Version::Delete::Transfer`.
 3. Split `Role::Manage` into 6 permissions (Create/Read/Update/Delete/Grant/Revoke)
 4. Virtual is used only for Create operations (no instance); operations with an
    instance (User/Role) use the concrete resource type
-5. User supports soft delete
-6. Permission count 32 (was 27): Article=7, Version=7, Comment=7, User=5, Role=6
+5. User supports soft delete; self-service deregistration (email-confirmed)
+   picks either `soft` or `transfer` mode
+6. Permission count 33 (was 27): Article=7, Version=6, Comment=7, User=7, Role=6
+7. `User::Create` is declared in schema, enforced via a Cedar check at
+   registration, but its policy is permit-all (always allows; conditions can
+   be added later without code changes)
+8. **Nothing is implicitly permitted. Every operation — including
+   self-service deregistration (transfer/soft) and registration — calls
+   `authorize()` explicitly; no operation may bypass the Cedar check.**
+   Explicit rules may be conditional (e.g. `resource.owner == principal`,
+   `principal == resource`); conditional rules ARE explicit authorization.
+9. **No implicit grants. All decisions come from explicit conditional rules
+    in policy.cedar + explicit `authorize()` calls.** Owner of own content:
+    Read/Update/Version::Create/Delete::Soft/Delete::Transfer (Version has no
+    Transfer). Owner never has Hard delete or Undelete — those are admin-only.
+    User self-view/self-update via `principal == resource`.
+10. **Recycler mounts content only — it holds no management permissions.**
+    Recycle-bin management (hard delete / undelete of recycled content) is
+    admin-only (admin role holds every permission). Recycler transfer forbid
+    stays.
 
-## Stage A — Cedar authorization layer
+## Task I — Cedar authorization layer
 
-- **Slice 1** — schema.cedar permission rename/add/remove
-  - `Article/Version/Comment::Restore` → `Undelete::Soft`
-  - Remove `User::Delete::Transfer`, add `User::Delete::Soft`, `User::Create`
-  - Remove `Role::Manage`, add 6 fine-grained permissions
+- **Stage A** — schema.cedar permission rename/add/remove
+  - Slice 1. `Article/Version/Comment/User::Restore` → `Undelete::Soft`
+  - Slice 2. Remove `Version::Delete::Transfer`; keep `User::Delete::Transfer`;
+    add `User::Delete::Soft`, `User::Create`, `User::Undelete::Soft`
+  - Slice 3. Remove `Role::Manage`, add 6 fine-grained permissions
     (Create/Read/Update/Delete/Grant/Revoke)
-- **Slice 2** — schema.cedar resource-type normalization
-  - Keep Virtual resource for Create actions (Article/Comment/User/Role Create)
-  - `Version::Create` resource is Article (instance exists)
-  - Change instance operations (User::Read/Update/Delete,
-    Role::Read/Update/Delete/Grant/Revoke) to concrete types User/Role
-- **Slice 3** — policy.cedar
-  - Update owner bypass (Soft replaces Transfer)
-  - Policy 4 uses action-set matching (remove `Virtual::"admin-console"` hardcode)
-  - Update Policy 5 recycler restrictions
-- **Slice 4** — build.rs
-  - Update the test_only list
+- **Stage B** — schema.cedar resource-type normalization
+  - Slice 1. Keep Virtual resource for Create actions (Article/Comment/User/Role Create)
+  - Slice 2. `Version::Create` resource is Article (instance exists)
+  - Slice 3. Change instance operations (User::Read/Update/Delete::Hard/Soft/
+    Transfer/Undelete::Soft, Role::Read/Update/Delete/Grant/Revoke) to concrete
+    types User/Role
+- **Stage C** — policy.cedar (all rules explicit; nothing implicitly allowed)
+  - Slice 1. Owner-conditional rules for content operations on own content
+    (Article/Version/Comment Read/Update, Article/Comment Delete::Soft/
+    Delete::Transfer, Version::Delete::Soft, Version::Create — no Hard delete,
+    no Undelete: those are admin-only)
+  - Slice 2. Self rules: User::Read/User::Update on self (`principal == resource`)
+  - Slice 3. Role-grant rule + admin-console rule replaced by concrete-resource
+    matching for User/Role instance operations (no Virtual hardcode)
+  - Slice 4. Update Policy 5 recycler restrictions (drop Version transfer);
+    recycler has no grants
+  - Slice 5. Add permit-all policy for `User::Create` (conditions later)
+  - Slice 6. `forbid` admin-role revocation stays
+- **Stage D** — build.rs
+  - Slice 1. Clear the test_only list (Version transfer dropped; User
+    Soft/Transfer now runtime-used via self-service authorize)
 
-## Stage B — Backend implementation layer
+## Task II — Backend implementation layer
 
-- **Slice 1** — repository
-  - role.rs permission constants auto-generated (add User::Create/Soft,
-    remove User::Transfer, Role's 6)
-  - delete.rs add `soft_delete_user`
-  - authorization.rs resource assembly update: Role/User use concrete
-    resource, Virtual only for Create
-- **Slice 2** — logic
-  - Change three restore → undelete_soft (article/version/comment)
-  - user.rs remove transfer, add soft delete, add create authorization
-  - role.rs use 6 fine-grained permissions
-- **Slice 3** — interface
-  - router route rename (restore → undelete-soft)
-  - Rename each handler + update permission checks
+- **Stage A** — repository
+  - Slice 1. role.rs permission constants auto-generated (add User::Create/Soft/
+    Undelete, keep User::Transfer, remove Version::Transfer, Role's 6)
+  - Slice 2. delete.rs add `soft_delete_user` and `undelete_soft_user`
+  - Slice 3. authorization.rs resource assembly update: Role/User use concrete
+    resource, Virtual only for Create; anonymous principal support for
+    registration check
+- **Stage B** — logic
+  - Slice 1. Change three restore → undelete_soft (article/version/comment)
+  - Slice 2. user.rs: keep transfer (mode `transfer`), add soft delete (mode
+    `soft`), add undelete_soft, add explicit `authorize()` to self-service
+    deregistration (transfer and soft) and to create (permit-all)
+  - Slice 3. role.rs use 6 fine-grained permissions
+- **Stage C** — interface
+  - Slice 1. router route rename (restore → undelete-soft)
+  - Slice 2. Rename each handler + update permission checks
 
-## Stage C — Operations and tests
+## Task III — Operations and tests
 
-- **Slice 1** — operations.rs
-  - ROUTE_*_RESTORE → UNDELETE_SOFT
-  - ROLE_* permission mapping update
-- **Slice 2** — tests
-  - Update tests using old permission/route names
-  - Add `User::Delete::Soft` tests
-  - All tests pass
+- **Stage A** — operations.rs
+  - Slice 1. ROUTE_*_RESTORE → UNDELETE_SOFT
+  - Slice 2. ROLE_* permission mapping update
+- **Stage B** — tests
+  - Slice 1. Update tests using old permission/route names
+  - Slice 2. Add `User::Delete::Soft`, `User::Undelete::Soft` and `User::Create`
+    tests
+  - Slice 3. All tests pass
 
-## Stage D — Full explicit authorization hardening
+## Task IV — Full explicit authorization hardening
 
-- **Slice 1** — Fix Virtual abuse (User/Role use concrete resource, not Virtual)
-  - Check all User authorization calls pass concrete User resource
-  - Check all Role authorization calls pass concrete Role resource
-- **Slice 2** — policy completeness
-  - Full explicit authorization verification (no implicit-permission holes)
-  - Verify admin role policy retained
-- **Slice 3** — verification
-  - `cargo fmt` / `cargo clippy` (zero warnings)
-  - `cargo test` (all green)
-  - `trunk build` (frontend)
+- **Stage A** — Fix Virtual abuse (User/Role use concrete resource, not Virtual)
+  - Slice 1. Check all User authorization calls pass concrete User resource
+  - Slice 2. Check all Role authorization calls pass concrete Role resource
+- **Stage B** — no implicit permission holes
+  - Slice 1. Verify every operation path calls `authorize()` (no bypasses,
+    including self-service deregistration and registration)
+  - Slice 2. Verify no policy grants anything without an explicit rule
+    (deny-by-default; owner/self rules are explicit and conditional)
+- **Stage C** — verification
+  - Slice 1. `cargo fmt` / `cargo clippy` (zero warnings)
+  - Slice 2. `cargo test` (all green)
+  - Slice 3. `trunk build` (frontend)

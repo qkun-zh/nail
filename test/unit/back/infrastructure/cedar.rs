@@ -31,6 +31,13 @@ fn article_entity(id: &str, owner: &str) -> Entity {
 }
 
 #[test]
+fn article_restore_is_renamed_to_undelete_soft() {
+    let vocabulary = crate::repository::role::permission_vocabulary();
+    assert!(vocabulary.contains(&"Article::Undelete::Soft"));
+    assert!(!vocabulary.contains(&"Article::Restore"));
+}
+
+#[test]
 fn schema_actions_equal_the_permission_constants() {
     let schema: cedar_policy::Schema = SCHEMA.parse().expect("schema");
     let mut declared: Vec<String> = schema

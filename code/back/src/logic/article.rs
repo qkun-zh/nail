@@ -18,7 +18,7 @@ use crate::repository::article::{
 use crate::repository::authorization::Resource;
 use crate::repository::role::{
     PERMISSION_ARTICLE_CREATE, PERMISSION_ARTICLE_DELETE_HARD, PERMISSION_ARTICLE_DELETE_SOFT,
-    PERMISSION_ARTICLE_DELETE_TRANSFER, PERMISSION_ARTICLE_READ, PERMISSION_ARTICLE_RESTORE,
+    PERMISSION_ARTICLE_DELETE_TRANSFER, PERMISSION_ARTICLE_READ, PERMISSION_ARTICLE_UNDELETE_SOFT,
     PERMISSION_ARTICLE_UPDATE,
 };
 use crate::repository::transfer::{TransferTargetError, transfer_article};
@@ -243,7 +243,7 @@ pub async fn delete_article(
     }
 }
 
-pub async fn restore_article(
+pub async fn undelete_soft_article(
     state: &AppState,
     actor_id: &str,
     article_id: &str,
@@ -251,7 +251,7 @@ pub async fn restore_article(
     authorize_or(
         state,
         actor_id,
-        PERMISSION_ARTICLE_RESTORE,
+        PERMISSION_ARTICLE_UNDELETE_SOFT,
         &Resource::Article(article_id.to_string()),
         "article not found",
     )

@@ -15,7 +15,7 @@ action "Article::Update"            appliesTo { principal: [User], resource: [Ar
 action "Article::Delete::Hard"      appliesTo { principal: [User], resource: [Article] };
 action "Article::Delete::Transfer"  appliesTo { principal: [User], resource: [Article] };
 action "Article::Delete::Soft"      appliesTo { principal: [User], resource: [Article] };
-action "Article::Restore"           appliesTo { principal: [User], resource: [Article] };
+action "Article::Undelete::Soft"      appliesTo { principal: [User], resource: [Article] };
 action "Version::Create"            appliesTo { principal: [User], resource: [Article] };
 action "Version::Read"              appliesTo { principal: [User], resource: [Version] };
 action "Version::Update"            appliesTo { principal: [User], resource: [Version] };

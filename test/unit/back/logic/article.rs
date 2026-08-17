@@ -424,7 +424,7 @@ async fn delete_article_soft_is_rejected_for_an_already_hidden_article() {
 }
 
 #[tokio::test]
-async fn restore_article_revives_the_article_and_its_versions() {
+async fn undelete_soft_article_revives_the_article_and_its_versions() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
     let admin_id = admin(&context).await;
@@ -452,9 +452,9 @@ async fn restore_article_revives_the_article_and_its_versions() {
     .await
     .expect("soft delete");
 
-    let data = crate::logic::article::restore_article(&context.state, &admin_id, &article_id)
+    let data = crate::logic::article::undelete_soft_article(&context.state, &admin_id, &article_id)
         .await
-        .expect("restore");
+        .expect("undelete");
     assert_eq!(data.article_id, article_id);
 
     crate::logic::article::read_article(&context.state, &admin_id, &article_id)
@@ -467,12 +467,12 @@ async fn restore_article_revives_the_article_and_its_versions() {
     assert_eq!(
         versions.len(),
         1,
-        "versions revived after the article restore"
+        "versions revived after the article undelete"
     );
 }
 
 #[tokio::test]
-async fn restore_article_is_forbidden_for_a_member() {
+async fn undelete_soft_article_is_forbidden_for_a_member() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
     let (article_id, _) = crate::logic::article::create_article(
@@ -499,14 +499,14 @@ async fn restore_article_is_forbidden_for_a_member() {
     .await
     .expect("soft delete");
 
-    let error = crate::logic::article::restore_article(&context.state, &actor, &article_id)
+    let error = crate::logic::article::undelete_soft_article(&context.state, &actor, &article_id)
         .await
-        .expect_err("member restore");
+        .expect_err("member undelete");
     assert_eq!(error, LogicError::forbidden("you are denied"));
 }
 
 #[tokio::test]
-async fn restore_article_is_rejected_when_the_article_is_visible() {
+async fn undelete_soft_article_is_rejected_when_the_article_is_visible() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
     let admin_id = admin(&context).await;
@@ -525,13 +525,14 @@ async fn restore_article_is_rejected_when_the_article_is_visible() {
     .await
     .expect("create");
 
-    let error = crate::logic::article::restore_article(&context.state, &admin_id, &article_id)
-        .await
-        .expect_err("restore of visible article");
+    let error =
+        crate::logic::article::undelete_soft_article(&context.state, &admin_id, &article_id)
+            .await
+            .expect_err("undelete of visible article");
     assert_eq!(
         error,
         LogicError::bad_request("not soft-deleted"),
-        "restore of a visible article is rejected"
+        "undelete of a visible article is rejected"
     );
 }
 

@@ -622,7 +622,7 @@ async fn delete_article_hard_is_forbidden_for_a_member_owner() {
 }
 
 #[tokio::test]
-async fn restore_article_revives_the_article_over_http() {
+async fn undelete_soft_article_revives_the_article_over_http() {
     let context = TestCtx::new().await.expect("test context");
     let (_, owner_token) = member_session(&context, "alice@example.com").await;
     let (_, admin_token) = admin_session(&context).await;
@@ -638,13 +638,13 @@ async fn restore_article_revives_the_article_over_http() {
 
     let (status, body) = context
         .post(
-            &format!("/article/{article_id}/restore"),
+            &format!("/article/{article_id}/undelete-soft"),
             json!({}),
             Some(&admin_token),
         )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert_eq!(body["message"].as_str(), Some("restored"));
+    assert_eq!(body["message"].as_str(), Some("undeleted"));
 
     let (status, body) = context
         .get(&format!("/article/{article_id}/read"), Some(&owner_token))
@@ -653,7 +653,7 @@ async fn restore_article_revives_the_article_over_http() {
 }
 
 #[tokio::test]
-async fn restore_article_is_forbidden_for_a_member_owner() {
+async fn undelete_soft_article_is_forbidden_for_a_member_owner() {
     let context = TestCtx::new().await.expect("test context");
     let (_, owner_token) = member_session(&context, "alice@example.com").await;
     let article_id = create_article_fixture(&context, &owner_token, "Restore Denied").await;
@@ -668,7 +668,7 @@ async fn restore_article_is_forbidden_for_a_member_owner() {
 
     let (status, body) = context
         .post(
-            &format!("/article/{article_id}/restore"),
+            &format!("/article/{article_id}/undelete-soft"),
             json!({}),
             Some(&owner_token),
         )

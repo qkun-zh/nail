@@ -35,7 +35,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/article/{id}/read", get(article::read_article))
         .route("/article/{id}/update", post(article::update_article))
         .route("/article/{id}/delete", post(article::delete_article))
-        .route("/article/{id}/restore", post(article::restore_article))
+        .route(
+            "/article/{id}/undelete-soft",
+            post(article::undelete_soft_article),
+        )
         .route(
             "/article/{id}/version/create",
             post(version::create_version),
