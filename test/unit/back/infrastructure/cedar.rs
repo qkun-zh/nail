@@ -106,8 +106,8 @@ fn policy_action_names() -> Vec<String> {
 fn router_route_paths() -> Vec<String> {
     let mut paths = Vec::new();
     let mut rest = include_str!("../../../../code/back/src/interface/router.rs");
-    while let Some(start) = rest.find(".route(") {
-        rest = &rest[start + ".route(".len()..];
+    while let Some(start) = rest.find("pub const ROUTE_") {
+        rest = &rest[start + "pub const ROUTE_".len()..];
         let Some(open) = rest.find('"') else {
             break;
         };
@@ -211,7 +211,7 @@ fn every_action_referenced_by_policy_exists_in_the_schema() {
 
 #[test]
 fn generated_route_constants_match_their_literal_paths() {
-    use crate::logic::operations::{
+    use crate::interface::router::{
         ROUTE_ARTICLE_ID_VERSION_VERSION_ID_CONTENT_READ, ROUTE_CHALLENGE_CREATE,
         ROUTE_COMMENT_ID_DELETE, ROUTE_USER_ID_READ, ROUTE_VERSION_ID_COMMENTS_CREATE,
     };

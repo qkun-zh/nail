@@ -8,6 +8,44 @@ use crate::interface::{
 };
 use crate::logic::operations::ROUTE_ACTIONS;
 
+pub const ROUTE_CHALLENGE_CREATE: &str = "/challenge/create";
+pub const ROUTE_CONFIG_READ: &str = "/config/read";
+pub const ROUTE_TOKEN_CREATE: &str = "/token/create";
+pub const ROUTE_USER_CREATE: &str = "/user/create";
+pub const ROUTE_SESSION_READ: &str = "/session/read";
+pub const ROUTE_SESSION_DELETE: &str = "/session/delete";
+pub const ROUTE_USER_ID_READ: &str = "/user/{id}/read";
+pub const ROUTE_USER_ID_UPDATE: &str = "/user/{id}/update";
+pub const ROUTE_USER_ID_DELETE: &str = "/user/{id}/delete";
+pub const ROUTE_USER_ID_UNDELETE_SOFT: &str = "/user/{id}/undelete-soft";
+pub const ROUTE_ARTICLE_READ: &str = "/article/read";
+pub const ROUTE_ARTICLE_CREATE: &str = "/article/create";
+pub const ROUTE_ARTICLE_ID_READ: &str = "/article/{id}/read";
+pub const ROUTE_ARTICLE_ID_UPDATE: &str = "/article/{id}/update";
+pub const ROUTE_ARTICLE_ID_DELETE: &str = "/article/{id}/delete";
+pub const ROUTE_ARTICLE_ID_UNDELETE_SOFT: &str = "/article/{id}/undelete-soft";
+pub const ROUTE_ARTICLE_ID_VERSION_CREATE: &str = "/article/{id}/version/create";
+pub const ROUTE_ARTICLE_ID_VERSION_READ: &str = "/article/{id}/version/read";
+pub const ROUTE_ARTICLE_ID_VERSION_VERSION_ID_CONTENT_READ: &str =
+    "/article/{id}/version/{version_id}/content/read";
+pub const ROUTE_VERSION_ID_READ: &str = "/version/{id}/read";
+pub const ROUTE_VERSION_ID_UPDATE: &str = "/version/{id}/update";
+pub const ROUTE_VERSION_ID_DELETE: &str = "/version/{id}/delete";
+pub const ROUTE_VERSION_ID_UNDELETE_SOFT: &str = "/version/{id}/undelete-soft";
+pub const ROUTE_VERSION_ID_COMMENTS_CREATE: &str = "/version/{id}/comments/create";
+pub const ROUTE_COMMENTS_ID_REPLIES_CREATE: &str = "/comments/{id}/replies/create";
+pub const ROUTE_VERSION_ID_COMMENTS_READ: &str = "/version/{id}/comments/read";
+pub const ROUTE_COMMENT_ID_READ: &str = "/comment/{id}/read";
+pub const ROUTE_COMMENT_ID_REPLIES_READ: &str = "/comment/{id}/replies/read";
+pub const ROUTE_COMMENT_ID_UPDATE: &str = "/comment/{id}/update";
+pub const ROUTE_COMMENT_ID_DELETE: &str = "/comment/{id}/delete";
+pub const ROUTE_COMMENT_ID_UNDELETE_SOFT: &str = "/comment/{id}/undelete-soft";
+pub const ROUTE_ROLE_CREATE: &str = "/role/create";
+pub const ROUTE_ROLE_READ: &str = "/role/read";
+pub const ROUTE_ROLE_NAME_READ: &str = "/role/{name}/read";
+pub const ROUTE_ROLE_NAME_UPDATE: &str = "/role/{name}/update";
+pub const ROUTE_ROLE_NAME_DELETE: &str = "/role/{name}/delete";
+
 pub fn build_router(state: AppState) -> Router {
     let body_limit = state
         .config
@@ -21,63 +59,66 @@ pub fn build_router(state: AppState) -> Router {
     }
 
     Router::new()
-        .route("/challenge/create", post(challenge::create_challenge))
-        .route("/config/read", get(config::read_config))
-        .route("/token/create", post(token::create_token))
-        .route("/user/create", post(user::create_user))
-        .route("/session/read", get(session::read_session))
-        .route("/session/delete", post(session::delete_session))
-        .route("/user/{id}/read", get(user::read_user))
-        .route("/user/{id}/update", post(user::update_user))
-        .route("/user/{id}/delete", post(user::delete_user))
-        .route("/user/{id}/undelete-soft", post(user::undelete_soft_user))
-        .route("/article/read", get(article::search_articles))
-        .route("/article/create", post(article::create_article))
-        .route("/article/{id}/read", get(article::read_article))
-        .route("/article/{id}/update", post(article::update_article))
-        .route("/article/{id}/delete", post(article::delete_article))
+        .route(ROUTE_CHALLENGE_CREATE, post(challenge::create_challenge))
+        .route(ROUTE_CONFIG_READ, get(config::read_config))
+        .route(ROUTE_TOKEN_CREATE, post(token::create_token))
+        .route(ROUTE_USER_CREATE, post(user::create_user))
+        .route(ROUTE_SESSION_READ, get(session::read_session))
+        .route(ROUTE_SESSION_DELETE, post(session::delete_session))
+        .route(ROUTE_USER_ID_READ, get(user::read_user))
+        .route(ROUTE_USER_ID_UPDATE, post(user::update_user))
+        .route(ROUTE_USER_ID_DELETE, post(user::delete_user))
+        .route(ROUTE_USER_ID_UNDELETE_SOFT, post(user::undelete_soft_user))
+        .route(ROUTE_ARTICLE_READ, get(article::search_articles))
+        .route(ROUTE_ARTICLE_CREATE, post(article::create_article))
+        .route(ROUTE_ARTICLE_ID_READ, get(article::read_article))
+        .route(ROUTE_ARTICLE_ID_UPDATE, post(article::update_article))
+        .route(ROUTE_ARTICLE_ID_DELETE, post(article::delete_article))
         .route(
-            "/article/{id}/undelete-soft",
+            ROUTE_ARTICLE_ID_UNDELETE_SOFT,
             post(article::undelete_soft_article),
         )
         .route(
-            "/article/{id}/version/create",
+            ROUTE_ARTICLE_ID_VERSION_CREATE,
             post(version::create_version),
         )
-        .route("/article/{id}/version/read", get(version::read_versions))
+        .route(ROUTE_ARTICLE_ID_VERSION_READ, get(version::read_versions))
         .route(
-            "/article/{id}/version/{version_id}/content/read",
+            ROUTE_ARTICLE_ID_VERSION_VERSION_ID_CONTENT_READ,
             get(content::read_content),
         )
-        .route("/version/{id}/read", get(version::read_version))
-        .route("/version/{id}/update", post(version::update_version))
-        .route("/version/{id}/delete", post(version::delete_version))
+        .route(ROUTE_VERSION_ID_READ, get(version::read_version))
+        .route(ROUTE_VERSION_ID_UPDATE, post(version::update_version))
+        .route(ROUTE_VERSION_ID_DELETE, post(version::delete_version))
         .route(
-            "/version/{id}/undelete-soft",
+            ROUTE_VERSION_ID_UNDELETE_SOFT,
             post(version::undelete_soft_version),
         )
         .route(
-            "/version/{id}/comments/create",
+            ROUTE_VERSION_ID_COMMENTS_CREATE,
             post(comment::create_comment),
         )
-        .route("/comments/{id}/replies/create", post(comment::create_reply))
-        .route("/version/{id}/comments/read", get(comment::read_comments))
-        .route("/comment/{id}/read", get(comment::read_comment))
         .route(
-            "/comment/{id}/replies/read",
+            ROUTE_COMMENTS_ID_REPLIES_CREATE,
+            post(comment::create_reply),
+        )
+        .route(ROUTE_VERSION_ID_COMMENTS_READ, get(comment::read_comments))
+        .route(ROUTE_COMMENT_ID_READ, get(comment::read_comment))
+        .route(
+            ROUTE_COMMENT_ID_REPLIES_READ,
             get(comment::read_comment_children),
         )
-        .route("/comment/{id}/update", post(comment::update_comment))
-        .route("/comment/{id}/delete", post(comment::delete_comment))
+        .route(ROUTE_COMMENT_ID_UPDATE, post(comment::update_comment))
+        .route(ROUTE_COMMENT_ID_DELETE, post(comment::delete_comment))
         .route(
-            "/comment/{id}/undelete-soft",
+            ROUTE_COMMENT_ID_UNDELETE_SOFT,
             post(comment::undelete_soft_comment),
         )
-        .route("/role/create", post(role::create_role))
-        .route("/role/read", get(role::read_roles))
-        .route("/role/{name}/read", get(role::read_role))
-        .route("/role/{name}/update", post(role::update_role))
-        .route("/role/{name}/delete", post(role::delete_role))
+        .route(ROUTE_ROLE_CREATE, post(role::create_role))
+        .route(ROUTE_ROLE_READ, get(role::read_roles))
+        .route(ROUTE_ROLE_NAME_READ, get(role::read_role))
+        .route(ROUTE_ROLE_NAME_UPDATE, post(role::update_role))
+        .route(ROUTE_ROLE_NAME_DELETE, post(role::delete_role))
         .layer(DefaultBodyLimit::max(
             usize::try_from(body_limit).unwrap_or(usize::MAX),
         ))
