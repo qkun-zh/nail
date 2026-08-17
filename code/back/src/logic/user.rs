@@ -62,6 +62,13 @@ pub async fn create_user(state: &AppState, pow: &Pow) -> Result<String, LogicErr
             }
         };
 
+    if crate::repository::delete::is_soft_deleted(&state.graph, "user", &user_id)
+        .await
+        .map_err(database_error)?
+    {
+        return Err(LogicError::bad_request("email address is deactivated"));
+    }
+
     crate::repository::role::hold_role(&state.graph, &user_id, ROLE_MEMBER)
         .await
         .map_err(|error| LogicError::internal(format!("failed to grant member role: {error}")))?;
@@ -85,6 +92,13 @@ pub async fn read_user(
         "user not found",
     )
     .await?;
+
+    if crate::repository::delete::is_soft_deleted(&state.graph, "user", target_id)
+        .await
+        .map_err(database_error)?
+    {
+        return Err(LogicError::not_found("user not found"));
+    }
 
     let mut view = UserView::default();
     if target_id != actor_id {

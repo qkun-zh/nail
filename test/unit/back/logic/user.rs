@@ -534,3 +534,107 @@ async fn delete_user_transfer_rejects_an_expired_token_for_an_existing_account()
         LogicError::bad_request("invalid or expired delete token")
     );
 }
+
+#[tokio::test]
+async fn create_user_rejects_a_soft_deleted_account() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, token) = session_for(&context, "alice@example.com").await;
+
+    let pow = context.issued_pow("alice@example.com");
+    let _ = crate::logic::email::create_token(
+        &context.state,
+        nail_common::request::CreateTokenRequest {
+            purpose: nail_common::request::TokenPurpose::DeleteUser,
+            pow: Some(pow),
+            old_email_pow: None,
+            new_email_pow: None,
+        },
+        Some(token),
+    )
+    .await
+    .expect("deregister email");
+    let messages = context.emails();
+    let confirmation_token = messages[0].2.clone();
+    let confirm_pow = context.issued_pow(&confirmation_token);
+    crate::logic::user::delete_user(
+        &context.state,
+        &user_id,
+        &user_id,
+        UserDeleteRequest {
+            mode: Some(nail_common::request::DeleteMode::Soft),
+            pow: confirm_pow,
+        },
+    )
+    .await
+    .expect("soft delete");
+
+    let register_pow = context.issued_pow("alice@example.com");
+    let _ = crate::logic::email::create_token(
+        &context.state,
+        nail_common::request::CreateTokenRequest {
+            purpose: nail_common::request::TokenPurpose::CreateUser,
+            pow: Some(register_pow),
+            old_email_pow: None,
+            new_email_pow: None,
+        },
+        None,
+    )
+    .await
+    .expect("create token");
+    let messages = context.emails();
+    let register_token = messages[1].2.clone();
+    let register_pow = context.issued_pow(&register_token);
+
+    let error = crate::logic::user::create_user(&context.state, &register_pow)
+        .await
+        .unwrap_err();
+    assert_eq!(
+        error,
+        LogicError::bad_request("email address is deactivated")
+    );
+    assert!(
+        crate::repository::delete::is_soft_deleted(&context.state.graph, "user", &user_id)
+            .await
+            .expect("soft-deleted check")
+    );
+}
+
+#[tokio::test]
+async fn read_user_hides_a_soft_deleted_account() {
+    let context = TestCtx::new().await.expect("test context");
+    let (admin, _) = admin_session(&context).await;
+    let (user_id, token) = session_for(&context, "alice@example.com").await;
+
+    let pow = context.issued_pow("alice@example.com");
+    let _ = crate::logic::email::create_token(
+        &context.state,
+        nail_common::request::CreateTokenRequest {
+            purpose: nail_common::request::TokenPurpose::DeleteUser,
+            pow: Some(pow),
+            old_email_pow: None,
+            new_email_pow: None,
+        },
+        Some(token),
+    )
+    .await
+    .expect("deregister email");
+    let messages = context.emails();
+    let confirmation_token = messages[0].2.clone();
+    let confirm_pow = context.issued_pow(&confirmation_token);
+    crate::logic::user::delete_user(
+        &context.state,
+        &user_id,
+        &user_id,
+        UserDeleteRequest {
+            mode: Some(nail_common::request::DeleteMode::Soft),
+            pow: confirm_pow,
+        },
+    )
+    .await
+    .expect("soft delete");
+
+    let error = crate::logic::user::read_user(&context.state, &admin, &user_id, true, false)
+        .await
+        .unwrap_err();
+    assert_eq!(error, LogicError::not_found("user not found"));
+}
