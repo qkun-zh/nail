@@ -7,14 +7,14 @@ explicit rules only, deny-by-default, no implicit grants anywhere.
 
 | # | R | Acceptance | Status |
 |---|---|---|---|
-| 1 | `Restore` → `Undelete::Soft` (Article/Version/Comment/User) | schema has 4 Undelete::Soft, no Restore | pending |
-| 2 | Remove `Version::Delete::Transfer`; keep `User::Delete::Transfer`; add `User::Delete::Soft`, `User::Create`, `User::Undelete::Soft` | schema action set == 33 | pending |
-| 3 | `Role::Manage` → Create/Read/Update/Delete/Grant/Revoke | 6 Role actions | pending |
-| 4 | Virtual only for Create ops; instance ops use concrete User/Role | schema appliesTo concrete | pending |
-| 5 | User soft delete; self-service deregistration (email-confirmed) picks `soft` or `transfer` | `soft_delete_user` + `undelete_soft_user` | pending |
-| 6 | `User::Create` declared, cedar-checked, permit-all policy | authorize call at registration | pending |
-| 7 | Every operation calls `authorize()`; no bypass; explicit conditional rules (owner/self) are fine | no implicit permissions | pending |
-| 8 | Recycler: mount only, zero grants; recycle-bin management admin-only | policy + seed | pending |
+| 1 | `Restore` → `Undelete::Soft` (Article/Version/Comment/User) | schema has 4 Undelete::Soft, no Restore | done |
+| 2 | Remove `Version::Delete::Transfer`; keep `User::Delete::Transfer`; add `User::Delete::Soft`, `User::Create`, `User::Undelete::Soft` | schema action set == 33 | done |
+| 3 | `Role::Manage` → Create/Read/Update/Delete/Grant/Revoke | 6 Role actions | done |
+| 4 | Virtual only for Create ops; instance ops use concrete User/Role | schema appliesTo concrete | done |
+| 5 | User soft delete; self-service deregistration (email-confirmed) picks `soft` or `transfer` | `soft_delete_user` + `undelete_soft_user` | done |
+| 6 | `User::Create` declared, cedar-checked, permit-all policy | authorize call at registration | done |
+| 7 | Every operation calls `authorize()`; no bypass; explicit conditional rules (owner/self) are fine | no implicit permissions | done |
+| 8 | Recycler: mount only, zero grants; recycle-bin management admin-only | policy + seed | done |
 
 ## 2. Scope
 
@@ -55,21 +55,21 @@ unchanged), `code/common` (DeleteMode/TokenPurpose already exist).
 
 | Slice | Goal | Files | Red | Green | Exit | Status |
 |---|---|---|---|---|---|---|
-| A1 | schema 27→33, renames, Version transfer drop | schema.cedar | probe_004 action-count | actions==33 | cargo test | pending |
-| A2 | resource-type normalization (Virtual→concrete) | schema.cedar | cedar.rs inventory test | passes | cargo test | pending |
-| A3 | policy.cedar rewrite (owner/self/grant/permit-all/forbids) | policy.cedar | cedar.rs validation | passes | cargo test | pending |
-| A4 | build.rs test_only cleared | build.rs | cargo check | compiles | cargo check | pending |
-| B1 | permission_vocabulary 27→33 | repository/role.rs | role.rs test | passes | cargo test | pending |
-| B2 | soft_delete_user + undelete_soft_user | repository/delete.rs | delete.rs test | passes | cargo test | pending |
-| B3 | Resource assembly for concrete User/Role | authorization.rs | authorize.rs test | passes | cargo test | pending |
-| C1 | article/version/comment restore→undelete_soft | logic/{article,version,comment}.rs | http tests | passes | cargo test | pending |
-| C2 | user.rs: soft/undelete/create authz/self-service authz | logic/user.rs | user http tests | passes | cargo test | pending |
-| C3 | role.rs 6 fine-grained permissions | logic/role.rs | role http tests | passes | cargo test | pending |
-| C4 | interface rename + new user route | interface/{router,user,role}.rs | router test | passes | cargo test | pending |
-| D1 | ROUTE_ACTIONS update | logic/operations.rs | operations test | passes | cargo test | pending |
-| D2 | tests renamed/added (soft/undelete/create) | test/unit/back/** | new tests fail | all green | cargo test | pending |
-| E1 | virtual-abuse check, no-bypass audit | logic/** | audit notes | none found | cargo test | pending |
-| E2 | final gate | — | — | fmt+clippy+test+trunk | full gate | pending |
+| A1 | schema 27→33, renames, Version transfer drop | schema.cedar | probe_004 action-count | actions==33 | cargo test | done |
+| A2 | resource-type normalization (Virtual→concrete) | schema.cedar | cedar.rs inventory test | passes | cargo test | done |
+| A3 | policy.cedar rewrite (owner/self/grant/permit-all/forbids) | policy.cedar | cedar.rs validation | passes | cargo test | done |
+| A4 | build.rs test_only cleared | build.rs | cargo check | compiles | cargo check | done |
+| B1 | permission_vocabulary 27→33 | repository/role.rs | role.rs test | passes | cargo test | done |
+| B2 | soft_delete_user + undelete_soft_user | repository/delete.rs | delete.rs test | passes | cargo test | done |
+| B3 | Resource assembly for concrete User/Role | authorization.rs | authorize.rs test | passes | cargo test | done |
+| C1 | article/version/comment restore→undelete_soft | logic/{article,version,comment}.rs | http tests | passes | cargo test | done |
+| C2 | user.rs: soft/undelete/create authz/self-service authz | logic/user.rs | user http tests | passes | cargo test | done |
+| C3 | role.rs 6 fine-grained permissions | logic/role.rs | role http tests | passes | cargo test | done |
+| C4 | interface rename + new user route | interface/{router,user,role}.rs | router test | passes | cargo test | done |
+| D1 | ROUTE_ACTIONS update | logic/operations.rs | operations test | passes | cargo test | done |
+| D2 | tests renamed/added (soft/undelete/create) | test/unit/back/** | new tests fail | all green | cargo test | done |
+| E1 | virtual-abuse check, no-bypass audit | logic/** | audit notes | none found | cargo test | done |
+| E2 | final gate | — | — | fmt+clippy+test+trunk | full gate | done |
 
 ## 5. Open unknowns
 
@@ -117,3 +117,10 @@ unchanged), `code/common` (DeleteMode/TokenPurpose already exist).
 ## Change log
 
 - 2026-08-17: created; decisions D1–D8 per user answers to Q1–Q4/DP1–DP3.
+- 2026-08-17: all slices A1–E2 done. Commits: S1 af57930, S2 efb0ad, S3 a0c51fe,
+  S4 c9cb178, S5 7641965, S6 3e3af54, S7 e04d9a1, S8 c30da03, S9 c146a89.
+  E1 audit found and fixed two remaining bypasses: email change in
+  `logic/user.rs::update_user` (added self `User::Update` authorize) and
+  `logic/session.rs::read_user_name` (added self `User::Read` authorize).
+  E2 final gate green: back 513 tests, front 69 tests, trunk build, fmt,
+  clippy (zero warnings) across all three crates.

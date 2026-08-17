@@ -23,7 +23,10 @@
 - Task "Fix 10 code quality defects": **completed and cleared** (see commits
   03d1c7c..2707dd8). Back coverage 89.10%, all three crates fmt/clippy clean,
   back 499 tests and front 69 tests green.
-- Current sole pending item: **Permission System Overhaul** (see below).
+- Task **Permission System Overhaul**: **completed** (commits af57930..c146a89,
+  nine slices S1–S9). Back 513 tests, front 69 tests, trunk build green,
+  fmt/clippy zero warnings across all three crates. See
+  `document/exec/003_permission_overhaul.md` for the full record.
 
 ## Remaining risks (inherited from the completed task, for reference)
 
@@ -34,8 +37,11 @@ Coverage capped at 89.10%; the uncovered remainder are all non-user-input paths
 
 # Task: Permission System Overhaul
 
-**Ownership**: this agent (permission overhaul). **Status**: in progress.
+**Ownership**: this agent (permission overhaul). **Status**: completed.
 This is this task's exclusive area; others must not modify it.
+
+All nine slices S1–S9 are done and committed (af57930..c146a89); the task is
+cleared. Record of execution: `document/exec/003_permission_overhaul.md`.
 
 ## Decisions (final, do not change)
 
@@ -68,77 +74,24 @@ This is this task's exclusive area; others must not modify it.
     admin-only (admin role holds every permission). Recycler transfer forbid
     stays.
 
-## Task I — Cedar authorization layer
+## Execution record
 
-- **Stage A** — schema.cedar permission rename/add/remove
-  - Slice 1. `Article/Version/Comment/User::Restore` → `Undelete::Soft`
-  - Slice 2. Remove `Version::Delete::Transfer`; keep `User::Delete::Transfer`;
-    add `User::Delete::Soft`, `User::Create`, `User::Undelete::Soft`
-  - Slice 3. Remove `Role::Manage`, add 6 fine-grained permissions
-    (Create/Read/Update/Delete/Grant/Revoke)
-- **Stage B** — schema.cedar resource-type normalization
-  - Slice 1. Keep Virtual resource for Create actions (Article/Comment/User/Role Create)
-  - Slice 2. `Version::Create` resource is Article (instance exists)
-  - Slice 3. Change instance operations (User::Read/Update/Delete::Hard/Soft/
-    Transfer/Undelete::Soft, Role::Read/Update/Delete/Grant/Revoke) to concrete
-    types User/Role
-- **Stage C** — policy.cedar (all rules explicit; nothing implicitly allowed)
-  - Slice 1. Owner-conditional rules for content operations on own content
-    (Article/Version/Comment Read/Update, Article/Comment Delete::Soft/
-    Delete::Transfer, Version::Delete::Soft, Version::Create — no Hard delete,
-    no Undelete: those are admin-only)
-  - Slice 2. Self rules: User::Read/User::Update on self (`principal == resource`)
-  - Slice 3. Role-grant rule + admin-console rule replaced by concrete-resource
-    matching for User/Role instance operations (no Virtual hardcode)
-  - Slice 4. Update Policy 5 recycler restrictions (drop Version transfer);
-    recycler has no grants
-  - Slice 5. Add permit-all policy for `User::Create` (conditions later)
-  - Slice 6. `forbid` admin-role revocation stays
-- **Stage D** — build.rs
-  - Slice 1. Clear the test_only list (Version transfer dropped; User
-    Soft/Transfer now runtime-used via self-service authorize)
+All slices across Tasks I–IV (schema, policy, build.rs, repository, logic,
+interface, operations, tests, hardening audit) were completed in nine commits:
 
-## Task II — Backend implementation layer
+- S1 `af57930` — remove `Action::Create` soft/restore vocabulary
+- S2 `efb0ad` — remove grant-permission-to-user
+- S3 `a0c51fe` — rename `Restore` → `Undelete::Soft` (Article/Version/Comment)
+- S4 `c9cb178` — remove `Version::Delete::Transfer`
+- S5 `7641965` — User Create/Delete::Soft/Undelete::Soft + anonymous principal
+  + explicit authorization for self-service deregistration
+- S6 `3e3af54` — split `Role::Manage` into 6 fine-grained permissions
+- S7 `e04d9a1` — resource-type normalization + drop admin-console
+  (User::Update/Delete::Hard, Role CRUD on concrete resources)
+- S8 `c30da03` — reject reactivation + hide soft-deleted accounts
+- S9 `c146a89` — E1 no-bypass audit (email change + session name read now
+  explicitly authorized) and E2 final gate
 
-- **Stage A** — repository
-  - Slice 1. role.rs permission constants auto-generated (add User::Create/Soft/
-    Undelete, keep User::Transfer, remove Version::Transfer, Role's 6)
-  - Slice 2. delete.rs add `soft_delete_user` and `undelete_soft_user`
-  - Slice 3. authorization.rs resource assembly update: Role/User use concrete
-    resource, Virtual only for Create; anonymous principal support for
-    registration check
-- **Stage B** — logic
-  - Slice 1. Change three restore → undelete_soft (article/version/comment)
-  - Slice 2. user.rs: keep transfer (mode `transfer`), add soft delete (mode
-    `soft`), add undelete_soft, add explicit `authorize()` to self-service
-    deregistration (transfer and soft) and to create (permit-all)
-  - Slice 3. role.rs use 6 fine-grained permissions
-- **Stage C** — interface
-  - Slice 1. router route rename (restore → undelete-soft)
-  - Slice 2. Rename each handler + update permission checks
-
-## Task III — Operations and tests
-
-- **Stage A** — operations.rs
-  - Slice 1. ROUTE_*_RESTORE → UNDELETE_SOFT
-  - Slice 2. ROLE_* permission mapping update
-- **Stage B** — tests
-  - Slice 1. Update tests using old permission/route names
-  - Slice 2. Add `User::Delete::Soft`, `User::Undelete::Soft` and `User::Create`
-    tests
-  - Slice 3. All tests pass
-
-## Task IV — Full explicit authorization hardening
-
-- **Stage A** — Fix Virtual abuse (User/Role use concrete resource, not Virtual)
-  - Slice 1. Check all User authorization calls pass concrete User resource
-  - Slice 2. Check all Role authorization calls pass concrete Role resource
-- **Stage B** — no implicit permission holes
-  - Slice 1. Verify every operation path calls `authorize()` (no bypasses,
-    including self-service deregistration and registration)
-  - Slice 2. Verify no policy grants anything without an explicit rule
-    (deny-by-default; owner/self rules are explicit and conditional)
-- **Stage C** — verification
-  - Slice 1. `cargo fmt` / `cargo clippy` (zero warnings)
-  - Slice 2. `cargo test` (all green)
-  - Slice 3. `trunk build` (frontend)
+Final gate green: back 513 tests, front 69 tests, `trunk build` succeeds,
+fmt/clippy zero warnings across all three crates. Full record:
+`document/exec/003_permission_overhaul.md`.
