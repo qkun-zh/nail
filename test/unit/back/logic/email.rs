@@ -281,3 +281,130 @@ async fn send_update_user_email_rejects_a_taken_new_email() {
         LogicError::bad_request("new email is already used by another account")
     );
 }
+
+#[tokio::test]
+async fn change_email_rejects_new_email_on_disallowed_domain() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, session_token) = session_for(&context, "alice@example.com").await;
+    let request = CreateTokenRequest {
+        purpose: TokenPurpose::UpdateUserEmail,
+        pow: None,
+        old_email_pow: Some(context.issued_pow("alice@example.com")),
+        new_email_pow: Some(context.issued_pow("alice@other.org")),
+    };
+    let error = crate::logic::email::create_token(&context.state, request, Some(session_token))
+        .await
+        .unwrap_err();
+    assert_eq!(
+        error,
+        LogicError::bad_request("email domain not allowed")
+    );
+}
+
+#[tokio::test]
+async fn update_user_email_rejects_same_old_and_new_token() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, _) = session_for(&context, "alice@example.com").await;
+    let same_token = uuid::Uuid::now_v7().to_string();
+    let other_token = uuid::Uuid::now_v7().to_string();
+    context.state.caches.email_update.insert(
+        &user_id,
+        crate::repository::cache::EmailUpdateTokenEntry {
+            old_email_hash: nail_common::hash::email("alice@example.com"),
+            new_email_hash: nail_common::hash::email("alice-new@example.com"),
+            token_hash_from_old_email: token_key(&same_token).expect("hash"),
+            token_hash_from_new_email: token_key(&other_token).expect("hash"),
+        },
+    );
+    let payload = format!("{same_token}\n{same_token}");
+    let pow = context.issued_pow(&payload);
+    let error =
+        update_user_email(&context.state, &user_id, &pow, &same_token, &same_token)
+            .await
+            .unwrap_err();
+    assert_eq!(
+        error,
+        LogicError::bad_request("old token and new token must be different")
+    );
+}
+
+#[tokio::test]
+async fn update_user_email_rejects_token_mismatch() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, _) = session_for(&context, "alice@example.com").await;
+    let old_token = uuid::Uuid::now_v7().to_string();
+    let new_token = uuid::Uuid::now_v7().to_string();
+    let wrong_token = uuid::Uuid::now_v7().to_string();
+    context.state.caches.email_update.insert(
+        &user_id,
+        crate::repository::cache::EmailUpdateTokenEntry {
+            old_email_hash: nail_common::hash::email("alice@example.com"),
+            new_email_hash: nail_common::hash::email("alice-new@example.com"),
+            token_hash_from_old_email: token_key(&old_token).expect("hash"),
+            token_hash_from_new_email: token_key(&new_token).expect("hash"),
+        },
+    );
+    let payload = format!("{old_token}\n{wrong_token}");
+    let pow = context.issued_pow(&payload);
+    let error = update_user_email(&context.state, &user_id, &pow, &old_token, &wrong_token)
+        .await
+        .unwrap_err();
+    assert_eq!(error, LogicError::bad_request("token mismatch"));
+}
+
+#[tokio::test]
+async fn send_delete_user_email_rejects_mismatched_email() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, _) = session_for(&context, "alice@example.com").await;
+    let pow = context.issued_pow("bob@example.com");
+    let error = send_delete_user_email(&context.state, &user_id, &pow)
+        .await
+        .unwrap_err();
+    assert_eq!(
+        error,
+        LogicError::bad_request("email does not match your account")
+    );
+}
+
+#[tokio::test]
+async fn delete_user_token_requires_session() {
+    let context = TestCtx::new().await.expect("test context");
+    let request = CreateTokenRequest {
+        purpose: TokenPurpose::DeleteUser,
+        pow: Some(context.issued_pow("alice@example.com")),
+        old_email_pow: None,
+        new_email_pow: None,
+    };
+    let error = crate::logic::email::create_token(&context.state, request, None)
+        .await
+        .unwrap_err();
+    assert_eq!(
+        error,
+        LogicError::unauthorized("missing session-token header")
+    );
+}
+
+#[tokio::test]
+async fn update_user_email_rejects_pow_payload_not_matching_tokens() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, _) = session_for(&context, "alice@example.com").await;
+    let old_token = uuid::Uuid::now_v7().to_string();
+    let new_token = uuid::Uuid::now_v7().to_string();
+    context.state.caches.email_update.insert(
+        &user_id,
+        crate::repository::cache::EmailUpdateTokenEntry {
+            old_email_hash: nail_common::hash::email("alice@example.com"),
+            new_email_hash: nail_common::hash::email("alice-new@example.com"),
+            token_hash_from_old_email: token_key(&old_token).expect("hash"),
+            token_hash_from_new_email: token_key(&new_token).expect("hash"),
+        },
+    );
+    let pow = context.issued_pow("wrong-payload");
+    let error = update_user_email(&context.state, &user_id, &pow, &old_token, &new_token)
+        .await
+        .unwrap_err();
+    assert_eq!(
+        error,
+        LogicError::bad_request("PoW payload does not match token")
+    );
+}

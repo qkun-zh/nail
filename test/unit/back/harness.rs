@@ -109,11 +109,17 @@ pub mod http_content;
 #[path = "http/role.rs"]
 pub mod http_role;
 
+#[path = "repository/tag.rs"]
+pub mod repository_tag;
+
 #[path = "repository/comment.rs"]
 pub mod repository_comment;
 
 #[path = "logic/comment.rs"]
 pub mod logic_comment;
+
+#[path = "logic/role.rs"]
+pub mod logic_role;
 
 #[path = "http/comment.rs"]
 pub mod http_comment;
