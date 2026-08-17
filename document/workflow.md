@@ -133,6 +133,15 @@ commit: one commit per slice, clean tree
 
 Gate fails → debug, fix, re-gate. Never skip gate.
 
+### Resource contention (before any build/test)
+
+Before running any `cargo` build/test (here, §9, or probe tests), check the
+machine load (`uptime` / `ps -eo pcpu` / `mpstat`). If the machine is heavily
+loaded — likely another agent's compile/test in progress — **back off**: wait
+(poll periodically) until load drops enough to run your own build without
+contending. Never start a build on top of a busy machine; a shared tree means
+results may be unreliable or someone else's run may be disrupted.
+
 ## Phase 9 — Final gate
 
 Full build + all tests + clippy (0 warnings) + fmt. Must reproduce green.
