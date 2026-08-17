@@ -16,7 +16,7 @@ use crate::repository::comment::{
 };
 use crate::repository::role::{
     PERMISSION_COMMENT_CREATE, PERMISSION_COMMENT_DELETE_HARD, PERMISSION_COMMENT_DELETE_SOFT,
-    PERMISSION_COMMENT_DELETE_TRANSFER, PERMISSION_COMMENT_READ, PERMISSION_COMMENT_RESTORE,
+    PERMISSION_COMMENT_DELETE_TRANSFER, PERMISSION_COMMENT_READ, PERMISSION_COMMENT_UNDELETE_SOFT,
     PERMISSION_COMMENT_UPDATE,
 };
 use crate::repository::transfer::{TransferTargetError, transfer_comment};
@@ -303,7 +303,7 @@ pub async fn delete_comment(
     })
 }
 
-pub async fn restore_comment(
+pub async fn undelete_soft_comment(
     state: &AppState,
     actor_id: &str,
     comment_id: &str,
@@ -311,7 +311,7 @@ pub async fn restore_comment(
     authorize_or(
         state,
         actor_id,
-        PERMISSION_COMMENT_RESTORE,
+        PERMISSION_COMMENT_UNDELETE_SOFT,
         &Resource::Comment(comment_id.to_string()),
         "comment not found",
     )

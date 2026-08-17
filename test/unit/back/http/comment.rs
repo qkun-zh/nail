@@ -384,7 +384,7 @@ async fn delete_comment_soft_hides_the_comment_over_http() {
 }
 
 #[tokio::test]
-async fn restore_comment_revives_the_comment_over_http() {
+async fn undelete_soft_comment_revives_the_comment_over_http() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = member_session(&context, "alice@example.com").await;
     let (_, admin_token) = admin_session(&context).await;
@@ -409,13 +409,13 @@ async fn restore_comment_revives_the_comment_over_http() {
 
     let (status, body) = context
         .post(
-            &format!("/comment/{comment_id}/restore"),
+            &format!("/comment/{comment_id}/undelete-soft"),
             json!({}),
             Some(&admin_token),
         )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert_eq!(body["message"].as_str(), Some("restored"));
+    assert_eq!(body["message"].as_str(), Some("undeleted"));
 
     let (status, body) = context
         .get(&format!("/comment/{comment_id}/read"), Some(&token))
@@ -424,7 +424,7 @@ async fn restore_comment_revives_the_comment_over_http() {
 }
 
 #[tokio::test]
-async fn restore_comment_is_forbidden_for_a_member_owner() {
+async fn undelete_soft_comment_is_forbidden_for_a_member_owner() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = member_session(&context, "alice@example.com").await;
     let version_id = version_fixture(&context, &user_id).await;
@@ -448,7 +448,7 @@ async fn restore_comment_is_forbidden_for_a_member_owner() {
 
     let (status, body) = context
         .post(
-            &format!("/comment/{comment_id}/restore"),
+            &format!("/comment/{comment_id}/undelete-soft"),
             json!({}),
             Some(&token),
         )

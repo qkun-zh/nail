@@ -426,7 +426,7 @@ async fn delete_comment_soft_is_rejected_for_an_already_hidden_comment() {
 }
 
 #[tokio::test]
-async fn restore_comment_revives_the_comment_as_admin() {
+async fn undelete_soft_comment_revives_the_comment_as_admin() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = member(&state, "alice@example.com").await;
     let admin_id = crate::repository::user::read_user_by_email_address_hash(
@@ -445,9 +445,9 @@ async fn restore_comment_revives_the_comment_as_admin() {
         .await
         .expect("soft delete");
 
-    let data = crate::logic::comment::restore_comment(&state, &admin_id, &comment_id)
+    let data = crate::logic::comment::undelete_soft_comment(&state, &admin_id, &comment_id)
         .await
-        .expect("restore");
+        .expect("undelete");
     assert_eq!(data.comment_id, comment_id);
 
     read_comment(&state, &author_id, &comment_id)
@@ -456,7 +456,7 @@ async fn restore_comment_revives_the_comment_as_admin() {
 }
 
 #[tokio::test]
-async fn restore_comment_is_forbidden_for_a_member() {
+async fn undelete_soft_comment_is_forbidden_for_a_member() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = member(&state, "alice@example.com").await;
     let version_id = create_version_fixture(&state, &author_id).await;
@@ -468,9 +468,9 @@ async fn restore_comment_is_forbidden_for_a_member() {
         .await
         .expect("soft delete");
 
-    let error = crate::logic::comment::restore_comment(&state, &author_id, &comment_id)
+    let error = crate::logic::comment::undelete_soft_comment(&state, &author_id, &comment_id)
         .await
-        .expect_err("member restore");
+        .expect_err("member undelete");
     assert_eq!(error, LogicError::forbidden("you are denied"));
 }
 
@@ -485,7 +485,7 @@ async fn update_comment_reports_a_missing_comment() {
 }
 
 #[tokio::test]
-async fn restore_comment_rejects_a_comment_that_is_not_soft_deleted() {
+async fn undelete_soft_comment_rejects_a_comment_that_is_not_soft_deleted() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = member(&state, "alice@example.com").await;
     let admin_id = crate::repository::user::read_user_by_email_address_hash(
@@ -500,7 +500,7 @@ async fn restore_comment_rejects_a_comment_that_is_not_soft_deleted() {
         .await
         .expect("create");
 
-    let error = crate::logic::comment::restore_comment(&state, &admin_id, &comment_id)
+    let error = crate::logic::comment::undelete_soft_comment(&state, &admin_id, &comment_id)
         .await
         .expect_err("not soft deleted");
     assert_eq!(error, LogicError::bad_request("not soft-deleted"));

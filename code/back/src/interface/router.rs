@@ -68,7 +68,10 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route("/comment/{id}/update", post(comment::update_comment))
         .route("/comment/{id}/delete", post(comment::delete_comment))
-        .route("/comment/{id}/restore", post(comment::restore_comment))
+        .route(
+            "/comment/{id}/undelete-soft",
+            post(comment::undelete_soft_comment),
+        )
         .route("/role/create", post(role::create_role))
         .route("/role/read", get(role::read_roles))
         .route("/role/{name}/read", get(role::read_role))

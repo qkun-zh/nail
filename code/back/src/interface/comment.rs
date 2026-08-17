@@ -139,12 +139,13 @@ pub async fn delete_comment(
     Ok(json_response(StatusCode::OK, data, "deleted"))
 }
 
-pub async fn restore_comment(
+pub async fn undelete_soft_comment(
     State(state): State<AppState>,
     principal: Principal,
     AppPath(comment_id): AppPath<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     let data =
-        crate::logic::comment::restore_comment(&state, &principal.user_id, &comment_id).await?;
-    Ok(json_response(StatusCode::OK, data, "restored"))
+        crate::logic::comment::undelete_soft_comment(&state, &principal.user_id, &comment_id)
+            .await?;
+    Ok(json_response(StatusCode::OK, data, "undeleted"))
 }

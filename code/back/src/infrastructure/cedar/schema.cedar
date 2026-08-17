@@ -29,7 +29,7 @@ action "Comment::Update"            appliesTo { principal: [User], resource: [Co
 action "Comment::Delete::Hard"      appliesTo { principal: [User], resource: [Comment] };
 action "Comment::Delete::Transfer"  appliesTo { principal: [User], resource: [Comment] };
 action "Comment::Delete::Soft"      appliesTo { principal: [User], resource: [Comment] };
-action "Comment::Restore"           appliesTo { principal: [User], resource: [Comment] };
+action "Comment::Undelete::Soft"      appliesTo { principal: [User], resource: [Comment] };
 action "User::Read"                 appliesTo { principal: [User], resource: [User] };
 action "User::Update"               appliesTo { principal: [User], resource: [Virtual] };
 action "User::Delete::Hard"         appliesTo { principal: [User], resource: [Virtual] };

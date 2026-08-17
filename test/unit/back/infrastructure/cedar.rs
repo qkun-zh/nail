@@ -45,6 +45,13 @@ fn version_restore_is_renamed_to_undelete_soft() {
 }
 
 #[test]
+fn comment_restore_is_renamed_to_undelete_soft() {
+    let vocabulary = crate::repository::role::permission_vocabulary();
+    assert!(vocabulary.contains(&"Comment::Undelete::Soft"));
+    assert!(!vocabulary.contains(&"Comment::Restore"));
+}
+
+#[test]
 fn schema_actions_equal_the_permission_constants() {
     let schema: cedar_policy::Schema = SCHEMA.parse().expect("schema");
     let mut declared: Vec<String> = schema
