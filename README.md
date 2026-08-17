@@ -57,13 +57,12 @@ Hashing: ascon; IDs/tokens: UUIDv7. Versions pinned by each crate's
 ## 4. Coding standards
 
 - **Language**: English only — code, docs, comments, UI.
-- **Naming**: no abbreviations (loop vars `i`/`j`/`k` excepted). CRUD-only verbs
-  (`create`/`read`/`update`/`delete`) for every resource; collection reads are
-  `read` (never `list`), paginated. Node ops, not flow vocabulary (no
-  `intent=authenticate`). `interface` strictest; `repository`/`infrastructure`
-  keep their own precise terms.
-- **Size**: file ≤ 512 lines; function ≤ 256; nesting ≤ 4 levels (function-body
-  braces = level 0).
+- **Naming**: no abbreviations (loop vars `i`/`j`/`k` excepted). Backend:
+  CRUD-only verbs (`create`/`read`/`update`/`delete`) for every resource;
+  collection reads are `read` (never `list`), paginated. Node ops, not flow
+  vocabulary (no `intent=authenticate`). `interface` strictest;
+  `repository`/`infrastructure` keep their own precise terms.
+- **Size**: file ≤ 512 lines.
 - **General**: concise; prefer pure functions; no hardcoding (toml); no dead
   code; zero-warning gate on every build.
 - **Comments**: only for non-obvious intent/constraints/tradeoffs; restating the
@@ -93,7 +92,7 @@ pruning.
 
 ## 8. Frontend rules
 
-Leptos CSR; pages use no CSS. Deployment params embedded at compile time, fail
+Leptos CSR. Deployment params embedded at compile time, fail
 fast; other config fetched at runtime from `/config/read` (compile-time defaults
 until first fetch); backend stays authoritative.
 
