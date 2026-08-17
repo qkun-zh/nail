@@ -505,3 +505,45 @@ fn live_latest_version(
         })
         .map(|row| (row.id, row.version_number)))
 }
+
+pub async fn articles_of_user(
+    db: &DbHandle,
+    user_id: &str,
+) -> Result<Vec<nail_common::response::article::ArticleListItem>, DbError> {
+    let guard = db.read().await;
+    let Some(user) = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)? else {
+        return Ok(Vec::new());
+    };
+    let edges = guard.exec(
+        QueryBuilder::search()
+            .from(user)
+            .where_()
+            .distance(agdb::CountComparison::Equal(1))
+            .and()
+            .edge()
+            .and()
+            .key(KEY_TYPE)
+            .value(EDGE_USER_AUTHOR_ARTICLE)
+            .query(),
+    )?;
+    let article_ids: Vec<agdb::DbId> = edges.elements.iter().map(|edge| edge.to).collect();
+    let mut articles = Vec::new();
+    for &article_id in &article_ids {
+        if crate::repository::delete::has_soft_deleted_flag(&guard, article_id)? {
+            continue;
+        }
+        if let Some(row) = read_rows_sync::<ArticleRow>(&guard, &[article_id])?
+            .into_iter()
+            .next()
+        {
+            let created_at = nail_common::time::uuidv7_timestamp_secs(&row.id).unwrap_or(0);
+            articles.push(nail_common::response::article::ArticleListItem {
+                id: row.id,
+                title: row.title,
+                created_at,
+            });
+        }
+    }
+    articles.sort_by_key(|article| std::cmp::Reverse(article.created_at));
+    Ok(articles)
+}

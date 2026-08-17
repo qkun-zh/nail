@@ -1,8 +1,10 @@
 use leptos::prelude::*;
+use leptos_router::components::A;
 use leptos_router::hooks::use_params_map;
 use nail_common::response::user::UserView;
 
 use crate::page::notify::{notify_error, use_notifications};
+use crate::page::time_format::format_timestamp;
 
 #[component]
 pub fn AdminUserDetail() -> impl IntoView {
@@ -32,6 +34,21 @@ pub fn AdminUserDetail() -> impl IntoView {
         let Some(user) = user.get() else {
             return view! { <p>loading...</p> }.into_any();
         };
+        let roles = user.roles.unwrap_or_default().join(", ");
+        let articles = user.articles.unwrap_or_default();
+        let article_rows = articles
+            .into_iter()
+            .map(|article| {
+                let href = format!("/public/article/{}", article.id);
+                let time = format_timestamp(article.created_at);
+                view! {
+                    <tr>
+                        <td><A href=href>{article.title}</A></td>
+                        <td>{time}</td>
+                    </tr>
+                }
+            })
+            .collect::<Vec<_>>();
         view! {
             <div>
                 <h2>"User Detail"</h2>
@@ -42,6 +59,18 @@ pub fn AdminUserDetail() -> impl IntoView {
                 <hr/>
                 <p>{"email hash: "}{user.email_hash.unwrap_or_default()}</p>
                 <hr/>
+                <p>{"roles: "}{roles}</p>
+                <hr/>
+                <h3>"Articles"</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>"title"</th>
+                            <th>"created"</th>
+                        </tr>
+                    </thead>
+                    <tbody>{article_rows}</tbody>
+                </table>
             </div>
         }
         .into_any()

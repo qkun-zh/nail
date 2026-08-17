@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use super::article::ArticleListItem;
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UserView {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -8,6 +10,10 @@ pub struct UserView {
     pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub email_hash: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub roles: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub articles: Option<Vec<ArticleListItem>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

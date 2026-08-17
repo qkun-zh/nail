@@ -23,3 +23,10 @@ pub struct CreateArticleView {
     pub article_id: String,
     pub version_id: String,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ArticleListItem {
+    pub id: String,
+    pub title: String,
+    pub created_at: u64,
+}

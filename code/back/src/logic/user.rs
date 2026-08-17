@@ -118,6 +118,14 @@ pub async fn read_user(
             view.email_hash = Some(entry.email_address_hash);
         }
     }
+    let roles = crate::repository::role::roles_of_user(&state.graph, target_id)
+        .await
+        .map_err(database_error)?;
+    view.roles = Some(roles);
+    let articles = crate::repository::article::articles_of_user(&state.graph, target_id)
+        .await
+        .map_err(database_error)?;
+    view.articles = Some(articles);
     Ok(view)
 }
 
