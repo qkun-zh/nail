@@ -13,7 +13,7 @@ use nail_common::response::content::MintUrl;
 
 #[derive(Debug, Default, Deserialize)]
 pub struct ContentReadParams {
-    pub download: Option<String>,
+    pub mode: Option<String>,
     pub token: Option<String>,
 }
 
@@ -23,7 +23,7 @@ pub async fn read_content(
     AppPath((article_id, version_id)): AppPath<(String, String)>,
     AppQuery(params): AppQuery<ContentReadParams>,
 ) -> Result<Response, ApiError> {
-    if matches!(params.download.as_deref(), Some("1" | "true")) {
+    if matches!(params.mode.as_deref(), Some("download")) {
         let url = crate::logic::download::mint_download_token(
             &state,
             &principal.user_id,

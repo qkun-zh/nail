@@ -58,7 +58,7 @@ pub async fn mint_download_url(article_id: &str, version_id: &str) -> RequestRes
         &[
             "article", article_id, "version", version_id, "content", "read",
         ],
-        &[("download", "1")],
+        &[("mode", "download")],
     );
     let mint: nail_common::response::content::MintUrl = http::get_json(&path, true).await?;
     Ok(mint.url)

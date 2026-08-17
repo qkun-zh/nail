@@ -63,10 +63,14 @@ fn delete_user_token_request(pow: Pow) -> CreateTokenRequest {
     }
 }
 
-pub async fn deregister_self(user_id: &str, pow: Pow) -> RequestResult<EmptyView> {
+pub async fn deregister_self(
+    user_id: &str,
+    pow: Pow,
+    mode: DeleteMode,
+) -> RequestResult<EmptyView> {
     let path = url::build_path_with_query(&["user", user_id, "delete"], &[]);
     let body = UserDeleteRequest {
-        mode: Some(DeleteMode::Transfer),
+        mode: Some(mode),
         pow,
     };
     http::post_json(&path, &body, true).await

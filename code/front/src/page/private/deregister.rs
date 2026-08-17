@@ -2,6 +2,8 @@ use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
 use leptos_router::hooks::{use_navigate, use_query_map};
 
+use nail_common::request::DeleteMode;
+
 use crate::page::draft::persist_draft;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
 use crate::page::session_gate::{authenticated_user_id, mark_session_invalid};
@@ -13,6 +15,7 @@ pub fn Deregister() -> impl IntoView {
     let query = use_query_map();
     let email = RwSignal::new(query.get_untracked().get("email").unwrap_or_default());
     let token = RwSignal::new(query.get_untracked().get("token").unwrap_or_default());
+    let mode = RwSignal::new(DeleteMode::Transfer);
     let working = RwSignal::new(false);
 
     persist_draft(
@@ -66,7 +69,7 @@ pub fn Deregister() -> impl IntoView {
         let notifications = confirm_notifications.clone();
         leptos::task::spawn_local(async move {
             let result = match crate::request::pow::prove_pow(token_value).await {
-                Ok(pow) => crate::request::user::deregister_self(&user_id, pow).await,
+                Ok(pow) => crate::request::user::deregister_self(&user_id, pow, mode.get()).await,
                 Err(error) => Err(error),
             };
             match result {
@@ -90,6 +93,16 @@ pub fn Deregister() -> impl IntoView {
         </form>
         <form on:submit=confirm>
             <input type="text" prop:value=token on:input=move |event| token.set(event_target_value(&event)) placeholder="token"/>
+            <select on:change=move |event| {
+                let value = event_target_value(&event);
+                match value.as_str() {
+                    "soft" => mode.set(DeleteMode::Soft),
+                    _ => mode.set(DeleteMode::Transfer),
+                }
+            }>
+                <option value="transfer">Transfer (content moves to platform)</option>
+                <option value="soft">Soft (data preserved, admin can restore)</option>
+            </select>
             <button type="submit" disabled=move || working.get()>
                 {move || if working.get() { "deregistering..." } else { "deregister" }}
             </button>

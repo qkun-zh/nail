@@ -112,7 +112,7 @@ async fn read_content_mints_a_json_url() {
 
     let (status, body) = context
         .get(
-            &format!("/article/{article_id}/version/{version_id}/content/read?download=1"),
+            &format!("/article/{article_id}/version/{version_id}/content/read?mode=download"),
             Some(&token),
         )
         .await;
@@ -133,7 +133,7 @@ async fn read_content_consumes_a_minted_token_once() {
 
     let (_, mint_body) = context
         .get(
-            &format!("/article/{article_id}/version/{version_id}/content/read?download=1"),
+            &format!("/article/{article_id}/version/{version_id}/content/read?mode=download"),
             Some(&token),
         )
         .await;
@@ -174,7 +174,7 @@ async fn read_content_rejects_a_token_bound_to_another_account() {
 
     let (_, mint_body) = context
         .get(
-            &format!("/article/{article_id}/version/{version_id}/content/read?download=1"),
+            &format!("/article/{article_id}/version/{version_id}/content/read?mode=download"),
             Some(&token),
         )
         .await;
@@ -219,7 +219,7 @@ async fn read_content_requires_a_read_grant() {
     let (_, outsider) = plain_session(&context, "bob@example.com").await;
     let (status, body) = context
         .get(
-            &format!("/article/{article_id}/version/{version_id}/content/read?download=1"),
+            &format!("/article/{article_id}/version/{version_id}/content/read?mode=download"),
             Some(&outsider),
         )
         .await;
@@ -250,7 +250,7 @@ async fn read_content_reports_a_missing_pdf_file() {
 
     let (_, mint_body) = context
         .get(
-            &format!("/article/{article_id}/version/{version_id}/content/read?download=1"),
+            &format!("/article/{article_id}/version/{version_id}/content/read?mode=download"),
             Some(&token),
         )
         .await;
@@ -277,7 +277,7 @@ async fn read_content_reports_a_missing_version() {
     let (status, body) = context
         .get(
             &format!(
-                "/article/{article_id}/version/{}/content/read?download=1",
+                "/article/{article_id}/version/{}/content/read?mode=download",
                 Uuid::now_v7()
             ),
             Some(&token),
