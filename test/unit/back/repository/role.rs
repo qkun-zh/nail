@@ -4,9 +4,9 @@ use crate::repository::role::{
     PERMISSION_ARTICLE_CREATE, PERMISSION_ARTICLE_READ, PERMISSION_COMMENT_CREATE,
     PERMISSION_COMMENT_DELETE_TRANSFER, PERMISSION_COMMENT_READ, PERMISSION_ROLE_MANAGE,
     PERMISSION_USER_DELETE_TRANSFER, PERMISSION_USER_READ, PERMISSION_VERSION_DELETE_HARD,
-    PERMISSION_VERSION_DELETE_TRANSFER, PERMISSION_VERSION_READ, ROLE_MEMBER, ROLE_RECYCLER,
-    create_permission, create_role, grant_permission_to_role, hold_role, read_role,
-    user_holds_permission, user_holds_role, users_holding_role,
+    PERMISSION_VERSION_READ, ROLE_MEMBER, ROLE_RECYCLER, create_permission, create_role,
+    grant_permission_to_role, hold_role, read_role, user_holds_permission, user_holds_role,
+    users_holding_role,
 };
 
 #[tokio::test]
@@ -197,10 +197,6 @@ fn generated_permission_constants_have_expected_names() {
     );
     assert_eq!(PERMISSION_USER_READ, "User::Read");
     assert_eq!(PERMISSION_ROLE_MANAGE, "Role::Manage");
-    assert_eq!(
-        PERMISSION_VERSION_DELETE_TRANSFER,
-        "Version::Delete::Transfer"
-    );
     assert_eq!(PERMISSION_USER_DELETE_TRANSFER, "User::Delete::Transfer");
 }
 

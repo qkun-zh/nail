@@ -17,7 +17,6 @@ permit (principal, action in [Action::"Article::Read", Action::"Version::Read",
                               Action::"Article::Update", Action::"Article::Delete::Transfer",
                               Action::"Article::Delete::Soft",
                               Action::"Version::Create", Action::"Version::Update",
-                              Action::"Version::Delete::Transfer",
                               Action::"Version::Delete::Soft",
                               Action::"Comment::Update"],
         resource)
@@ -55,8 +54,7 @@ permit (principal, action in [Action::"User::Update",
 //    role alongside admin, so the admin moderation path is hard-delete only.
 forbid (principal in Role::"recycler",
         action in [Action::"Article::Delete::Transfer",
-                   Action::"Comment::Delete::Transfer",
-                   Action::"Version::Delete::Transfer"],
+                   Action::"Comment::Delete::Transfer"],
         resource);
 
 // 6. Admin role is terminal for revocation (D7-b): nobody — not even an admin

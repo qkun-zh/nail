@@ -136,8 +136,8 @@ fn schema_actions_equal_seed_vocabulary_and_parse_as_uids() {
 
     assert_eq!(
         declared.len(),
-        27,
-        "schema action count (added Role::Revoke in A4)"
+        26,
+        "schema action count (Version::Delete::Transfer removed; Restore renamed to Undelete::Soft)"
     );
     assert_eq!(declared, seeded, "schema drift vs seed vocabulary");
 
