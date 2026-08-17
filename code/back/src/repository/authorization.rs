@@ -13,6 +13,8 @@ use crate::repository::schema::{
 };
 use crate::repository::version::parent_article_of;
 
+include!(concat!(env!("OUT_DIR"), "/cedar_entities.rs"));
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Resource {
     Article(String),
@@ -347,31 +349,33 @@ fn parse_uid(text: &str) -> Result<EntityUid, AssemblyError> {
 }
 
 fn user_uid(user_id: &str) -> Result<EntityUid, AssemblyError> {
-    parse_uid(&format!("User::\"{user_id}\""))
+    parse_uid(&format!("{CEDAR_ENTITY_USER}::\"{user_id}\""))
 }
 
 fn role_uid(role_name: &str) -> Result<EntityUid, AssemblyError> {
-    parse_uid(&format!("Role::\"{role_name}\""))
+    parse_uid(&format!("{CEDAR_ENTITY_ROLE}::\"{role_name}\""))
 }
 
 fn action_uid(action: &str) -> Result<EntityUid, AssemblyError> {
+    // Action entities are assembled at runtime only; the schema declares no
+    // Action entity, so the type name is a fixed literal.
     parse_uid(&format!("Action::\"{action}\""))
 }
 
 fn article_uid(article_id: &str) -> Result<EntityUid, AssemblyError> {
-    parse_uid(&format!("Article::\"{article_id}\""))
+    parse_uid(&format!("{CEDAR_ENTITY_ARTICLE}::\"{article_id}\""))
 }
 
 fn version_uid(version_id: &str) -> Result<EntityUid, AssemblyError> {
-    parse_uid(&format!("Version::\"{version_id}\""))
+    parse_uid(&format!("{CEDAR_ENTITY_VERSION}::\"{version_id}\""))
 }
 
 fn comment_uid(comment_id: &str) -> Result<EntityUid, AssemblyError> {
-    parse_uid(&format!("Comment::\"{comment_id}\""))
+    parse_uid(&format!("{CEDAR_ENTITY_COMMENT}::\"{comment_id}\""))
 }
 
 fn virtual_uid(name: &str) -> Result<EntityUid, AssemblyError> {
-    parse_uid(&format!("Virtual::\"{name}\""))
+    parse_uid(&format!("{CEDAR_ENTITY_VIRTUAL}::\"{name}\""))
 }
 
 fn expression(text: &str) -> Result<RestrictedExpression, AssemblyError> {
