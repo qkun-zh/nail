@@ -10,6 +10,11 @@ fn search_range_serializes_as_lowercase_strings() -> anyhow::Result<()> {
         (SearchRange::Note, "note"),
         (SearchRange::Tag, "tag"),
         (SearchRange::VersionNumber, "version_number"),
+        (SearchRange::ArticleId, "article_id"),
+        (SearchRange::VersionId, "version_id"),
+        (SearchRange::CommentId, "comment_id"),
+        (SearchRange::AuthorId, "author_id"),
+        (SearchRange::Role, "role"),
     ] {
         assert_eq!(serde_json::to_string(&range)?, format!("\"{expected}\""));
     }
@@ -34,6 +39,26 @@ fn search_range_deserializes_from_lowercase_strings() -> anyhow::Result<()> {
         serde_json::from_str::<SearchRange>(r#""version_number""#)?,
         SearchRange::VersionNumber
     );
+    assert_eq!(
+        serde_json::from_str::<SearchRange>(r#""article_id""#)?,
+        SearchRange::ArticleId
+    );
+    assert_eq!(
+        serde_json::from_str::<SearchRange>(r#""version_id""#)?,
+        SearchRange::VersionId
+    );
+    assert_eq!(
+        serde_json::from_str::<SearchRange>(r#""comment_id""#)?,
+        SearchRange::CommentId
+    );
+    assert_eq!(
+        serde_json::from_str::<SearchRange>(r#""author_id""#)?,
+        SearchRange::AuthorId
+    );
+    assert_eq!(
+        serde_json::from_str::<SearchRange>(r#""role""#)?,
+        SearchRange::Role
+    );
     Ok(())
 }
 
@@ -55,6 +80,11 @@ fn search_range_labels_are_english() {
         (SearchRange::Note, "note"),
         (SearchRange::Tag, "tag"),
         (SearchRange::VersionNumber, "version"),
+        (SearchRange::ArticleId, "article id"),
+        (SearchRange::VersionId, "version id"),
+        (SearchRange::CommentId, "comment id"),
+        (SearchRange::AuthorId, "author id"),
+        (SearchRange::Role, "role"),
     ];
     for (range, label) in expected {
         assert_eq!(range.label(), label);

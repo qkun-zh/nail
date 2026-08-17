@@ -1,7 +1,8 @@
 use nail_common::search::SearchRange;
 
 use super::schema::{
-    FIELD_AUTHOR_NAME, FIELD_CONTENT, FIELD_NOTE, FIELD_SUMMARY, FIELD_TAGS, FIELD_TITLE,
+    FIELD_ARTICLE_ID, FIELD_AUTHOR_ID, FIELD_AUTHOR_NAME, FIELD_COMMENT_ID, FIELD_CONTENT,
+    FIELD_NOTE, FIELD_ROLE, FIELD_SUMMARY, FIELD_TAGS, FIELD_TITLE, FIELD_VERSION_ID,
     FIELD_VERSION_NUMBER,
 };
 
@@ -25,5 +26,10 @@ fn range_field_name(range: SearchRange) -> &'static str {
         SearchRange::Note => FIELD_NOTE,
         SearchRange::Tag => FIELD_TAGS,
         SearchRange::VersionNumber => FIELD_VERSION_NUMBER,
+        SearchRange::ArticleId => FIELD_ARTICLE_ID,
+        SearchRange::VersionId => FIELD_VERSION_ID,
+        SearchRange::CommentId => FIELD_COMMENT_ID,
+        SearchRange::AuthorId => FIELD_AUTHOR_ID,
+        SearchRange::Role => FIELD_ROLE,
     }
 }

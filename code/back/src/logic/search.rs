@@ -258,6 +258,11 @@ fn parse_ranges(raw: Option<&str>) -> Result<Vec<SearchRange>, LogicError> {
             "note" => SearchRange::Note,
             "tag" => SearchRange::Tag,
             "version_number" => SearchRange::VersionNumber,
+            "article_id" => SearchRange::ArticleId,
+            "version_id" => SearchRange::VersionId,
+            "comment_id" => SearchRange::CommentId,
+            "author_id" => SearchRange::AuthorId,
+            "role" => SearchRange::Role,
             _ => {
                 return Err(LogicError::bad_request(format!(
                     "unknown search range: {token}"

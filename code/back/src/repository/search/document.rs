@@ -4,17 +4,18 @@ use agdb::{DbError, QueryBuilder};
 use nail_common::search::SearchRange;
 use seekstorm::index::Document;
 
-use crate::repository::graph::{DbHandle, read_rows_sync, resolve_node_id_sync};
+use crate::repository::graph::{DbHandle, read_node_sync, read_rows_sync, resolve_node_id_sync};
 use crate::repository::schema::{
     ArticleRow, CommentRow, EDGE_ARTICLE_APPLY_TAG, EDGE_ARTICLE_HOLD_VERSION,
     EDGE_COMMENT_ATTACH_VERSION, EDGE_COMMENT_REPLY_COMMENT, EDGE_USER_AUTHOR_ARTICLE,
-    EDGE_USER_AUTHOR_COMMENT, ENTITY_TYPE_ARTICLE, KEY_TYPE, TagRow, UserRow, VersionRow,
+    EDGE_USER_AUTHOR_COMMENT, EDGE_USER_HOLD_ROLE, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_USER,
+    KEY_TYPE, RoleRow, TagRow, UserRow, VersionRow,
 };
 
 use super::schema::{
     FIELD_ARTICLE_ID, FIELD_AUTHOR_ID, FIELD_AUTHOR_NAME, FIELD_COMMENT_ID, FIELD_CONTENT,
-    FIELD_DOC_TYPE, FIELD_NOTE, FIELD_SUMMARY, FIELD_TAGS, FIELD_TITLE, FIELD_TS, FIELD_VERSION_ID,
-    FIELD_VERSION_NUMBER,
+    FIELD_DOC_TYPE, FIELD_NOTE, FIELD_ROLE, FIELD_SUMMARY, FIELD_TAGS, FIELD_TITLE, FIELD_TS,
+    FIELD_VERSION_ID, FIELD_VERSION_NUMBER,
 };
 use super::{SearchCommentOutcome, SearchHitOutcome, SearchVersionOutcome};
 
@@ -114,6 +115,32 @@ pub(super) fn read_comment_outcome(document: &Document) -> SearchCommentOutcome 
     }
 }
 
+fn read_user_roles_sync(guard: &agdb::DbAny, user_id: &str) -> Result<String, DbError> {
+    let Some(user_db_id) = resolve_node_id_sync(guard, ENTITY_TYPE_USER, user_id)? else {
+        return Ok(String::new());
+    };
+    let edges = guard.exec(
+        QueryBuilder::search()
+            .from(user_db_id)
+            .where_()
+            .distance(agdb::CountComparison::Equal(1))
+            .and()
+            .edge()
+            .and()
+            .key(KEY_TYPE)
+            .value(EDGE_USER_HOLD_ROLE)
+            .query(),
+    )?;
+    let mut roles = Vec::new();
+    for edge in &edges.elements {
+        if let Some(row) = read_node_sync::<RoleRow>(guard, edge.to)? {
+            roles.push(row.role_name);
+        }
+    }
+    roles.sort();
+    Ok(roles.join(","))
+}
+
 pub(super) async fn build_documents(
     db: &DbHandle,
     article_id: &str,
@@ -137,6 +164,11 @@ pub(super) async fn build_documents(
         .map(|row| row.summary.clone())
         .unwrap_or_default();
     let (author_id, author_name) = read_owner(&guard, article, EDGE_USER_AUTHOR_ARTICLE)?;
+    let author_role = if author_id.is_empty() {
+        String::new()
+    } else {
+        read_user_roles_sync(&guard, &author_id)?
+    };
     let tags = read_tag_names(&guard, article)?;
 
     let version_edges = guard.exec(
@@ -187,6 +219,7 @@ pub(super) async fn build_documents(
             serde_json::json!(author_name),
         );
         version_doc.insert(FIELD_AUTHOR_ID.to_string(), serde_json::json!(author_id));
+        version_doc.insert(FIELD_ROLE.to_string(), serde_json::json!(author_role));
         version_doc.insert(FIELD_NOTE.to_string(), serde_json::json!(version_row.note));
         version_doc.insert(FIELD_TAGS.to_string(), serde_json::json!(tags));
         version_doc.insert(FIELD_TS.to_string(), serde_json::json!(version_ts));
@@ -205,6 +238,11 @@ pub(super) async fn build_documents(
             }
             let (comment_author_id, comment_author) =
                 read_owner(&guard, comment_node, EDGE_USER_AUTHOR_COMMENT)?;
+            let comment_author_role = if comment_author_id.is_empty() {
+                String::new()
+            } else {
+                read_user_roles_sync(&guard, &comment_author_id)?
+            };
             let comment_ts = nail_common::time::uuidv7_timestamp_secs(&comment_id)
                 .map_or(0, |secs| i64::try_from(secs).unwrap_or(0));
 
@@ -223,6 +261,10 @@ pub(super) async fn build_documents(
             comment_doc.insert(
                 FIELD_AUTHOR_ID.to_string(),
                 serde_json::json!(comment_author_id),
+            );
+            comment_doc.insert(
+                FIELD_ROLE.to_string(),
+                serde_json::json!(comment_author_role),
             );
             comment_doc.insert(
                 FIELD_CONTENT.to_string(),

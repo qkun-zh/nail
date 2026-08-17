@@ -16,7 +16,7 @@ mod versions;
 use form::SearchForm;
 use results::SearchResults;
 
-const RANGE_KEYS: [&str; 7] = [
+const RANGE_KEYS: [&str; 12] = [
     "title",
     "summary",
     "author_name",
@@ -24,8 +24,13 @@ const RANGE_KEYS: [&str; 7] = [
     "note",
     "tag",
     "version_number",
+    "article_id",
+    "version_id",
+    "comment_id",
+    "author_id",
+    "role",
 ];
-const RANGE_LABELS: [&str; 7] = [
+const RANGE_LABELS: [&str; 12] = [
     "title",
     "summary",
     "author name",
@@ -33,6 +38,11 @@ const RANGE_LABELS: [&str; 7] = [
     "version note",
     "tag",
     "version number",
+    "article id",
+    "version id",
+    "comment id",
+    "author id",
+    "role",
 ];
 const SEARCH_PATHNAME: &str = "/public/article/search";
 
@@ -79,7 +89,7 @@ pub fn Search() -> impl IntoView {
     let has_next = RwSignal::new(false);
 
     let q_filter = RwSignal::new(String::new());
-    let ranges = RwSignal::new(vec![true; 7]);
+    let ranges = RwSignal::new(vec![true; 12]);
     let from_time = RwSignal::new(String::new());
     let to_time = RwSignal::new(String::new());
     let current_page = RwSignal::new(1u64);
@@ -88,7 +98,7 @@ pub fn Search() -> impl IntoView {
     let params = query.get_untracked();
     q_filter.set(params.get("q").unwrap_or_default());
     if let Some(ranges_param) = params.get("ranges") {
-        let mut checked = vec![false; 7];
+        let mut checked = vec![false; 12];
         if !ranges_param.is_empty() {
             for (index, key) in RANGE_KEYS.iter().enumerate() {
                 if ranges_param.split(',').any(|piece| piece == *key) {

@@ -22,7 +22,7 @@ use schema::{FIELD_ARTICLE_ID, FIELD_COMMENT_ID, FIELD_TS, index_meta, schema_fi
 
 const MAX_DOCS_PER_ARTICLE: u64 = 32;
 
-const INDEX_SCHEMA_VERSION: &str = "3";
+const INDEX_SCHEMA_VERSION: &str = "4";
 const SCHEMA_VERSION_FILENAME: &str = "nail_schema_version";
 
 #[derive(Debug, Clone, Default)]

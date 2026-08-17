@@ -12,6 +12,15 @@ pub enum SearchRange {
     Tag,
     #[serde(rename = "version_number")]
     VersionNumber,
+    #[serde(rename = "article_id")]
+    ArticleId,
+    #[serde(rename = "version_id")]
+    VersionId,
+    #[serde(rename = "comment_id")]
+    CommentId,
+    #[serde(rename = "author_id")]
+    AuthorId,
+    Role,
 }
 
 impl SearchRange {
@@ -25,6 +34,11 @@ impl SearchRange {
             SearchRange::Note => "note",
             SearchRange::Tag => "tag",
             SearchRange::VersionNumber => "version",
+            SearchRange::ArticleId => "article id",
+            SearchRange::VersionId => "version id",
+            SearchRange::CommentId => "comment id",
+            SearchRange::AuthorId => "author id",
+            SearchRange::Role => "role",
         }
     }
 }
