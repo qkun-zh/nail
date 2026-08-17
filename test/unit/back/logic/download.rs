@@ -142,3 +142,25 @@ async fn resolve_version_pdf_path_rejects_a_version_of_another_article() {
         .expect("right article");
     assert!(path.ends_with("11/11/11111111111111111111111111111111.pdf"));
 }
+
+#[tokio::test]
+async fn consume_download_token_rejects_a_version_mismatch() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let (_, other_version) = create_article_fixture(&state, &author_id, &pdf_hash(2)).await;
+
+    let url = mint_download_token(&state, &author_id, &article_id, &version_id)
+        .await
+        .expect("mint");
+    let token = token_from_url(&url);
+
+    let error =
+        consume_download_token(&state, &author_id, &article_id, &other_version, token)
+            .await
+            .expect_err("version mismatch");
+    assert!(matches!(
+        error,
+        LogicError::NotFound(message) if message == "article version not found"
+    ));
+}

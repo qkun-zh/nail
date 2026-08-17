@@ -469,3 +469,69 @@ async fn restore_version_is_forbidden_for_a_member() {
         .expect_err("member restore");
     assert_eq!(error, LogicError::forbidden("you are denied"));
 }
+
+#[tokio::test]
+async fn create_version_rejects_an_invalid_version_number() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let (article_id, _) = article_fixture(&context, &actor, "Bad Version").await;
+
+    let error = crate::logic::version::create_version(
+        &context.state,
+        &actor,
+        &article_id,
+        "not-a-version",
+        "note",
+        context.upload(&unique_pdf("bad-version")),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(error, LogicError::bad_request("invalid version number"));
+}
+
+#[tokio::test]
+async fn create_version_rejects_a_duplicate_content_hash() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let (article_id, _) = article_fixture(&context, &actor, "Dup Content").await;
+    let pdf = unique_pdf("shared");
+
+    let _ = crate::logic::version::create_version(
+        &context.state,
+        &actor,
+        &article_id,
+        "2.0.0",
+        "note",
+        context.upload(&pdf),
+    )
+    .await
+    .expect("first version");
+
+    let error = crate::logic::version::create_version(
+        &context.state,
+        &actor,
+        &article_id,
+        "2.1.0",
+        "note",
+        context.upload(&pdf),
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(
+        error,
+        LogicError::bad_request("identical PDF already exists (version 2.0.0)")
+    );
+}
+
+#[tokio::test]
+async fn restore_version_rejects_a_version_that_is_not_soft_deleted() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let admin_id = admin(&context).await;
+    let (_, version_id) = article_fixture(&context, &actor, "Visible Version").await;
+
+    let error = crate::logic::version::restore_version(&context.state, &admin_id, &version_id)
+        .await
+        .expect_err("restore visible version");
+    assert_eq!(error, LogicError::bad_request("not soft-deleted"));
+}
