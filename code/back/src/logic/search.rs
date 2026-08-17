@@ -22,7 +22,7 @@ pub async fn search_articles(
         state,
         actor_id,
         PERMISSION_ARTICLE_READ,
-        &Resource::Virtual("read".to_string()),
+        &Resource::Virtual("any".to_string()),
     )
     .await?;
     let max_query_chars = state.config.server.max_search_query_chars;

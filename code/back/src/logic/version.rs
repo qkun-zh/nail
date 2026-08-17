@@ -178,7 +178,7 @@ pub async fn read_versions(
         state,
         actor_id,
         PERMISSION_VERSION_READ,
-        &Resource::Virtual("read".to_string()),
+        &Resource::Virtual("any".to_string()),
     )
     .await?;
     let offset = page.saturating_sub(1).saturating_mul(limit);

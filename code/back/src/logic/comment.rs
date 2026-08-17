@@ -34,7 +34,7 @@ pub async fn create_comment(
         state,
         actor_id,
         PERMISSION_COMMENT_CREATE,
-        &Resource::Virtual("comment-create".to_string()),
+        &Resource::Virtual("any".to_string()),
     )
     .await?;
     let content =
@@ -57,7 +57,7 @@ pub async fn create_reply(
         state,
         actor_id,
         PERMISSION_COMMENT_CREATE,
-        &Resource::Virtual("comment-create".to_string()),
+        &Resource::Virtual("any".to_string()),
     )
     .await?;
     let content =
@@ -88,7 +88,7 @@ pub async fn read_comments(
         state,
         actor_id,
         PERMISSION_COMMENT_READ,
-        &Resource::Virtual("read".to_string()),
+        &Resource::Virtual("any".to_string()),
     )
     .await?;
     if read_version(&state.graph, version_id)
@@ -140,7 +140,7 @@ pub async fn read_comment_children(
         state,
         actor_id,
         PERMISSION_COMMENT_READ,
-        &Resource::Virtual("read".to_string()),
+        &Resource::Virtual("any".to_string()),
     )
     .await?;
     let offset = page.saturating_sub(1).saturating_mul(limit);

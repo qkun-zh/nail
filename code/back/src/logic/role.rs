@@ -13,7 +13,7 @@ use crate::repository::role::{
 use nail_common::response::role::{RoleListItem, RoleListPage, RoleNameView, RoleView};
 
 fn role_console() -> Resource {
-    Resource::Virtual("role-console".to_string())
+    Resource::Virtual("any".to_string())
 }
 
 pub struct RoleUpdate<'a> {
@@ -36,7 +36,7 @@ async fn require_role_read_list(state: &AppState, actor_id: &str) -> Result<(), 
         state,
         actor_id,
         PERMISSION_ROLE_READ,
-        &Resource::Virtual("role-list".to_string()),
+        &Resource::Virtual("any".to_string()),
     )
     .await
 }

@@ -50,7 +50,7 @@ pub async fn create_article(
         state,
         actor_id,
         PERMISSION_ARTICLE_CREATE,
-        &Resource::Virtual("article-create".to_string()),
+        &Resource::Virtual("any".to_string()),
     )
     .await?;
 

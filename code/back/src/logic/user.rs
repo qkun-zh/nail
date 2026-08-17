@@ -38,7 +38,7 @@ pub async fn create_user(state: &AppState, pow: &Pow) -> Result<String, LogicErr
     authorize_anonymous(
         state,
         PERMISSION_USER_CREATE,
-        &Resource::Virtual("user-create".to_string()),
+        &Resource::Virtual("any".to_string()),
     )
     .await?;
     verify_issued_pow(state, pow)?;
