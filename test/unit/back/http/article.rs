@@ -753,3 +753,24 @@ async fn search_returns_hits_for_a_keyword() {
     );
     assert!(list[0]["article_hits"].is_array());
 }
+
+#[tokio::test]
+async fn create_article_ignores_unknown_multipart_fields() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = member_session(&context, "alice@example.com").await;
+
+    let mut fields = article_fields("With Extra Fields", "rust");
+    fields.push(("unexpected_field", "ignored value"));
+    let (status, body) = context
+        .post_multipart(
+            "/article/create",
+            Some(&token),
+            &fields,
+            "file",
+            "article.pdf",
+            &valid_pdf(),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "body: {body}");
+    assert!(!body["data"]["article_id"].as_str().unwrap_or("").is_empty());
+}

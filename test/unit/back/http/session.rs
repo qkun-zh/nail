@@ -62,6 +62,12 @@ async fn session_lifecycle_over_http() {
     assert_eq!(status, StatusCode::OK, "session body: {body}");
     assert!(!body["data"]["id"].as_str().unwrap_or("").is_empty());
 
+    let (status, body) = context
+        .get("/session/read?name=true", Some(&session_token))
+        .await;
+    assert_eq!(status, StatusCode::OK, "session name body: {body}");
+    assert!(!body["data"]["name"].as_str().unwrap_or("").is_empty());
+
     let (status, _) = context
         .get("/session/read?id=true", Some("not-a-uuid"))
         .await;

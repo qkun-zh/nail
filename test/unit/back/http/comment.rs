@@ -231,6 +231,44 @@ async fn read_comment_children_requires_a_read_grant() {
 }
 
 #[tokio::test]
+async fn read_comment_children_returns_the_replies_over_http() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, token) = member_session(&context, "alice@example.com").await;
+    let version_id = version_fixture(&context, &user_id).await;
+    let (status, create_body) = context
+        .post(
+            &format!("/version/{version_id}/comments/create"),
+            json!({ "content": "top" }),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "body: {create_body}");
+    let comment_id = create_body["data"]["comment_id"]
+        .as_str()
+        .expect("comment id");
+
+    let (status, reply_body) = context
+        .post(
+            &format!("/comments/{comment_id}/replies/create"),
+            json!({ "content": "a reply" }),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "body: {reply_body}");
+
+    let (status, body) = context
+        .get(
+            &format!("/comment/{comment_id}/replies/read"),
+            Some(&token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    let comments = body["data"]["comments"].as_array().expect("comments");
+    assert_eq!(comments.len(), 1);
+    assert_eq!(comments[0]["content"].as_str(), Some("a reply"));
+}
+
+#[tokio::test]
 async fn read_comment_children_rejects_a_page_beyond_max_search_pages() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = member_session(&context, "alice@example.com").await;
