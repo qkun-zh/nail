@@ -42,6 +42,13 @@ pub fn create_session(state: &AppState, user_id: &str) -> Result<String, LogicEr
 
 pub async fn read_user_name(state: &AppState, session_token: &str) -> Result<String, LogicError> {
     let user_id = read_session(state, session_token)?;
+    crate::logic::authorize::authorize(
+        state,
+        &user_id,
+        crate::repository::role::PERMISSION_USER_READ,
+        &crate::repository::authorization::Resource::User(user_id.clone()),
+    )
+    .await?;
     let entry = crate::repository::user::read_user(&state.graph, &user_id)
         .await
         .map_err(database_error)?

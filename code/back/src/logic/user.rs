@@ -130,6 +130,13 @@ pub async fn update_user(
             let pow = request.pow.ok_or_else(|| {
                 LogicError::bad_request("pow is required to confirm the email update")
             })?;
+            authorize(
+                state,
+                actor_id,
+                PERMISSION_USER_UPDATE,
+                &Resource::User(actor_id.to_string()),
+            )
+            .await?;
             let new_session_token = crate::logic::email::update_user_email(
                 state, actor_id, &pow, &old_token, &new_token,
             )
