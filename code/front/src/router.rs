@@ -27,6 +27,7 @@ use crate::page::public::article::version::create::CreateVersion;
 use crate::page::public::article::version::detail::VersionDetail;
 use crate::page::public::article::version::index::VersionList;
 use crate::page::public::index::PublicIndex;
+use crate::page::public::user::PublicUserDetail;
 use crate::page::session_gate::RootGate;
 
 #[component]
@@ -39,6 +40,7 @@ pub fn AppRouter() -> impl IntoView {
                     <Route path=path!("") view=Index/>
                     <ParentRoute path=path!("/public") view=PublicLayout>
                         <Route path=path!("") view=PublicIndex/>
+                        <Route path=path!("/user/:user_id") view=PublicUserDetail/>
                         <Route path=path!("/article") view=ArticleIndex/>
                         <Route path=path!("/article/search") view=Search/>
                         <Route path=path!("/article/create") view=CreateArticle/>

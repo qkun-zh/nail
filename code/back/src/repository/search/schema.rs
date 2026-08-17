@@ -12,6 +12,7 @@ pub(crate) const FIELD_VERSION_NUMBER: &str = "version_number";
 pub(crate) const FIELD_TITLE: &str = "title";
 pub(crate) const FIELD_SUMMARY: &str = "summary";
 pub(crate) const FIELD_AUTHOR_NAME: &str = "author_name";
+pub(crate) const FIELD_AUTHOR_ID: &str = "author_id";
 pub(crate) const FIELD_NOTE: &str = "note";
 pub(crate) const FIELD_TAGS: &str = "tags";
 pub(crate) const FIELD_CONTENT: &str = "content";
@@ -112,6 +113,18 @@ pub(crate) fn schema_fields() -> Vec<SchemaField> {
             true,
             false,
             2.0,
+            false,
+            false,
+        ),
+        SchemaField::new(
+            FIELD_AUTHOR_ID.to_string(),
+            false,
+            false,
+            false,
+            FieldType::String32,
+            true,
+            false,
+            1.0,
             false,
             false,
         ),

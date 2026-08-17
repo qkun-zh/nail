@@ -12,8 +12,8 @@ use crate::repository::schema::{
 };
 
 use super::schema::{
-    FIELD_ARTICLE_ID, FIELD_AUTHOR_NAME, FIELD_COMMENT_ID, FIELD_CONTENT, FIELD_DOC_TYPE,
-    FIELD_NOTE, FIELD_SUMMARY, FIELD_TAGS, FIELD_TITLE, FIELD_TS, FIELD_VERSION_ID,
+    FIELD_ARTICLE_ID, FIELD_AUTHOR_ID, FIELD_AUTHOR_NAME, FIELD_COMMENT_ID, FIELD_CONTENT,
+    FIELD_DOC_TYPE, FIELD_NOTE, FIELD_SUMMARY, FIELD_TAGS, FIELD_TITLE, FIELD_TS, FIELD_VERSION_ID,
     FIELD_VERSION_NUMBER,
 };
 use super::{SearchCommentOutcome, SearchHitOutcome, SearchVersionOutcome};
@@ -92,6 +92,7 @@ pub(super) fn read_version_outcome(
         version_id: read_string_field(document, FIELD_VERSION_ID),
         version_number: read_highlighted_or_raw(document, FIELD_VERSION_NUMBER),
         title: read_highlighted_or_raw(document, FIELD_TITLE),
+        author_id: read_string_field(document, FIELD_AUTHOR_ID),
         author_name: read_highlighted_or_raw(document, FIELD_AUTHOR_NAME),
         article_hits,
         version_hits,
@@ -104,6 +105,7 @@ pub(super) fn read_comment_outcome(document: &Document) -> SearchCommentOutcome 
         article_id: read_string_field(document, FIELD_ARTICLE_ID),
         version_id: read_string_field(document, FIELD_VERSION_ID),
         comment_id: read_string_field(document, FIELD_COMMENT_ID),
+        author_id: read_string_field(document, FIELD_AUTHOR_ID),
         author_name: read_highlighted_or_raw(document, FIELD_AUTHOR_NAME),
         content: read_highlighted_or_raw(document, FIELD_CONTENT),
         article_title: String::new(),
@@ -134,7 +136,7 @@ pub(super) async fn build_documents(
         .as_ref()
         .map(|row| row.summary.clone())
         .unwrap_or_default();
-    let author_name = read_owner_name(&guard, article, EDGE_USER_AUTHOR_ARTICLE)?;
+    let (author_id, author_name) = read_owner(&guard, article, EDGE_USER_AUTHOR_ARTICLE)?;
     let tags = read_tag_names(&guard, article)?;
 
     let version_edges = guard.exec(
@@ -184,6 +186,7 @@ pub(super) async fn build_documents(
             FIELD_AUTHOR_NAME.to_string(),
             serde_json::json!(author_name),
         );
+        version_doc.insert(FIELD_AUTHOR_ID.to_string(), serde_json::json!(author_id));
         version_doc.insert(FIELD_NOTE.to_string(), serde_json::json!(version_row.note));
         version_doc.insert(FIELD_TAGS.to_string(), serde_json::json!(tags));
         version_doc.insert(FIELD_TS.to_string(), serde_json::json!(version_ts));
@@ -200,7 +203,8 @@ pub(super) async fn build_documents(
             if crate::repository::delete::has_soft_deleted_flag(&guard, comment_node)? {
                 continue;
             }
-            let comment_author = read_owner_name(&guard, comment_node, EDGE_USER_AUTHOR_COMMENT)?;
+            let (comment_author_id, comment_author) =
+                read_owner(&guard, comment_node, EDGE_USER_AUTHOR_COMMENT)?;
             let comment_ts = nail_common::time::uuidv7_timestamp_secs(&comment_id)
                 .map_or(0, |secs| i64::try_from(secs).unwrap_or(0));
 
@@ -215,6 +219,10 @@ pub(super) async fn build_documents(
             comment_doc.insert(
                 FIELD_AUTHOR_NAME.to_string(),
                 serde_json::json!(comment_author),
+            );
+            comment_doc.insert(
+                FIELD_AUTHOR_ID.to_string(),
+                serde_json::json!(comment_author_id),
             );
             comment_doc.insert(
                 FIELD_CONTENT.to_string(),
@@ -266,11 +274,11 @@ fn incoming_comment_nodes(
     Ok(edges.elements.iter().map(|edge| edge.from).collect())
 }
 
-fn read_owner_name(
+fn read_owner(
     guard: &agdb::DbAny,
     node: agdb::DbId,
     edge_type: &str,
-) -> Result<String, DbError> {
+) -> Result<(String, String), DbError> {
     let edges = guard.exec(
         QueryBuilder::search()
             .to(node)
@@ -284,12 +292,15 @@ fn read_owner_name(
             .query(),
     )?;
     Ok(match edges.elements.first() {
-        Some(edge) => read_rows_sync::<UserRow>(guard, &[edge.from])?
-            .into_iter()
-            .next()
-            .map(|row| row.name)
-            .unwrap_or_default(),
-        None => String::new(),
+        Some(edge) => {
+            let rows = read_rows_sync::<UserRow>(guard, &[edge.from])?;
+            let row = rows.into_iter().next();
+            (
+                row.as_ref().map(|r| r.id.clone()).unwrap_or_default(),
+                row.map(|r| r.name).unwrap_or_default(),
+            )
+        }
+        None => (String::new(), String::new()),
     })
 }
 

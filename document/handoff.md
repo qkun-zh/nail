@@ -8,90 +8,56 @@
    - task is numbered with Roman numerals (e.g. `I.`, `II.`)
    - stage is numbered with capital letters (e.g. `A.`, `B.`)
    - slice is numbered with Arabic numerals (e.g. `1.`, `2.`)
-2. A slice, once complete, must be promptly removed from the handoff to prevent
-   entropy explosion — keep only incomplete and in-progress entries.
-3. Each task must have a clear boundary in the handoff (partitioned by task,
+2. A task, once fully complete, must be promptly removed from the handoff to
+   prevent entropy explosion — keep only incomplete and in-progress entries.
+3. Every slice must record its status, any information requiring the user's
+   confirmation, and the user's decisions/choices.
+4. Each task must have a clear boundary in the handoff (partitioned by task,
    ownership labeled) to prevent confusion and interference.
-4. Do not modify, delete, or interfere with tasks not owned by you; changing
+5. Do not modify, delete, or interfere with tasks not owned by you; changing
    another's task requires explicit permission.
-5. The entire document must be written in English.
-6. Each agent's workspace must be separated by a divider of exactly 64
+6. The entire document must be written in English.
+7. Each agent's workspace must be separated by a divider of exactly 64
    em-dashes (`—`).
+8. Each task must open with a task header in exactly this form, and its
+   `Owner` must be a 6-character random code (A-Z, a-z, 0-9; no name/alias):
+   ```markdown
+   ## Task {roman}: {short title}
 
-## Current state
+   **Owner**: {6-char code}
+   **Exec doc**: `document/exec/{NNN}_slug.md`
+   **Status**: {one-line progress summary}
+   ```
 
-- Task "Fix 10 code quality defects": **completed and cleared** (see commits
-  03d1c7c..2707dd8). Back coverage 89.10%, all three crates fmt/clippy clean,
-  back 499 tests and front 69 tests green.
-- Task **Permission System Overhaul**: **completed** (commits af57930..c146a89,
-  nine slices S1–S9). Back 513 tests, front 69 tests, trunk build green,
-  fmt/clippy zero warnings across all three crates. See
-  `document/exec/003_permission_overhaul.md` for the full record.
+----------------------------------------------------------------
 
-## Remaining risks (inherited from the completed task, for reference)
+## Task I: Search Author Link + User Public Page
 
-Coverage capped at 89.10%; the uncovered remainder are all non-user-input paths
-(require real SMTP/server/mock, or DB-fault/race defense branches).
+**Owner**: opencode
+**Exec doc**: `document/exec/004_search_author_link_and_user_page.md`
+**Status**: All slices done, final gate passed
 
-————————————————————————————————————————————————————————————————
+### Stage A: Backend — Search Index author_id
 
-# Task: Permission System Overhaul
+| Slice | Status | Description |
+|---|---|---|
+| 1 | ✅ done | common: `SearchArticleItem` + `SearchCommentItem` add `author_id: String` |
+| 2 | ✅ done | back: search index add `FIELD_AUTHOR_ID`, bump schema version "2"→"3", store/read in `document.rs` |
+| 3 | ✅ done | back: `logic/search.rs` pass `author_id` through `ArticleBuilder` and `comment_to_response` |
 
-**Ownership**: this agent (permission overhaul). **Status**: completed.
-This is this task's exclusive area; others must not modify it.
+### Stage B: Frontend — Author Links + User Page
 
-All nine slices S1–S9 are done and committed (af57930..c146a89); the task is
-cleared. Record of execution: `document/exec/003_permission_overhaul.md`.
+| Slice | Status | Description |
+|---|---|---|
+| 4 | ✅ done | front: search result author names → clickable `<A href="/public/user/{uid}">` |
+| 5 | ✅ done | front: new `/public/user/{uid}` public page + route (reuse admin detail logic) |
+| 6 | ✅ done | front: remove login-based button hiding (all buttons visible, backend 403) |
 
-## Decisions (final, do not change)
+### Gate
 
-1. `Restore` → `Undelete::Soft` (all of Article/Version/Comment/User)
-2. Transfer exists only for Article/User/Comment. Article/Comment transfer:
-   move the target and its subtree to the recycler. User transfer: move the
-   user's subtree (excluding the user node) to the recycler, then delete the
-   user. Remove `Version::Delete::Transfer`.
-3. Split `Role::Manage` into 6 permissions (Create/Read/Update/Delete/Grant/Revoke)
-4. Virtual is used only for Create operations (no instance); operations with an
-   instance (User/Role) use the concrete resource type
-5. User supports soft delete; self-service deregistration (email-confirmed)
-   picks either `soft` or `transfer` mode
-6. Permission count 33 (was 27): Article=7, Version=6, Comment=7, User=7, Role=6
-7. `User::Create` is declared in schema, enforced via a Cedar check at
-   registration, but its policy is permit-all (always allows; conditions can
-   be added later without code changes)
-8. **Nothing is implicitly permitted. Every operation — including
-   self-service deregistration (transfer/soft) and registration — calls
-   `authorize()` explicitly; no operation may bypass the Cedar check.**
-   Explicit rules may be conditional (e.g. `resource.owner == principal`,
-   `principal == resource`); conditional rules ARE explicit authorization.
-9. **No implicit grants. All decisions come from explicit conditional rules
-    in policy.cedar + explicit `authorize()` calls.** Owner of own content:
-    Read/Update/Version::Create/Delete::Soft/Delete::Transfer (Version has no
-    Transfer). Owner never has Hard delete or Undelete — those are admin-only.
-    User self-view/self-update via `principal == resource`.
-10. **Recycler mounts content only — it holds no management permissions.**
-    Recycle-bin management (hard delete / undelete of recycled content) is
-    admin-only (admin role holds every permission). Recycler transfer forbid
-    stays.
-
-## Execution record
-
-All slices across Tasks I–IV (schema, policy, build.rs, repository, logic,
-interface, operations, tests, hardening audit) were completed in nine commits:
-
-- S1 `af57930` — remove `Action::Create` soft/restore vocabulary
-- S2 `efb0ad` — remove grant-permission-to-user
-- S3 `a0c51fe` — rename `Restore` → `Undelete::Soft` (Article/Version/Comment)
-- S4 `c9cb178` — remove `Version::Delete::Transfer`
-- S5 `7641965` — User Create/Delete::Soft/Undelete::Soft + anonymous principal
-  + explicit authorization for self-service deregistration
-- S6 `3e3af54` — split `Role::Manage` into 6 fine-grained permissions
-- S7 `e04d9a1` — resource-type normalization + drop admin-console
-  (User::Update/Delete::Hard, Role CRUD on concrete resources)
-- S8 `c30da03` — reject reactivation + hide soft-deleted accounts
-- S9 `c146a89` — E1 no-bypass audit (email change + session name read now
-  explicitly authorized) and E2 final gate
-
-Final gate green: back 513 tests, front 69 tests, `trunk build` succeeds,
-fmt/clippy zero warnings across all three crates. Full record:
-`document/exec/003_permission_overhaul.md`.
+| Check | Status |
+|---|---|
+| back tests (513) | ✅ pass |
+| front tests (69) | ✅ pass |
+| trunk build | ✅ pass |
+| fmt + clippy | ✅ pass |

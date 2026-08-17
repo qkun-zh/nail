@@ -4,14 +4,12 @@ use leptos_router::hooks::use_params_map;
 use nail_common::response::article::ArticleView;
 
 use crate::page::notify::{notify_error, use_notifications};
-use crate::page::session_gate::{SessionStatus, use_session_status};
 use crate::page::time_format::format_timestamp;
 
 #[component]
 pub fn ArticleDetail() -> impl IntoView {
     let params = use_params_map();
     let notifications = use_notifications();
-    let session_status = use_session_status();
     let article = RwSignal::new(None::<ArticleView>);
     let error = RwSignal::new(None::<String>);
 
@@ -47,7 +45,6 @@ pub fn ArticleDetail() -> impl IntoView {
         let update_href = format!("/public/article/{article_id}/update");
         let delete_href = format!("/public/article/{article_id}/delete");
         let versions_href = format!("/public/article/{article_id}/version");
-        let has_session = matches!(session_status.get(), SessionStatus::Authenticated(_));
         view! {
             <div>
                 <hr/>
@@ -67,17 +64,10 @@ pub fn ArticleDetail() -> impl IntoView {
                 <hr/>
                 <div><A href=versions_href>version</A></div>
                 <hr/>
-                {if has_session {
-                    view! {
-                        <div><A href=update_href>update</A></div>
-                        <hr/>
-                        <div><A href=delete_href>delete</A></div>
-                        <hr/>
-                    }
-                    .into_any()
-                } else {
-                    ().into_any()
-                }}
+                <div><A href=update_href>update</A></div>
+                <hr/>
+                <div><A href=delete_href>delete</A></div>
+                <hr/>
             </div>
         }
         .into_any()

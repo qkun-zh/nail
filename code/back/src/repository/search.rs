@@ -22,7 +22,7 @@ use schema::{FIELD_ARTICLE_ID, FIELD_COMMENT_ID, FIELD_TS, index_meta, schema_fi
 
 const MAX_DOCS_PER_ARTICLE: u64 = 32;
 
-const INDEX_SCHEMA_VERSION: &str = "2";
+const INDEX_SCHEMA_VERSION: &str = "3";
 const SCHEMA_VERSION_FILENAME: &str = "nail_schema_version";
 
 #[derive(Debug, Clone, Default)]
@@ -47,6 +47,7 @@ pub struct SearchVersionOutcome {
     pub version_id: String,
     pub version_number: String,
     pub title: String,
+    pub author_id: String,
     pub author_name: String,
     pub article_hits: Vec<SearchHitOutcome>,
     pub version_hits: Vec<SearchHitOutcome>,
@@ -58,6 +59,7 @@ pub struct SearchCommentOutcome {
     pub article_id: String,
     pub version_id: String,
     pub comment_id: String,
+    pub author_id: String,
     pub author_name: String,
     pub content: String,
     pub article_title: String,

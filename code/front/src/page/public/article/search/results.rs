@@ -32,6 +32,7 @@ pub(super) fn SearchResults(
         .into_iter()
         .map(|article| {
             let detail_url = format!("/public/article/{}", article.article_id);
+            let author_url = format!("/public/user/{}", article.author_id);
             let title_html = article.title.clone();
             let author_html = article.author_name.clone();
             let time_text = article.time.clone();
@@ -46,7 +47,9 @@ pub(super) fn SearchResults(
                         </A>
                         <span class="title" inner_html=title_html></span>
                         <span class="meta">
-                            <span inner_html=author_html></span>
+                            <A attr:class="author-link" href=author_url>
+                                <span inner_html=author_html></span>
+                            </A>
                             {format!(" · {time_text}")}
                         </span>
                     </div>

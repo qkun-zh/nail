@@ -105,6 +105,7 @@ fn assemble_tree(docs: &[SearchDocOutcome]) -> Vec<SearchArticleItem> {
     struct ArticleBuilder {
         article_id: String,
         title: String,
+        author_id: String,
         author_name: String,
         time: String,
         article_hits: Vec<SearchHit>,
@@ -124,6 +125,7 @@ fn assemble_tree(docs: &[SearchDocOutcome]) -> Vec<SearchArticleItem> {
                         articles.push(ArticleBuilder {
                             article_id: version.article_id.clone(),
                             title: version.title.clone(),
+                            author_id: version.author_id.clone(),
                             author_name: version.author_name.clone(),
                             time: format_search_time(uuidv7_secs(&version.article_id)),
                             article_hits: Vec::new(),
@@ -164,6 +166,7 @@ fn assemble_tree(docs: &[SearchDocOutcome]) -> Vec<SearchArticleItem> {
                         articles.push(ArticleBuilder {
                             article_id: comment.article_id.clone(),
                             title: comment.article_title.clone(),
+                            author_id: String::new(),
                             author_name: comment.article_author_name.clone(),
                             time: format_search_time(uuidv7_secs(&comment.article_id)),
                             article_hits: Vec::new(),
@@ -196,6 +199,7 @@ fn assemble_tree(docs: &[SearchDocOutcome]) -> Vec<SearchArticleItem> {
         .map(|article| SearchArticleItem {
             article_id: article.article_id,
             title: article.title,
+            author_id: article.author_id,
             author_name: article.author_name,
             time: article.time,
             article_hits: article.article_hits,
@@ -225,6 +229,7 @@ fn hit_to_response(hit: &crate::repository::search::SearchHitOutcome) -> SearchH
 fn comment_to_response(comment: &SearchCommentOutcome) -> SearchCommentItem {
     SearchCommentItem {
         comment_id: comment.comment_id.clone(),
+        author_id: comment.author_id.clone(),
         author_name: comment.author_name.clone(),
         time: format_search_time(uuidv7_secs(&comment.comment_id)),
         content: comment.content.clone(),

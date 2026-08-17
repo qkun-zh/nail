@@ -13,6 +13,7 @@ pub struct SearchHit {
 pub struct SearchArticleItem {
     pub article_id: String,
     pub title: String,
+    pub author_id: String,
     pub author_name: String,
     pub time: String,
     pub article_hits: Vec<SearchHit>,
@@ -31,6 +32,7 @@ pub struct SearchVersionItem {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SearchCommentItem {
     pub comment_id: String,
+    pub author_id: String,
     pub author_name: String,
     pub time: String,
     pub content: String,

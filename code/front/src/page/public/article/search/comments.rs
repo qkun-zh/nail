@@ -9,13 +9,10 @@ use super::super::version::comment::pagination::COMMENTS_PER_PAGE;
 
 pub(super) fn render_comment(
     comment: &SearchCommentItem,
-    article_id: &str,
-    version_id: &str,
+    _article_id: &str,
+    _version_id: &str,
 ) -> impl IntoView {
-    let comment_url = format!(
-        "/public/article/{article_id}/version/{version_id}/comment/{}",
-        comment.comment_id
-    );
+    let author_url = format!("/public/user/{}", comment.author_id);
     let author_html = comment.author_name.clone();
     let time_text = comment.time.clone();
     let content_html = comment.content.clone();
@@ -24,7 +21,7 @@ pub(super) fn render_comment(
             <div class="comment-head-row">
                 <div class="cmt-main">
                     <div class="cmt-meta">
-                        <A attr:class="cmt-author" href=comment_url>
+                        <A attr:class="cmt-author" href=author_url>
                             <span inner_html=author_html></span>
                             <span class="cmt-time">{time_text}</span>
                         </A>
