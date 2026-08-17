@@ -452,14 +452,24 @@ fn role_crud_requires_the_admin_console_and_grant_revoke_the_role_resource() {
         ]),
     );
     let admin = user_entity("admin", HashSet::from([uid("Role::\"admin\"")]));
-    for action in ["Role::Create", "Role::Read", "Role::Update", "Role::Delete"] {
+    let action_entity = Entity::new_no_attrs(uid("Action::\"Role::Create\""), HashSet::new());
+    assert!(
+        decide(
+            &uid("User::\"admin\""),
+            "Role::Create",
+            &uid("Virtual::\"role-console\""),
+            vec![admin.clone(), admin_role.clone(), action_entity],
+        )
+        .expect("admin role create")
+    );
+    for action in ["Role::Read", "Role::Update", "Role::Delete"] {
         let action_entity =
             Entity::new_no_attrs(uid(&format!("Action::\"{action}\"")), HashSet::new());
         assert!(
             decide(
                 &uid("User::\"admin\""),
                 action,
-                &uid("Virtual::\"admin-console\""),
+                &uid("Role::\"editor\""),
                 vec![admin.clone(), admin_role.clone(), action_entity],
             )
             .expect("admin role crud")
@@ -503,13 +513,13 @@ fn role_crud_requires_the_admin_console_and_grant_revoke_the_role_resource() {
 fn admin_without_a_grant_is_denied() {
     let admin = Entity::new_no_attrs(uid("Role::\"admin\""), HashSet::new());
     let principal = user_entity("alice", HashSet::from([uid("Role::\"admin\"")]));
-    let resource = article_entity("article-1", "bob");
+    let resource = user_entity("bob", HashSet::new());
 
     assert!(
         !decide(
             &uid("User::\"alice\""),
             "User::Delete::Hard",
-            &uid("Virtual::\"admin-console\""),
+            &uid("User::\"bob\""),
             vec![principal, admin, resource],
         )
         .expect("admin without grant")
@@ -523,13 +533,13 @@ fn admin_holding_a_grant_is_allowed() {
         HashSet::from([uid("Action::\"User::Delete::Hard\"")]),
     );
     let principal = user_entity("alice", HashSet::from([uid("Role::\"admin\"")]));
-    let resource = article_entity("article-1", "bob");
+    let resource = user_entity("bob", HashSet::new());
 
     assert!(
         decide(
             &uid("User::\"alice\""),
             "User::Delete::Hard",
-            &uid("Virtual::\"admin-console\""),
+            &uid("User::\"bob\""),
             vec![principal, admin, resource],
         )
         .expect("admin with grant")

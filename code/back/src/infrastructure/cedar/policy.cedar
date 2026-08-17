@@ -22,13 +22,14 @@ permit (principal, action in [Action::"Article::Read", Action::"Version::Read",
         resource)
   when { resource.owner == principal };
 
-// 1b. User self-service: a user may always read their own record and
-//     deregister their own account (soft or transfer mode). The User entity
-//     carries no attributes (schema `entity User in [Role];`), so self-service
-//     is expressed directly as `principal == resource` instead of an owner
+// 1b. User self-service: a user may always read, update and deregister their
+//     own account (soft or transfer mode). The User entity carries no
+//     attributes (schema `entity User in [Role];`), so self-service is
+//     expressed directly as `principal == resource` instead of an owner
 //     attribute — User stays attribute-less in both the principal and the
 //     resource position.
 permit (principal, action in [Action::"User::Read",
+                              Action::"User::Update",
                               Action::"User::Delete::Soft",
                               Action::"User::Delete::Transfer"],
         resource)
@@ -39,26 +40,18 @@ permit (principal, action in [Action::"User::Read",
 
 // 3. Role permission: the principal's role ancestor closure contains the
 //    action. Roles are pure sets of users; the scope axis was removed (D1).
+//    This single rule covers both concrete instances (Article/Version/Comment
+//    with an owner, User/Role instances) and Virtual Create resources, so no
+//    admin-console meta-resource is needed: instance authorization matches the
+//    concrete entity, and admins hold every action through this rule.
 permit (principal, action, resource)
   when { principal in action };
 
-// 4. Admin-console meta-permission: User::Update/Delete::Hard and the
-//    role-management CRUD actions are only judged against
-//    Virtual::"admin-console". User::Read and the self-service deletes
-//    (Soft/Transfer) left this rule: User::Read rides the User resource
-//    self-service (policy 1b), and deregistration rides the same self rule, so
-//    this rule keeps the admin-only hard-delete, user update and role CRUD
-//    actions. An admin with the grant still reaches them through the generic
-//    role rule (policy 3) on Virtual::"admin-console". Role::Grant and
-//    Role::Revoke act on the concrete Role resource (policy 3).
-permit (principal, action in [Action::"User::Update",
-                              Action::"User::Delete::Hard",
-                              Action::"Role::Create",
-                              Action::"Role::Read",
-                              Action::"Role::Update",
-                              Action::"Role::Delete"],
-        resource)
-  when { resource == Virtual::"admin-console" && principal in action };
+// 4. was the admin-console meta-permission rule, removed in S7: User::Update/
+//    Delete::Hard now ride the concrete User resource (self-service through
+//    policy 1b, admin through the grant in policy 3), Role operations ride the
+//    concrete Role resource, and Role::Create rides a Virtual resource through
+//    policy 3. No Virtual::"admin-console" hardcode remains.
 
 // 5. Recycler is a terminal sink: a recycler can never transfer content. This
 //    principal-side forbid also applies to user_zero, who holds the recycler

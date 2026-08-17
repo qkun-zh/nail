@@ -44,15 +44,12 @@ async fn create_article_fixture(
     (article_id, version_id)
 }
 
-fn admin_console() -> Resource {
-    Resource::Virtual("admin-console".to_string())
-}
-
 #[tokio::test]
-async fn admin_console_authorize_grants_admin_and_denies_member() {
+async fn user_read_grants_admin_and_denies_member() {
     let context = TestCtx::new().await.expect("test context");
     let admin = create_user(&context, "user-zero@example.com").await;
     let member = create_user(&context, "alice@example.com").await;
+    let target = create_user(&context, "bob@example.com").await;
     crate::repository::role::hold_role(&context.state.graph, &member, "member")
         .await
         .expect("member role");
@@ -62,7 +59,7 @@ async fn admin_console_authorize_grants_admin_and_denies_member() {
             &context.state,
             &admin,
             PERMISSION_USER_READ,
-            &admin_console()
+            &Resource::User(target.clone()),
         )
         .await
         .is_ok()
@@ -72,7 +69,7 @@ async fn admin_console_authorize_grants_admin_and_denies_member() {
             &context.state,
             &member,
             PERMISSION_USER_READ,
-            &admin_console()
+            &Resource::User(target),
         )
         .await
         .unwrap_err(),
@@ -184,7 +181,7 @@ async fn authorize_article_create_on_the_virtual_desk_denies_a_non_holder() {
 async fn virtual_desk_assembly_covers_the_create_and_admin_uids() {
     let context = TestCtx::new().await.expect("test context");
     let actor = create_user(&context, "alice@example.com").await;
-    for name in ["article-create", "comment-create", "admin-console"] {
+    for name in ["article-create", "comment-create", "role-console"] {
         let assembly = crate::repository::authorization::assemble(
             &context.state.graph,
             &actor,
@@ -270,7 +267,7 @@ async fn role_grant_authorizes_any_article() {
 }
 
 #[tokio::test]
-async fn admin_console_action_on_a_non_admin_console_resource_is_denied() {
+async fn role_read_on_a_non_role_resource_is_denied() {
     let context = TestCtx::new().await.expect("test context");
     let member = create_user(&context, "alice@example.com").await;
     crate::repository::role::hold_role(&context.state.graph, &member, "member")
@@ -294,7 +291,7 @@ async fn admin_console_action_on_a_non_admin_console_resource_is_denied() {
 async fn role_resource_assembly_covers_role_uids() {
     let context = TestCtx::new().await.expect("test context");
     let actor = create_user(&context, "alice@example.com").await;
-    for name in ["admin", "editor", "recycler"] {
+    for name in ["admin", "member", "recycler"] {
         let assembly = crate::repository::authorization::assemble(
             &context.state.graph,
             &actor,

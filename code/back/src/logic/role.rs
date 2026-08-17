@@ -1,5 +1,5 @@
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::authorize;
+use crate::logic::authorize::{authorize, authorize_or};
 use crate::logic::error::{LogicError, database_error};
 use crate::repository::authorization::Resource;
 use crate::repository::role::{
@@ -12,8 +12,8 @@ use crate::repository::role::{
 };
 use nail_common::response::role::{RoleListItem, RoleListPage, RoleNameView, RoleView};
 
-fn admin_console() -> Resource {
-    Resource::Virtual("admin-console".to_string())
+fn role_console() -> Resource {
+    Resource::Virtual("role-console".to_string())
 }
 
 pub struct RoleUpdate<'a> {
@@ -28,7 +28,17 @@ async fn require_role_action(
     actor_id: &str,
     action: &str,
 ) -> Result<(), LogicError> {
-    authorize(state, actor_id, action, &admin_console()).await
+    authorize(state, actor_id, action, &role_console()).await
+}
+
+async fn require_role_read_list(state: &AppState, actor_id: &str) -> Result<(), LogicError> {
+    authorize(
+        state,
+        actor_id,
+        PERMISSION_ROLE_READ,
+        &Resource::Virtual("role-list".to_string()),
+    )
+    .await
 }
 
 pub fn validate_role_name(raw: &str) -> Result<String, LogicError> {
@@ -71,7 +81,7 @@ pub async fn read_roles(
     page: u64,
     limit: u64,
 ) -> Result<RoleListPage, LogicError> {
-    require_role_action(state, actor_id, PERMISSION_ROLE_READ).await?;
+    require_role_read_list(state, actor_id).await?;
     let roles = read_role_nodes(&state.graph)
         .await
         .map_err(database_error)?;
@@ -108,7 +118,14 @@ pub async fn read_role(
     actor_id: &str,
     name: &str,
 ) -> Result<RoleView, LogicError> {
-    require_role_action(state, actor_id, PERMISSION_ROLE_READ).await?;
+    authorize_or(
+        state,
+        actor_id,
+        PERMISSION_ROLE_READ,
+        &Resource::Role(name.to_string()),
+        "role not found",
+    )
+    .await?;
     let role = read_role_node(&state.graph, name)
         .await
         .map_err(database_error)?
@@ -138,7 +155,13 @@ pub async fn update_role(
     let has_adds = !permissions_add.is_empty() || !users_add.is_empty();
     let has_removes = !permissions_remove.is_empty() || !users_remove.is_empty();
     if has_adds || has_removes {
-        require_role_action(state, actor_id, PERMISSION_ROLE_UPDATE).await?;
+        authorize(
+            state,
+            actor_id,
+            PERMISSION_ROLE_UPDATE,
+            &Resource::Role(name.to_string()),
+        )
+        .await?;
     }
     if has_adds {
         authorize(
@@ -207,7 +230,14 @@ pub async fn delete_role(
     actor_id: &str,
     name: &str,
 ) -> Result<RoleNameView, LogicError> {
-    require_role_action(state, actor_id, PERMISSION_ROLE_DELETE).await?;
+    authorize_or(
+        state,
+        actor_id,
+        PERMISSION_ROLE_DELETE,
+        &Resource::Role(name.to_string()),
+        "role not found",
+    )
+    .await?;
     if REQUIRED_ROLES.contains(&name) {
         return Err(LogicError::bad_request(format!(
             "role {name} is a required role and cannot be deleted"

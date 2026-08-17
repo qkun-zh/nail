@@ -178,6 +178,13 @@ async fn handle_update_name(
     actor_id: &str,
     pow: &Pow,
 ) -> Result<String, LogicError> {
+    authorize(
+        state,
+        actor_id,
+        PERMISSION_USER_UPDATE,
+        &Resource::User(actor_id.to_string()),
+    )
+    .await?;
     verify_issued_pow(state, pow)?;
     let name = nail_common::name::validate_name(&pow.payload)
         .map_err(|error| LogicError::bad_request(error.to_string()))?;
@@ -193,7 +200,14 @@ async fn handle_admin_update_name(
     target_id: &str,
     raw_name: &str,
 ) -> Result<String, LogicError> {
-    authorize(state, actor_id, PERMISSION_USER_UPDATE, &admin_console()).await?;
+    authorize_or(
+        state,
+        actor_id,
+        PERMISSION_USER_UPDATE,
+        &Resource::User(target_id.to_string()),
+        "user not found",
+    )
+    .await?;
     let name = nail_common::name::validate_name(raw_name)
         .map_err(|error| LogicError::bad_request(error.to_string()))?;
     update_user_name(&state.graph, target_id, &name)
@@ -348,7 +362,7 @@ async fn handle_delete_user_hard(
         state,
         actor_id,
         PERMISSION_USER_DELETE_HARD,
-        &admin_console(),
+        &Resource::User(target_id.to_string()),
     )
     .await?;
     let outcome = crate::repository::delete::delete_user(&state.graph, target_id)
@@ -368,8 +382,4 @@ fn name_update_error(error: UserWriteError) -> LogicError {
             LogicError::internal(format!("failed to update name: {error}"))
         }
     }
-}
-
-fn admin_console() -> Resource {
-    Resource::Virtual("admin-console".to_string())
 }

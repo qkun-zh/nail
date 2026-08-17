@@ -232,7 +232,16 @@ pub async fn assemble_resource(
         }
         Resource::Role(name) => {
             let resource_uid = role_uid(&name)?;
-            let entity = Entity::new_no_attrs(resource_uid.clone(), HashSet::new());
+            let view = crate::repository::role::read_role(db, &name)
+                .await
+                .map_err(|error| AssemblyError::Internal(error.to_string()))?
+                .ok_or(AssemblyError::ResourceNotFound)?;
+            let action_parents: HashSet<EntityUid> = view
+                .permissions
+                .iter()
+                .map(|permission| action_uid(permission))
+                .collect::<Result<_, _>>()?;
+            let entity = Entity::new_no_attrs(resource_uid.clone(), action_parents);
             Ok((resource_uid, vec![entity]))
         }
         Resource::User(user_id) => {
