@@ -22,3 +22,4 @@ code/proxy/pingap-linux-gnu-x86-full
 .DS_Store
 __pycache__/
 *.rs.bkcode/back/tarpaulin-report.html
+code/back/tarpaulin-report.html
