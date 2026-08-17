@@ -16,7 +16,7 @@ cross-reference and must be read together.
 - `data/` — agdb DB, SeekStorm index, PDF storage. Dev DB resets/reseeds at
   startup; deleting it forces fresh init.
 - `log/` — backend and proxy logs.
-- `document/` — docs: `workflow.md`, `handoff.md`, `run.md`.
+- `document/` — docs: `workflow.md`, `handoff/`, `run.md`.
 - `test/` — shared unit tests pulled in via `#[path]`.
 
 ## 2. Architecture
@@ -125,8 +125,8 @@ both are recorded and the user adopts the plan (`document/workflow.md` §7).
 
 ## 13. Documentation
 
-`workflow.md` = execution loop; `handoff.md` = progress; `run.md` =
-build/run/health-check.
+`workflow.md` = execution loop; `handoff/` = progress (per-task files +
+`readme.md` index); `run.md` = build/run/health-check.
 
 ## 14. Search scope
 

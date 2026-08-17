@@ -53,8 +53,10 @@ flagged.
 
 ## Phase 5 — Execution doc
 
-Write `document/exec/<NNN>_<slug>.md` (3-digit sequence, lowest-first, no
-reuse). Under 300 lines.
+Write `document/exec/<4-char code>_<slug>.md` (4-character random
+alphanumeric code; unique, no reuse). Under 300 lines.
+
+The exec doc is deleted once its task is fully complete (see §Phase 10).
 
 **Required sections** (empty only with explicit "N/A" + one-line reason):
 
@@ -149,8 +151,21 @@ Never report red. Gate fails → back to phase 8.
 
 ## Phase 10 — Handoff
 
-Update `document/handoff.md`: current state, slices done, decisions made,
-remaining risks. Report to user.
+Purpose: leave the work for another agent to pick up, so the next session
+needs no memory of this one. Mandatory before reporting done.
+
+Update `document/handoff/readme.md` (and the per-task file) strictly per its
+**Task organization rules**:
+current state, slices done, decisions made, remaining risks; drop completed
+slices; keep only incomplete/in-progress entries; label task ownership; never
+touch others' tasks; use the 64-em-dash divider. Follow the `handoff` skill
+(AGENTS.md) and invoke it when wrapping up. A handoff that is incomplete or
+stale is a red gate — never report green without one.
+
+When a task is fully complete, delete its exec doc
+(`document/exec/<4-char code>_<slug>.md`), so only in-progress exec docs remain.
+
+Report to user.
 
 ---
 

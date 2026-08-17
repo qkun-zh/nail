@@ -22,14 +22,16 @@ discard" rule covers every change in the tree).
 
 - `README.md` — constitution.
 - `document/workflow.md` — mandatory execution loop.
-- `document/exec/` — execution documents: one per task, numbered `NNN_slug.md`.
-  Written at workflow §5 before any code. Single source of truth during work.
-- `document/handoff.md` — progress: current state, done, next. Update at the end
-  of every completed slice, before reporting.
+- `document/exec/` — execution documents: one per task, named
+  `{4-char code}_{slug}.md`. Written at workflow §5 before any code. Single
+  source of truth during work.
+- `document/handoff/` — progress: per-task files `{4-char code}_{slug}.md` plus
+  `readme.md` (rules + index). Update at the end of every completed slice,
+  before reporting.
 - `document/run.md` — build/restart/health-check.
 
 No issue tracker (no git remote, no `.scratch/`). Work tracked in
-`document/handoff.md`.
+`document/handoff/`.
 
 ## When to use which skill
 
@@ -45,10 +47,10 @@ only (`codebase-design` is the one reference-only exception).
 | `grilling` | user wants a plan/decision stress-tested ("grill me"). User-invoked. |
 | `grill-with-docs` | grilling that also produces glossary/decision docs. User-invoked. |
 | `improve-codebase-architecture` | architecture review/deepening report (HTML) then grill. |
-| `handoff` | wrapping up; keep `document/handoff.md` current. |
+| `handoff` | wrapping up; keep `document/handoff/` current. |
 | `thermo-nuclear-code-quality-review` | extremely strict maintainability/abstraction/spaghetti review. |
 | `setup-matt-pocock-skills` | already run; don't re-run unless reconfigure requested. |
-| `to-spec` | not usable as-is (no issue tracker); adapt to `document/handoff.md` or ask. |
+| `to-spec` | not usable as-is (no issue tracker); adapt to `document/handoff/` or ask. |
 
 ## Tools
 
@@ -66,7 +68,9 @@ only (`codebase-design` is the one reference-only exception).
   test (`cargo test`) — source + probe evidence. No implementation until both
    are recorded and the user adopts the plan (`workflow.md` §7).
 - **Verify**: `cargo fmt`, `cargo clippy` (zero warnings), `cargo test` in
-  `code/{common,back,front}`; frontend also `trunk build` (`document/run.md`).
+  `code/{common,back,front}`; frontend also `trunk build`. Test/run commands
+  MUST use the nightly + Cranelift + line-tables flags in `document/run.md`
+  (README §10/§11 and run.md are the authority on those flags).
 
 ### Prohibited
 
