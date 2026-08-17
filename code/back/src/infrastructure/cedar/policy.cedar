@@ -22,12 +22,16 @@ permit (principal, action in [Action::"Article::Read", Action::"Version::Read",
         resource)
   when { resource.owner == principal };
 
-// 1b. User::Read self-view: a user may always read their own record. The
-//     User entity carries no attributes (schema `entity User in [Role];`), so
-//     self-view is expressed directly as `principal == resource` instead of an
-//     owner attribute — User stays attribute-less in both the principal and the
+// 1b. User self-service: a user may always read their own record and
+//     deregister their own account (soft or transfer mode). The User entity
+//     carries no attributes (schema `entity User in [Role];`), so self-service
+//     is expressed directly as `principal == resource` instead of an owner
+//     attribute — User stays attribute-less in both the principal and the
 //     resource position.
-permit (principal, action == Action::"User::Read", resource)
+permit (principal, action in [Action::"User::Read",
+                              Action::"User::Delete::Soft",
+                              Action::"User::Delete::Transfer"],
+        resource)
   when { principal == resource };
 
 // 2 was the read-open rule, removed in B1: reads now flow through policy 1
@@ -38,13 +42,15 @@ permit (principal, action == Action::"User::Read", resource)
 permit (principal, action, resource)
   when { principal in action };
 
-// 4. Admin-console meta-permission: User::Update/Delete and Role::Manage are
-//    only judged against Virtual::"admin-console". User::Read left this rule in
-//    B2: it now rides the User resource self-view (policy 1) or the admin
-//    role's User::Read grant through the generic rule (policy 3).
+// 4. Admin-console meta-permission: User::Update/Delete::Hard and Role::Manage
+//    are only judged against Virtual::"admin-console". User::Read and the
+//    self-service deletes (Soft/Transfer) left this rule: User::Read rides the
+//    User resource self-service (policy 1b), and deregistration rides the same
+//    self rule, so this rule keeps the admin-only hard-delete and user update
+//    actions. An admin with the grant still reaches them through the generic
+//    role rule (policy 3) on Virtual::"admin-console".
 permit (principal, action in [Action::"User::Update",
                               Action::"User::Delete::Hard",
-                              Action::"User::Delete::Transfer",
                               Action::"Role::Manage"],
         resource)
   when { resource == Virtual::"admin-console" && principal in action };
@@ -60,3 +66,8 @@ forbid (principal in Role::"recycler",
 // 6. Admin role is terminal for revocation (D7-b): nobody — not even an admin
 //    with a grant — may revoke from the admin role. Forbid beats permit.
 forbid (principal, action == Action::"Role::Revoke", resource == Role::"admin");
+
+// 7. Registration is open: User::Create is judged only against a synthetic
+//    anonymous principal, so no session or grant can ever gate it. Later
+//    restrictions (e.g. by domain) go here as conditions, not in the caller.
+permit (principal, action == Action::"User::Create", resource);

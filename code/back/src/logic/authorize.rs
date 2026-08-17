@@ -1,6 +1,6 @@
 use crate::infrastructure::state::AppState;
 use crate::logic::error::LogicError;
-use crate::repository::authorization::{AssemblyError, Resource, assemble};
+use crate::repository::authorization::{AssemblyError, Resource, assemble, assemble_resource};
 
 pub async fn authorize(
     state: &AppState,
@@ -18,6 +18,29 @@ pub async fn authorize(
         assembly.entities,
     )
     .map_err(|error| LogicError::internal(format!("authorization evaluation failed: {error}")))?;
+    if allowed {
+        Ok(())
+    } else {
+        Err(LogicError::forbidden("you are denied"))
+    }
+}
+
+pub async fn authorize_anonymous(
+    state: &AppState,
+    action: &str,
+    resource: &Resource,
+) -> Result<(), LogicError> {
+    let (resource_uid, resource_entities) = assemble_resource(&state.graph, resource.clone())
+        .await
+        .map_err(map_assembly_error)?;
+    let principal = "User::\"anonymous\""
+        .parse::<cedar_policy::EntityUid>()
+        .map_err(|error| LogicError::internal(format!("invalid anonymous principal: {error}")))?;
+    let allowed =
+        crate::infrastructure::cedar::decide(&principal, action, &resource_uid, resource_entities)
+            .map_err(|error| {
+                LogicError::internal(format!("authorization evaluation failed: {error}"))
+            })?;
     if allowed {
         Ok(())
     } else {

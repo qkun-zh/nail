@@ -3,7 +3,7 @@ use super::context::{build_state, test_config};
 use crate::repository::article::{ArticleDraft, create_article};
 use crate::repository::delete::{
     delete_article, delete_user, delete_version, soft_delete_article, soft_delete_comment,
-    soft_delete_version,
+    soft_delete_user, soft_delete_version, undelete_soft_user,
 };
 use crate::repository::schema::{
     CommentRow, EDGE_COMMENT_ATTACH_VERSION, EDGE_COMMENT_REPLY_COMMENT, EDGE_USER_AUTHOR_COMMENT,
@@ -323,6 +323,54 @@ async fn has_soft_deleted_flag(
         )
         .expect("flag search");
     !result.elements.is_empty()
+}
+
+#[tokio::test]
+async fn soft_delete_user_cascades_the_flag_over_articles_comments_and_the_user() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    insert_comment_tree(&state, &version_id, &author_id).await;
+
+    soft_delete_user(&state.graph, &author_id)
+        .await
+        .expect("soft delete");
+
+    assert!(has_soft_deleted_flag(&state, ENTITY_TYPE_USER, &author_id).await);
+    assert!(has_soft_deleted_flag(&state, "article", &article_id).await);
+    assert!(has_soft_deleted_flag(&state, "version", &version_id).await);
+    let guard = state.graph.read().await;
+    assert_eq!(count_by_type(&guard, ENTITY_TYPE_COMMENT), 3);
+}
+
+#[tokio::test]
+async fn undelete_soft_user_clears_the_flags_over_the_whole_subtree() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    insert_comment_tree(&state, &version_id, &author_id).await;
+
+    soft_delete_user(&state.graph, &author_id)
+        .await
+        .expect("soft delete");
+    undelete_soft_user(&state.graph, &author_id)
+        .await
+        .expect("undelete");
+
+    assert!(!has_soft_deleted_flag(&state, ENTITY_TYPE_USER, &author_id).await);
+    assert!(!has_soft_deleted_flag(&state, "article", &article_id).await);
+    assert!(!has_soft_deleted_flag(&state, "version", &version_id).await);
+}
+
+#[tokio::test]
+async fn soft_delete_user_is_idempotent_for_a_missing_user() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    soft_delete_user(&state.graph, "missing")
+        .await
+        .expect("soft delete");
+    undelete_soft_user(&state.graph, "missing")
+        .await
+        .expect("undelete");
 }
 
 #[tokio::test]

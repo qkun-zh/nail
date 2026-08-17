@@ -5,7 +5,7 @@ use nail_common::response::session::SessionTokenView;
 use nail_common::response::user::{UserIdView, UserNameView, UserView};
 
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::{authorize, authorize_or};
+use crate::logic::authorize::{authorize, authorize_anonymous, authorize_or};
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::pow::verify_issued_pow;
 use crate::logic::search::{sync_all_best_effort, sync_article_best_effort, sync_user_best_effort};
@@ -13,7 +13,9 @@ use crate::logic::session::normalize_token;
 use crate::repository::authorization::Resource;
 use crate::repository::cache::token_key;
 use crate::repository::role::{
-    PERMISSION_USER_DELETE_HARD, PERMISSION_USER_READ, PERMISSION_USER_UPDATE, ROLE_MEMBER,
+    PERMISSION_USER_CREATE, PERMISSION_USER_DELETE_HARD, PERMISSION_USER_DELETE_SOFT,
+    PERMISSION_USER_DELETE_TRANSFER, PERMISSION_USER_READ, PERMISSION_USER_UNDELETE_SOFT,
+    PERMISSION_USER_UPDATE, ROLE_MEMBER,
 };
 use crate::repository::transfer::TransferError;
 use crate::repository::user::{UserWriteError, read_user as read_user_node, update_user_name};
@@ -33,6 +35,12 @@ pub enum UserDeleteView {
 }
 
 pub async fn create_user(state: &AppState, pow: &Pow) -> Result<String, LogicError> {
+    authorize_anonymous(
+        state,
+        PERMISSION_USER_CREATE,
+        &Resource::Virtual("user-create".to_string()),
+    )
+    .await?;
     verify_issued_pow(state, pow)?;
     let token = normalize_token(&pow.payload)
         .ok_or_else(|| LogicError::bad_request("invalid or expired token"))?;
@@ -149,17 +157,18 @@ pub async fn delete_user(
             handle_delete_user_transfer(state, actor_id, &request.pow).await?;
             Ok(UserDeleteView::Empty(EmptyView {}))
         }
+        Some(DeleteMode::Soft) => {
+            handle_delete_user_soft(state, actor_id, &request.pow).await?;
+            Ok(UserDeleteView::Empty(EmptyView {}))
+        }
         Some(DeleteMode::Hard) => {
             handle_delete_user_hard(state, actor_id, target_id).await?;
             Ok(UserDeleteView::UserId(UserIdView {
                 user_id: target_id.to_string(),
             }))
         }
-        Some(DeleteMode::Soft) => Err(LogicError::bad_request(
-            "user delete only supports mode \"transfer\" or \"hard\"",
-        )),
         None => Err(LogicError::bad_request(
-            "missing or unsupported delete mode (expected \"transfer\" or \"hard\")",
+            "missing or unsupported delete mode (expected \"transfer\", \"soft\" or \"hard\")",
         )),
     }
 }
@@ -201,6 +210,13 @@ async fn handle_delete_user_transfer(
     actor_id: &str,
     pow: &Pow,
 ) -> Result<(), LogicError> {
+    authorize(
+        state,
+        actor_id,
+        PERMISSION_USER_DELETE_TRANSFER,
+        &Resource::User(actor_id.to_string()),
+    )
+    .await?;
     verify_issued_pow(state, pow)?;
     let token = normalize_token(&pow.payload)
         .ok_or_else(|| LogicError::bad_request("invalid delete token"))?;
@@ -247,6 +263,79 @@ async fn handle_delete_user_transfer(
         sync_article_best_effort(state, article_id).await;
     }
     tracing::info!(user_id = %actor_id, "user deleted, assets transferred");
+    Ok(())
+}
+
+async fn handle_delete_user_soft(
+    state: &AppState,
+    actor_id: &str,
+    pow: &Pow,
+) -> Result<(), LogicError> {
+    authorize(
+        state,
+        actor_id,
+        PERMISSION_USER_DELETE_SOFT,
+        &Resource::User(actor_id.to_string()),
+    )
+    .await?;
+    verify_issued_pow(state, pow)?;
+    let token = normalize_token(&pow.payload)
+        .ok_or_else(|| LogicError::bad_request("invalid delete token"))?;
+    let token_hash = token_key(&token)
+        .map_err(|error| LogicError::internal(format!("failed to hash delete token: {error}")))?;
+
+    let Some(entry) = state.caches.delete_user.read(&token_hash) else {
+        let user_exists = read_user_node(&state.graph, actor_id)
+            .await
+            .map_err(database_error)?
+            .is_some();
+        if user_exists {
+            return Err(LogicError::bad_request("invalid or expired delete token"));
+        }
+        state.caches.session.delete_by_reverse_key(actor_id);
+        return Ok(());
+    };
+    if entry.user_id != actor_id {
+        return Err(LogicError::bad_request(
+            "delete token does not match your account",
+        ));
+    }
+
+    crate::repository::delete::soft_delete_user(&state.graph, actor_id)
+        .await
+        .map_err(|error| LogicError::internal(format!("failed to soft-delete user: {error}")))?;
+
+    let email_address_hash = entry.email_address_hash;
+    state.caches.delete_user.consume(&token_hash);
+    state.caches.session.delete_by_reverse_key(actor_id);
+    state.caches.email_update.delete(actor_id);
+    state.caches.delete_user.delete_by_reverse_key(actor_id);
+    state
+        .caches
+        .create_user
+        .delete_by_reverse_key(&email_address_hash);
+
+    sync_all_best_effort(state).await;
+    tracing::info!(user_id = %actor_id, "user soft-deleted");
+    Ok(())
+}
+
+pub async fn undelete_soft_user(
+    state: &AppState,
+    actor_id: &str,
+    target_id: &str,
+) -> Result<(), LogicError> {
+    authorize(
+        state,
+        actor_id,
+        PERMISSION_USER_UNDELETE_SOFT,
+        &Resource::User(target_id.to_string()),
+    )
+    .await?;
+    crate::repository::delete::undelete_soft_user(&state.graph, target_id)
+        .await
+        .map_err(|error| LogicError::internal(format!("failed to undelete user: {error}")))?;
+    sync_all_best_effort(state).await;
     Ok(())
 }
 

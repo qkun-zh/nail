@@ -30,6 +30,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/user/{id}/read", get(user::read_user))
         .route("/user/{id}/update", post(user::update_user))
         .route("/user/{id}/delete", post(user::delete_user))
+        .route("/user/{id}/undelete-soft", post(user::undelete_soft_user))
         .route("/article/read", get(article::search_articles))
         .route("/article/create", post(article::create_article))
         .route("/article/{id}/read", get(article::read_article))

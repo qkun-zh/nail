@@ -32,9 +32,7 @@ fn action_name(line: &str) -> Option<&str> {
 
 fn permission_const(action: &str) -> String {
     let name = action.replace("::", "_").to_ascii_uppercase();
-    let test_only = matches!(action, "User::Delete::Transfer");
-    let cfg = if test_only { "#[cfg(test)]\n" } else { "" };
-    format!("{cfg}pub const PERMISSION_{name}: &str = \"{action}\";\n")
+    format!("pub const PERMISSION_{name}: &str = \"{action}\";\n")
 }
 
 fn route_literals(source: &str) -> impl Iterator<Item = &str> {

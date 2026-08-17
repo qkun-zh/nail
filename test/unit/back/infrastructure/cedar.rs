@@ -362,6 +362,85 @@ fn role_permission_grants_via_principal_in_action() {
 }
 
 #[test]
+fn user_self_deregistration_soft_and_transfer() {
+    let alice = user_entity("alice", HashSet::new());
+    assert!(
+        decide(
+            &uid("User::\"alice\""),
+            "User::Delete::Soft",
+            &uid("User::\"alice\""),
+            vec![alice.clone()],
+        )
+        .expect("self soft delete")
+    );
+    assert!(
+        decide(
+            &uid("User::\"alice\""),
+            "User::Delete::Transfer",
+            &uid("User::\"alice\""),
+            vec![alice.clone()],
+        )
+        .expect("self transfer")
+    );
+
+    let bob = user_entity("bob", HashSet::new());
+    assert!(
+        !decide(
+            &uid("User::\"alice\""),
+            "User::Delete::Soft",
+            &uid("User::\"bob\""),
+            vec![alice, bob],
+        )
+        .expect("other user soft delete denied")
+    );
+}
+
+#[test]
+fn user_undelete_soft_requires_a_grant() {
+    let alice = user_entity("alice", HashSet::new());
+    assert!(
+        !decide(
+            &uid("User::\"alice\""),
+            "User::Undelete::Soft",
+            &uid("User::\"bob\""),
+            vec![alice],
+        )
+        .expect("member undelete denied")
+    );
+
+    let admin_role = Entity::new_no_attrs(
+        uid("Role::\"admin\""),
+        HashSet::from([uid("Action::\"User::Undelete::Soft\"")]),
+    );
+    let action = Entity::new_no_attrs(uid("Action::\"User::Undelete::Soft\""), HashSet::new());
+    let admin = user_entity("admin", HashSet::from([uid("Role::\"admin\"")]));
+    let bob = user_entity("bob", HashSet::new());
+    assert!(
+        decide(
+            &uid("User::\"admin\""),
+            "User::Undelete::Soft",
+            &uid("User::\"bob\""),
+            vec![admin, admin_role, action, bob],
+        )
+        .expect("admin undelete")
+    );
+}
+
+#[test]
+fn user_create_is_permitted_for_the_anonymous_principal() {
+    let anonymous = user_entity("anonymous", HashSet::new());
+    assert!(
+        decide(
+            &uid("User::\"anonymous\""),
+            "User::Create",
+            &uid("Virtual::\"user-create\""),
+            vec![anonymous],
+        )
+        .expect("anonymous registration")
+    );
+}
+
+#[test]
 fn admin_without_a_grant_is_denied() {
     let admin = Entity::new_no_attrs(uid("Role::\"admin\""), HashSet::new());
     let principal = user_entity("alice", HashSet::from([uid("Role::\"admin\"")]));

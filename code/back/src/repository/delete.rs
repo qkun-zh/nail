@@ -157,6 +157,14 @@ pub async fn soft_delete_comment(db: &DbHandle, comment_id: &str) -> Result<(), 
     adjust_soft_delete_count(db, ENTITY_TYPE_COMMENT, comment_id, 1).await
 }
 
+pub async fn soft_delete_user(db: &DbHandle, user_id: &str) -> Result<(), DbError> {
+    adjust_soft_delete_count(db, ENTITY_TYPE_USER, user_id, 1).await
+}
+
+pub async fn undelete_soft_user(db: &DbHandle, user_id: &str) -> Result<(), DbError> {
+    adjust_soft_delete_count(db, ENTITY_TYPE_USER, user_id, -1).await
+}
+
 pub async fn clear_soft_deleted_flag(db: &DbHandle, business_id: &str) -> Result<(), DbError> {
     let mut guard = db.write().await;
     let Some((kind, id)) = resolve_any_node_id_sync(&guard, business_id)? else {
@@ -222,8 +230,48 @@ fn adjust_soft_delete_count_in_txn(
         ENTITY_TYPE_ARTICLE => adjust_article_subtree_in_txn(transaction, id, delta),
         ENTITY_TYPE_VERSION => adjust_version_subtree_in_txn(transaction, id, delta),
         ENTITY_TYPE_COMMENT => adjust_comment_tree_in_txn(transaction, id, delta),
+        ENTITY_TYPE_USER => adjust_user_subtree_in_txn(transaction, id, delta),
         _ => Ok(()),
     }
+}
+
+fn adjust_user_subtree_in_txn(
+    transaction: &mut agdb::DbAnyTransactionMut,
+    user: agdb::DbId,
+    delta: i64,
+) -> Result<(), DbError> {
+    let article_edges = transaction.exec(
+        QueryBuilder::search()
+            .from(user)
+            .where_()
+            .distance(agdb::CountComparison::Equal(1))
+            .and()
+            .edge()
+            .and()
+            .key(KEY_TYPE)
+            .value(EDGE_USER_AUTHOR_ARTICLE)
+            .query(),
+    )?;
+    for edge in &article_edges.elements {
+        adjust_article_subtree_in_txn(transaction, edge.to, delta)?;
+    }
+    let comment_edges = transaction.exec(
+        QueryBuilder::search()
+            .from(user)
+            .where_()
+            .distance(agdb::CountComparison::Equal(1))
+            .and()
+            .edge()
+            .and()
+            .key(KEY_TYPE)
+            .value(EDGE_USER_AUTHOR_COMMENT)
+            .query(),
+    )?;
+    for edge in &comment_edges.elements {
+        adjust_comment_tree_in_txn(transaction, edge.to, delta)?;
+    }
+    adjust_node_soft_delete_count_in_txn(transaction, user, delta)?;
+    Ok(())
 }
 
 fn adjust_article_subtree_in_txn(

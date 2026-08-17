@@ -2,6 +2,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use nail_common::request::{TokenRequest, UserDeleteRequest, UserUpdateRequest};
+use nail_common::response::EmptyView;
 use nail_common::response::session::SessionTokenView;
 use nail_common::response::user::UserView;
 use serde::Deserialize;
@@ -69,4 +70,13 @@ pub async fn delete_user(
     let data =
         crate::logic::user::delete_user(&state, &principal.user_id, &user_id, payload).await?;
     Ok(json_response(StatusCode::OK, data, "deleted"))
+}
+
+pub async fn undelete_soft_user(
+    State(state): State<AppState>,
+    principal: Principal,
+    AppPath(user_id): AppPath<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    crate::logic::user::undelete_soft_user(&state, &principal.user_id, &user_id).await?;
+    Ok(json_response(StatusCode::OK, EmptyView {}, "ok"))
 }

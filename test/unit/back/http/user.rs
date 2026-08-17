@@ -172,7 +172,7 @@ async fn user_delete_rejects_a_missing_mode() {
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     assert_eq!(
         body["message"].as_str(),
-        Some("missing or unsupported delete mode (expected \"transfer\" or \"hard\")")
+        Some("missing or unsupported delete mode (expected \"transfer\", \"soft\" or \"hard\")")
     );
 }
 
