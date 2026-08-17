@@ -5,62 +5,75 @@
 1. 任何任务必须以细分的 slice 为单位，呈现三层分级：**slice → stage → task**
    - slice 用阿拉伯数字编号（如 `1.`, `2.`）
    - stage 用大写字母编号（如 `A.`, `B.`）
-   - task 用罗马数字编号（如 `i.`, `ii.`）
+   - task 用罗马数字编号（如 `I.`, `II.`）
 2. task 完成后必须**及时**从 handoff 中清除，防止 handoff 熵爆炸——只保留未完成与进行中的条目。
 3. 各任务在 handoff 中必须有清晰的分界（按任务分区、标注任务归属），防止混淆和干扰。
 4. 不得修改、删除或干扰不属于自己职责的 task；如需改动他人任务须先获得明确许可。
 
 ## Current state
 
-10 项代码质量缺陷全部修复。测试全绿，back 覆盖率 89.10%。三 crate fmt/clippy 零警告。
+- 任务「修复 10 项代码质量缺陷」：**已完成并清除**（见提交历史 03d1c7c..2707dd8）。back 覆盖率 89.10%，三 crate fmt/clippy 零警告，back 499 测试、front 69 测试全绿。
+- 当前唯一待办：**Permission System Overhaul**（见下，归属待认领）。
 
-## Done
+## Remaining risks（继承自已完成任务，供参考）
 
-- 缺陷 #1: search.rs 拆分（772→359 行）→ `search/{schema,query,db,comments,versions}.rs`；CSS 提取到 `code/front/search.css`；`search/mod.rs` 改名 `search.rs`（遵守无 mod.rs 宪法）
-- 缺陷 #2: config.rs panic! → `web_sys::console::error_1` + `FrontendConfig::default()`
-- 缺陷 #3: 删除 Info/Warning 变体及 `notify_info`/`notify_warning`
-- 缺陷 #4: 删除 `read_comment_outcome` 的 `effective_ranges` 参数
-- 缺陷 #5: `ctx` → `comment_view_context`
-- 缺陷 #6: 新增 `.github/workflows/ci.yml`（fmt/clippy/test/audit/build，按 crate 分别运行）
-- 缺陷 #9: 删除所有 Cargo.toml 的 `too_many_lines` allow；新增各 crate `clippy.toml`（阈值 256，与宪法一致）
-- 缺陷 #10: clippy allow 调研 — `principal.rs` 的 `unused_async_trait_impl` 在新版 clippy 已重命名，allow 移除；`js.rs`（cast_possible_truncation/sign_loss，wasm f64→u64）保留
-- 缺陷 #7+8: 覆盖率 87.74% → 89.10%（4143/4650 行）；测试 454 → 499（back），common 109 全绿
-- 新测试覆盖的真实用户输入路径：管理员改名撞名、`/session/read?name=true`、文章/版本 multipart 未知字段、评论子列表 HTTP 成功路径、搜索 `from` 非法/空边界
-- 收尾修复：front `Search`（357→252 行）拆出 `search/{form,results}.rs`；`CommentSection`（346→180 行）拆出 `comment/state.rs`（CommentSignals + build_load/submit 系列）；`SearchComments` 的 needless_pass_by_value 修复
-
-## Decisions
-
-- `js.rs` 的 clippy allow 保留（有正当理由）
-- `tarpaulin-report.html` gitignore，不提交
-- 覆盖率到不了 100%，接受（见 Remaining risks）
-- 三个 crate 各自独立（无 workspace 根），CI 按 crate 分步运行
-
-## Remaining risks
-
-覆盖率到不了 100%，剩余未覆盖行均为非用户输入路径：
-1. 基础设施：`config/logging/server/smtp/email/cedar/main.rs/seed_demo.rs` — 需真实 SMTP 服务、服务器、环境 mock
-2. 内部错误分支：DB 写入失败（`.map_err` 路径）、删除/更新竞态、磁盘 I/O 错误、内部 ID 冲突 — 防御性代码，正常输入无法触发
-
-要继续提升需引入 DB 故障 mock 层（改动较大，仅能再加 1-2%），已决定不收。
-
-## Next
-
-- 无待办。10 项缺陷全部完成。
+覆盖率 89.10% 封顶，剩余未覆盖均为非用户输入路径（需真实 SMTP/服务器/mock，或 DB 故障/竞态防御分支）。
 
 ---
 
-# Permission System Overhaul（待办，未开始）
+# 任务：Permission System Overhaul
 
-## 决策
+**归属**：待认领。**状态**：未开始。此任务专属区域，他人不得修改。
+
+## 决策（已定，勿改）
 
 1. `Restore` → `Undelete::Soft`
 2. 删除 `User::Delete::Transfer`，保留 `Version::Delete::Transfer`
-3. `Role::Manage` 拆分为 6 个权限
+3. `Role::Manage` 拆分为 6 个权限（Create/Read/Update/Delete/Grant/Revoke）
 4. 统一 Virtual
 5. User 支持软删除
+6. 权限数 31（原 27）
 
-## 待办阶段
+## Slice 1 — Cedar 授权层
 
-- Phase 1-11：Cedar schema/policy、build.rs、repository、logic、interface、operations、tests、Virtual 修复、full explicit authorization、verification
+- **Stage A** — schema.cedar
+  - Task I. `Article/Version/Comment::Restore` → `Undelete::Soft`
+  - Task II. 删 `User::Delete::Transfer`，加 `User::Delete::Soft`、`User::Create`
+  - Task III. 删 `Role::Manage`，加 6 个细粒度权限
+  - Task IV. 统一 `resource: [Virtual]`
+- **Stage B** — policy.cedar
+  - Task I. owner bypass 更新（Soft 替换 Transfer）
+  - Task II. Policy 4 改 action set 匹配
+  - Task III. Policy 5 recycler 限制更新
+- **Stage C** — build.rs
+  - Task I. 更新 test_only 列表
 
-详见 git 历史中早期 handoff 版本。
+## Slice 2 — 后端实现层
+
+- **Stage A** — repository
+  - Task I. role.rs 权限常量自动生成
+  - Task II. delete.rs 新增 `soft_delete_user`
+  - Task III. authorization.rs 更新 `Resource::Virtual`
+- **Stage B** — logic
+  - Task I. 三个 restore 改 undelete_soft
+  - Task II. user.rs 移除 transfer、加 soft delete
+  - Task III. role.rs 用 6 个细粒度权限
+- **Stage C** — interface
+  - Task I. router 路由改名
+  - Task II. 各 handler 改名 + 权限检查更新
+
+## Slice 3 — 操作与测试
+
+- **Stage A** — operations.rs
+  - Task I. ROUTE_*_RESTORE → UNDELETE_SOFT
+  - Task II. ROLE_* 权限映射更新
+- **Stage B** — tests
+  - Task I. 更新旧权限/路由名的测试
+  - Task II. 新增 `User::Delete::Soft` 测试
+  - Task III. 全量测试通过
+
+## Slice 4 — 授权强化（可选）
+
+- **Stage A** — 修复 Virtual 滥用（User/Role 用具体资源）
+- **Stage B** — full explicit authorization（policy 重写 + owner bypass 验证 + admin 角色策略）
+- **Stage C** — verification（fmt/clippy/test/trunk build）
