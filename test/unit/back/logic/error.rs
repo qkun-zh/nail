@@ -41,3 +41,18 @@ fn message_exposes_the_reason_for_every_variant() {
     assert_eq!(LogicError::not_found("w").message(), "w");
     assert_eq!(LogicError::internal("v").message(), "v");
 }
+
+#[test]
+fn display_delegates_to_message() {
+    let error = LogicError::bad_request("something went wrong");
+    assert_eq!(format!("{error}"), "something went wrong");
+}
+
+#[test]
+fn database_error_wraps_the_cause_as_internal() {
+    let error = crate::logic::error::database_error("connection refused");
+    assert_eq!(
+        error,
+        LogicError::internal("database query failed: connection refused")
+    );
+}

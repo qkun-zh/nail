@@ -203,3 +203,36 @@ fn generated_permission_constants_have_expected_names() {
     );
     assert_eq!(PERMISSION_USER_DELETE_TRANSFER, "User::Delete::Transfer");
 }
+
+#[tokio::test]
+async fn user_holds_role_returns_false_for_unknown_user() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    assert!(
+        !user_holds_role(&state.graph, "nonexistent", ROLE_MEMBER)
+            .await
+            .expect("check")
+    );
+}
+
+#[tokio::test]
+async fn user_holds_role_returns_false_for_unknown_role() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let hash = nail_common::hash::email("alice@example.com");
+    let user_id = crate::repository::user::create_user(&state.graph, &hash)
+        .await
+        .expect("user");
+    assert!(
+        !user_holds_role(&state.graph, &user_id, "NoSuchRole")
+            .await
+            .expect("check")
+    );
+}
+
+#[tokio::test]
+async fn users_holding_role_returns_empty_for_unknown_role() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let users = users_holding_role(&state.graph, "NoSuchRole")
+        .await
+        .expect("list");
+    assert!(users.is_empty());
+}
