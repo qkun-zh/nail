@@ -1053,3 +1053,47 @@ async fn search_after_clear_flag_and_resync_revives_the_article() {
         "cleared flag + resync must bring the article back"
     );
 }
+
+#[tokio::test]
+async fn search_a_comment_only_phrase_lists_it_under_its_article_and_version() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let (_, version_id) = create_seeded_article(
+        &context,
+        &actor,
+        "Ordinary Title",
+        "ordinary summary",
+        "rust",
+        "1.0.0",
+        "note",
+    )
+    .await;
+    crate::logic::comment::create_comment(
+        &context.state,
+        &actor,
+        &version_id,
+        "the zephyr keyword lives only here",
+    )
+    .await
+    .expect("comment");
+
+    let page =
+        crate::logic::search::search_articles(&context.state, &actor, &params(Some("zephyr")))
+            .await
+            .expect("search zephyr");
+    assert_eq!(page.article_list.len(), 1, "comment match lists its article");
+    let article = &page.article_list[0];
+    assert_eq!(
+        strip_marks(&article.title),
+        "Ordinary Title",
+        "the parent article is surfaced for a comment-only match"
+    );
+    assert_eq!(article.versions.len(), 1);
+    let version = &article.versions[0];
+    assert_eq!(strip_marks(&version.version_number), "1.0.0");
+    assert_eq!(version.comments.len(), 1, "the matching comment is listed");
+    assert_eq!(
+        strip_marks(&version.comments[0].content),
+        "the zephyr keyword lives only here"
+    );
+}
