@@ -124,12 +124,37 @@ async fn update_user_admin_rename() {
 }
 
 #[tokio::test]
+async fn update_user_admin_rename_to_a_taken_name_is_a_bad_request() {
+    let context = TestCtx::new().await.expect("test context");
+    let (admin, _) = admin_session(&context).await;
+    let (target, _) = session_for(&context, "alice@example.com").await;
+    let (other, _) = session_for(&context, "bob@example.com").await;
+    crate::repository::user::update_user_name(&context.state.graph, &other, "taken-name")
+        .await
+        .expect("set other name");
+
+    let error = crate::logic::user::update_user(
+        &context.state,
+        &admin,
+        &target,
+        UserUpdateRequest {
+            pow: None,
+            name: Some("taken-name".to_string()),
+            old_email_token: None,
+            new_email_token: None,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(error, LogicError::bad_request("name already taken"));
+}
+
+#[tokio::test]
 async fn update_user_rejects_a_taken_name() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, _) = session_for(&context, "alice@example.com").await;
     let (other, _) = session_for(&context, "bob@example.com").await;
-    crate::repository::user::update_user_name(&context.state.graph, &other, "alice-renamed")
-        .await
+    crate::repository::user::update_user_name(&context.state.graph, &other, "alice-renamed")        .await
         .expect("rename other");
     let pow = context.issued_pow("alice-renamed");
     let error = crate::logic::user::update_user(
