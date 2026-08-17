@@ -62,7 +62,7 @@ Hashing: ascon; IDs/tokens: UUIDv7. Versions pinned by each crate's
   collection reads are `read` (never `list`), paginated. Node ops, not flow
   vocabulary (no `intent=authenticate`). `interface` strictest;
   `repository`/`infrastructure` keep their own precise terms.
-- **Size**: file ≤ 512 lines.
+- **Size**: file ≤ 512 lines; function ≤ 256 lines.
 - **General**: concise; prefer pure functions; no hardcoding (toml); no dead
   code; zero-warning gate on every build.
 - **Comments**: only for non-obvious intent/constraints/tradeoffs; restating the
