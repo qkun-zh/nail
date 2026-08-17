@@ -51,7 +51,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/version/{id}/read", get(version::read_version))
         .route("/version/{id}/update", post(version::update_version))
         .route("/version/{id}/delete", post(version::delete_version))
-        .route("/version/{id}/restore", post(version::restore_version))
+        .route(
+            "/version/{id}/undelete-soft",
+            post(version::undelete_soft_version),
+        )
         .route(
             "/version/{id}/comments/create",
             post(comment::create_comment),

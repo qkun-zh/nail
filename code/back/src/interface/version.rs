@@ -140,12 +140,13 @@ pub async fn delete_version(
     Ok(json_response(StatusCode::OK, data, "deleted"))
 }
 
-pub async fn restore_version(
+pub async fn undelete_soft_version(
     State(state): State<AppState>,
     principal: Principal,
     AppPath(version_id): AppPath<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     let data =
-        crate::logic::version::restore_version(&state, &principal.user_id, &version_id).await?;
-    Ok(json_response(StatusCode::OK, data, "restored"))
+        crate::logic::version::undelete_soft_version(&state, &principal.user_id, &version_id)
+            .await?;
+    Ok(json_response(StatusCode::OK, data, "undeleted"))
 }

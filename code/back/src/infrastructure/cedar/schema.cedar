@@ -22,7 +22,7 @@ action "Version::Update"            appliesTo { principal: [User], resource: [Ve
 action "Version::Delete::Hard"      appliesTo { principal: [User], resource: [Version] };
 action "Version::Delete::Transfer"  appliesTo { principal: [User], resource: [Version] };
 action "Version::Delete::Soft"      appliesTo { principal: [User], resource: [Version] };
-action "Version::Restore"           appliesTo { principal: [User], resource: [Version] };
+action "Version::Undelete::Soft"      appliesTo { principal: [User], resource: [Version] };
 action "Comment::Create"            appliesTo { principal: [User], resource: [Virtual] };
 action "Comment::Read"              appliesTo { principal: [User], resource: [Comment] };
 action "Comment::Update"            appliesTo { principal: [User], resource: [Comment] };

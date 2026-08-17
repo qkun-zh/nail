@@ -18,7 +18,7 @@ use crate::repository::delete::{
 };
 use crate::repository::role::{
     PERMISSION_VERSION_CREATE, PERMISSION_VERSION_DELETE_HARD, PERMISSION_VERSION_DELETE_SOFT,
-    PERMISSION_VERSION_READ, PERMISSION_VERSION_RESTORE, PERMISSION_VERSION_UPDATE,
+    PERMISSION_VERSION_READ, PERMISSION_VERSION_UNDELETE_SOFT, PERMISSION_VERSION_UPDATE,
 };
 use crate::repository::version::{
     CreateVersionError, VersionDraft, content_hash_owner, create_version as create_version_node,
@@ -287,7 +287,7 @@ pub async fn delete_version(
     }
 }
 
-pub async fn restore_version(
+pub async fn undelete_soft_version(
     state: &AppState,
     actor_id: &str,
     version_id: &str,
@@ -295,7 +295,7 @@ pub async fn restore_version(
     authorize_or(
         state,
         actor_id,
-        PERMISSION_VERSION_RESTORE,
+        PERMISSION_VERSION_UNDELETE_SOFT,
         &Resource::Version(version_id.to_string()),
         "version not found",
     )

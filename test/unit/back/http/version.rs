@@ -312,7 +312,7 @@ async fn delete_version_hard_is_forbidden_for_a_member_owner() {
 }
 
 #[tokio::test]
-async fn restore_version_revives_the_version_over_http() {
+async fn undelete_soft_version_revives_the_version_over_http() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, _) = member_session(&context, "alice@example.com").await;
     let (_, admin_token) = admin_session(&context).await;
@@ -329,13 +329,13 @@ async fn restore_version_revives_the_version_over_http() {
 
     let (status, body) = context
         .post(
-            &format!("/version/{version_id}/restore"),
+            &format!("/version/{version_id}/undelete-soft"),
             json!({}),
             Some(&admin_token),
         )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert_eq!(body["message"].as_str(), Some("restored"));
+    assert_eq!(body["message"].as_str(), Some("undeleted"));
 
     let (status, body) = context
         .get(&format!("/version/{version_id}/read"), Some(&admin_token))
@@ -344,7 +344,7 @@ async fn restore_version_revives_the_version_over_http() {
 }
 
 #[tokio::test]
-async fn restore_version_is_forbidden_for_a_member_owner() {
+async fn undelete_soft_version_is_forbidden_for_a_member_owner() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = member_session(&context, "alice@example.com").await;
     let (_, admin_token) = admin_session(&context).await;
@@ -361,7 +361,7 @@ async fn restore_version_is_forbidden_for_a_member_owner() {
 
     let (status, body) = context
         .post(
-            &format!("/version/{version_id}/restore"),
+            &format!("/version/{version_id}/undelete-soft"),
             json!({}),
             Some(&token),
         )

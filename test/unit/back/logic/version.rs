@@ -419,7 +419,7 @@ async fn delete_version_soft_is_rejected_for_an_already_hidden_version() {
 }
 
 #[tokio::test]
-async fn restore_version_revives_the_version_as_admin() {
+async fn undelete_soft_version_revives_the_version_as_admin() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
     let admin_id = admin(&context).await;
@@ -434,9 +434,9 @@ async fn restore_version_revives_the_version_as_admin() {
     .await
     .expect("soft delete");
 
-    let data = crate::logic::version::restore_version(&context.state, &admin_id, &version_id)
+    let data = crate::logic::version::undelete_soft_version(&context.state, &admin_id, &version_id)
         .await
-        .expect("restore");
+        .expect("undelete");
     assert_eq!(data.version_id, version_id);
 
     assert!(
@@ -444,12 +444,12 @@ async fn restore_version_revives_the_version_as_admin() {
             .await
             .expect("read")
             .is_some(),
-        "version visible again after restore"
+        "version visible again after undelete"
     );
 }
 
 #[tokio::test]
-async fn restore_version_is_forbidden_for_a_member() {
+async fn undelete_soft_version_is_forbidden_for_a_member() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
     let admin_id = admin(&context).await;
@@ -464,9 +464,9 @@ async fn restore_version_is_forbidden_for_a_member() {
     .await
     .expect("soft delete");
 
-    let error = crate::logic::version::restore_version(&context.state, &actor, &version_id)
+    let error = crate::logic::version::undelete_soft_version(&context.state, &actor, &version_id)
         .await
-        .expect_err("member restore");
+        .expect_err("member undelete");
     assert_eq!(error, LogicError::forbidden("you are denied"));
 }
 
@@ -524,14 +524,15 @@ async fn create_version_rejects_a_duplicate_content_hash() {
 }
 
 #[tokio::test]
-async fn restore_version_rejects_a_version_that_is_not_soft_deleted() {
+async fn undelete_soft_version_rejects_a_version_that_is_not_soft_deleted() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
     let admin_id = admin(&context).await;
     let (_, version_id) = article_fixture(&context, &actor, "Visible Version").await;
 
-    let error = crate::logic::version::restore_version(&context.state, &admin_id, &version_id)
-        .await
-        .expect_err("restore visible version");
+    let error =
+        crate::logic::version::undelete_soft_version(&context.state, &admin_id, &version_id)
+            .await
+            .expect_err("undelete visible version");
     assert_eq!(error, LogicError::bad_request("not soft-deleted"));
 }
