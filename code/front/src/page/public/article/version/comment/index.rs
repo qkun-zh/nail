@@ -9,7 +9,7 @@ use super::render::{CommentViewContext, comment_form, comment_rows};
 
 pub fn comment_list_view(
     roots: RwSignal<Option<CommentListPage>>,
-    ctx: &CommentViewContext,
+    comment_view_context: &CommentViewContext,
     body: RwSignal<String>,
     on_submit_comment: impl Fn(SubmitEvent) + Clone + 'static,
 ) -> impl IntoView {
@@ -19,14 +19,14 @@ pub fn comment_list_view(
     let has_next = list.has_next;
     let rows = comment_rows(
         &list.comments,
-        &ctx.base_path,
-        (ctx.current_page - 1) * COMMENTS_PER_PAGE,
+        &comment_view_context.base_path,
+        (comment_view_context.current_page - 1) * COMMENTS_PER_PAGE,
     );
-    let form = if ctx.authenticated {
+    let form = if comment_view_context.authenticated {
         comment_form(
             body,
-            ctx.posting,
-            ctx.max_chars,
+            comment_view_context.posting,
+            comment_view_context.max_chars,
             "comment",
             "comment",
             on_submit_comment,
@@ -45,9 +45,9 @@ pub fn comment_list_view(
             {form}
             {list_view}
             <LevelPagination
-                current=ctx.current_page
+                current=comment_view_context.current_page
                 has_next=has_next
-                base_href=format!("{}/comment", ctx.base_path)
+                base_href=format!("{}/comment", comment_view_context.base_path)
             />
         </div>
     }

@@ -333,7 +333,7 @@ pub fn CommentSection() -> impl IntoView {
                 let authenticated = !crate::request::session::read_session_token()
                     .unwrap_or_default()
                     .is_empty();
-                let ctx = CommentViewContext {
+                let comment_view_context = CommentViewContext {
                     base_path,
                     current_page,
                     authenticated,
@@ -343,7 +343,7 @@ pub fn CommentSection() -> impl IntoView {
                 match mode() {
                     CommentLevel::VersionComments => comment_list_view(
                         roots,
-                        &ctx,
+                        &comment_view_context,
                         body,
                         on_submit_comment.clone(),
                     )
@@ -352,7 +352,7 @@ pub fn CommentSection() -> impl IntoView {
                         target,
                         children,
                         &comment_id,
-                        &ctx,
+                        &comment_view_context,
                         reply_body,
                         on_submit_reply.clone(),
                     )
@@ -361,7 +361,7 @@ pub fn CommentSection() -> impl IntoView {
                         if !authenticated {
                             return who_are_you();
                         }
-                        comment_delete_view(delete_mode, ctx.posting, on_submit_delete.clone())
+                        comment_delete_view(delete_mode, comment_view_context.posting, on_submit_delete.clone())
                             .into_any()
                     }
                     CommentLevel::Invalid => {

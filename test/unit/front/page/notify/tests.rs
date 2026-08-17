@@ -7,8 +7,6 @@ fn toasts_dismiss_after_four_seconds() {
 
 #[test]
 fn every_kind_maps_to_its_own_css_class() {
-    assert_eq!(kind_class(NotificationType::Info), "info");
     assert_eq!(kind_class(NotificationType::Success), "success");
-    assert_eq!(kind_class(NotificationType::Warning), "warning");
     assert_eq!(kind_class(NotificationType::Error), "error");
 }

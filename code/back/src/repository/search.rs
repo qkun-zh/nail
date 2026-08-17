@@ -296,7 +296,7 @@ impl SearchIndex {
                 .await
                 .map_err(|error| anyhow::anyhow!("fetch search document failed: {error}"))?;
             if document.contains_key(FIELD_COMMENT_ID) {
-                let comment = document::read_comment_outcome(&document, &effective_ranges);
+                let comment = document::read_comment_outcome(&document);
                 comment_hits.push(comment);
             } else {
                 let version =

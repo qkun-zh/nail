@@ -6,11 +6,7 @@ pub const TOAST_DURATION_MS: u32 = 4_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NotificationType {
-    #[allow(dead_code)]
-    Info,
     Success,
-    #[allow(dead_code)]
-    Warning,
     Error,
 }
 
@@ -23,9 +19,7 @@ pub struct Toast {
 
 pub fn kind_class(kind: NotificationType) -> &'static str {
     match kind {
-        NotificationType::Info => "info",
         NotificationType::Success => "success",
-        NotificationType::Warning => "warning",
         NotificationType::Error => "error",
     }
 }
@@ -81,16 +75,6 @@ pub fn notify_error(notifications: &Notifications, message: impl Into<String>) {
 
 pub fn notify_success(notifications: &Notifications, message: impl Into<String>) {
     notifications.push(NotificationType::Success, message);
-}
-
-#[allow(dead_code)]
-pub fn notify_info(notifications: &Notifications, message: impl Into<String>) {
-    notifications.push(NotificationType::Info, message);
-}
-
-#[allow(dead_code)]
-pub fn notify_warning(notifications: &Notifications, message: impl Into<String>) {
-    notifications.push(NotificationType::Warning, message);
 }
 
 #[component]

@@ -11,19 +11,22 @@ pub fn comment_detail_view(
     target: RwSignal<Option<CommentView>>,
     children: RwSignal<Option<CommentListPage>>,
     comment_id: &str,
-    ctx: &CommentViewContext,
+    comment_view_context: &CommentViewContext,
     reply_body: RwSignal<String>,
     on_submit_reply: impl Fn(SubmitEvent) + Clone + 'static,
 ) -> impl IntoView {
     let Some(comment) = target.get() else {
         return view! { <p class="cmt-empty">comment not found</p> }.into_any();
     };
-    let delete_url = format!("{}/comment/{comment_id}/delete", ctx.base_path);
-    let form = if ctx.authenticated {
+    let delete_url = format!(
+        "{}/comment/{comment_id}/delete",
+        comment_view_context.base_path
+    );
+    let form = if comment_view_context.authenticated {
         comment_form(
             reply_body,
-            ctx.posting,
-            ctx.max_chars,
+            comment_view_context.posting,
+            comment_view_context.max_chars,
             "reply",
             "reply",
             on_submit_reply,
@@ -38,8 +41,8 @@ pub fn comment_detail_view(
         .map(|list| {
             comment_rows(
                 &list.comments,
-                &ctx.base_path,
-                (ctx.current_page - 1) * COMMENTS_PER_PAGE,
+                &comment_view_context.base_path,
+                (comment_view_context.current_page - 1) * COMMENTS_PER_PAGE,
             )
         })
         .unwrap_or_default();
@@ -55,9 +58,9 @@ pub fn comment_detail_view(
             {form}
             {children_view}
             <LevelPagination
-                current=ctx.current_page
+                current=comment_view_context.current_page
                 has_next=has_next
-                base_href=format!("{}/comment/{comment_id}", ctx.base_path)
+                base_href=format!("{}/comment/{comment_id}", comment_view_context.base_path)
             />
         </div>
     }

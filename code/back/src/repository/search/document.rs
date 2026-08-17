@@ -99,11 +99,8 @@ pub(super) fn read_version_outcome(
     }
 }
 
-pub(super) fn read_comment_outcome(
-    document: &Document,
-    effective_ranges: &[SearchRange],
-) -> SearchCommentOutcome {
-    let comment = SearchCommentOutcome {
+pub(super) fn read_comment_outcome(document: &Document) -> SearchCommentOutcome {
+    SearchCommentOutcome {
         article_id: read_string_field(document, FIELD_ARTICLE_ID),
         version_id: read_string_field(document, FIELD_VERSION_ID),
         comment_id: read_string_field(document, FIELD_COMMENT_ID),
@@ -112,9 +109,7 @@ pub(super) fn read_comment_outcome(
         article_title: String::new(),
         article_author_name: String::new(),
         version_number: String::new(),
-    };
-    let _ = effective_ranges;
-    comment
+    }
 }
 
 pub(super) async fn build_documents(

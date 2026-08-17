@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use std::sync::OnceLock;
 
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
 struct FrontendConfig {
     #[serde(default)]
     api_base_url: String,
@@ -25,12 +25,23 @@ pub fn validate_api_base_url(raw: &str) -> Result<String, String> {
 fn load() -> &'static FrontendConfig {
     static CONFIG: OnceLock<FrontendConfig> = OnceLock::new();
     CONFIG.get_or_init(|| {
-        let parsed: FrontendConfig = toml::from_str(EMBEDDED_TOML).unwrap_or_else(|error| {
-            panic!("frontend config: failed to parse embedded configuration/front.toml: {error}")
-        });
-        let base = validate_api_base_url(&parsed.api_base_url).unwrap_or_else(|reason| {
-            panic!("frontend config: {reason}");
-        });
+        let parsed: FrontendConfig = match toml::from_str(EMBEDDED_TOML) {
+            Ok(config) => config,
+            Err(error) => {
+                web_sys::console::error_1(
+                    &format!("frontend config: failed to parse embedded configuration/front.toml: {error}")
+                        .into(),
+                );
+                return FrontendConfig::default();
+            }
+        };
+        let base = match validate_api_base_url(&parsed.api_base_url) {
+            Ok(url) => url,
+            Err(reason) => {
+                web_sys::console::error_1(&format!("frontend config: {reason}").into());
+                return FrontendConfig::default();
+            }
+        };
         FrontendConfig { api_base_url: base }
     })
 }
