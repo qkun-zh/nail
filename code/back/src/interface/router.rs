@@ -12,6 +12,7 @@ pub const ROUTE_CHALLENGE_CREATE: &str = "/challenge/create";
 pub const ROUTE_CONFIG_READ: &str = "/config/read";
 pub const ROUTE_TOKEN_CREATE: &str = "/token/create";
 pub const ROUTE_USER_CREATE: &str = "/user/create";
+pub const ROUTE_USER_READ: &str = "/user/read";
 pub const ROUTE_SESSION_READ: &str = "/session/read";
 pub const ROUTE_SESSION_DELETE: &str = "/session/delete";
 pub const ROUTE_USER_ID_READ: &str = "/user/{id}/read";
@@ -63,6 +64,7 @@ pub fn build_router(state: AppState) -> Router {
         .route(ROUTE_CONFIG_READ, get(config::read_config))
         .route(ROUTE_TOKEN_CREATE, post(token::create_token))
         .route(ROUTE_USER_CREATE, post(user::create_user))
+        .route(ROUTE_USER_READ, get(user::read_users))
         .route(ROUTE_SESSION_READ, get(session::read_session))
         .route(ROUTE_SESSION_DELETE, post(session::delete_session))
         .route(ROUTE_USER_ID_READ, get(user::read_user))

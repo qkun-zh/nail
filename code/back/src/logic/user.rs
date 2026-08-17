@@ -2,7 +2,7 @@ use nail_common::pow::Pow;
 use nail_common::request::{DeleteMode, UserDeleteRequest, UserUpdateRequest};
 use nail_common::response::EmptyView;
 use nail_common::response::session::SessionTokenView;
-use nail_common::response::user::{UserIdView, UserNameView, UserView};
+use nail_common::response::user::{UserIdView, UserListPage, UserNameView, UserView};
 
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{authorize, authorize_anonymous, authorize_or};
@@ -18,7 +18,9 @@ use crate::repository::role::{
     PERMISSION_USER_UPDATE, ROLE_MEMBER,
 };
 use crate::repository::transfer::TransferError;
-use crate::repository::user::{UserWriteError, read_user as read_user_node, update_user_name};
+use crate::repository::user::{
+    UserWriteError, read_user as read_user_node, read_users as read_user_nodes, update_user_name,
+};
 
 #[derive(Debug, serde::Serialize)]
 #[serde(untagged)]
@@ -117,6 +119,49 @@ pub async fn read_user(
         }
     }
     Ok(view)
+}
+
+pub async fn read_users(
+    state: &AppState,
+    actor_id: &str,
+    page: u64,
+    limit: u64,
+) -> Result<UserListPage, LogicError> {
+    authorize(
+        state,
+        actor_id,
+        PERMISSION_USER_READ,
+        &Resource::Virtual("any".to_string()),
+    )
+    .await?;
+    let users = read_user_nodes(&state.graph)
+        .await
+        .map_err(database_error)?;
+    let total = users.len() as u64;
+    let offset = page.saturating_sub(1).saturating_mul(limit);
+    let page_users: Vec<_> = users
+        .into_iter()
+        .skip(usize::try_from(offset).unwrap_or(usize::MAX))
+        .take(usize::try_from(limit).unwrap_or(usize::MAX))
+        .collect();
+
+    let mut user_list = Vec::with_capacity(page_users.len());
+    for user in &page_users {
+        let roles = crate::repository::role::roles_of_user(&state.graph, &user.id)
+            .await
+            .map_err(database_error)?;
+        user_list.push(nail_common::response::user::UserListItem {
+            id: user.id.clone(),
+            name: user.name.clone(),
+            roles,
+        });
+    }
+    let has_next = page < total.div_ceil(limit);
+    Ok(UserListPage {
+        user_list,
+        has_next,
+        total,
+    })
 }
 
 pub async fn update_user(

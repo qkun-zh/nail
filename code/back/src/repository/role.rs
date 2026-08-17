@@ -303,6 +303,33 @@ pub async fn read_role_members(db: &DbHandle, role_name: &str) -> Result<Vec<Str
     Ok(members)
 }
 
+pub async fn roles_of_user(db: &DbHandle, user_id: &str) -> Result<Vec<String>, DbError> {
+    let guard = db.read().await;
+    let Some(user_db_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)? else {
+        return Ok(Vec::new());
+    };
+    let edges = guard.exec(
+        QueryBuilder::search()
+            .from(user_db_id)
+            .where_()
+            .distance(agdb::CountComparison::Equal(1))
+            .and()
+            .edge()
+            .and()
+            .key(KEY_TYPE)
+            .value(EDGE_USER_HOLD_ROLE)
+            .query(),
+    )?;
+    let mut roles = Vec::new();
+    for edge in &edges.elements {
+        if let Some(row) = read_node_sync::<RoleRow>(&guard, edge.to)? {
+            roles.push(row.role_name);
+        }
+    }
+    roles.sort();
+    Ok(roles)
+}
+
 pub async fn revoke_permission_from_role(
     db: &DbHandle,
     role_name: &str,

@@ -6,12 +6,18 @@ use crate::repository::graph::{
     DbHandle, find_by_index_sync, read_rows_sync, resolve_node_id_sync,
 };
 use crate::repository::schema::{
-    ENTITY_TYPE_USER, IdRow, KEY_EMAIL_ADDRESS_HASH, KEY_USER_NAME, UserRow, alias_of,
+    ENTITY_TYPE_USER, IdRow, KEY_EMAIL_ADDRESS_HASH, KEY_TYPE, KEY_USER_NAME, UserRow, alias_of,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UserEntry {
     pub email_address_hash: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserListItem {
+    pub id: String,
     pub name: String,
 }
 
@@ -174,4 +180,33 @@ pub async fn update_user_email(
         )
         .map_err(UserWriteError::Db)?;
     Ok(())
+}
+
+pub async fn read_users(db: &DbHandle) -> Result<Vec<UserListItem>, DbError> {
+    let guard = db.read().await;
+    let result = guard.exec(
+        QueryBuilder::search()
+            .elements()
+            .where_()
+            .key(KEY_TYPE)
+            .value(ENTITY_TYPE_USER)
+            .query(),
+    )?;
+    let mut users = Vec::new();
+    for element in &result.elements {
+        if crate::repository::delete::has_soft_deleted_flag(&guard, element.id)? {
+            continue;
+        }
+        if let Some(row) = read_rows_sync::<UserRow>(&guard, &[element.id])?
+            .into_iter()
+            .next()
+        {
+            users.push(UserListItem {
+                id: row.id,
+                name: row.name,
+            });
+        }
+    }
+    users.sort_by(|left, right| left.name.cmp(&right.name));
+    Ok(users)
 }

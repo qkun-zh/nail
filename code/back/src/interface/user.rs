@@ -12,6 +12,27 @@ use crate::interface::envelope::{ApiError, json_response};
 use crate::interface::extractor::{AppJson, AppPath, AppQuery};
 use crate::interface::principal::Principal;
 
+#[derive(Debug, Default, Deserialize)]
+pub struct UserListParams {
+    pub page: Option<u64>,
+    pub limit: Option<u64>,
+}
+
+pub async fn read_users(
+    State(state): State<AppState>,
+    principal: Principal,
+    AppQuery(params): AppQuery<UserListParams>,
+) -> Result<impl IntoResponse, ApiError> {
+    let (page, limit) = crate::logic::pagination::clamp_page_limit(
+        params.page,
+        params.limit,
+        state.config.server.search_page_size,
+        state.config.server.max_search_pages,
+    )?;
+    let data = crate::logic::user::read_users(&state, &principal.user_id, page, limit).await?;
+    Ok(json_response(StatusCode::OK, data, "ok"))
+}
+
 pub async fn create_user(
     State(state): State<AppState>,
     AppJson(payload): AppJson<TokenRequest>,
