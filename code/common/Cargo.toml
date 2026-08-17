@@ -17,4 +17,3 @@ serde_json = "1.0.151"
 
 [lints.clippy]
 pedantic = { level = "deny", priority = -1 }
-too_many_lines = "allow"

@@ -21,4 +21,4 @@ code/proxy/pingap-linux-gnu-x86-full
 .idea/
 .DS_Store
 __pycache__/
-*.rs.bk
+*.rs.bkcode/back/tarpaulin-report.html
