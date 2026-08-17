@@ -257,10 +257,7 @@ async fn read_comment_children_returns_the_replies_over_http() {
     assert_eq!(status, StatusCode::CREATED, "body: {reply_body}");
 
     let (status, body) = context
-        .get(
-            &format!("/comment/{comment_id}/replies/read"),
-            Some(&token),
-        )
+        .get(&format!("/comment/{comment_id}/replies/read"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     let comments = body["data"]["comments"].as_array().expect("comments");

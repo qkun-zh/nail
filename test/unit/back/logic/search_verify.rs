@@ -1081,7 +1081,11 @@ async fn search_a_comment_only_phrase_lists_it_under_its_article_and_version() {
         crate::logic::search::search_articles(&context.state, &actor, &params(Some("zephyr")))
             .await
             .expect("search zephyr");
-    assert_eq!(page.article_list.len(), 1, "comment match lists its article");
+    assert_eq!(
+        page.article_list.len(),
+        1,
+        "comment match lists its article"
+    );
     let article = &page.article_list[0];
     assert_eq!(
         strip_marks(&article.title),

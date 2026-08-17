@@ -17,7 +17,15 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - run: cargo fmt --all --check
+      - name: Format common
+        working-directory: code/common
+        run: cargo fmt --check
+      - name: Format back
+        working-directory: code/back
+        run: cargo fmt --check
+      - name: Format front
+        working-directory: code/front
+        run: cargo fmt --check
 
   clippy:
     name: Clippy
@@ -28,7 +36,15 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --workspace -- -D warnings
+      - name: Clippy common
+        working-directory: code/common
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Clippy back
+        working-directory: code/back
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Clippy front
+        working-directory: code/front
+        run: cargo clippy --all-targets -- -D warnings
 
   test:
     name: Test
@@ -37,7 +53,25 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --workspace
+      - name: Test common
+        working-directory: code/common
+        run: cargo test
+      - name: Test back
+        working-directory: code/back
+        run: cargo test
+
+  build:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Build frontend
+        working-directory: code/front
+        run: env -u NO_COLOR trunk build
 
   audit:
     name: Security audit

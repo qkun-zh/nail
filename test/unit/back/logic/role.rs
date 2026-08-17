@@ -40,7 +40,10 @@ async fn validate_role_name_rejects_invalid_chars() {
 
 #[tokio::test]
 async fn validate_role_name_accepts_valid() {
-    assert_eq!(validate_role_name("admin-role"), Ok("admin-role".to_string()));
+    assert_eq!(
+        validate_role_name("admin-role"),
+        Ok("admin-role".to_string())
+    );
     assert_eq!(validate_role_name(" editor "), Ok("editor".to_string()));
 }
 

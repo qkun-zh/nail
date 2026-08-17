@@ -3,27 +3,27 @@ pub mod detail;
 pub mod index;
 pub mod pagination;
 pub mod render;
+pub mod state;
 pub mod url;
 
 use delete::comment_delete_view;
 use detail::comment_detail_view;
 use index::comment_list_view;
 
-use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
 use leptos_router::hooks::{query_signal, use_navigate, use_params_map, use_query_map};
 use nail_common::request::DeleteMode;
 use nail_common::response::comment::{CommentListPage, CommentView};
 
 use crate::infrastructure::limits::use_limits;
-use crate::page::notify::{notify_error, notify_success, use_notifications};
+use crate::page::notify::use_notifications;
 use crate::page::session_gate::who_are_you;
-use crate::page::validation::validate_comment_content;
 
-use pagination::COMMENTS_PER_PAGE;
 use render::{CommentViewContext, STYLE};
-use url::{CommentLevel, comment_id_from_level, comment_level_from_path};
-
+use state::{
+    CommentSignals, build_load, build_submit_comment, build_submit_delete, build_submit_reply,
+};
+use url::{CommentLevel, comment_level_from_path};
 #[component]
 pub fn CommentSection() -> impl IntoView {
     let params = use_params_map();
@@ -103,97 +103,18 @@ pub fn CommentSection() -> impl IntoView {
         sync_url();
     });
 
-    let load = StoredValue::new({
-        let notifications = notifications.clone();
-        move |version_id: String| {
-            let current_mode = comment_level_from_path(&comment_path());
-            let page_value = page.get();
-            let notifications = notifications.clone();
-            match current_mode {
-                CommentLevel::VersionComments => {
-                    loading.set(true);
-                    leptos::task::spawn_local(async move {
-                        match crate::request::comment::read_comments(
-                            &version_id,
-                            page_value,
-                            COMMENTS_PER_PAGE,
-                        )
-                        .await
-                        {
-                            Ok(view) => {
-                                roots.set(Some(view));
-                                error.set(None);
-                            }
-                            Err(request_error) => {
-                                notify_error(&notifications, request_error.to_string());
-                                error.set(Some(request_error.to_string()));
-                            }
-                        }
-                        loading.set(false);
-                    });
-                }
-                CommentLevel::Comment(comment_id) => {
-                    loading.set(true);
-                    let comment_id = comment_id.clone();
-                    let notifications = notifications.clone();
-                    let pending = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(2));
-                    let done_loading = {
-                        let pending = pending.clone();
-                        let loading = loading;
-                        move || {
-                            if pending.fetch_sub(1, std::sync::atomic::Ordering::SeqCst) == 1 {
-                                loading.set(false);
-                            }
-                        }
-                    };
-                    leptos::task::spawn_local({
-                        let comment_id = comment_id.clone();
-                        let notifications = notifications.clone();
-                        let done_loading = done_loading.clone();
-                        async move {
-                            match crate::request::comment::read_comment(&comment_id).await {
-                                Ok(view) => target.set(Some(view)),
-                                Err(request_error) => {
-                                    notify_error(&notifications, request_error.to_string());
-                                    error.set(Some(request_error.to_string()));
-                                }
-                            }
-                            done_loading();
-                        }
-                    });
-                    leptos::task::spawn_local({
-                        let comment_id = comment_id.clone();
-                        let notifications = notifications.clone();
-                        let done_loading = done_loading.clone();
-                        async move {
-                            match crate::request::comment::read_comment_children(
-                                &comment_id,
-                                page_value,
-                                COMMENTS_PER_PAGE,
-                            )
-                            .await
-                            {
-                                Ok(view) => children.set(Some(view)),
-                                Err(request_error) => {
-                                    notify_error(&notifications, request_error.to_string());
-                                    error.set(Some(request_error.to_string()));
-                                }
-                            }
-                            done_loading();
-                        }
-                    });
-                }
-                CommentLevel::DeleteComment(_) => {
-                    loading.set(false);
-                    error.set(None);
-                }
-                CommentLevel::Invalid => {
-                    error.set(Some("comment not found".to_string()));
-                    loading.set(false);
-                }
-            }
-        }
-    });
+    let load = StoredValue::new(build_load(
+        notifications.clone(),
+        CommentSignals {
+            loading,
+            roots,
+            target,
+            children,
+            error,
+        },
+        comment_path,
+        move || page.get(),
+    ));
 
     Effect::new(move |_| {
         let _ = page.get();
@@ -203,120 +124,32 @@ pub fn CommentSection() -> impl IntoView {
         load(version_id);
     });
 
-    let comment_notifications = notifications.clone();
-    let reply_notifications = notifications.clone();
-    let delete_notifications = notifications.clone();
-    let on_submit_comment = move |event: SubmitEvent| {
-        event.prevent_default();
-        if posting.get() {
-            return;
-        }
-        let content =
-            match validate_comment_content(&body.get(), limits.get().max_comment_body_chars) {
-                Ok(value) => value,
-                Err(error) => {
-                    notify_error(&comment_notifications, &error);
-                    return;
-                }
-            };
-        let version_id = version_id_param();
-        posting.set(true);
-        let notifications = comment_notifications.clone();
-        let load = load.get_value();
-        leptos::task::spawn_local(async move {
-            let result = crate::request::comment::create_comment(&version_id, &content).await;
-            posting.set(false);
-            match result {
-                Ok(_) => {
-                    notify_success(&notifications, "comment created");
-                    load(version_id);
-                }
-                Err(error) => notify_error(&notifications, error.to_string()),
-            }
-        });
-    };
-
-    let on_submit_reply = move |event: SubmitEvent| {
-        event.prevent_default();
-        if posting.get() {
-            return;
-        }
-        let binding = mode();
-        let Some(comment_id) = comment_id_from_level(&binding) else {
-            return;
-        };
-        let content = match validate_comment_content(
-            &reply_body.get(),
-            limits.get().max_comment_body_chars,
-        ) {
-            Ok(value) => value,
-            Err(error) => {
-                notify_error(&reply_notifications, &error);
-                return;
-            }
-        };
-        let comment_id = comment_id.to_string();
-        posting.set(true);
-        let notifications = reply_notifications.clone();
-        let load = load.get_value();
-        let version_id = version_id_param();
-        leptos::task::spawn_local(async move {
-            let result = crate::request::comment::create_reply(&comment_id, &content).await;
-            posting.set(false);
-            match result {
-                Ok(_) => {
-                    notify_success(&notifications, "reply created");
-                    load(version_id);
-                }
-                Err(error) => notify_error(&notifications, error.to_string()),
-            }
-        });
-    };
-
-    let on_submit_delete = {
-        let load = load.get_value();
-        move |delete_mode: DeleteMode| {
-            if posting.get() {
-                return;
-            }
-            let binding = mode();
-            let Some(comment_id) = comment_id_from_level(&binding) else {
-                return;
-            };
-            let comment_id = comment_id.to_string();
-            let version_id = version_id_param();
-            let base_path = base();
-            posting.set(true);
-            let notifications = delete_notifications.clone();
-            let load = load.clone();
-            let navigate = navigate.clone();
-            leptos::task::spawn_local(async move {
-                let result =
-                    crate::request::comment::delete_comment(&comment_id, delete_mode).await;
-                posting.set(false);
-                match result {
-                    Ok(_) => {
-                        let message = match delete_mode {
-                            DeleteMode::Transfer => "comment transferred to recycler",
-                            DeleteMode::Hard => "comment deleted",
-                            DeleteMode::Soft => "comment soft-deleted",
-                        };
-                        notify_success(&notifications, message);
-                        navigate(
-                            &crate::page::draft::draft_url(&format!("{base_path}/comment"), &[]),
-                            leptos_router::NavigateOptions {
-                                replace: true,
-                                resolve: false,
-                                ..Default::default()
-                            },
-                        );
-                        load(version_id);
-                    }
-                    Err(error) => notify_error(&notifications, error.to_string()),
-                }
-            });
-        }
-    };
+    let on_submit_comment = build_submit_comment(
+        notifications.clone(),
+        posting,
+        body,
+        limits,
+        version_id_param,
+        load.get_value(),
+    );
+    let on_submit_reply = build_submit_reply(
+        notifications.clone(),
+        posting,
+        reply_body,
+        limits,
+        mode,
+        version_id_param,
+        load.get_value(),
+    );
+    let on_submit_delete = build_submit_delete(
+        notifications,
+        posting,
+        mode,
+        version_id_param,
+        base,
+        navigate,
+        load.get_value(),
+    );
 
     view! {
         <section class="cmt-section">

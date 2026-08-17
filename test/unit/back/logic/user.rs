@@ -154,7 +154,8 @@ async fn update_user_rejects_a_taken_name() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, _) = session_for(&context, "alice@example.com").await;
     let (other, _) = session_for(&context, "bob@example.com").await;
-    crate::repository::user::update_user_name(&context.state.graph, &other, "alice-renamed")        .await
+    crate::repository::user::update_user_name(&context.state.graph, &other, "alice-renamed")
+        .await
         .expect("rename other");
     let pow = context.issued_pow("alice-renamed");
     let error = crate::logic::user::update_user(
@@ -305,9 +306,7 @@ async fn delete_user_rejects_a_soft_mode() {
     .unwrap_err();
     assert_eq!(
         error,
-        LogicError::bad_request(
-            "user delete only supports mode \"transfer\" or \"hard\""
-        )
+        LogicError::bad_request("user delete only supports mode \"transfer\" or \"hard\"")
     );
 }
 

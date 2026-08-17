@@ -2,115 +2,55 @@
 
 ## Current state
 
-search.rs split complete. All tests green.
+10 项代码质量缺陷全部修复。测试全绿，back 覆盖率 89.10%。三 crate fmt/clippy 零警告。
 
 ## Done
 
-- Phase 1-10: Split search.rs (772→359 lines)
-  - search/schema.rs (186 lines): field constants + index config
-  - search/query.rs (29 lines): range-to-field mapping
-  - search/db.rs (222 lines): DB enrichment helpers
-  - search/document.rs (325 lines): document building (pre-existing)
-- common: 109 tests, back: 454 tests — all pass
-- fmt clean, no new clippy warnings
+- 缺陷 #1: search.rs 拆分（772→359 行）→ `search/{schema,query,db,comments,versions}.rs`；CSS 提取到 `code/front/search.css`；`search/mod.rs` 改名 `search.rs`（遵守无 mod.rs 宪法）
+- 缺陷 #2: config.rs panic! → `web_sys::console::error_1` + `FrontendConfig::default()`
+- 缺陷 #3: 删除 Info/Warning 变体及 `notify_info`/`notify_warning`
+- 缺陷 #4: 删除 `read_comment_outcome` 的 `effective_ranges` 参数
+- 缺陷 #5: `ctx` → `comment_view_context`
+- 缺陷 #6: 新增 `.github/workflows/ci.yml`（fmt/clippy/test/audit/build，按 crate 分别运行）
+- 缺陷 #9: 删除所有 Cargo.toml 的 `too_many_lines` allow；新增各 crate `clippy.toml`（阈值 256，与宪法一致）
+- 缺陷 #10: clippy allow 调研 — `principal.rs` 的 `unused_async_trait_impl` 在新版 clippy 已重命名，allow 移除；`js.rs`（cast_possible_truncation/sign_loss，wasm f64→u64）保留
+- 缺陷 #7+8: 覆盖率 87.74% → 89.10%（4143/4650 行）；测试 454 → 499（back），common 109 全绿
+- 新测试覆盖的真实用户输入路径：管理员改名撞名、`/session/read?name=true`、文章/版本 multipart 未知字段、评论子列表 HTTP 成功路径、搜索 `from` 非法/空边界
+- 收尾修复：front `Search`（357→252 行）拆出 `search/{form,results}.rs`；`CommentSection`（346→180 行）拆出 `comment/state.rs`（CommentSignals + build_load/submit 系列）；`SearchComments` 的 needless_pass_by_value 修复
 
 ## Decisions
 
-- DB helpers (enrich_comment_headers, article_ids_of_user, etc.) moved to db.rs — they are SearchIndex::read/sync helpers, not core search logic
-- query.rs only has range-field mapping — small but cohesive
-- schema.rs holds all SeekStorm field definitions and index metadata
+- `js.rs` 的 clippy allow 保留（有正当理由）
+- `tarpaulin-report.html` gitignore，不提交
+- 覆盖率到不了 100%，接受（见 Remaining risks）
+- 三个 crate 各自独立（无 workspace 根），CI 按 crate 分步运行
 
 ## Remaining risks
 
-- None. Pure refactoring, no behavior change.
+覆盖率到不了 100%，剩余未覆盖行均为非用户输入路径：
+1. 基础设施：`config/logging/server/smtp/email/cedar/main.rs/seed_demo.rs` — 需真实 SMTP 服务、服务器、环境 mock
+2. 内部错误分支：DB 写入失败（`.map_err` 路径）、删除/更新竞态、磁盘 I/O 错误、内部 ID 冲突 — 防御性代码，正常输入无法触发
+
+要继续提升需引入 DB 故障 mock 层（改动较大，仅能再加 1-2%），已决定不收。
 
 ## Next
 
-- Pending: Permission system overhaul (see below)
+- 无待办。10 项缺陷全部完成。
 
 ---
 
-# Permission System Overhaul
+# Permission System Overhaul（待办，未开始）
 
-## Decisions
+## 决策
 
-1. `Restore` → `Undelete::Soft` (consistent naming)
-2. Delete `User::Delete::Transfer`, keep `Version::Delete::Transfer`
-3. Split `Role::Manage` into 6 permissions: Create/Read/Update/Delete/Grant/Revoke
-4. Virtual unified: remove `Virtual::"admin-console"`, use action set matching
-5. User supports soft delete
+1. `Restore` → `Undelete::Soft`
+2. 删除 `User::Delete::Transfer`，保留 `Version::Delete::Transfer`
+3. `Role::Manage` 拆分为 6 个权限
+4. 统一 Virtual
+5. User 支持软删除
 
-## Permission Count: 30 (was 27)
+## 待办阶段
 
-### Article (7)
-- Create, Read, Update, Delete::Hard, Delete::Transfer, Delete::Soft, Undelete::Soft
+- Phase 1-11：Cedar schema/policy、build.rs、repository、logic、interface、operations、tests、Virtual 修复、full explicit authorization、verification
 
-### Version (7)
-- Create, Read, Update, Delete::Hard, Delete::Transfer, Delete::Soft, Undelete::Soft
-
-### Comment (7)
-- Create, Read, Update, Delete::Hard, Delete::Transfer, Delete::Soft, Undelete::Soft
-
-### User (4)
-- Read, Update, Delete::Hard, Delete::Soft
-
-### Role (6)
-- Create, Read, Update, Delete, Grant, Revoke
-
----
-
-## TODO
-
-### Phase 1: Cedar Schema (`schema.cedar`)
-- [ ] Rename `Article::Restore` → `Article::Undelete::Soft`
-- [ ] Rename `Version::Restore` → `Version::Undelete::Soft`
-- [ ] Rename `Comment::Restore` → `Comment::Undelete::Soft`
-- [ ] Delete `User::Delete::Transfer` action
-- [ ] Add `User::Delete::Soft` action
-- [ ] Delete `Role::Manage` action
-- [ ] Add `Role::Create`, `Role::Read`, `Role::Update`, `Role::Delete`, `Role::Grant` actions
-- [ ] Change all `resource: [Virtual]` to unified `Virtual`
-
-### Phase 2: Cedar Policy (`policy.cedar`)
-- [ ] Policy 1: Add `User::Delete::Soft` to owner bypass, remove `User::Delete::Transfer`
-- [ ] Policy 4: Change to action set matching instead of resource name
-- [ ] Policy 5: Update recycler restrictions (remove Transfer for User)
-- [ ] Verify admin role protection still works
-
-### Phase 3: Build Script (`build.rs`)
-- [ ] Update test_only list: remove `User::Delete::Transfer`, add `User::Delete::Soft`
-
-### Phase 4: Repository Layer
-- [ ] `repository/role.rs`: Constants auto-generated, verify new permission names
-- [ ] `repository/delete.rs`: Add `soft_delete_user` function
-- [ ] `repository/authorization.rs`: Update `Resource::Virtual` handling
-
-### Phase 5: Logic Layer
-- [ ] `logic/article.rs`: Rename `restore_article` → `undelete_soft_article`
-- [ ] `logic/version.rs`: Rename `restore_version` → `undelete_soft_version`
-- [ ] `logic/comment.rs`: Rename `restore_comment` → `undelete_soft_comment`
-- [ ] `logic/user.rs`: Remove transfer mode, add soft delete mode
-- [ ] `logic/role.rs`: Update to use 6 fine-grained permissions
-
-### Phase 6: Interface Layer
-- [ ] `interface/router.rs`: Update route names (restore → undelete-soft)
-- [ ] `interface/article.rs`: Update handler names
-- [ ] `interface/version.rs`: Update handler names
-- [ ] `interface/comment.rs`: Update handler names
-- [ ] `interface/role.rs`: Update permission checks
-
-### Phase 7: Operations (`logic/operations.rs`)
-- [ ] Update ROUTE_*_RESTORE → ROUTE_*_UNDELETE_SOFT
-- [ ] Update ROLE_* permission mappings
-
-### Phase 8: Tests
-- [ ] Update all test files using old permission names
-- [ ] Update all test files using old route names
-- [ ] Add tests for User::Delete::Soft
-- [ ] Verify all tests pass
-
-### Phase 9: Verification
-- [ ] `cargo fmt`
-- [ ] `cargo clippy`
-- [ ] `cargo test` (all 563+ tests pass)
-- [ ] `trunk build` (frontend)
+详见 git 历史中早期 handoff 版本。

@@ -155,10 +155,9 @@ async fn consume_download_token_rejects_a_version_mismatch() {
         .expect("mint");
     let token = token_from_url(&url);
 
-    let error =
-        consume_download_token(&state, &author_id, &article_id, &other_version, token)
-            .await
-            .expect_err("version mismatch");
+    let error = consume_download_token(&state, &author_id, &article_id, &other_version, token)
+        .await
+        .expect_err("version mismatch");
     assert!(matches!(
         error,
         LogicError::NotFound(message) if message == "article version not found"

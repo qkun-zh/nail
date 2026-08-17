@@ -553,7 +553,10 @@ async fn create_article_rejects_an_empty_tag_set() {
     )
     .await
     .unwrap_err();
-    assert_eq!(error, LogicError::bad_request("at least one tag is required"));
+    assert_eq!(
+        error,
+        LogicError::bad_request("at least one tag is required")
+    );
 }
 
 #[tokio::test]

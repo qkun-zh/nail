@@ -295,10 +295,7 @@ async fn change_email_rejects_new_email_on_disallowed_domain() {
     let error = crate::logic::email::create_token(&context.state, request, Some(session_token))
         .await
         .unwrap_err();
-    assert_eq!(
-        error,
-        LogicError::bad_request("email domain not allowed")
-    );
+    assert_eq!(error, LogicError::bad_request("email domain not allowed"));
 }
 
 #[tokio::test]
@@ -318,10 +315,9 @@ async fn update_user_email_rejects_same_old_and_new_token() {
     );
     let payload = format!("{same_token}\n{same_token}");
     let pow = context.issued_pow(&payload);
-    let error =
-        update_user_email(&context.state, &user_id, &pow, &same_token, &same_token)
-            .await
-            .unwrap_err();
+    let error = update_user_email(&context.state, &user_id, &pow, &same_token, &same_token)
+        .await
+        .unwrap_err();
     assert_eq!(
         error,
         LogicError::bad_request("old token and new token must be different")

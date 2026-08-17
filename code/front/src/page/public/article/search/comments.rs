@@ -42,9 +42,9 @@ pub(super) fn SearchComments(
     version_id: String,
     comments: Vec<SearchCommentItem>,
 ) -> impl IntoView {
-    let aid = article_id.clone();
-    let vid = version_id.clone();
-    let render = move |comment: &SearchCommentItem| render_comment(comment, &aid, &vid).into_any();
+    let render = move |comment: &SearchCommentItem| {
+        render_comment(comment, &article_id, &version_id).into_any()
+    };
     view! {
         <div class="field-card">
             <div class="field-label"><span class="dot"></span>comment</div>
