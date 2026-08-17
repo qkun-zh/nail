@@ -122,7 +122,7 @@ by the proxy.
 Add one by one with `cargo add`, alphabetical, latest non-conflicting; commit
 `Cargo.lock`. For any crate question: read the pinned source, then confirm with
 a probe test — source + probe evidence, never a guess. No implementation until
-both are recorded and the user adopts the plan (`document/workflow.md` 5.5).
+both are recorded and the user adopts the plan (`document/workflow.md` §7).
 
 ## 13. Documentation
 

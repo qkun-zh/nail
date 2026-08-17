@@ -1,112 +1,180 @@
-# Agent code workflow — the correctness loop
+# Workflow — the correctness loop
 
-Mandatory order for every code change. Standards: `README.md`; skills and tool
-rules: `AGENTS.md`.
+Mandatory for every code change. Authority: `README.md` (constitution),
+`AGENTS.md` (tool/skill rules). This file wins on execution order.
 
 ## Loop
 
 ```
 execute(R):
-  1  assert baseline green            # bugfix: failing repro test first, else STOP
-  2  clean working tree               # dirty → commit unrelated or ask
-  3  pin_down(R)                      # precise & consistent, else ask each ambiguity
-  4  todos = plan(R)                  # small, ordered, verifiable, exit test, unknowns
-  5  evidence = research(todos)       # source + probe double evidence
-  5.5 evidence_gate(evidence)         # explicit adoption before any code
-  6  for todo in todos: red → green → gate → commit
-  7  final_gate()                     # reproduce green; never report red
-  8  update_handoff(); report()
+ 1  baseline green          # bugfix: failing repro first, else STOP
+ 2  clean tree              # dirty → commit unrelated or ask
+ 3  pin(R)                  # precise, consistent, no ambiguity
+ 4  plan(R)                 # ordered, verifiable slices with exit tests
+ 5  exec_doc(R, plan)       # single source of truth — §Execution doc
+ 6  research(plan)          # source + probe double evidence — §Evidence
+ 7  gate adoption           # evidence consistent + user approves — §Gate
+ 8  for slice in plan: red → green → gate → commit
+ 9  final gate              # full build + all tests + clippy + fmt; never report red
+10  handoff                 # record state, report
 ```
 
-## Phase 5 — evidence (mandatory)
+---
 
-Never guess. Every unknown gets `source` (pinned lib/repo module read) + `probe`
-(disposable test; promote if it proves a constraint, surprise, or boundary).
-`source ≠ probe` → resolve; contradicts R → ask.
+## Phase 1 — Baseline
 
-**Evidence mandatory when**
-
-| Situation | Evidence |
+| Situation | Action |
 | --- | --- |
-| Return/error type or side effects unclear | source first; probe mandatory |
-| Source contradicts belief | probe, then trust probe |
-| Two calls look equivalent | probe to pick correct |
-| Repo module behavior uncertain | read + tests; probe remaining doubt |
-| Behavior directly observable in source | source suffices |
+| All tests green | Proceed. |
+| Bug fix | Write a failing repro test first; it must fail before anything else. |
+| Tests red (not a bug fix) | STOP. Fix the tree before proceeding. |
 
-**Verification dimensions** — "tests pass" alone is not evidence. Each applicable
-dimension must be `verified` or `N/A + one-line reason`; `unknown` routes back to
-phase 5. An unevidenced applicable dimension blocks the gate.
+## Phase 2 — Clean tree
 
-| Dimension | Verify | Evidence |
-| --- | --- | --- |
-| Correctness | behavior matches R, normal + edge cases | tests, probe |
-| Behavior change | input/output delta vs baseline = R | before/after probes, diffs |
-| Time complexity | Big-O of touched path | source + probe/benchmark |
-| Space complexity | allocations, cache, DB footprint | source + probe |
-| Performance change | latency/throughput delta vs baseline | benchmark hot paths |
+Uncommitted changes unrelated to R → commit them or ask user. Never discard.
 
-**Reuse before build** — never reinvent. If a standard/pinned official API
-covers the need, use it. A custom wheel or patch-style code (workaround, shim,
-adapter masking a defect/gap) requires explicit user consent before any
-implementation. Record searched APIs and rejection reasons, or the consent;
-"didn't look" is not a verdict.
+## Phase 3 — Pin requirements
 
-**Adoption gate (5.5)** — no code until evidence is consistent per dimension and
-the user explicitly adopts the plan.
+R must be unambiguous and internally consistent. Any ambiguity → ask user.
+Outcome: a single, precise, testable requirement statement.
 
-**Probe file layout (concurrent-safe)** — never accumulate probes into a single
-shared `probe.rs`. Concurrent agents editing one file collide; one file per
-probe avoids that. Rules:
+## Phase 4 — Plan
 
-- Each probe lives in its **own** file under
-  `test/{common,back,front}/<area>/probe_<NNN>_<purpose>.rs`, wired into the
-  suite by its own `#[path]` module declaration in the area harness
-  (e.g. `test/unit/back/harness.rs`).
-- `<NNN>` is a 3-digit zero-padded sequence unique across the whole repo,
-  allocated lowest-first (add to a single counter). `<purpose>` is a short
-  snake_case phrase naming what the probe verifies.
-- First line of the file is a doc comment: numbered purpose, the source
-  evidence it confirms, and the acceptance question it answers.
-- Test fn mirrors the file: `probe_<NNN>_<purpose>`.
-- One agent claims one number; do not edit another agent's `probe_<NNN>_*` file.
-- Promote-to-real: rename file and fn (drop `NNN_`), move under the normal test
-  name; disposable probes are deleted after the evidence gate.
+Ordered list of slices. Each slice states:
 
-## Slices (6–8)
+- **Goal** — one sentence.
+- **Files** — exact list of files to touch.
+- **Red** — the test that must fail before implementation.
+- **Green** — the expected behavior after implementation.
+- **Exit test** — command that proves the slice complete.
 
-- Each slice: test first (red) → implement (green) → gate (fmt, clippy 0 warn,
-  tests pass) → one commit, clean tree.
-- Final gate: build + all tests + clippy + fmt; never report red.
-- Handoff: record done/next/decisions; report slices, verification, remaining
-  risks.
+Unknowns go to §Evidence (phase 6); they do not block planning but must be
+flagged.
+
+## Phase 5 — Execution doc
+
+Write `document/exec/<NNN>_<slug>.md` (3-digit sequence, lowest-first, no
+reuse). Under 300 lines.
+
+**Required sections** (empty only with explicit "N/A" + one-line reason):
+
+1. **Requirement** — pinned R, acceptance criteria.
+2. **Scope** — in-scope and explicitly out-of-scope.
+3. **Design decisions** — modules touched, seam choices, trade-offs, rationale.
+4. **Slice breakdown** — from §Plan, one entry per slice.
+5. **Open unknowns** — evidence source for each (source/probe).
+6. **Verification plan** — which dimensions per slice, how verified.
+7. **Risks** — what could go wrong, mitigation, rollback.
+8. **Constraints** — task-specific prohibitions (e.g. "don't touch X").
+9. **Questions** — unresolved ambiguities for user.
+
+Update in-place when evidence contradicts; append `## Change log` at bottom.
+The exec doc is the single source of truth during execution — read it at the
+start of every slice.
+
+## Phase 6 — Evidence
+
+Every unknown gets **source** (pinned lib/repo read) + **probe** (disposable
+test). `source ≠ probe` → resolve before proceeding. Contradicts R → ask.
+
+**When evidence is mandatory:**
+
+| Situation | Minimum |
+| --- | --- |
+| Return/side-effect unclear | source + probe |
+| Source contradicts belief | probe wins |
+| Two APIs look equivalent | probe to choose |
+| Behavior visible in source | source suffices |
+
+**Verification dimensions** — each applicable dimension must be `verified` or
+`N/A + reason`; `unknown` → back to phase 6. Unevidenced dimension blocks gate.
+
+| Dimension | What to check |
+| --- | --- |
+| Correctness | behavior matches R, normal + edge cases |
+| Behavior change | input/output delta vs baseline = R |
+| Time complexity | Big-O of touched path |
+| Space complexity | allocations, cache, DB footprint |
+| Performance | latency/throughput delta vs baseline |
+
+**Reuse before build** — use existing official APIs first. Custom wheel or
+workaround needs explicit user consent + recorded rejection reasons.
+
+### Probe file layout (concurrent-safe)
+
+One file per probe, never a shared `probe.rs`.
+
+- Location: `test/{common,back,front}/<area>/probe_<NNN>_<purpose>.rs`
+- `<NNN>`: 3-digit zero-padded, unique across repo, lowest-first.
+- First line: doc comment with purpose, source evidence, acceptance question.
+- Function name: `probe_<NNN>_<purpose>`.
+- One agent per number; never edit another agent's probe file.
+- After gate: promote (rename, drop `NNN_`, move) or delete.
+
+## Phase 7 — Gate (adoption)
+
+No code until:
+
+1. Evidence consistent across all applicable dimensions.
+2. User explicitly adopts the plan.
+
+Evidence or user rejects → back to phase 3.
+
+## Phase 8 — Slice loop
+
+Per slice:
+
+```
+red:  write test → cargo test → must fail
+green: implement → cargo test → must pass
+gate:  cargo fmt --check && cargo clippy -D warnings && cargo test → all pass
+commit: one commit per slice, clean tree
+```
+
+Gate fails → debug, fix, re-gate. Never skip gate.
+
+## Phase 9 — Final gate
+
+Full build + all tests + clippy (0 warnings) + fmt. Must reproduce green.
+Never report red. Gate fails → back to phase 8.
+
+## Phase 10 — Handoff
+
+Update `document/handoff.md`: current state, slices done, decisions made,
+remaining risks. Report to user.
+
+---
 
 ## Loop-back
 
-| Condition | To |
+| Condition | Return to |
 | --- | --- |
-| Evidence contradicts R / adoption not accepted | 3 |
-| Source ≠ probe | 5 |
-| Research improves plan / scope changes | 4 |
+| Exec doc incomplete / exceeds 300 lines | 4 |
+| Evidence contradicts R | 3 |
+| User rejects adoption | 3 |
+| source ≠ probe | 6 |
+| Research improves plan | 4 |
+| Scope changes | 4 |
 | Bug repro passes (no bug) | 3 |
-| Test fails unexpectedly | 5 |
-| Slice/final gate fails | 6 |
+| Test fails unexpectedly | 6 |
+| Slice gate fails | 8 |
+| Final gate fails | 8 |
 | Requirement changes | 3 |
 
-## Stop
+## STOP
 
-May `STOP and report`: leave the tree as described, state blocked phase + reason;
-never proceed past a block on a guess.
+At any phase, may STOP and report: leave tree as-is, state blocked phase +
+reason. Never proceed past a block on a guess.
+
+---
 
 ## Invariants
 
-- Every uncertainty is a question, never a guess.
-- No code without double evidence + explicit adoption (5.5).
-- API behavior from source + probe; official APIs win; wheel/patch needs consent.
-- Verification covers correctness, behavior change, time & space complexity, and
-  performance — evidenced or justified N/A before any gate.
-- No work on a broken tree (except reproducing a bug); one commit per slice;
-  clean at every loop-back; every result reproducible by re-running gates.
-- No hand-edited `Cargo.lock`; no `unwrap`/`expect`; no secrets in output.
-- Never discard work (`checkout --`/`restore`/`reset --hard`/`clean -fd`/
-  drop-stash); recover from a commit or ask.
+1. Every uncertainty is a question, never a guess.
+2. No code without exec doc (§5) + evidence (§6) + adoption (§7).
+3. API behavior from source + probe; official APIs win; wheel/patch needs consent.
+4. Verification dimensions evidenced or N/A before every gate.
+5. One commit per slice; clean tree at every loop-back.
+6. Results reproducible by re-running gates.
+7. No hand-edited `Cargo.lock`; no `unwrap`/`expect`; no secrets.
+8. Never discard work; recover from commit or ask.

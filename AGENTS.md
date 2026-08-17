@@ -4,11 +4,12 @@
 
 1. `README.md` — constitution: layout, layering, standards, robustness, config,
    build. Mandatory.
-2. `document/workflow.md` — mandatory execution loop: baseline green, clean
-   commits, requirement pin-down, plan, source+probe double evidence, adoption
-   gate, red→green→gate→commit per slice, final gate.
+2. `document/workflow.md` — mandatory loop: baseline → clean → pin → plan →
+   exec doc → evidence → adoption → slice loop → final gate → handoff.
+3. `document/exec/` — if resuming, read the task's exec doc first (single
+   source of truth for context, decisions, and plan).
 
-These three plus this file cross-reference and win over everything below.
+These plus this file cross-reference and win over everything below.
 
 ## Concurrent agents
 
@@ -21,6 +22,8 @@ discard" rule covers every change in the tree).
 
 - `README.md` — constitution.
 - `document/workflow.md` — mandatory execution loop.
+- `document/exec/` — execution documents: one per task, numbered `NNN_slug.md`.
+  Written at workflow §5 before any code. Single source of truth during work.
 - `document/handoff.md` — progress: current state, done, next. Update at the end
   of every completed slice, before reporting.
 - `document/run.md` — build/restart/health-check.
@@ -61,7 +64,7 @@ only (`codebase-design` is the one reference-only exception).
 - **Crate questions**: read pinned source in
   `~/.cargo/registry/src/index.crates.io-*/` first, then verify with a probe
   test (`cargo test`) — source + probe evidence. No implementation until both
-  are recorded and the user adopts the plan (`workflow.md` 5.5).
+   are recorded and the user adopts the plan (`workflow.md` §7).
 - **Verify**: `cargo fmt`, `cargo clippy` (zero warnings), `cargo test` in
   `code/{common,back,front}`; frontend also `trunk build` (`document/run.md`).
 
