@@ -102,10 +102,10 @@ pub async fn read_user(
         return Err(LogicError::not_found("user not found"));
     }
 
-    let mut view = UserView::default();
-    if target_id != actor_id {
-        view.id = Some(target_id.to_string());
-    }
+    let mut view = UserView {
+        id: Some(target_id.to_string()),
+        ..UserView::default()
+    };
     if name_requested || email_hash_requested {
         let entry = read_user_node(&state.graph, target_id)
             .await
