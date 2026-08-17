@@ -11,6 +11,13 @@
    with nightly toolchain and line-tables-only debug info. Dev builds MUST NOT use
    `--release`; release profile (LLVM) is reserved for official builds only.
 
+   Tests MUST use the same two optimizations as dev builds: Cranelift codegen
+   backend and line-tables-only debug info, with the nightly toolchain.
+   Run tests with:
+   `cd /home/qkun/nail/code/back && env CARGO_PROFILE_DEV_DEBUG=line-tables-only RUSTFLAGS=-Zcodegen-backend=cranelift cargo +nightly test`
+   (and likewise for `code/common` and `code/front`). Tests MUST NOT run with a
+   different codegen backend or without these flags.
+
 3. Proxy
    Path: `/home/qkun/nail/code/proxy/pingap-linux-gnu-x86-full`
    Run: `/home/qkun/nail/code/proxy/pingap-linux-gnu-x86-full -c /home/qkun/nail/configuration/proxy`
