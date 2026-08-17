@@ -11,11 +11,12 @@ use crate::repository::schema::{
     EDGE_USER_AUTHOR_COMMENT, ENTITY_TYPE_ARTICLE, KEY_TYPE, TagRow, UserRow, VersionRow,
 };
 
-use super::{
+use super::schema::{
     FIELD_ARTICLE_ID, FIELD_AUTHOR_NAME, FIELD_COMMENT_ID, FIELD_CONTENT, FIELD_DOC_TYPE,
     FIELD_NOTE, FIELD_SUMMARY, FIELD_TAGS, FIELD_TITLE, FIELD_TS, FIELD_VERSION_ID,
-    FIELD_VERSION_NUMBER, SearchCommentOutcome, SearchHitOutcome, SearchVersionOutcome,
+    FIELD_VERSION_NUMBER,
 };
+use super::{SearchCommentOutcome, SearchHitOutcome, SearchVersionOutcome};
 
 pub(super) fn read_string_field(document: &Document, field: &str) -> String {
     document
