@@ -534,3 +534,41 @@ async fn restore_article_is_rejected_when_the_article_is_visible() {
         "restore of a visible article is rejected"
     );
 }
+
+#[tokio::test]
+async fn create_article_rejects_an_empty_tag_set() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let error = crate::logic::article::create_article(
+        &context.state,
+        &actor,
+        crate::logic::article::ArticleCreateInput {
+            title: "No Tags",
+            summary: "Summary",
+            tags: "",
+            version: "1.0.0",
+            note: "note",
+            upload: context.upload(&valid_pdf()),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(error, LogicError::bad_request("at least one tag is required"));
+}
+
+#[tokio::test]
+async fn update_article_of_a_missing_article_is_not_found() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let error = crate::logic::article::update_article(
+        &context.state,
+        &actor,
+        "missing-article",
+        "New Title",
+        "New Summary",
+        "rust",
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(error, LogicError::not_found("article not found"));
+}

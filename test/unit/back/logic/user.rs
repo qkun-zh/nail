@@ -242,3 +242,88 @@ async fn delete_user_transfer_after_email_confirmation() {
             .is_none()
     );
 }
+
+#[tokio::test]
+async fn update_user_admin_rename_of_missing_user_is_not_found() {
+    let context = TestCtx::new().await.expect("test context");
+    let (admin, _) = admin_session(&context).await;
+    let error = crate::logic::user::update_user(
+        &context.state,
+        &admin,
+        "no-such-user",
+        UserUpdateRequest {
+            pow: None,
+            name: Some("renamed".to_string()),
+            old_email_token: None,
+            new_email_token: None,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(error, LogicError::not_found("user not found"));
+}
+
+#[tokio::test]
+async fn delete_user_rejects_a_soft_mode() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, _) = session_for(&context, "alice@example.com").await;
+    let error = crate::logic::user::delete_user(
+        &context.state,
+        &user_id,
+        &user_id,
+        UserDeleteRequest {
+            mode: Some(nail_common::request::DeleteMode::Soft),
+            pow: context.issued_pow("ignored"),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(
+        error,
+        LogicError::bad_request(
+            "user delete only supports mode \"transfer\" or \"hard\""
+        )
+    );
+}
+
+#[tokio::test]
+async fn delete_user_transfer_rejects_a_token_for_a_different_account() {
+    let context = TestCtx::new().await.expect("test context");
+    let (alice_id, alice_token) = session_for(&context, "alice@example.com").await;
+    let (bob_id, _) = session_for(&context, "bob@example.com").await;
+
+    let pow = context.issued_pow("alice@example.com");
+    let _ = crate::logic::email::create_token(
+        &context.state,
+        nail_common::request::CreateTokenRequest {
+            purpose: nail_common::request::TokenPurpose::DeleteUser,
+            pow: Some(pow),
+            old_email_pow: None,
+            new_email_pow: None,
+        },
+        Some(alice_token),
+    )
+    .await
+    .expect("deregister email");
+
+    let messages = context.emails();
+    let confirmation_token = messages[0].2.clone();
+
+    let confirm_pow = context.issued_pow(&confirmation_token);
+    let error = crate::logic::user::delete_user(
+        &context.state,
+        &bob_id,
+        &bob_id,
+        UserDeleteRequest {
+            mode: Some(nail_common::request::DeleteMode::Transfer),
+            pow: confirm_pow,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(
+        error,
+        LogicError::bad_request("delete token does not match your account")
+    );
+    let _ = alice_id;
+}

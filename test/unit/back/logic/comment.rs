@@ -473,3 +473,35 @@ async fn restore_comment_is_forbidden_for_a_member() {
         .expect_err("member restore");
     assert_eq!(error, LogicError::forbidden("you are denied"));
 }
+
+#[tokio::test]
+async fn update_comment_reports_a_missing_comment() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = member(&state, "alice@example.com").await;
+    let error = update_comment(&state, &author_id, "missing-comment", "edited")
+        .await
+        .expect_err("missing comment");
+    assert_eq!(error, LogicError::not_found("comment not found"));
+}
+
+#[tokio::test]
+async fn restore_comment_rejects_a_comment_that_is_not_soft_deleted() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = member(&state, "alice@example.com").await;
+    let admin_id = crate::repository::user::read_user_by_email_address_hash(
+        &state.graph,
+        &nail_common::hash::email("user-zero@example.com"),
+    )
+    .await
+    .expect("lookup user zero")
+    .expect("seeded user zero");
+    let version_id = create_version_fixture(&state, &author_id).await;
+    let comment_id = create_comment(&state, &author_id, &version_id, "hello")
+        .await
+        .expect("create");
+
+    let error = crate::logic::comment::restore_comment(&state, &admin_id, &comment_id)
+        .await
+        .expect_err("not soft deleted");
+    assert_eq!(error, LogicError::bad_request("not soft-deleted"));
+}
