@@ -327,3 +327,71 @@ async fn delete_user_transfer_rejects_a_token_for_a_different_account() {
     );
     let _ = alice_id;
 }
+
+#[tokio::test]
+async fn update_user_requires_a_pow_when_email_tokens_are_provided() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, _) = session_for(&context, "alice@example.com").await;
+    let error = crate::logic::user::update_user(
+        &context.state,
+        &user_id,
+        &user_id,
+        UserUpdateRequest {
+            pow: None,
+            name: None,
+            old_email_token: Some(uuid::Uuid::now_v7().to_string()),
+            new_email_token: Some(uuid::Uuid::now_v7().to_string()),
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(
+        error,
+        LogicError::bad_request("pow is required to confirm the email update")
+    );
+}
+
+#[tokio::test]
+async fn update_user_requires_both_email_tokens() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, _) = session_for(&context, "alice@example.com").await;
+    let error = crate::logic::user::update_user(
+        &context.state,
+        &user_id,
+        &user_id,
+        UserUpdateRequest {
+            pow: Some(context.issued_pow("ignored")),
+            name: None,
+            old_email_token: Some(uuid::Uuid::now_v7().to_string()),
+            new_email_token: None,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(
+        error,
+        LogicError::bad_request("old_email_token and new_email_token must both be provided")
+    );
+}
+
+#[tokio::test]
+async fn delete_user_transfer_rejects_an_expired_token_for_an_existing_account() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, _) = session_for(&context, "alice@example.com").await;
+    let confirm_pow = context.issued_pow(&uuid::Uuid::now_v7().to_string());
+    let error = crate::logic::user::delete_user(
+        &context.state,
+        &user_id,
+        &user_id,
+        UserDeleteRequest {
+            mode: Some(nail_common::request::DeleteMode::Transfer),
+            pow: confirm_pow,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert_eq!(
+        error,
+        LogicError::bad_request("invalid or expired delete token")
+    );
+}
