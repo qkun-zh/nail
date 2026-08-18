@@ -20,7 +20,13 @@ pub fn CreateArticle() -> impl IntoView {
 
     let title = RwSignal::new(query.get_untracked().get("title").unwrap_or_default());
     let summary = RwSignal::new(query.get_untracked().get("summary").unwrap_or_default());
-    let selected_tags = RwSignal::new(Vec::<String>::new());
+    let tags_from_query = query.get_untracked().get("tags").unwrap_or_default();
+    let selected_tags = RwSignal::new(
+        tags_from_query
+            .split_whitespace()
+            .map(|s| s.to_string())
+            .collect::<Vec<_>>(),
+    );
     let version = RwSignal::new(query.get_untracked().get("version").unwrap_or_default());
     let note = RwSignal::new(query.get_untracked().get("note").unwrap_or_default());
     let file_ref = NodeRef::<Input>::new();
