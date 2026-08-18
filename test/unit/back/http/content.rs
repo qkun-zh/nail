@@ -7,7 +7,10 @@ use crate::repository::cache::{SessionTokenEntry, token_key};
 use crate::repository::role::{ROLE_MEMBER, hold_role};
 use crate::repository::version::VersionDraft;
 
+const TEST_TAGS: &[&str] = &["rust", "backend", "frontend", "devops"];
+
 async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
+    context.seed_tags(TEST_TAGS).await;
     let user_id = crate::repository::user::create_user(
         &context.state.graph,
         &nail_common::hash::email(email),

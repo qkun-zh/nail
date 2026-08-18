@@ -3,7 +3,10 @@ use nail_common::request::ArticleSearchParams;
 use super::context::{TestCtx, unique_pdf, valid_pdf};
 use crate::repository::role::{ROLE_ADMIN, ROLE_MEMBER, hold_role};
 
+const TEST_TAGS: &[&str] = &["rust", "backend", "frontend", "devops", "web"];
+
 async fn member(context: &TestCtx, email: &str) -> String {
+    context.seed_tags(TEST_TAGS).await;
     let user_id = crate::repository::user::create_user(
         &context.state.graph,
         &nail_common::hash::email(email),

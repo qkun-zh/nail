@@ -126,6 +126,18 @@ impl TestCtx {
             .clone()
     }
 
+    pub async fn create_tag(&self, name: &str) -> String {
+        crate::repository::tag::create_tag(&self.state.graph, name)
+            .await
+            .expect("create tag")
+    }
+
+    pub async fn seed_tags(&self, names: &[&str]) {
+        for name in names {
+            self.create_tag(name).await;
+        }
+    }
+
     pub async fn get(&self, uri: &str, token: Option<&str>) -> (StatusCode, Value) {
         self.json("GET", uri, None, token).await
     }

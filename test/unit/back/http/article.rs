@@ -6,6 +6,8 @@ use super::context::{TestCtx, test_config, unique_pdf, valid_pdf};
 use crate::repository::cache::{SessionTokenEntry, token_key};
 use crate::repository::role::{ROLE_MEMBER, hold_role};
 
+const TEST_TAGS: &[&str] = &["rust", "backend", "frontend", "devops", "web", "go", "cpp"];
+
 async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
         &context.state.graph,
@@ -25,6 +27,7 @@ async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
 }
 
 async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
+    context.seed_tags(TEST_TAGS).await;
     let (user_id, token) = session_for(context, email).await;
     hold_role(&context.state.graph, &user_id, ROLE_MEMBER)
         .await
@@ -33,6 +36,7 @@ async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
 }
 
 async fn admin_session(context: &TestCtx) -> (String, String) {
+    context.seed_tags(TEST_TAGS).await;
     session_for(context, "user-zero@example.com").await
 }
 fn article_fields<'a>(title: &'a str, tags: &'a str) -> Vec<(&'a str, &'a str)> {

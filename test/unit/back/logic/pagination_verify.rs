@@ -2,6 +2,8 @@ use super::context::{TestCtx, unique_pdf};
 use crate::logic::error::LogicError;
 use crate::repository::role::{ROLE_MEMBER, hold_role};
 
+const TEST_TAGS: &[&str] = &["rust", "backend", "frontend", "devops"];
+
 async fn member(context: &TestCtx, email: &str) -> String {
     let user_id = crate::repository::user::create_user(
         &context.state.graph,
@@ -22,6 +24,7 @@ async fn create_seeded_article(
     version: &str,
     note: &str,
 ) -> (String, String) {
+    context.seed_tags(TEST_TAGS).await;
     crate::logic::article::create_article(
         &context.state,
         actor_id,

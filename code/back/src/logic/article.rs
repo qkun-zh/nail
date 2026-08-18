@@ -21,6 +21,7 @@ use crate::repository::role::{
     PERMISSION_ARTICLE_DELETE_TRANSFER, PERMISSION_ARTICLE_READ, PERMISSION_ARTICLE_UNDELETE_SOFT,
     PERMISSION_ARTICLE_UPDATE,
 };
+use crate::repository::tag::read_tag_by_name;
 use crate::repository::transfer::{TransferTargetError, transfer_article};
 use crate::repository::version::{VersionDraft, content_hash_owner, read_version};
 
@@ -56,7 +57,7 @@ pub async fn create_article(
 
     let title = validate_title(raw_title, state.config.server.max_title_chars)?;
     let summary = validate_summary(raw_summary, state.config.server.max_summary_chars)?;
-    let tags = validate_tags(raw_tags, state.config.server.max_tags_per_article)?;
+    let tags = validate_tags(state, raw_tags, state.config.server.max_tags_per_article).await?;
     let version_number = validate_version(raw_version)?;
     let note = validate_note(raw_note, state.config.server.max_version_note_chars)?;
 
@@ -142,7 +143,7 @@ pub async fn update_article(
     .await?;
     let title = validate_title(raw_title, state.config.server.max_title_chars)?;
     let summary = validate_summary(raw_summary, state.config.server.max_summary_chars)?;
-    let tags = validate_tags(raw_tags, state.config.server.max_tags_per_article)?;
+    let tags = validate_tags(state, raw_tags, state.config.server.max_tags_per_article).await?;
     update_article_node(
         &state.graph,
         article_id,
@@ -306,11 +307,26 @@ fn validate_summary(raw: &str, max_chars: u64) -> Result<String, LogicError> {
     .map_err(|error| LogicError::bad_request(error.to_string()))
 }
 
-fn validate_tags(raw: &str, max_tags: usize) -> Result<Vec<String>, LogicError> {
+async fn validate_tags(
+    state: &AppState,
+    raw: &str,
+    max_tags: usize,
+) -> Result<Vec<String>, LogicError> {
     let tags = nail_common::tag::parse_tags(raw, max_tags)
         .map_err(|error| LogicError::bad_request(error.to_string()))?;
     if tags.is_empty() {
         return Err(LogicError::bad_request("at least one tag is required"));
+    }
+    for name in &tags {
+        if read_tag_by_name(&state.graph, name)
+            .await
+            .map_err(database_error)?
+            .is_none()
+        {
+            return Err(LogicError::bad_request(format!(
+                "tag \"{name}\" does not exist"
+            )));
+        }
     }
     Ok(tags)
 }
