@@ -8,4 +8,4 @@ upstream = "back"
 [locations.front]
 path = "/"
 plugins = ["forFront"]
-rewrite = "^/[a-zA-Z0-9/.-]+$ /index.html"
+rewrite = "^/[a-zA-Z0-9/-]*$ /index.html"

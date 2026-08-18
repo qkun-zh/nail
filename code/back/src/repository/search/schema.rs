@@ -120,7 +120,7 @@ pub(crate) fn schema_fields() -> Vec<SchemaField> {
         SchemaField::new(
             FIELD_AUTHOR_ID.to_string(),
             true,
-            false,
+            true,
             false,
             FieldType::String32,
             true,
