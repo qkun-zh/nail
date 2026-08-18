@@ -9,4 +9,5 @@ pub mod private;
 pub mod public;
 pub mod session_gate;
 pub mod time_format;
+pub mod user;
 pub mod validation;
