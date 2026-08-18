@@ -74,10 +74,7 @@ pub fn VersionDetail() -> impl IntoView {
         };
         let created_at = format_timestamp(version.created_at);
         let article_id = params.get().get("article_id").unwrap_or_default();
-        let comments_href = format!(
-            "/article/{article_id}/version/{}/comment",
-            version.id
-        );
+        let comments_href = format!("/article/{article_id}/version/{}/comment", version.id);
         let download = match download_url.get() {
             Some(url) => view! { <DownloadLink url=url/> }.into_any(),
             None => match download_error.get() {

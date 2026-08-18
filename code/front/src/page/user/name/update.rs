@@ -21,7 +21,10 @@ pub fn NameUpdate() -> impl IntoView {
 
     persist_draft(
         navigate.clone(),
-        format!("/user/{}/name/update", params.get_untracked().get("uid").unwrap_or_default()),
+        format!(
+            "/user/{}/name/update",
+            params.get_untracked().get("uid").unwrap_or_default()
+        ),
         move || vec![("name", name.get())],
     );
 

@@ -21,7 +21,10 @@ pub fn EmailUpdate() -> impl IntoView {
 
     persist_draft(
         navigate.clone(),
-        format!("/user/{}/email/update", params.get_untracked().get("uid").unwrap_or_default()),
+        format!(
+            "/user/{}/email/update",
+            params.get_untracked().get("uid").unwrap_or_default()
+        ),
         move || {
             vec![
                 ("old_email", old_email.get()),

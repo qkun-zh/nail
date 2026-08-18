@@ -16,11 +16,9 @@ pub fn Authenticate() -> impl IntoView {
     let token = RwSignal::new(query.get_untracked().get("token").unwrap_or_default());
     let working = RwSignal::new(false);
 
-    persist_draft(
-        navigate.clone(),
-        "/authenticate".to_string(),
-        move || vec![("email", email.get()), ("token", token.get())],
-    );
+    persist_draft(navigate.clone(), "/authenticate".to_string(), move || {
+        vec![("email", email.get()), ("token", token.get())]
+    });
 
     let send_notifications = notifications.clone();
     let send_email = move |event: SubmitEvent| {

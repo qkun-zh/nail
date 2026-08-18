@@ -21,7 +21,10 @@ pub fn Deregister() -> impl IntoView {
 
     persist_draft(
         navigate.clone(),
-        format!("/user/{}/deregister", params.get_untracked().get("uid").unwrap_or_default()),
+        format!(
+            "/user/{}/deregister",
+            params.get_untracked().get("uid").unwrap_or_default()
+        ),
         move || vec![("email", email.get()), ("token", token.get())],
     );
 

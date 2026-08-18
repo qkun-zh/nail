@@ -38,13 +38,7 @@ pub fn CommentSection() -> impl IntoView {
     let mode = move || comment_level_from_path(&comment_path());
     let (page_signal, _set_page) = query_signal::<u64>("page");
     let page = Memo::new(move |_| page_signal.get().unwrap_or(1).max(1));
-    let base = move || {
-        format!(
-            "/article/{}/version/{}",
-            article_id(),
-            version_id_param()
-        )
-    };
+    let base = move || format!("/article/{}/version/{}", article_id(), version_id_param());
 
     let roots = RwSignal::new(None::<CommentListPage>);
     let target = RwSignal::new(None::<CommentView>);

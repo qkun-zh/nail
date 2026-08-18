@@ -25,19 +25,15 @@ pub fn CreateArticle() -> impl IntoView {
     let file_ref = NodeRef::<Input>::new();
     let working = RwSignal::new(false);
 
-    persist_draft(
-        navigate.clone(),
-        "/article/create".to_string(),
-        move || {
-            vec![
-                ("title", title.get()),
-                ("summary", summary.get()),
-                ("tags", tags.get()),
-                ("version", version.get()),
-                ("note", note.get()),
-            ]
-        },
-    );
+    persist_draft(navigate.clone(), "/article/create".to_string(), move || {
+        vec![
+            ("title", title.get()),
+            ("summary", summary.get()),
+            ("tags", tags.get()),
+            ("version", version.get()),
+            ("note", note.get()),
+        ]
+    });
 
     let submit = move |event: SubmitEvent| {
         event.prevent_default();

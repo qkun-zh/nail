@@ -49,10 +49,7 @@ pub fn DeleteArticle() -> impl IntoView {
                 return;
             };
             navigate(
-                &format!(
-                    "/article/{id}/delete?mode={}",
-                    mode_to_str(mode.get())
-                ),
+                &format!("/article/{id}/delete?mode={}", mode_to_str(mode.get())),
                 NavigateOptions {
                     replace: true,
                     resolve: false,
