@@ -19,6 +19,9 @@ pub mod infrastructure_cedar;
 #[path = "infrastructure/cedar_probe.rs"]
 pub mod infrastructure_cedar_probe;
 
+#[path = "infrastructure/probe_002_orthogonal_action_resource.rs"]
+pub mod infrastructure_probe_002;
+
 #[path = "repository/cache.rs"]
 pub mod repository_cache;
 
@@ -126,6 +129,9 @@ pub mod http_comment;
 
 #[path = "logic/tag_apply.rs"]
 pub mod logic_tag_apply;
+
+#[path = "logic/probe_review_findings.rs"]
+pub mod logic_probe_review_findings;
 
 #[path = "logic/soft_delete_visibility.rs"]
 pub mod logic_soft_delete_visibility;
