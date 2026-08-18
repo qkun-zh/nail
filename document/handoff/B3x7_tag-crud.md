@@ -4,7 +4,7 @@
 
 **Owner**: B3x7
 **Exec doc**: `document/exec/B3x7_tag-crud.md`
-**Status**: Slice 4 complete — 4/5 slices done
+**Status**: Complete — all 5 slices done
 
 ### Stages
 
@@ -12,7 +12,7 @@ A. ✅ Backend tag CRUD (Cedar schema, permissions, repository, logic, interface
 B. ✅ Article tag validation (reject unknown tags in create/update)
 C. ✅ Frontend tag pages + request functions
 D. ✅ Article form tag picker (multi-select from existing tags)
-E. ⬜ Tests + final gate
+E. ✅ Tests + final gate
 
 ### Decisions made
 
@@ -56,6 +56,9 @@ E. ⬜ Tests + final gate
 - All test files with article creation: Added tag seeding
 - 513 tests pass
 
-### Remaining
+### Final gate
 
-- Slice 5: Tests + final gate
+- ✅ `cargo test` — 513/513 pass
+- ✅ `cargo clippy -- -D warnings` — zero warnings (backend + frontend)
+- ✅ `cargo fmt --check` — clean (backend + frontend)
+- ✅ `trunk build` — success

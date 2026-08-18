@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map};
 
 use crate::request::tag::{self, TagNameView};
@@ -30,8 +31,8 @@ pub fn DeleteTag() -> impl IntoView {
         let navigate = navigate.clone();
         leptos::task::spawn_local(async move {
             match tag::delete_tag(&tag_id).await {
-                Ok(_) => {
-                    navigate("/tag", Default::default());
+                Ok(()) => {
+                    navigate("/tag", NavigateOptions::default());
                 }
                 Err(err) => {
                     error.set(Some(err.to_string()));

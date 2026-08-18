@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map};
 
 use crate::request::tag::{self, TagNameView};
@@ -37,7 +38,7 @@ pub fn UpdateTag() -> impl IntoView {
         leptos::task::spawn_local(async move {
             match tag::update_tag(&tag_id, &name).await {
                 Ok(_) => {
-                    navigate(&format!("/tag/{tag_id}"), Default::default());
+                    navigate(&format!("/tag/{tag_id}"), NavigateOptions::default());
                 }
                 Err(err) => {
                     error.set(Some(err.to_string()));

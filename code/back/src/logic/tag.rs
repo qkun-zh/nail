@@ -147,6 +147,7 @@ pub async fn delete_tag(state: &AppState, actor_id: &str, tag_id: &str) -> Resul
     Ok(())
 }
 
+#[allow(dead_code)]
 pub async fn read_tag_detail(
     state: &AppState,
     actor_id: &str,

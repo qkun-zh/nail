@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use leptos_router::NavigateOptions;
 use leptos_router::hooks::use_navigate;
 
 use crate::request::tag;
@@ -20,7 +21,7 @@ pub fn CreateTag() -> impl IntoView {
         leptos::task::spawn_local(async move {
             match tag::create_tag(&name).await {
                 Ok(tag) => {
-                    navigate(&format!("/tag/{}", tag.id), Default::default());
+                    navigate(&format!("/tag/{}", tag.id), NavigateOptions::default());
                 }
                 Err(err) => {
                     error.set(Some(err.to_string()));
