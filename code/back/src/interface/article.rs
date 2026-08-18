@@ -193,8 +193,9 @@ pub(crate) async fn stream_pdf_field(
 }
 
 pub(crate) fn map_multipart_error(error: &axum::extract::multipart::MultipartError) -> ApiError {
+    tracing::debug!(error = %error, "multipart form rejected");
     ApiError {
         status: error.status(),
-        message: error.body_text(),
+        message: "invalid multipart form data".to_string(),
     }
 }

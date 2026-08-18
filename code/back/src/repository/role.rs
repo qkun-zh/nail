@@ -64,8 +64,7 @@ pub const REQUIRED_ROLES: &[&str] = &[ROLE_ADMIN, ROLE_RECYCLER, ROLE_MEMBER];
 
 pub async fn create_role(db: &DbHandle, name: &str) -> Result<String, DbError> {
     let mut guard = db.write().await;
-    if !find_by_index_sync(&guard, KEY_ROLE_NAME, name)?.is_empty() {
-        let existing = read_role_by_name_sync(&guard, name)?.expect("role by name");
+    if let Some(existing) = read_role_by_name_sync(&guard, name)? {
         return Ok(existing.id);
     }
     let role_id = uuid::Uuid::now_v7().to_string();

@@ -462,10 +462,7 @@ async fn create_article_reports_body_too_large() {
         )
         .await;
     assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE, "body: {body}");
-    assert_eq!(
-        body["message"].as_str(),
-        Some("Request payload is too large")
-    );
+    assert_eq!(body["message"].as_str(), Some("invalid multipart form data"));
 }
 
 #[tokio::test]
