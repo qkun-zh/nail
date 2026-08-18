@@ -1,6 +1,6 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
-use leptos_router::hooks::{use_navigate, use_query_map};
+use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
 
 use crate::page::draft::persist_draft;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
@@ -14,13 +14,14 @@ pub fn NameUpdate() -> impl IntoView {
     let navigate = use_navigate();
     let notifications = use_notifications();
     let query = use_query_map();
+    let params = use_params_map();
     let status = use_session_status();
     let name = RwSignal::new(query.get_untracked().get("name").unwrap_or_default());
     let working = RwSignal::new(false);
 
     persist_draft(
         navigate.clone(),
-        "/private/name/update".to_string(),
+        format!("/user/{}/name/update", params.get_untracked().get("uid").unwrap_or_default()),
         move || vec![("name", name.get())],
     );
 

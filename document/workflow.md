@@ -15,8 +15,8 @@ execute(R):
  6  research(plan)          # source + probe double evidence — §Evidence
  7  gate adoption           # evidence consistent + user approves — §Gate
  8  for slice in plan: red → green → gate → commit
- 9  final gate              # full build + all tests + clippy + fmt; never report red
-10  handoff                 # record state, report
+ 9  handoff                 # record state, report
+10  final gate              # full build + all tests + clippy + fmt; never report red
 ```
 
 ---
@@ -144,12 +144,7 @@ loaded — likely another agent's compile/test in progress — **back off**: wai
 contending. Never start a build on top of a busy machine; a shared tree means
 results may be unreliable or someone else's run may be disrupted.
 
-## Phase 9 — Final gate
-
-Full build + all tests + clippy (0 warnings) + fmt. Must reproduce green.
-Never report red. Gate fails → back to phase 8.
-
-## Phase 10 — Handoff
+## Phase 9 — Handoff
 
 Purpose: leave the work for another agent to pick up, so the next session
 needs no memory of this one. Mandatory before reporting done.
@@ -158,14 +153,17 @@ Update `document/handoff/readme.md` (and the per-task file) strictly per its
 **Task organization rules**:
 current state, slices done, decisions made, remaining risks; drop completed
 slices; keep only incomplete/in-progress entries; label task ownership; never
-touch others' tasks; use the 64-em-dash divider. Follow the `handoff` skill
-(AGENTS.md) and invoke it when wrapping up. A handoff that is incomplete or
-stale is a red gate — never report green without one.
+touch others' tasks; use the 64-em-dash divider. A handoff that is incomplete or stale is a red gate — never report green without one.
 
 When a task is fully complete, delete its exec doc
 (`document/exec/<4-char code>_<slug>.md`), so only in-progress exec docs remain.
 
 Report to user.
+
+## Phase 10 — Final gate
+
+Full build + all tests + clippy (0 warnings) + fmt. Must reproduce green.
+Never report red. Gate fails → back to phase 8.
 
 ---
 

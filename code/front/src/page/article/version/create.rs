@@ -26,7 +26,7 @@ pub fn CreateVersion() -> impl IntoView {
     let (denied, checked) = use_author_gate(article_id);
 
     let pathname = format!(
-        "/public/article/{}/version/create",
+        "/article/{}/version/create",
         params.get_untracked().get("article_id").unwrap_or_default()
     );
     persist_draft(navigate.clone(), pathname, move || {

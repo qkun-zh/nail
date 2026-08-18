@@ -46,7 +46,7 @@ pub fn VersionList() -> impl IntoView {
         VersionPage::Error(message) => view! { <p>{message}</p> }.into_any(),
         VersionPage::Loaded(view) => {
             let article_id = params.get().get("article_id").unwrap_or_default();
-            let create_href = format!("/public/article/{article_id}/version/create");
+            let create_href = format!("/article/{article_id}/version/create");
             let current_page = current_page.get();
             let has_next = view.has_next;
             let has_prev = current_page > 1;
@@ -55,7 +55,7 @@ pub fn VersionList() -> impl IntoView {
                 .into_iter()
                 .map(|version| {
                     let version_id = version.id.clone();
-                    let detail_href = format!("/public/article/{article_id}/version/{version_id}");
+                    let detail_href = format!("/article/{article_id}/version/{version_id}");
                     view! {
                         <div><A href=detail_href.clone()>{version.version}</A></div>
                     }
@@ -64,7 +64,7 @@ pub fn VersionList() -> impl IntoView {
             let navigate = navigate.clone();
             let on_go = Callback::new(move |target: u64| {
                 navigate(
-                    &format!("/public/article/{article_id}/version?page={target}"),
+                    &format!("/article/{article_id}/version?page={target}"),
                     NavigateOptions {
                         resolve: false,
                         replace: true,

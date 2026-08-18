@@ -16,7 +16,7 @@ pub(super) fn SearchVersions(
 ) -> impl IntoView {
     let render = move |version: &SearchVersionItem| {
         let version_url = format!(
-            "/public/article/{}/version/{}",
+            "/article/{}/version/{}",
             article_id, version.version_id
         );
         let version_chip_html = version.version_number.clone();

@@ -42,9 +42,9 @@ pub fn ArticleDetail() -> impl IntoView {
             .collect::<Vec<_>>()
             .join(" ");
         let article_id = article.id.clone();
-        let update_href = format!("/public/article/{article_id}/update");
-        let delete_href = format!("/public/article/{article_id}/delete");
-        let versions_href = format!("/public/article/{article_id}/version");
+        let update_href = format!("/article/{article_id}/update");
+        let delete_href = format!("/article/{article_id}/delete");
+        let versions_href = format!("/article/{article_id}/version");
         view! {
             <div>
                 <hr/>

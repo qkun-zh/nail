@@ -50,7 +50,7 @@ pub fn DeleteArticle() -> impl IntoView {
             };
             navigate(
                 &format!(
-                    "/public/article/{id}/delete?mode={}",
+                    "/article/{id}/delete?mode={}",
                     mode_to_str(mode.get())
                 ),
                 NavigateOptions {

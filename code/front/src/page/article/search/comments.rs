@@ -12,7 +12,7 @@ pub(super) fn render_comment(
     _article_id: &str,
     _version_id: &str,
 ) -> impl IntoView {
-    let author_url = format!("/public/user/{}", comment.author_id);
+    let author_url = format!("/user/{}", comment.author_id);
     let author_html = comment.author_name.clone();
     let time_text = comment.time.clone();
     let content_html = comment.content.clone();

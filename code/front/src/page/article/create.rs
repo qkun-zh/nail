@@ -27,7 +27,7 @@ pub fn CreateArticle() -> impl IntoView {
 
     persist_draft(
         navigate.clone(),
-        "/public/article/create".to_string(),
+        "/article/create".to_string(),
         move || {
             vec![
                 ("title", title.get()),

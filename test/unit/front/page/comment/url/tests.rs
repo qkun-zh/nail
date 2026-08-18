@@ -1,4 +1,4 @@
-use crate::page::public::article::version::comment::url::{
+use crate::page::article::version::comment::url::{
     CommentLevel, comment_id_from_level, comment_level_from_path,
 };
 

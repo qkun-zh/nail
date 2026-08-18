@@ -75,7 +75,7 @@ pub fn VersionDetail() -> impl IntoView {
         let created_at = format_timestamp(version.created_at);
         let article_id = params.get().get("article_id").unwrap_or_default();
         let comments_href = format!(
-            "/public/article/{article_id}/version/{}/comment",
+            "/article/{article_id}/version/{}/comment",
             version.id
         );
         let download = match download_url.get() {

@@ -44,7 +44,7 @@ const RANGE_LABELS: [&str; 12] = [
     "author id",
     "role",
 ];
-const SEARCH_PATHNAME: &str = "/public/article/search";
+const SEARCH_PATHNAME: &str = "/search";
 
 fn checked_range_subset(checked: &[bool]) -> String {
     RANGE_KEYS

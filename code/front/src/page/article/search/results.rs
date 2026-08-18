@@ -36,8 +36,8 @@ pub(super) fn SearchResults(
                 let rows = list
                     .into_iter()
                     .map(|article| {
-                        let detail_url = format!("/public/article/{}", article.article_id);
-                        let author_url = format!("/public/user/{}", article.author_id);
+                        let detail_url = format!("/article/{}", article.article_id);
+                        let author_url = format!("/user/{}", article.author_id);
                         let title_html = article.title.clone();
                         let author_html = article.author_name.clone();
                         let time_text = article.time.clone();

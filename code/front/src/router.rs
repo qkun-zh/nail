@@ -1,74 +1,55 @@
 use leptos::prelude::*;
-use leptos_router::components::{ParentRoute, Route, Router, Routes};
+use leptos_router::components::{Outlet, ParentRoute, Route, Router, Routes};
 use leptos_router::path;
 
-use crate::page::admin::user::AdminUserDetail;
-use crate::page::admin::{AdminIndex, AdminLayout};
+use crate::page::article::create::CreateArticle;
+use crate::page::article::delete::DeleteArticle;
+use crate::page::article::detail::ArticleDetail;
+use crate::page::article::search::Search;
+use crate::page::article::update::UpdateArticle;
+use crate::page::article::version::comment::CommentSection;
+use crate::page::article::version::create::CreateVersion;
+use crate::page::article::version::detail::VersionDetail;
+use crate::page::article::version::index::VersionList;
+use crate::page::authenticate::Authenticate;
 use crate::page::index::Index;
 use crate::page::not_found::NotFound;
-use crate::page::private::PrivateLayout;
-use crate::page::private::authenticate::Authenticate;
-use crate::page::private::deregister::Deregister;
-use crate::page::private::email::EmailIndex;
-use crate::page::private::email::update::EmailUpdate;
-use crate::page::private::index::PrivateIndex;
-use crate::page::private::logout::Logout;
-use crate::page::private::name::Name;
-use crate::page::private::name::update::NameUpdate;
-use crate::page::public::PublicLayout;
-use crate::page::public::article::create::CreateArticle;
-use crate::page::public::article::delete::DeleteArticle;
-use crate::page::public::article::detail::ArticleDetail;
-use crate::page::public::article::index::ArticleIndex;
-use crate::page::public::article::search::Search;
-use crate::page::public::article::update::UpdateArticle;
-use crate::page::public::article::version::comment::CommentSection;
-use crate::page::public::article::version::create::CreateVersion;
-use crate::page::public::article::version::detail::VersionDetail;
-use crate::page::public::article::version::index::VersionList;
-use crate::page::public::index::PublicIndex;
-use crate::page::public::user::PublicUserDetail;
-use crate::page::session_gate::RootGate;
+use crate::page::user::deregister::Deregister;
+use crate::page::user::email::EmailIndex;
+use crate::page::user::email::update::EmailUpdate;
+use crate::page::user::hub::UserHub;
+use crate::page::user::logout::Logout;
+use crate::page::user::name::Name;
+use crate::page::user::name::update::NameUpdate;
 
 #[component]
 pub fn AppRouter() -> impl IntoView {
     view! {
         <Router>
             <Routes fallback=NotFound>
-                <Route path=path!("/private/authenticate") view=Authenticate/>
-                <ParentRoute path=path!("/") view=RootGate>
-                    <Route path=path!("") view=Index/>
-                    <ParentRoute path=path!("/public") view=PublicLayout>
-                        <Route path=path!("") view=PublicIndex/>
-                        <Route path=path!("/user/:user_id") view=PublicUserDetail/>
-                        <Route path=path!("/article") view=ArticleIndex/>
-                        <Route path=path!("/article/search") view=Search/>
-                        <Route path=path!("/article/create") view=CreateArticle/>
-                        <Route path=path!("/article/:article_id") view=ArticleDetail/>
-                        <Route path=path!("/article/:article_id/update") view=UpdateArticle/>
-                        <Route path=path!("/article/:article_id/delete") view=DeleteArticle/>
-                        <Route path=path!("/article/:article_id/version") view=VersionList/>
-                        <Route path=path!("/article/:article_id/version/create") view=CreateVersion/>
-                        <Route path=path!("/article/:article_id/version/:version_id") view=VersionDetail/>
-                        <Route
-                            path=path!("/article/:article_id/version/:version_id/*comment_path")
-                            view=CommentSection
-                        />
-                    </ParentRoute>
-                    <ParentRoute path=path!("/private") view=PrivateLayout>
-                        <Route path=path!("") view=PrivateIndex/>
-                        <Route path=path!("/name") view=Name/>
-                        <Route path=path!("/name/update") view=NameUpdate/>
-                        <Route path=path!("/email") view=EmailIndex/>
-                        <Route path=path!("/email/update") view=EmailUpdate/>
-                        <Route path=path!("/logout") view=Logout/>
-                        <Route path=path!("/deregister") view=Deregister/>
-                    </ParentRoute>
-                    <ParentRoute path=path!("/admin") view=AdminLayout>
-                        <Route path=path!("") view=AdminIndex/>
-                        <Route path=path!("/user/:user_id") view=AdminUserDetail/>
-                    </ParentRoute>
+                <Route path=path!("") view=Index/>
+                <Route path=path!("/authenticate") view=Authenticate/>
+                <Route path=path!("/search") view=Search/>
+                <ParentRoute path=path!("/user/:uid") view=Outlet>
+                    <Route path=path!("") view=UserHub/>
+                    <Route path=path!("/name") view=Name/>
+                    <Route path=path!("/name/update") view=NameUpdate/>
+                    <Route path=path!("/email") view=EmailIndex/>
+                    <Route path=path!("/email/update") view=EmailUpdate/>
+                    <Route path=path!("/logout") view=Logout/>
+                    <Route path=path!("/deregister") view=Deregister/>
                 </ParentRoute>
+                <Route path=path!("/article/create") view=CreateArticle/>
+                <Route path=path!("/article/:article_id") view=ArticleDetail/>
+                <Route path=path!("/article/:article_id/update") view=UpdateArticle/>
+                <Route path=path!("/article/:article_id/delete") view=DeleteArticle/>
+                <Route path=path!("/article/:article_id/version") view=VersionList/>
+                <Route path=path!("/article/:article_id/version/create") view=CreateVersion/>
+                <Route path=path!("/article/:article_id/version/:version_id") view=VersionDetail/>
+                <Route
+                    path=path!("/article/:article_id/version/:version_id/*comment_path")
+                    view=CommentSection
+                />
             </Routes>
         </Router>
     }

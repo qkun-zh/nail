@@ -28,7 +28,7 @@ pub fn UpdateArticle() -> impl IntoView {
     persist_draft(
         navigate.clone(),
         format!(
-            "/public/article/{}/update",
+            "/article/{}/update",
             params.get_untracked().get("article_id").unwrap_or_default()
         ),
         move || {

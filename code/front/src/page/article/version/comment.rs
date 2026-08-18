@@ -40,7 +40,7 @@ pub fn CommentSection() -> impl IntoView {
     let page = Memo::new(move |_| page_signal.get().unwrap_or(1).max(1));
     let base = move || {
         format!(
-            "/public/article/{}/version/{}",
+            "/article/{}/version/{}",
             article_id(),
             version_id_param()
         )

@@ -2,81 +2,78 @@ use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
 use leptos_router::hooks::{use_navigate, use_query_map};
 
-use nail_common::request::DeleteMode;
-
 use crate::page::draft::persist_draft;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
-use crate::page::session_gate::{authenticated_user_id, mark_session_invalid};
+use crate::page::session_gate::refresh_session;
 
 #[component]
-pub fn Deregister() -> impl IntoView {
+pub fn Authenticate() -> impl IntoView {
     let navigate = use_navigate();
     let notifications = use_notifications();
     let query = use_query_map();
+
     let email = RwSignal::new(query.get_untracked().get("email").unwrap_or_default());
     let token = RwSignal::new(query.get_untracked().get("token").unwrap_or_default());
-    let mode = RwSignal::new(DeleteMode::Transfer);
     let working = RwSignal::new(false);
 
     persist_draft(
         navigate.clone(),
-        "/private/deregister".to_string(),
+        "/authenticate".to_string(),
         move || vec![("email", email.get()), ("token", token.get())],
     );
 
     let send_notifications = notifications.clone();
-    let send_confirmation = move |event: SubmitEvent| {
+    let send_email = move |event: SubmitEvent| {
         event.prevent_default();
         if working.get() {
             return;
         }
         let email_value = email.get();
         if email_value.trim().is_empty() {
-            notify_error(&send_notifications, "enter your account email");
+            notify_error(&send_notifications, "enter your email");
             return;
         }
         working.set(true);
         let notifications = send_notifications.clone();
         leptos::task::spawn_local(async move {
             let result = match crate::request::pow::prove_pow(email_value).await {
-                Ok(pow) => crate::request::user::send_deregister_email(pow).await,
+                Ok(pow) => crate::request::auth::send_authenticate_email(pow).await,
                 Err(error) => Err(error),
             };
             match result {
-                Ok(_) => notify_success(&notifications, "confirmation email sent"),
+                Ok(view) => notify_success(
+                    &notifications,
+                    format!("email sent: {}", view.email_subject),
+                ),
                 Err(error) => notify_error(&notifications, error.to_string()),
             }
             working.set(false);
         });
     };
 
-    let confirm_notifications = notifications.clone();
-    let confirm = move |event: SubmitEvent| {
+    let redeem_notifications = notifications.clone();
+    let redeem = move |event: SubmitEvent| {
         event.prevent_default();
         if working.get() {
             return;
         }
-        let Some(user_id) = authenticated_user_id() else {
-            notify_error(&confirm_notifications, "authenticate to deregister");
-            return;
-        };
         let token_value = token.get().trim().to_string();
         if token_value.is_empty() {
-            notify_error(&confirm_notifications, "paste the confirmation token");
+            notify_error(&redeem_notifications, "paste the emailed token");
             return;
         }
         working.set(true);
-        let notifications = confirm_notifications.clone();
+        let notifications = redeem_notifications.clone();
         leptos::task::spawn_local(async move {
             let result = match crate::request::pow::prove_pow(token_value).await {
-                Ok(pow) => crate::request::user::deregister_self(&user_id, pow, mode.get()).await,
+                Ok(pow) => crate::request::auth::redeem_token(pow).await,
                 Err(error) => Err(error),
             };
             match result {
-                Ok(_) => {
-                    crate::request::session::clear_session_token();
-                    mark_session_invalid();
-                    notify_success(&notifications, "account deregistered");
+                Ok(view) => {
+                    crate::request::session::store_session_token(&view.session_token);
+                    refresh_session();
+                    notify_success(&notifications, "signed in");
                 }
                 Err(error) => notify_error(&notifications, error.to_string()),
             }
@@ -85,18 +82,16 @@ pub fn Deregister() -> impl IntoView {
     };
 
     view! {
-        <form on:submit=send_confirmation>
+        <form on:submit=send_email>
             <input type="text" prop:value=email on:input=move |event| email.set(event_target_value(&event)) placeholder="email"/>
             <button type="submit" disabled=move || working.get()>
                 {move || if working.get() { "sending..." } else { "send" }}
             </button>
         </form>
-        <form on:submit=confirm>
+        <form on:submit=redeem>
             <input type="text" prop:value=token on:input=move |event| token.set(event_target_value(&event)) placeholder="token"/>
-            <label><input type="radio" name="mode" value="transfer" prop:checked=true on:change=move |_| mode.set(DeleteMode::Transfer)/> Transfer (content moves to platform)</label>
-            <label><input type="radio" name="mode" value="soft" on:change=move |_| mode.set(DeleteMode::Soft)/> Soft (data preserved, admin can restore)</label>
             <button type="submit" disabled=move || working.get()>
-                {move || if working.get() { "deregistering..." } else { "deregister" }}
+                {move || if working.get() { "authenticating..." } else { "authenticate" }}
             </button>
         </form>
     }
