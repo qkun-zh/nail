@@ -56,6 +56,7 @@ pub struct RoleRow {
     pub db_id: Option<DbId>,
     #[agdb(rename = "type")]
     pub entity_type: String,
+    pub id: String,
     pub role_name: String,
 }
 

@@ -43,14 +43,16 @@ pub const ROUTE_COMMENT_ID_DELETE: &str = "/comment/{id}/delete";
 pub const ROUTE_COMMENT_ID_UNDELETE_SOFT: &str = "/comment/{id}/undelete-soft";
 pub const ROUTE_ROLE_CREATE: &str = "/role/create";
 pub const ROUTE_ROLE_READ: &str = "/role/read";
-pub const ROUTE_ROLE_NAME_READ: &str = "/role/{name}/read";
-pub const ROUTE_ROLE_NAME_UPDATE: &str = "/role/{name}/update";
-pub const ROUTE_ROLE_NAME_DELETE: &str = "/role/{name}/delete";
+pub const ROUTE_ROLE_ID_READ: &str = "/role/{role_id}/read";
+pub const ROUTE_ROLE_ID_UPDATE: &str = "/role/{role_id}/update";
+pub const ROUTE_ROLE_ID_DELETE: &str = "/role/{role_id}/delete";
 pub const ROUTE_TAG_CREATE: &str = "/tag/create";
 pub const ROUTE_TAG_READ: &str = "/tag/read";
 pub const ROUTE_TAG_ID_READ: &str = "/tag/{id}/read";
 pub const ROUTE_TAG_ID_UPDATE: &str = "/tag/{id}/update";
 pub const ROUTE_TAG_ID_DELETE: &str = "/tag/{id}/delete";
+pub const ROUTE_ARTICLE_ID_TAG_ID_APPLY: &str = "/article/{id}/tag/{tag_id}/apply";
+pub const ROUTE_ARTICLE_ID_TAG_ID_UNAPPLY: &str = "/article/{id}/tag/{tag_id}/unapply";
 
 pub fn build_router(state: AppState) -> Router {
     let body_limit = state
@@ -123,14 +125,16 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route(ROUTE_ROLE_CREATE, post(role::create_role))
         .route(ROUTE_ROLE_READ, get(role::read_roles))
-        .route(ROUTE_ROLE_NAME_READ, get(role::read_role))
-        .route(ROUTE_ROLE_NAME_UPDATE, post(role::update_role))
-        .route(ROUTE_ROLE_NAME_DELETE, post(role::delete_role))
+        .route(ROUTE_ROLE_ID_READ, get(role::read_role))
+        .route(ROUTE_ROLE_ID_UPDATE, post(role::update_role))
+        .route(ROUTE_ROLE_ID_DELETE, post(role::delete_role))
         .route(ROUTE_TAG_CREATE, post(tag::create_tag))
         .route(ROUTE_TAG_READ, get(tag::read_tags))
         .route(ROUTE_TAG_ID_READ, get(tag::read_tag))
         .route(ROUTE_TAG_ID_UPDATE, post(tag::update_tag))
         .route(ROUTE_TAG_ID_DELETE, post(tag::delete_tag))
+        .route(ROUTE_ARTICLE_ID_TAG_ID_APPLY, post(tag::apply_tag))
+        .route(ROUTE_ARTICLE_ID_TAG_ID_UNAPPLY, post(tag::unapply_tag))
         .layer(DefaultBodyLimit::max(
             usize::try_from(body_limit).unwrap_or(usize::MAX),
         ))

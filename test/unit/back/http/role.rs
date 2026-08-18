@@ -36,6 +36,28 @@ async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
     (user_id, token)
 }
 
+async fn create_editor_role(context: &TestCtx) -> String {
+    crate::repository::role::create_role(&context.state.graph, "editor")
+        .await
+        .expect("create role")
+}
+
+async fn role_id_by_name(context: &TestCtx, token: &str, name: &str) -> String {
+    let (_, body) = context
+        .get("/role/read?page=1&limit=200", Some(token))
+        .await;
+    body["data"]["role_list"]
+        .as_array()
+        .expect("role list")
+        .iter()
+        .find(|role| role["name"].as_str() == Some(name))
+        .expect("role")
+        .get("id")
+        .and_then(|id| id.as_str())
+        .expect("role id")
+        .to_string()
+}
+
 #[tokio::test]
 async fn create_role_over_http() {
     let context = TestCtx::new().await.expect("test context");
@@ -46,6 +68,7 @@ async fn create_role_over_http() {
         .await;
     assert_eq!(status, StatusCode::CREATED, "body: {body}");
     assert_eq!(body["data"]["name"].as_str(), Some("editor"));
+    assert!(body["data"]["id"].as_str().is_some());
     assert_eq!(body["message"].as_str(), Some("created"));
 }
 
@@ -81,9 +104,7 @@ async fn read_roles_reports_real_member_counts() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = admin_session(&context).await;
     let (editor_id, _) = member_session(&context, "alice@example.com").await;
-    crate::repository::role::create_role(&context.state.graph, "editor")
-        .await
-        .expect("create role");
+    let editor_role_id = create_editor_role(&context).await;
     crate::repository::role::hold_role(&context.state.graph, &editor_id, "editor")
         .await
         .expect("hold editor");
@@ -95,8 +116,9 @@ async fn read_roles_reports_real_member_counts() {
     let roles = body["data"]["role_list"].as_array().expect("role list");
     let editor = roles
         .iter()
-        .find(|role| role["name"].as_str() == Some("editor"))
+        .find(|role| role["id"].as_str() == Some(editor_role_id.as_str()))
         .expect("editor role");
+    assert_eq!(editor["name"].as_str(), Some("editor"));
     assert_eq!(editor["member_count"].as_u64(), Some(1));
     assert_eq!(body["data"]["total"].as_u64(), Some(4));
 }
@@ -118,10 +140,14 @@ async fn read_roles_rejects_a_page_beyond_max_search_pages() {
 async fn read_role_returns_members_and_permissions() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = admin_session(&context).await;
+    let admin_id = role_id_by_name(&context, &token, "admin").await;
 
-    let (status, body) = context.get("/role/admin/read", Some(&token)).await;
+    let (status, body) = context
+        .get(&format!("/role/{admin_id}/read"), Some(&token))
+        .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["data"]["name"].as_str(), Some("admin"));
+    assert_eq!(body["data"]["id"].as_str(), Some(admin_id.as_str()));
     assert!(body["data"]["members"].as_array().map_or(0, Vec::len) >= 1);
     assert!(body["data"]["permissions"].as_array().map_or(0, Vec::len) > 0);
 }
@@ -130,21 +156,22 @@ async fn read_role_returns_members_and_permissions() {
 async fn update_role_over_http() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = admin_session(&context).await;
-    crate::repository::role::create_role(&context.state.graph, "editor")
-        .await
-        .expect("create role");
+    let editor_id = create_editor_role(&context).await;
 
     let (status, body) = context
         .post(
-            "/role/editor/update",
+            &format!("/role/{editor_id}/update"),
             json!({ "permissions": { "add": ["Article::Update"] } }),
             Some(&token),
         )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["data"]["name"].as_str(), Some("editor"));
+    assert_eq!(body["data"]["id"].as_str(), Some(editor_id.as_str()));
 
-    let (_, detail) = context.get("/role/editor/read", Some(&token)).await;
+    let (_, detail) = context
+        .get(&format!("/role/{editor_id}/read"), Some(&token))
+        .await;
     let permissions = detail["data"]["permissions"]
         .as_array()
         .expect("permissions");
@@ -159,10 +186,11 @@ async fn update_role_over_http() {
 async fn delete_required_role_returns_400() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = admin_session(&context).await;
+    let member_id = role_id_by_name(&context, &token, "member").await;
 
     let (status, body) = context
         .post(
-            "/role/member/delete",
+            &format!("/role/{member_id}/delete"),
             json!({ "mode": "hard" }),
             Some(&token),
         )
@@ -178,13 +206,11 @@ async fn delete_required_role_returns_400() {
 async fn delete_role_requires_hard_mode() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = admin_session(&context).await;
-    crate::repository::role::create_role(&context.state.graph, "editor")
-        .await
-        .expect("create role");
+    let editor_id = create_editor_role(&context).await;
 
     let (status, body) = context
         .post(
-            "/role/editor/delete",
+            &format!("/role/{editor_id}/delete"),
             json!({ "mode": "transfer" }),
             Some(&token),
         )
@@ -200,22 +226,23 @@ async fn delete_role_requires_hard_mode() {
 async fn delete_role_over_http() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = admin_session(&context).await;
-    crate::repository::role::create_role(&context.state.graph, "editor")
-        .await
-        .expect("create role");
+    let editor_id = create_editor_role(&context).await;
 
     let (status, body) = context
         .post(
-            "/role/editor/delete",
+            &format!("/role/{editor_id}/delete"),
             json!({ "mode": "hard" }),
             Some(&token),
         )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["data"]["name"].as_str(), Some("editor"));
+    assert_eq!(body["data"]["id"].as_str(), Some(editor_id.as_str()));
     assert_eq!(body["message"].as_str(), Some("deleted"));
 
-    let (status, _) = context.get("/role/editor/read", Some(&token)).await;
+    let (status, _) = context
+        .get(&format!("/role/{editor_id}/read"), Some(&token))
+        .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
@@ -223,10 +250,11 @@ async fn delete_role_over_http() {
 async fn update_required_role_rejects_destructive_changes() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = admin_session(&context).await;
+    let member_id = role_id_by_name(&context, &token, "member").await;
 
     let (status, body) = context
         .post(
-            "/role/member/update",
+            &format!("/role/{member_id}/update"),
             json!({ "permissions": { "remove": ["Article::Create"] } }),
             Some(&token),
         )
@@ -242,10 +270,11 @@ async fn update_required_role_rejects_destructive_changes() {
 async fn revoke_from_the_admin_role_is_forbidden() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = admin_session(&context).await;
+    let admin_id = role_id_by_name(&context, &token, "admin").await;
 
     let (status, body) = context
         .post(
-            "/role/admin/update",
+            &format!("/role/{admin_id}/update"),
             json!({ "permissions": { "remove": ["Article::Update"] } }),
             Some(&token),
         )
@@ -258,9 +287,7 @@ async fn revoke_from_the_admin_role_is_forbidden() {
 async fn revoke_a_permission_from_a_custom_role_succeeds() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = admin_session(&context).await;
-    crate::repository::role::create_role(&context.state.graph, "editor")
-        .await
-        .expect("create role");
+    let editor_id = create_editor_role(&context).await;
     crate::repository::role::grant_permission_to_role(
         &context.state.graph,
         "editor",
@@ -271,14 +298,16 @@ async fn revoke_a_permission_from_a_custom_role_succeeds() {
 
     let (status, body) = context
         .post(
-            "/role/editor/update",
+            &format!("/role/{editor_id}/update"),
             json!({ "permissions": { "remove": ["Article::Update"] } }),
             Some(&token),
         )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
 
-    let (_, detail) = context.get("/role/editor/read", Some(&token)).await;
+    let (_, detail) = context
+        .get(&format!("/role/{editor_id}/read"), Some(&token))
+        .await;
     let permissions = detail["data"]["permissions"]
         .as_array()
         .expect("permissions");
@@ -293,21 +322,21 @@ async fn revoke_a_permission_from_a_custom_role_succeeds() {
 async fn update_role_holds_and_unholds_users() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = admin_session(&context).await;
-    crate::repository::role::create_role(&context.state.graph, "editor")
-        .await
-        .expect("create role");
+    let editor_id = create_editor_role(&context).await;
     let (plain_user, _) = session_for(&context, "alice@example.com").await;
 
     let (status, body) = context
         .post(
-            "/role/editor/update",
+            &format!("/role/{editor_id}/update"),
             json!({ "users": { "add": [plain_user.clone()] } }),
             Some(&token),
         )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
 
-    let (_, detail) = context.get("/role/editor/read", Some(&token)).await;
+    let (_, detail) = context
+        .get(&format!("/role/{editor_id}/read"), Some(&token))
+        .await;
     let members = detail["data"]["members"].as_array().expect("members");
     assert!(
         members
@@ -317,14 +346,16 @@ async fn update_role_holds_and_unholds_users() {
 
     let (status, body) = context
         .post(
-            "/role/editor/update",
+            &format!("/role/{editor_id}/update"),
             json!({ "users": { "remove": [plain_user.clone()] } }),
             Some(&token),
         )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
 
-    let (_, detail) = context.get("/role/editor/read", Some(&token)).await;
+    let (_, detail) = context
+        .get(&format!("/role/{editor_id}/read"), Some(&token))
+        .await;
     let members = detail["data"]["members"].as_array().expect("members");
     assert!(
         !members

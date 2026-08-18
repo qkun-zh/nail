@@ -123,3 +123,9 @@ pub mod logic_role;
 
 #[path = "http/comment.rs"]
 pub mod http_comment;
+
+#[path = "logic/tag_apply.rs"]
+pub mod logic_tag_apply;
+
+#[path = "http/tag_apply.rs"]
+pub mod http_tag_apply;

@@ -21,10 +21,11 @@ pub async fn create_role(
     principal: Principal,
     AppJson(payload): AppJson<CreateRoleRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let name = crate::logic::role::create_role(&state, &principal.user_id, &payload.name).await?;
+    let (id, name) =
+        crate::logic::role::create_role(&state, &principal.user_id, &payload.name).await?;
     Ok(json_response(
         StatusCode::CREATED,
-        RoleNameView { name },
+        RoleNameView { id, name },
         "created",
     ))
 }
@@ -47,16 +48,16 @@ pub async fn read_roles(
 pub async fn read_role(
     State(state): State<AppState>,
     principal: Principal,
-    AppPath(name): AppPath<String>,
+    AppPath(role_id): AppPath<String>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data = crate::logic::role::read_role(&state, &principal.user_id, &name).await?;
+    let data = crate::logic::role::read_role(&state, &principal.user_id, &role_id).await?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
 pub async fn update_role(
     State(state): State<AppState>,
     principal: Principal,
-    AppPath(name): AppPath<String>,
+    AppPath(role_id): AppPath<String>,
     AppJson(payload): AppJson<RoleUpdateRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     let permissions = payload.permissions.unwrap_or_default();
@@ -67,14 +68,15 @@ pub async fn update_role(
         users_add: &users.add,
         users_remove: &users.remove,
     };
-    let name = crate::logic::role::update_role(&state, &principal.user_id, &name, update).await?;
-    Ok(json_response(StatusCode::OK, RoleNameView { name }, "ok"))
+    let view =
+        crate::logic::role::update_role(&state, &principal.user_id, &role_id, update).await?;
+    Ok(json_response(StatusCode::OK, view, "ok"))
 }
 
 pub async fn delete_role(
     State(state): State<AppState>,
     principal: Principal,
-    AppPath(name): AppPath<String>,
+    AppPath(role_id): AppPath<String>,
     AppJson(payload): AppJson<DeleteBody>,
 ) -> Result<impl IntoResponse, ApiError> {
     if payload.mode != Some(DeleteMode::Hard) {
@@ -82,6 +84,6 @@ pub async fn delete_role(
             "role delete only supports mode \"hard\"",
         ));
     }
-    let data = crate::logic::role::delete_role(&state, &principal.user_id, &name).await?;
-    Ok(json_response(StatusCode::OK, data, "deleted"))
+    let view = crate::logic::role::delete_role(&state, &principal.user_id, &role_id).await?;
+    Ok(json_response(StatusCode::OK, view, "deleted"))
 }

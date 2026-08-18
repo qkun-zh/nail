@@ -194,6 +194,11 @@ pub async fn read_article(db: &DbHandle, article_id: &str) -> Result<Option<Arti
     Ok(enrich_articles(&guard, &[id])?.into_iter().next())
 }
 
+pub async fn article_exists(db: &DbHandle, article_id: &str) -> Result<bool, DbError> {
+    let guard = db.read().await;
+    Ok(resolve_node_id_sync(&guard, ENTITY_TYPE_ARTICLE, article_id)?.is_some())
+}
+
 pub async fn update_article(
     db: &DbHandle,
     article_id: &str,

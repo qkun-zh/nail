@@ -7,7 +7,8 @@ use crate::repository::graph::{
     resolve_node_id_sync,
 };
 use crate::repository::schema::{
-    EDGE_ARTICLE_APPLY_TAG, ENTITY_TYPE_TAG, IdRow, KEY_TAG_NAME, KEY_TYPE, TagRow, alias_of,
+    EDGE_ARTICLE_APPLY_TAG, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_TAG, IdRow, KEY_TAG_NAME, KEY_TYPE,
+    TagRow, alias_of,
 };
 
 pub fn create_tag_in_txn(
@@ -181,6 +182,73 @@ pub async fn count_tag_articles(db: &DbHandle, tag_id: &str) -> Result<u64, DbEr
             .query(),
     )?;
     Ok(edges.elements.len() as u64)
+}
+
+pub async fn apply_tag_to_article(
+    db: &DbHandle,
+    article_id: &str,
+    tag_id: &str,
+) -> Result<(), DbError> {
+    let mut guard = db.write().await;
+    let Some(article_db_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
+        return Ok(());
+    };
+    let Some(tag_db_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_TAG, tag_id)? else {
+        return Ok(());
+    };
+    let edges = guard.exec(
+        QueryBuilder::search()
+            .from(article_db_id)
+            .where_()
+            .distance(agdb::CountComparison::Equal(1))
+            .and()
+            .edge()
+            .and()
+            .key(KEY_TYPE)
+            .value(EDGE_ARTICLE_APPLY_TAG)
+            .query(),
+    )?;
+    if !edges.elements.iter().any(|edge| edge.to == tag_db_id) {
+        guard.exec_mut(
+            QueryBuilder::insert()
+                .edges()
+                .from(article_db_id)
+                .to([tag_db_id])
+                .values([[(KEY_TYPE, EDGE_ARTICLE_APPLY_TAG).into()]])
+                .query(),
+        )?;
+    }
+    Ok(())
+}
+
+pub async fn unapply_tag_from_article(
+    db: &DbHandle,
+    article_id: &str,
+    tag_id: &str,
+) -> Result<(), DbError> {
+    let mut guard = db.write().await;
+    let Some(article_db_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
+        return Ok(());
+    };
+    let Some(tag_db_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_TAG, tag_id)? else {
+        return Ok(());
+    };
+    let edges = guard.exec(
+        QueryBuilder::search()
+            .from(article_db_id)
+            .where_()
+            .distance(agdb::CountComparison::Equal(1))
+            .and()
+            .edge()
+            .and()
+            .key(KEY_TYPE)
+            .value(EDGE_ARTICLE_APPLY_TAG)
+            .query(),
+    )?;
+    if let Some(edge) = edges.elements.iter().find(|edge| edge.to == tag_db_id) {
+        guard.exec_mut(QueryBuilder::remove().ids([edge.id]).query())?;
+    }
+    Ok(())
 }
 
 #[allow(dead_code)]

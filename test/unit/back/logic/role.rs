@@ -74,7 +74,14 @@ async fn read_role_not_found() {
 async fn delete_role_rejects_required_role() {
     let context = TestCtx::new().await.expect("context");
     let admin_id = admin(&context).await;
-    let err = delete_role(&context.state, &admin_id, "admin")
+    let role = read_roles(&context.state, &admin_id, 1, 100)
+        .await
+        .expect("roles")
+        .role_list
+        .into_iter()
+        .find(|role| role.name == "admin")
+        .expect("admin role");
+    let err = delete_role(&context.state, &admin_id, &role.id)
         .await
         .unwrap_err();
     let msg = format!("{err}");
@@ -105,10 +112,17 @@ async fn update_role_not_found() {
 async fn update_role_rejects_destructive_change_on_required_role() {
     let context = TestCtx::new().await.expect("context");
     let admin_id = admin(&context).await;
+    let role = read_roles(&context.state, &admin_id, 1, 100)
+        .await
+        .expect("roles")
+        .role_list
+        .into_iter()
+        .find(|role| role.name == "member")
+        .expect("member role");
     let err = update_role(
         &context.state,
         &admin_id,
-        "member",
+        &role.id,
         RoleUpdate {
             permissions_add: &[],
             permissions_remove: &["some-perm".to_string()],
@@ -137,4 +151,45 @@ async fn read_roles_is_paginated() {
         .expect("page");
     assert_eq!(page.role_list.len(), 1);
     assert!(page.has_next);
+}
+
+#[tokio::test]
+async fn role_crud_round_trip_by_id() {
+    let context = TestCtx::new().await.expect("context");
+    let admin_id = admin(&context).await;
+    let (role_id, name) = create_role(&context.state, &admin_id, "editor")
+        .await
+        .expect("create");
+    assert_eq!(name, "editor");
+    let view = read_role(&context.state, &admin_id, &role_id)
+        .await
+        .expect("read");
+    assert_eq!(view.id, role_id);
+    assert_eq!(view.name, "editor");
+    let view = update_role(
+        &context.state,
+        &admin_id,
+        &role_id,
+        RoleUpdate {
+            permissions_add: &["Article::Read".to_string()],
+            permissions_remove: &[],
+            users_add: &[],
+            users_remove: &[],
+        },
+    )
+    .await
+    .expect("update");
+    assert_eq!(view.id, role_id);
+    let view = read_role(&context.state, &admin_id, &role_id)
+        .await
+        .expect("read after update");
+    assert!(view.permissions.contains(&"Article::Read".to_string()));
+    let view = delete_role(&context.state, &admin_id, &role_id)
+        .await
+        .expect("delete");
+    assert_eq!(view.id, role_id);
+    let err = read_role(&context.state, &admin_id, &role_id)
+        .await
+        .unwrap_err();
+    assert_eq!(err, LogicError::not_found("role not found"));
 }

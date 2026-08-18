@@ -7,8 +7,8 @@ use crate::repository::role::{
     PERMISSION_ROLE_REVOKE, PERMISSION_ROLE_UPDATE, REQUIRED_ROLES, ROLE_ADMIN,
     RoleView as RepositoryRoleView, create_role as create_role_node,
     delete_role as delete_role_node, grant_permission_to_role, hold_role,
-    read_role as read_role_node, read_role_members, read_roles as read_role_nodes,
-    revoke_permission_from_role, unhold_role,
+    read_role as read_role_node, read_role_by_id as read_role_node_by_id, read_role_members,
+    read_roles as read_role_nodes, revoke_permission_from_role, unhold_role,
 };
 use nail_common::response::role::{RoleListItem, RoleListPage, RoleNameView, RoleView};
 
@@ -59,7 +59,7 @@ pub async fn create_role(
     state: &AppState,
     actor_id: &str,
     raw_name: &str,
-) -> Result<String, LogicError> {
+) -> Result<(String, String), LogicError> {
     require_role_action(state, actor_id, PERMISSION_ROLE_CREATE).await?;
     let name = validate_role_name(raw_name)?;
     if read_role_node(&state.graph, &name)
@@ -69,10 +69,10 @@ pub async fn create_role(
     {
         return Err(LogicError::bad_request("role already exists"));
     }
-    create_role_node(&state.graph, &name)
+    let role_id = create_role_node(&state.graph, &name)
         .await
         .map_err(|error| LogicError::internal(format!("failed to create role: {error}")))?;
-    Ok(name)
+    Ok((role_id, name))
 }
 
 pub async fn read_roles(
@@ -100,6 +100,7 @@ pub async fn read_roles(
             .map_err(database_error)?
             .len() as u64;
         role_list.push(RoleListItem {
+            id: role.id.clone(),
             name: role.role_name.clone(),
             permissions: role.permissions.clone(),
             member_count,
@@ -116,24 +117,25 @@ pub async fn read_roles(
 pub async fn read_role(
     state: &AppState,
     actor_id: &str,
-    name: &str,
+    role_id: &str,
 ) -> Result<RoleView, LogicError> {
+    let role = read_role_node_by_id(&state.graph, role_id)
+        .await
+        .map_err(database_error)?
+        .ok_or_else(|| LogicError::not_found("role not found"))?;
     authorize_or(
         state,
         actor_id,
         PERMISSION_ROLE_READ,
-        &Resource::Role(name.to_string()),
+        &Resource::Role(role.role_name.clone()),
         "role not found",
     )
     .await?;
-    let role = read_role_node(&state.graph, name)
-        .await
-        .map_err(database_error)?
-        .ok_or_else(|| LogicError::not_found("role not found"))?;
-    let members = read_role_members(&state.graph, name)
+    let members = read_role_members(&state.graph, &role.role_name)
         .await
         .map_err(database_error)?;
     Ok(RoleView {
+        id: role.id,
         name: role.role_name,
         permissions: role.permissions,
         members,
@@ -143,15 +145,20 @@ pub async fn read_role(
 pub async fn update_role(
     state: &AppState,
     actor_id: &str,
-    name: &str,
+    role_id: &str,
     update: RoleUpdate<'_>,
-) -> Result<String, LogicError> {
+) -> Result<RoleNameView, LogicError> {
     let RoleUpdate {
         permissions_add,
         permissions_remove,
         users_add,
         users_remove,
     } = update;
+    let role = read_role_node_by_id(&state.graph, role_id)
+        .await
+        .map_err(database_error)?
+        .ok_or_else(|| LogicError::not_found("role not found"))?;
+    let name = role.role_name;
     let has_adds = !permissions_add.is_empty() || !users_add.is_empty();
     let has_removes = !permissions_remove.is_empty() || !users_remove.is_empty();
     if has_adds || has_removes {
@@ -159,7 +166,7 @@ pub async fn update_role(
             state,
             actor_id,
             PERMISSION_ROLE_UPDATE,
-            &Resource::Role(name.to_string()),
+            &Resource::Role(name.clone()),
         )
         .await?;
     }
@@ -168,7 +175,7 @@ pub async fn update_role(
             state,
             actor_id,
             PERMISSION_ROLE_GRANT,
-            &Resource::Role(name.to_string()),
+            &Resource::Role(name.clone()),
         )
         .await?;
     }
@@ -177,18 +184,11 @@ pub async fn update_role(
             state,
             actor_id,
             PERMISSION_ROLE_REVOKE,
-            &Resource::Role(name.to_string()),
+            &Resource::Role(name.clone()),
         )
         .await?;
     }
-    if read_role_node(&state.graph, name)
-        .await
-        .map_err(database_error)?
-        .is_none()
-    {
-        return Err(LogicError::not_found("role not found"));
-    }
-    if REQUIRED_ROLES.contains(&name) && name != ROLE_ADMIN {
+    if REQUIRED_ROLES.contains(&name.as_str()) && name != ROLE_ADMIN {
         let destructive = !permissions_remove.is_empty() || !users_remove.is_empty();
         if destructive {
             return Err(LogicError::bad_request(format!(
@@ -197,56 +197,67 @@ pub async fn update_role(
         }
     }
     for permission in permissions_add {
-        grant_permission_to_role(&state.graph, name, permission)
+        grant_permission_to_role(&state.graph, &name, permission)
             .await
             .map_err(|error| {
                 LogicError::internal(format!("failed to grant {permission}: {error}"))
             })?;
     }
     for permission in permissions_remove {
-        revoke_permission_from_role(&state.graph, name, permission)
+        revoke_permission_from_role(&state.graph, &name, permission)
             .await
             .map_err(|error| {
                 LogicError::internal(format!("failed to revoke {permission}: {error}"))
             })?;
     }
     for user in users_add {
-        hold_role(&state.graph, user, name).await.map_err(|error| {
-            LogicError::internal(format!("failed to hold role for {user}: {error}"))
-        })?;
+        hold_role(&state.graph, user, &name)
+            .await
+            .map_err(|error| {
+                LogicError::internal(format!("failed to hold role for {user}: {error}"))
+            })?;
     }
     for user in users_remove {
-        unhold_role(&state.graph, user, name)
+        unhold_role(&state.graph, user, &name)
             .await
             .map_err(|error| {
                 LogicError::internal(format!("failed to unhold role for {user}: {error}"))
             })?;
     }
-    Ok(name.to_string())
+    Ok(RoleNameView {
+        id: role_id.to_string(),
+        name,
+    })
 }
 
 pub async fn delete_role(
     state: &AppState,
     actor_id: &str,
-    name: &str,
+    role_id: &str,
 ) -> Result<RoleNameView, LogicError> {
+    let role = read_role_node_by_id(&state.graph, role_id)
+        .await
+        .map_err(database_error)?
+        .ok_or_else(|| LogicError::not_found("role not found"))?;
+    let name = role.role_name;
     authorize_or(
         state,
         actor_id,
         PERMISSION_ROLE_DELETE,
-        &Resource::Role(name.to_string()),
+        &Resource::Role(name.clone()),
         "role not found",
     )
     .await?;
-    if REQUIRED_ROLES.contains(&name) {
+    if REQUIRED_ROLES.contains(&name.as_str()) {
         return Err(LogicError::bad_request(format!(
             "role {name} is a required role and cannot be deleted"
         )));
     }
-    delete_role_node(&state.graph, name)
+    delete_role_node(&state.graph, &name)
         .await
         .map_err(|error| LogicError::internal(format!("failed to delete role: {error}")))?;
     Ok(RoleNameView {
-        name: name.to_string(),
+        id: role_id.to_string(),
+        name,
     })
 }

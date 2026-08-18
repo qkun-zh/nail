@@ -1,14 +1,15 @@
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::authorize;
+use crate::logic::authorize::{authorize, authorize_or};
 use crate::logic::error::{LogicError, database_error};
 use crate::repository::authorization::Resource;
 use crate::repository::role::{
-    PERMISSION_TAG_CREATE, PERMISSION_TAG_DELETE, PERMISSION_TAG_READ, PERMISSION_TAG_UPDATE,
+    PERMISSION_TAG_APPLY, PERMISSION_TAG_CREATE, PERMISSION_TAG_DELETE, PERMISSION_TAG_READ,
+    PERMISSION_TAG_UNAPPLY, PERMISSION_TAG_UPDATE,
 };
 use crate::repository::tag::{
-    count_tag_articles, create_tag as create_tag_node, delete_tag as delete_tag_node,
-    read_tag_articles, read_tag_by_id, read_tag_by_name, read_tags as read_tag_nodes,
-    update_tag as update_tag_node,
+    apply_tag_to_article, count_tag_articles, create_tag as create_tag_node,
+    delete_tag as delete_tag_node, read_tag_articles, read_tag_by_id, read_tag_by_name,
+    read_tags as read_tag_nodes, unapply_tag_from_article, update_tag as update_tag_node,
 };
 use nail_common::response::tag::{TagListItem, TagListPage, TagView};
 
@@ -172,4 +173,56 @@ pub async fn read_tag_detail(
         },
         article_ids,
     ))
+}
+
+pub async fn apply_tag(
+    state: &AppState,
+    actor_id: &str,
+    article_id: &str,
+    tag_id: &str,
+) -> Result<(), LogicError> {
+    authorize_or(
+        state,
+        actor_id,
+        PERMISSION_TAG_APPLY,
+        &Resource::Tag(tag_id.to_string()),
+        "tag not found",
+    )
+    .await?;
+    if !crate::repository::article::article_exists(&state.graph, article_id)
+        .await
+        .map_err(database_error)?
+    {
+        return Err(LogicError::not_found("article not found"));
+    }
+    apply_tag_to_article(&state.graph, article_id, tag_id)
+        .await
+        .map_err(|error| LogicError::internal(format!("failed to apply tag: {error}")))?;
+    Ok(())
+}
+
+pub async fn unapply_tag(
+    state: &AppState,
+    actor_id: &str,
+    article_id: &str,
+    tag_id: &str,
+) -> Result<(), LogicError> {
+    authorize_or(
+        state,
+        actor_id,
+        PERMISSION_TAG_UNAPPLY,
+        &Resource::Tag(tag_id.to_string()),
+        "tag not found",
+    )
+    .await?;
+    if !crate::repository::article::article_exists(&state.graph, article_id)
+        .await
+        .map_err(database_error)?
+    {
+        return Err(LogicError::not_found("article not found"));
+    }
+    unapply_tag_from_article(&state.graph, article_id, tag_id)
+        .await
+        .map_err(|error| LogicError::internal(format!("failed to unapply tag: {error}")))?;
+    Ok(())
 }

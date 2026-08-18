@@ -51,6 +51,8 @@ pub fn permission_vocabulary() -> &'static [&'static str] {
         PERMISSION_TAG_READ,
         PERMISSION_TAG_UPDATE,
         PERMISSION_TAG_DELETE,
+        PERMISSION_TAG_APPLY,
+        PERMISSION_TAG_UNAPPLY,
     ]
 }
 
@@ -63,20 +65,23 @@ pub const REQUIRED_ROLES: &[&str] = &[ROLE_ADMIN, ROLE_RECYCLER, ROLE_MEMBER];
 pub async fn create_role(db: &DbHandle, name: &str) -> Result<String, DbError> {
     let mut guard = db.write().await;
     if !find_by_index_sync(&guard, KEY_ROLE_NAME, name)?.is_empty() {
-        return Ok(name.to_string());
+        let existing = read_role_by_name_sync(&guard, name)?.expect("role by name");
+        return Ok(existing.id);
     }
+    let role_id = uuid::Uuid::now_v7().to_string();
     guard.exec_mut(
         QueryBuilder::insert()
             .nodes()
-            .aliases([alias_of(ENTITY_TYPE_ROLE, name)])
+            .aliases([alias_of(ENTITY_TYPE_ROLE, &role_id)])
             .values(RoleRow {
                 db_id: None,
                 entity_type: ENTITY_TYPE_ROLE.to_string(),
+                id: role_id.clone(),
                 role_name: name.to_string(),
             })
             .query(),
     )?;
-    Ok(name.to_string())
+    Ok(role_id)
 }
 
 pub async fn create_permission(db: &DbHandle, name: &str) -> Result<(), DbError> {
@@ -104,7 +109,7 @@ pub async fn grant_permission_to_role(
     permission_name: &str,
 ) -> Result<(), DbError> {
     let mut guard = db.write().await;
-    let role_id = resolve_node_id_sync(&guard, ENTITY_TYPE_ROLE, role_name)?
+    let role_id = resolve_role_id_by_name_sync(&guard, role_name)?
         .ok_or_else(|| not_found(ENTITY_TYPE_ROLE, role_name))?;
     let permission_id = resolve_node_id_sync(&guard, ENTITY_TYPE_PERMISSION, permission_name)?
         .ok_or_else(|| not_found(ENTITY_TYPE_PERMISSION, permission_name))?;
@@ -137,7 +142,7 @@ pub async fn hold_role(db: &DbHandle, user_id: &str, role_name: &str) -> Result<
     let mut guard = db.write().await;
     let user_db_id = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)?
         .ok_or_else(|| not_found(ENTITY_TYPE_USER, user_id))?;
-    let role_db_id = resolve_node_id_sync(&guard, ENTITY_TYPE_ROLE, role_name)?
+    let role_db_id = resolve_role_id_by_name_sync(&guard, role_name)?
         .ok_or_else(|| not_found(ENTITY_TYPE_ROLE, role_name))?;
     let edges = guard.exec(
         QueryBuilder::search()
@@ -174,7 +179,7 @@ pub async fn user_holds_role(
     let Some(user_db_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)? else {
         return Ok(false);
     };
-    let Some(role_db_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_ROLE, role_name)? else {
+    let Some(role_db_id) = resolve_role_id_by_name_sync(&guard, role_name)? else {
         return Ok(false);
     };
     let edges = guard.exec(
@@ -194,7 +199,7 @@ pub async fn user_holds_role(
 
 pub async fn users_holding_role(db: &DbHandle, role_name: &str) -> Result<Vec<String>, DbError> {
     let guard = db.read().await;
-    let Some(role_db_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_ROLE, role_name)? else {
+    let Some(role_db_id) = resolve_role_id_by_name_sync(&guard, role_name)? else {
         return Ok(Vec::new());
     };
     let edges = guard.exec(
@@ -271,16 +276,41 @@ pub async fn user_holds_permission(
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RoleView {
+    pub id: String,
     pub role_name: String,
     pub permissions: Vec<String>,
 }
 
-pub async fn read_role(db: &DbHandle, role_name: &str) -> Result<Option<RoleView>, DbError> {
+pub async fn read_role_by_id(db: &DbHandle, role_id: &str) -> Result<Option<RoleView>, DbError> {
     let guard = db.read().await;
-    let Some(role_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_ROLE, role_name)? else {
+    let Some(role_db_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_ROLE, role_id)? else {
         return Ok(None);
     };
-    Ok(Some(read_role_view_sync(&guard, role_id)?))
+    Ok(Some(read_role_view_sync(&guard, role_db_id)?))
+}
+
+pub async fn read_role(db: &DbHandle, role_name: &str) -> Result<Option<RoleView>, DbError> {
+    let guard = db.read().await;
+    read_role_by_name_sync(&guard, role_name)
+}
+
+fn read_role_by_name_sync(
+    guard: &agdb::DbAny,
+    role_name: &str,
+) -> Result<Option<RoleView>, DbError> {
+    let Some(role_id) = resolve_role_id_by_name_sync(guard, role_name)? else {
+        return Ok(None);
+    };
+    Ok(Some(read_role_view_sync(guard, role_id)?))
+}
+
+fn resolve_role_id_by_name_sync(
+    guard: &agdb::DbAny,
+    role_name: &str,
+) -> Result<Option<agdb::DbId>, DbError> {
+    Ok(find_by_index_sync(guard, KEY_ROLE_NAME, role_name)?
+        .first()
+        .copied())
 }
 
 pub async fn read_roles(db: &DbHandle) -> Result<Vec<RoleView>, DbError> {
@@ -340,7 +370,7 @@ pub async fn revoke_permission_from_role(
     permission_name: &str,
 ) -> Result<(), DbError> {
     let mut guard = db.write().await;
-    let role_id = resolve_node_id_sync(&guard, ENTITY_TYPE_ROLE, role_name)?
+    let role_id = resolve_role_id_by_name_sync(&guard, role_name)?
         .ok_or_else(|| not_found(ENTITY_TYPE_ROLE, role_name))?;
     let permission_id = resolve_node_id_sync(&guard, ENTITY_TYPE_PERMISSION, permission_name)?
         .ok_or_else(|| not_found(ENTITY_TYPE_PERMISSION, permission_name))?;
@@ -357,7 +387,7 @@ pub async fn unhold_role(db: &DbHandle, user_id: &str, role_name: &str) -> Resul
     let mut guard = db.write().await;
     let user_db_id = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)?
         .ok_or_else(|| not_found(ENTITY_TYPE_USER, user_id))?;
-    let role_db_id = resolve_node_id_sync(&guard, ENTITY_TYPE_ROLE, role_name)?
+    let role_db_id = resolve_role_id_by_name_sync(&guard, role_name)?
         .ok_or_else(|| not_found(ENTITY_TYPE_ROLE, role_name))?;
     remove_outgoing_edge(&mut guard, user_db_id, role_db_id, EDGE_USER_HOLD_ROLE)?;
     Ok(())
@@ -365,7 +395,7 @@ pub async fn unhold_role(db: &DbHandle, user_id: &str, role_name: &str) -> Resul
 
 pub async fn delete_role(db: &DbHandle, role_name: &str) -> Result<(), DbError> {
     let mut guard = db.write().await;
-    if let Some(role_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_ROLE, role_name)? {
+    if let Some(role_id) = resolve_role_id_by_name_sync(&guard, role_name)? {
         guard.exec_mut(QueryBuilder::remove().ids([role_id]).query())?;
     }
     Ok(())
@@ -375,6 +405,7 @@ fn read_role_view_sync(db: &agdb::DbAny, role_id: agdb::DbId) -> Result<RoleView
     let row = read_node_sync::<RoleRow>(db, role_id)?
         .ok_or_else(|| not_found(ENTITY_TYPE_ROLE, "row"))?;
     let mut role = RoleView {
+        id: row.id,
         role_name: row.role_name,
         ..Default::default()
     };

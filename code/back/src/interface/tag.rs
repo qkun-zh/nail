@@ -90,3 +90,27 @@ pub async fn delete_tag(
         "deleted",
     ))
 }
+
+pub async fn apply_tag(
+    State(state): State<AppState>,
+    principal: Principal,
+    AppPath(params): AppPath<TagArticleParams>,
+) -> Result<impl IntoResponse, ApiError> {
+    crate::logic::tag::apply_tag(&state, &principal.user_id, &params.id, &params.tag_id).await?;
+    Ok(json_response(StatusCode::OK, serde_json::json!({}), "ok"))
+}
+
+pub async fn unapply_tag(
+    State(state): State<AppState>,
+    principal: Principal,
+    AppPath(params): AppPath<TagArticleParams>,
+) -> Result<impl IntoResponse, ApiError> {
+    crate::logic::tag::unapply_tag(&state, &principal.user_id, &params.id, &params.tag_id).await?;
+    Ok(json_response(StatusCode::OK, serde_json::json!({}), "ok"))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TagArticleParams {
+    pub id: String,
+    pub tag_id: String,
+}

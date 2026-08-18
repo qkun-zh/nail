@@ -1,4 +1,4 @@
-// Authorization action vocabulary (Cedar schema): 27 actions and the entity
+// Authorization action vocabulary (Cedar schema): 39 actions and the entity
 // type declarations. This is the single handwritten source of the action names;
 // the permission nodes are seeded from these names. Static, requires restart.
 
@@ -47,3 +47,5 @@ action "Tag::Create"                appliesTo { principal: [User], resource: [Vi
 action "Tag::Read"                  appliesTo { principal: [User], resource: [Tag, Virtual] };
 action "Tag::Update"                appliesTo { principal: [User], resource: [Tag] };
 action "Tag::Delete"                appliesTo { principal: [User], resource: [Tag] };
+action "Tag::Apply"                 appliesTo { principal: [User], resource: [Tag] };
+action "Tag::Unapply"               appliesTo { principal: [User], resource: [Tag] };

@@ -67,6 +67,7 @@ fn search_article_item_round_trips_with_hits() -> anyhow::Result<()> {
         article_id: "0197c0b0-1234-7000-8000-000000000001".to_string(),
         title: "Rust borrow checker".to_string(),
         author_name: "alice".to_string(),
+        author_id: "0197c0b0-aaaa-7000-8000-00000000000a".to_string(),
         time: "2023-11-15T06:13:20Z".to_string(),
         article_hits: vec![crate::response::search::SearchHit {
             field: crate::search::SearchRange::Summary,
@@ -85,6 +86,7 @@ fn search_article_item_round_trips_with_hits() -> anyhow::Result<()> {
             comments: vec![crate::response::search::SearchCommentItem {
                 comment_id: "0197c0b0-9abc-7000-8000-000000000003".to_string(),
                 author_name: "bob".to_string(),
+                author_id: "0197c0b0-bbbb-7000-8000-00000000000b".to_string(),
                 time: "2023-11-15T06:13:20Z".to_string(),
                 content: "great <mark>fix</mark>".to_string(),
             }],
