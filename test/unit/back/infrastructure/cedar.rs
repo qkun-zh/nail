@@ -4,7 +4,6 @@ use std::str::FromStr;
 use cedar_policy::{Entity, EntityUid, RestrictedExpression};
 
 use crate::infrastructure::cedar::{POLICY, SCHEMA, decide};
-use crate::logic::operations::ROUTE_ACTIONS;
 
 fn uid(text: &str) -> EntityUid {
     text.parse::<EntityUid>().expect("entity uid")
@@ -101,93 +100,6 @@ fn policy_action_names() -> Vec<String> {
     names.sort();
     names.dedup();
     names
-}
-
-fn router_route_paths() -> Vec<String> {
-    let mut paths = Vec::new();
-    let mut rest = include_str!("../../../../code/back/src/interface/router.rs");
-    while let Some(start) = rest.find("pub const ROUTE_") {
-        rest = &rest[start + "pub const ROUTE_".len()..];
-        let Some(open) = rest.find('"') else {
-            break;
-        };
-        rest = &rest[open + 1..];
-        let Some(close) = rest.find('"') else {
-            break;
-        };
-        paths.push(rest[..close].to_string());
-        rest = &rest[close + 1..];
-    }
-    paths
-}
-
-#[test]
-fn every_route_in_router_has_an_inventory_entry() {
-    let inventory: HashSet<String> = ROUTE_ACTIONS
-        .iter()
-        .map(|(route, _)| route.to_string())
-        .collect();
-    let routes = router_route_paths();
-
-    let mut seen: HashSet<String> = HashSet::new();
-    let mut duplicates = Vec::new();
-    for route in &routes {
-        if !seen.insert(route.clone()) {
-            duplicates.push(route.clone());
-        }
-    }
-
-    let missing: Vec<String> = routes
-        .iter()
-        .filter(|route| !inventory.contains(*route))
-        .cloned()
-        .collect();
-    assert!(
-        missing.is_empty(),
-        "routes with no inventory entry in logic/operations.rs: {missing:?}"
-    );
-
-    let orphaned: Vec<String> = inventory
-        .iter()
-        .filter(|route| !routes.contains(route))
-        .cloned()
-        .collect();
-    assert!(
-        orphaned.is_empty(),
-        "inventory entries with no matching route in interface/router.rs: {orphaned:?}"
-    );
-
-    assert!(
-        duplicates.is_empty(),
-        "routes registered more than once in interface/router.rs: {duplicates:?}"
-    );
-}
-
-#[test]
-fn every_inventory_action_exists_in_the_schema() {
-    let schema: cedar_policy::Schema = SCHEMA.parse().expect("schema");
-    let declared: HashSet<String> = schema
-        .actions()
-        .map(|action| action.id().unescaped().to_string())
-        .collect();
-    let vocabulary: HashSet<String> = crate::repository::role::permission_vocabulary()
-        .iter()
-        .map(std::string::ToString::to_string)
-        .collect();
-
-    let mut bad: Vec<String> = Vec::new();
-    for (route, actions) in ROUTE_ACTIONS {
-        for action in *actions {
-            if !declared.contains(*action) || !vocabulary.contains(*action) {
-                bad.push(format!("{route}: {action}"));
-            }
-        }
-    }
-
-    assert!(
-        bad.is_empty(),
-        "inventory actions not declared in schema.cedar or missing from the permission constants: {bad:?}"
-    );
 }
 
 #[test]

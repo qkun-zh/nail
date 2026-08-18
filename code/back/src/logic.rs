@@ -5,7 +5,6 @@ pub mod comment;
 pub mod download;
 pub mod email;
 pub mod error;
-pub mod operations;
 pub mod pagination;
 pub mod pow;
 pub mod role;
