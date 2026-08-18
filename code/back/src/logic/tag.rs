@@ -48,13 +48,14 @@ pub async fn read_tags(
     let tags = read_tag_nodes(&state.graph).await.map_err(database_error)?;
     let total = tags.len() as u64;
     let offset = page.saturating_sub(1).saturating_mul(limit);
-    let page_tags = &tags[usize::try_from(offset).unwrap_or(usize::MAX)
-        ..usize::try_from(offset + limit)
-            .unwrap_or(tags.len())
-            .min(tags.len())];
+    let page_tags: Vec<_> = tags
+        .iter()
+        .skip(usize::try_from(offset).unwrap_or(usize::MAX))
+        .take(usize::try_from(limit).unwrap_or(usize::MAX))
+        .collect();
 
     let mut tag_list = Vec::with_capacity(page_tags.len());
-    for tag in page_tags {
+    for tag in &page_tags {
         let article_count = count_tag_articles(&state.graph, &tag.id)
             .await
             .map_err(database_error)?;
