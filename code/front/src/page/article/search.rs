@@ -113,7 +113,8 @@ pub fn Search() -> impl IntoView {
     let page = params
         .get("page")
         .and_then(|value| value.parse::<u64>().ok())
-        .unwrap_or(1);
+        .unwrap_or(1)
+        .max(1);
     current_page.set(page);
     if let Some(limit) = params
         .get("limit")
@@ -201,6 +202,8 @@ pub fn Search() -> impl IntoView {
             ];
             let q = q_filter.get_untracked().trim().to_string();
             if q.is_empty() {
+                let my_seq = request_seq.get_value() + 1;
+                request_seq.set_value(my_seq);
                 search_list.set(Vec::new());
                 has_next.set(false);
                 current_page.set(1);
