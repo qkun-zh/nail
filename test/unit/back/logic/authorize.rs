@@ -1,12 +1,20 @@
 use super::context::TestCtx;
-use crate::logic::authorize::{authorize, authorize_or};
+use crate::logic::authorize::{
+    EntityRef, authorize, authorize_entity, authorize_entity_or, authorize_global, authorize_or,
+    require_entity_readable, require_entity_visible,
+};
 use crate::logic::error::LogicError;
 use crate::repository::article::{ArticleDraft, create_article};
 use crate::repository::authorization::Resource;
 use crate::repository::role::{
-    PERMISSION_ARTICLE_CREATE, PERMISSION_ARTICLE_READ, PERMISSION_ARTICLE_UPDATE,
-    PERMISSION_COMMENT_UPDATE, PERMISSION_USER_READ, PERMISSION_VERSION_READ,
+    PERMISSION_ARTICLE_CREATE, PERMISSION_ARTICLE_READ, PERMISSION_ARTICLE_UNDELETE_SOFT,
+    PERMISSION_ARTICLE_UPDATE, PERMISSION_COMMENT_READ, PERMISSION_COMMENT_UNDELETE_SOFT,
+    PERMISSION_COMMENT_UPDATE, PERMISSION_ROLE_READ, PERMISSION_TAG_READ, PERMISSION_USER_READ,
+    PERMISSION_USER_UNDELETE_SOFT, PERMISSION_VERSION_READ, PERMISSION_VERSION_UNDELETE_SOFT,
     PERMISSION_VERSION_UPDATE,
+};
+use crate::repository::schema::{
+    ENTITY_TYPE_ARTICLE, ENTITY_TYPE_COMMENT, ENTITY_TYPE_USER, ENTITY_TYPE_VERSION,
 };
 use crate::repository::version::VersionDraft;
 
@@ -366,5 +374,221 @@ async fn member_can_read_articles_and_versions_via_role_grant() {
         )
         .await
         .is_ok()
+    );
+}
+
+#[test]
+fn entity_ref_mapping_is_canonical() {
+    assert_eq!(
+        EntityRef::Article("a1").resource(),
+        Resource::Article("a1".to_string())
+    );
+    assert_eq!(
+        EntityRef::Article("a1").not_found_message(),
+        "article not found"
+    );
+    assert_eq!(EntityRef::Article("a1").id(), "a1");
+    assert_eq!(
+        EntityRef::Article("a1").visibility(),
+        Some((ENTITY_TYPE_ARTICLE, PERMISSION_ARTICLE_UNDELETE_SOFT))
+    );
+    assert_eq!(
+        EntityRef::Article("a1").read_permission(),
+        PERMISSION_ARTICLE_READ
+    );
+
+    assert_eq!(
+        EntityRef::Version("v1").resource(),
+        Resource::Version("v1".to_string())
+    );
+    assert_eq!(
+        EntityRef::Version("v1").not_found_message(),
+        "version not found"
+    );
+    assert_eq!(
+        EntityRef::Version("v1").visibility(),
+        Some((ENTITY_TYPE_VERSION, PERMISSION_VERSION_UNDELETE_SOFT))
+    );
+    assert_eq!(
+        EntityRef::Version("v1").read_permission(),
+        PERMISSION_VERSION_READ
+    );
+
+    assert_eq!(
+        EntityRef::Comment("c1").resource(),
+        Resource::Comment("c1".to_string())
+    );
+    assert_eq!(
+        EntityRef::Comment("c1").not_found_message(),
+        "comment not found"
+    );
+    assert_eq!(
+        EntityRef::Comment("c1").visibility(),
+        Some((ENTITY_TYPE_COMMENT, PERMISSION_COMMENT_UNDELETE_SOFT))
+    );
+    assert_eq!(
+        EntityRef::Comment("c1").read_permission(),
+        PERMISSION_COMMENT_READ
+    );
+
+    assert_eq!(
+        EntityRef::User("u1").resource(),
+        Resource::User("u1".to_string())
+    );
+    assert_eq!(EntityRef::User("u1").not_found_message(), "user not found");
+    assert_eq!(
+        EntityRef::User("u1").visibility(),
+        Some((ENTITY_TYPE_USER, PERMISSION_USER_UNDELETE_SOFT))
+    );
+    assert_eq!(
+        EntityRef::User("u1").read_permission(),
+        PERMISSION_USER_READ
+    );
+
+    assert_eq!(
+        EntityRef::Tag("t1").resource(),
+        Resource::Tag("t1".to_string())
+    );
+    assert_eq!(EntityRef::Tag("t1").not_found_message(), "tag not found");
+    assert_eq!(EntityRef::Tag("t1").visibility(), None);
+    assert_eq!(EntityRef::Tag("t1").read_permission(), PERMISSION_TAG_READ);
+
+    assert_eq!(
+        EntityRef::Role("r1").resource(),
+        Resource::Role("r1".to_string())
+    );
+    assert_eq!(EntityRef::Role("r1").not_found_message(), "role not found");
+    assert_eq!(EntityRef::Role("r1").visibility(), None);
+    assert_eq!(
+        EntityRef::Role("r1").read_permission(),
+        PERMISSION_ROLE_READ
+    );
+}
+
+#[tokio::test]
+async fn authorize_global_grants_member_and_denies_outsider() {
+    let context = TestCtx::new().await.expect("test context");
+    let member = create_user(&context, "alice@example.com").await;
+    let outsider = create_user(&context, "bob@example.com").await;
+    crate::repository::role::hold_role(&context.state.graph, &member, "member")
+        .await
+        .expect("member");
+
+    assert!(
+        authorize_global(&context.state, &member, PERMISSION_ARTICLE_CREATE)
+            .await
+            .is_ok()
+    );
+    assert_eq!(
+        authorize_global(&context.state, &outsider, PERMISSION_ARTICLE_CREATE)
+            .await
+            .unwrap_err(),
+        LogicError::forbidden("you are denied")
+    );
+}
+
+#[tokio::test]
+async fn authorize_entity_matches_plain_authorize() {
+    let context = TestCtx::new().await.expect("test context");
+    let owner = create_user(&context, "alice@example.com").await;
+    let other = create_user(&context, "bob@example.com").await;
+    crate::repository::role::hold_role(&context.state.graph, &owner, "member")
+        .await
+        .expect("member");
+    crate::repository::role::hold_role(&context.state.graph, &other, "member")
+        .await
+        .expect("member");
+    let (article_id, _) = create_article_fixture(&context, &owner, "Mine").await;
+
+    assert!(
+        authorize_entity(
+            &context.state,
+            &owner,
+            PERMISSION_ARTICLE_UPDATE,
+            EntityRef::Article(&article_id),
+        )
+        .await
+        .is_ok()
+    );
+    assert_eq!(
+        authorize_entity(
+            &context.state,
+            &other,
+            PERMISSION_ARTICLE_UPDATE,
+            EntityRef::Article(&article_id),
+        )
+        .await
+        .unwrap_err(),
+        LogicError::forbidden("you are denied")
+    );
+}
+
+#[tokio::test]
+async fn authorize_entity_or_reports_canonical_message() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = create_user(&context, "alice@example.com").await;
+    assert_eq!(
+        authorize_entity_or(
+            &context.state,
+            &actor,
+            PERMISSION_ARTICLE_UPDATE,
+            EntityRef::Article("missing"),
+        )
+        .await
+        .unwrap_err(),
+        LogicError::not_found("article not found")
+    );
+}
+
+#[tokio::test]
+async fn require_entity_readable_hides_soft_deleted_article() {
+    let context = TestCtx::new().await.expect("test context");
+    let owner = create_user(&context, "alice@example.com").await;
+    crate::repository::role::hold_role(&context.state.graph, &owner, "member")
+        .await
+        .expect("member");
+    let (article_id, _) = create_article_fixture(&context, &owner, "Hidden").await;
+
+    assert!(
+        require_entity_readable(&context.state, &owner, EntityRef::Article(&article_id))
+            .await
+            .is_ok()
+    );
+    crate::repository::delete::soft_delete_article(&context.state.graph, &article_id)
+        .await
+        .expect("soft delete");
+    assert_eq!(
+        require_entity_readable(&context.state, &owner, EntityRef::Article(&article_id))
+            .await
+            .unwrap_err(),
+        LogicError::not_found("article not found")
+    );
+    let admin = crate::repository::user::read_user_by_email_address_hash(
+        &context.state.graph,
+        &nail_common::hash::email("user-zero@example.com"),
+    )
+    .await
+    .expect("lookup user zero")
+    .expect("seeded user zero");
+    assert!(
+        require_entity_readable(&context.state, &admin, EntityRef::Article(&article_id))
+            .await
+            .is_ok()
+    );
+}
+
+#[tokio::test]
+async fn require_entity_visible_is_noop_without_lifecycle() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = create_user(&context, "alice@example.com").await;
+    assert!(
+        require_entity_visible(&context.state, &actor, EntityRef::Tag("missing"))
+            .await
+            .is_ok()
+    );
+    assert!(
+        require_entity_visible(&context.state, &actor, EntityRef::Role("missing"))
+            .await
+            .is_ok()
     );
 }
