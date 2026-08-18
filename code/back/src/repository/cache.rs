@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use moka::notification::RemovalCause;
 use moka::policy::EvictionPolicy;
@@ -15,17 +15,10 @@ pub trait CacheEntry: Clone + Send + Sync + 'static {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ReverseMember {
-    key: String,
-    expires_at: Instant,
-}
-
 #[derive(Clone)]
 pub struct TokenCache<E: CacheEntry> {
     main: Cache<String, E>,
-    reverse: Cache<String, Vec<ReverseMember>>,
-    ttl: Duration,
+    reverse: Cache<String, Vec<String>>,
 }
 
 impl<E: CacheEntry> TokenCache<E> {
@@ -44,13 +37,13 @@ impl<E: CacheEntry> TokenCache<E> {
                 }
             })
             .build();
-        Self { main, reverse, ttl }
+        Self { main, reverse }
     }
 
     pub fn insert(&self, key: &str, entry: E) {
         let key = key.to_string();
         if let Some(reverse_key) = entry.reverse_key() {
-            reverse_add(&self.reverse, reverse_key, &key, Instant::now() + self.ttl);
+            reverse_add(&self.reverse, reverse_key, &key);
         }
         self.main.insert(key, entry);
     }
@@ -114,7 +107,7 @@ impl<E: CacheEntry> TokenCache<E> {
         let count = members.len() as u64;
         self.reverse.invalidate(reverse_key);
         for member in &members {
-            self.main.invalidate(&member.key);
+            self.main.invalidate(member);
         }
         count
     }
@@ -206,40 +199,30 @@ impl TokenCaches {
     }
 }
 
-fn build_reverse_cache(capacity: u64) -> Cache<String, Vec<ReverseMember>> {
+fn build_reverse_cache(capacity: u64) -> Cache<String, Vec<String>> {
     Cache::builder()
         .max_capacity(capacity)
         .eviction_policy(EvictionPolicy::lru())
         .build()
 }
 
-fn reverse_add(
-    cache: &Cache<String, Vec<ReverseMember>>,
-    key: &str,
-    member_key: &str,
-    expires_at: Instant,
-) {
+fn reverse_add(cache: &Cache<String, Vec<String>>, key: &str, member_key: &str) {
     cache
         .entry(key.to_string())
         .and_compute_with(|maybe_entry| {
             let mut members = maybe_entry.map(moka::Entry::into_value).unwrap_or_default();
-            let member = ReverseMember {
-                key: member_key.to_string(),
-                expires_at,
-            };
-            let index = members.partition_point(|member| member.expires_at <= expires_at);
-            members.insert(index, member);
+            members.push(member_key.to_string());
             moka::ops::compute::Op::Put(members)
         });
 }
 
-fn reverse_remove(cache: &Cache<String, Vec<ReverseMember>>, key: &str, member_key: &str) {
+fn reverse_remove(cache: &Cache<String, Vec<String>>, key: &str, member_key: &str) {
     cache
         .entry(key.to_string())
         .and_compute_with(|maybe_entry| match maybe_entry {
             Some(entry) => {
                 let mut members = entry.into_value();
-                members.retain(|member| member.key != member_key);
+                members.retain(|member| member != member_key);
                 if members.is_empty() {
                     moka::ops::compute::Op::Remove
                 } else {
