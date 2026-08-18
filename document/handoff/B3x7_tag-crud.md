@@ -4,14 +4,14 @@
 
 **Owner**: B3x7
 **Exec doc**: `document/exec/B3x7_tag-crud.md`
-**Status**: Slice 3 complete — 3/5 slices done
+**Status**: Slice 4 complete — 4/5 slices done
 
 ### Stages
 
 A. ✅ Backend tag CRUD (Cedar schema, permissions, repository, logic, interface, router)
 B. ✅ Article tag validation (reject unknown tags in create/update)
 C. ✅ Frontend tag pages + request functions
-D. ⬜ Article form tag picker (multi-select from existing tags)
+D. ✅ Article form tag picker (multi-select from existing tags)
 E. ⬜ Tests + final gate
 
 ### Decisions made
@@ -43,6 +43,9 @@ E. ⬜ Tests + final gate
 **Frontend:**
 - `code/front/src/request/tag.rs`: Tag CRUD request functions
 - `code/front/src/page/tag/`: list, detail, create, update, delete pages
+- `code/front/src/page/article/tag_picker.rs`: Multi-select tag picker component
+- `code/front/src/page/article/create.rs`: Uses TagPicker instead of textarea
+- `code/front/src/page/article/update.rs`: Uses TagPicker instead of textarea
 - `code/front/src/router.rs`: Tag routes added
 
 **Tests:**
@@ -55,5 +58,4 @@ E. ⬜ Tests + final gate
 
 ### Remaining
 
-- Slice 4: Article form tag picker (multi-select checkboxes)
 - Slice 5: Tests + final gate

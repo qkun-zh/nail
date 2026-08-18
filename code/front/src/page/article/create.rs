@@ -4,10 +4,11 @@ use leptos::prelude::*;
 use leptos_router::hooks::{use_navigate, use_query_map};
 
 use crate::infrastructure::limits::use_limits;
+use crate::page::article::tag_picker::TagPicker;
 use crate::page::draft::persist_draft;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
 use crate::page::validation::{
-    validate_note, validate_pdf_selection, validate_summary, validate_tags, validate_title,
+    validate_note, validate_pdf_selection, validate_summary, validate_title,
 };
 
 #[component]
@@ -19,7 +20,7 @@ pub fn CreateArticle() -> impl IntoView {
 
     let title = RwSignal::new(query.get_untracked().get("title").unwrap_or_default());
     let summary = RwSignal::new(query.get_untracked().get("summary").unwrap_or_default());
-    let tags = RwSignal::new(query.get_untracked().get("tags").unwrap_or_default());
+    let selected_tags = RwSignal::new(Vec::<String>::new());
     let version = RwSignal::new(query.get_untracked().get("version").unwrap_or_default());
     let note = RwSignal::new(query.get_untracked().get("note").unwrap_or_default());
     let file_ref = NodeRef::<Input>::new();
@@ -29,7 +30,7 @@ pub fn CreateArticle() -> impl IntoView {
         vec![
             ("title", title.get()),
             ("summary", summary.get()),
-            ("tags", tags.get()),
+            ("tags", selected_tags.get().join(" ")),
             ("version", version.get()),
             ("note", note.get()),
         ]
@@ -55,11 +56,9 @@ pub fn CreateArticle() -> impl IntoView {
                 return;
             }
         };
-        if let Err(error) = validate_tags(
-            &tags.get(),
-            usize::try_from(limits.max_tags_per_article).unwrap_or(usize::MAX),
-        ) {
-            notify_error(&notifications, &error);
+        let tags_value = selected_tags.get().join(" ");
+        if tags_value.is_empty() {
+            notify_error(&notifications, "at least one tag is required");
             return;
         }
         let note_value = match validate_note(&note.get(), limits.max_version_note_chars) {
@@ -90,7 +89,7 @@ pub fn CreateArticle() -> impl IntoView {
         let form = match build_form(
             &title_value,
             &summary_value,
-            &tags.get(),
+            &tags_value,
             &version.get(),
             &note_value,
             &file,
@@ -128,7 +127,10 @@ pub fn CreateArticle() -> impl IntoView {
         <form on:submit=submit>
             <div><label><input type="text" placeholder="title" prop:value=title on:input=move |event| title.set(event_target_value(&event)) /></label></div>
             <div><label><textarea rows="6" cols="60" placeholder="summary" prop:value=summary on:input=move |event| summary.set(event_target_value(&event))></textarea></label></div>
-            <div><label><textarea rows="6" cols="60" placeholder="tag (space separated)" prop:value=tags on:input=move |event| tags.set(event_target_value(&event))></textarea></label></div>
+            <div>
+                <label>"Tags"</label>
+                <TagPicker selected=selected_tags />
+            </div>
             <div><label><input type="text" placeholder="version" prop:value=version on:input=move |event| version.set(event_target_value(&event)) /></label></div>
             <div><label><textarea rows="4" cols="60" placeholder="note: what changed in this version" prop:value=note on:input=move |event| note.set(event_target_value(&event))></textarea></label></div>
             <div><label><input type="file" accept="application/pdf" node_ref=file_ref /></label></div>
@@ -159,7 +161,11 @@ fn build_form(
         form.append_with_str(field, value)
             .map_err(|error| format!("failed to append {field}: {error:?}"))?;
     }
-    form.append_with_blob("file", file)
+    form.append_with_str("file_name", file.name().as_str())
+        .map_err(|error| format!("failed to append file_name: {error:?}"))?;
+    form.append_with_str("content_type", file.type_().as_str())
+        .map_err(|error| format!("failed to append content_type: {error:?}"))?;
+    form.append_with_blob_and_filename("file", file, &file.name())
         .map_err(|error| format!("failed to append file: {error:?}"))?;
     Ok(form)
 }

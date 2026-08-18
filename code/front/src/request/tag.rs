@@ -1,5 +1,5 @@
 use nail_common::request::{CreateTagRequest, TagUpdateRequest};
-pub use nail_common::response::tag::{TagListPage, TagNameView};
+pub use nail_common::response::tag::{TagListItem, TagListPage, TagNameView};
 
 use crate::request::error::RequestResult;
 use crate::request::{http, url};
