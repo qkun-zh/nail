@@ -144,6 +144,16 @@ action "Tag::Unapply"  appliesTo { principal: [User], resource: [Tag] };
 **Exit test**: unit tests: soft-deleted row + Undelete permission → readable;
 without → not-found.
 
+**Status: DONE** — commit `f3dac8f`. `require_visible_if_soft_deleted` helper
+in `logic/authorize.rs`; repository single reads unfiltered
+(`read_comment_item_any_sync` for comments); `logic/download.rs` download mint
+gated on Version::Undelete::Soft (downloads count as reads). Lists keep
+repository-side filtering. Evidence: 531/531 back tests, clippy zero warnings,
+fmt clean. Tests: `logic/soft_delete_visibility.rs` (6 new),
+`logic/user.rs::read_user_hides_a_soft_deleted_account_from_members`,
+updated `repository/delete.rs` (5), `logic/delete_verify.rs` (3),
+`logic/version.rs` (2).
+
 ### Slice 3: Frontend — role module + undelete/update/apply pages
 
 1. `request/role.rs`, `page/role/` (list/create/detail/update/delete).
