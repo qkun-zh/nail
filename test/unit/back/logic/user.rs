@@ -600,7 +600,7 @@ async fn create_user_rejects_a_soft_deleted_account() {
 }
 
 #[tokio::test]
-async fn read_user_hides_a_soft_deleted_account() {
+async fn read_user_hides_a_soft_deleted_account_from_members() {
     let context = TestCtx::new().await.expect("test context");
     let (admin, _) = admin_session(&context).await;
     let (user_id, token) = session_for(&context, "alice@example.com").await;
@@ -633,8 +633,12 @@ async fn read_user_hides_a_soft_deleted_account() {
     .await
     .expect("soft delete");
 
-    let error = crate::logic::user::read_user(&context.state, &admin, &user_id, true, false)
+    let error = crate::logic::user::read_user(&context.state, &user_id, &user_id, true, false)
         .await
         .unwrap_err();
     assert_eq!(error, LogicError::not_found("user not found"));
+    let view = crate::logic::user::read_user(&context.state, &admin, &user_id, true, false)
+        .await
+        .expect("admin holds User::Undelete::Soft");
+    assert_eq!(view.id.as_deref(), Some(user_id.as_str()));
 }

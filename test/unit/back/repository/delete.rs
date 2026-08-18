@@ -394,8 +394,8 @@ async fn soft_delete_article_cascades_the_flag_over_the_subtree() {
         crate::repository::version::read_version(&state.graph, &version_id)
             .await
             .expect("read version")
-            .is_none(),
-        "version content hidden under a soft-deleted article"
+            .is_some(),
+        "row stays available at the repository layer; visibility gating lives in logic"
     );
 }
 
@@ -459,8 +459,8 @@ async fn soft_delete_comment_cascades_the_flag_over_the_reply_subtree() {
         crate::repository::comment::read_comment_item(&state.graph, &reply)
             .await
             .expect("read reply")
-            .is_none(),
-        "reply node carries the cascade flag"
+            .is_some(),
+        "reply row stays available at the repository layer"
     );
 }
 
@@ -532,7 +532,7 @@ async fn clearing_the_soft_deleted_flag_revives_the_node() {
 }
 
 #[tokio::test]
-async fn soft_deleted_article_read_returns_none_and_versions_hidden() {
+async fn soft_deleted_article_stays_available_at_repository_layer_while_versions_hide() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = create_user(&state, "alice@example.com").await;
     let (article_id, _version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
@@ -545,8 +545,8 @@ async fn soft_deleted_article_read_returns_none_and_versions_hidden() {
         crate::repository::article::read_article(&state.graph, &article_id)
             .await
             .expect("read article")
-            .is_none(),
-        "deleted article is not found"
+            .is_some(),
+        "row stays available at the repository layer; visibility gating lives in logic"
     );
     let (remaining, _) = versions_of(&state.graph, &article_id, 10, 0)
         .await
@@ -675,7 +675,7 @@ async fn versions_of_excludes_soft_deleted_versions_and_reports_has_next() {
 }
 
 #[tokio::test]
-async fn read_version_returns_none_for_a_soft_deleted_version() {
+async fn read_version_stays_available_at_repository_layer_for_a_soft_deleted_version() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = create_user(&state, "alice@example.com").await;
     let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
@@ -688,8 +688,8 @@ async fn read_version_returns_none_for_a_soft_deleted_version() {
         crate::repository::version::read_version(&state.graph, &version_id)
             .await
             .expect("read version")
-            .is_none(),
-        "deleted version is not found"
+            .is_some(),
+        "row stays available at the repository layer; visibility gating lives in logic"
     );
 }
 
@@ -723,8 +723,8 @@ async fn comment_page_hides_soft_deleted_comments_and_their_replies() {
         crate::repository::comment::read_comment_item(&state.graph, &top)
             .await
             .expect("read top")
-            .is_none(),
-        "deleted comment item hidden"
+            .is_some(),
+        "deleted comment row stays available at the repository layer; lists still hide it"
     );
 }
 

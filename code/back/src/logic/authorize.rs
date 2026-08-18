@@ -1,6 +1,27 @@
 use crate::infrastructure::state::AppState;
-use crate::logic::error::LogicError;
+use crate::logic::error::{LogicError, database_error};
 use crate::repository::authorization::{AssemblyError, Resource, assemble, assemble_resource};
+
+pub async fn require_visible_if_soft_deleted(
+    state: &AppState,
+    actor_id: &str,
+    entity_type: &str,
+    business_id: &str,
+    undelete_action: &str,
+    resource: &Resource,
+    not_found_message: &str,
+) -> Result<(), LogicError> {
+    if crate::repository::delete::is_soft_deleted(&state.graph, entity_type, business_id)
+        .await
+        .map_err(database_error)?
+        && authorize(state, actor_id, undelete_action, resource)
+            .await
+            .is_err()
+    {
+        return Err(LogicError::not_found(not_found_message));
+    }
+    Ok(())
+}
 
 pub async fn authorize(
     state: &AppState,

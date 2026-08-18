@@ -127,5 +127,8 @@ pub mod http_comment;
 #[path = "logic/tag_apply.rs"]
 pub mod logic_tag_apply;
 
+#[path = "logic/soft_delete_visibility.rs"]
+pub mod logic_soft_delete_visibility;
+
 #[path = "http/tag_apply.rs"]
 pub mod http_tag_apply;

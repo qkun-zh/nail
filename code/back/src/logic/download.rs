@@ -1,13 +1,13 @@
 use std::path::PathBuf;
 
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::authorize_or;
+use crate::logic::authorize::{authorize_or, require_visible_if_soft_deleted};
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::session::normalize_token;
 use crate::logic::version::pdf_final_path;
 use crate::repository::authorization::Resource;
 use crate::repository::cache::{DownloadTokenEntry, token_key};
-use crate::repository::role::PERMISSION_VERSION_READ;
+use crate::repository::role::{PERMISSION_VERSION_READ, PERMISSION_VERSION_UNDELETE_SOFT};
 use crate::repository::version::{parent_article_of, read_version};
 
 pub async fn resolve_version_pdf_path(
@@ -35,6 +35,16 @@ pub async fn resolve_version_pdf_path(
         .await
         .map_err(database_error)?
         .ok_or_else(|| LogicError::not_found("article version not found"))?;
+    require_visible_if_soft_deleted(
+        state,
+        actor_id,
+        crate::repository::schema::ENTITY_TYPE_VERSION,
+        version_id,
+        PERMISSION_VERSION_UNDELETE_SOFT,
+        &Resource::Version(version_id.to_string()),
+        "article version not found",
+    )
+    .await?;
     pdf_final_path(&state.config.server.pdf_storage_path, &entry.content_hash)
         .ok_or_else(|| LogicError::internal("invalid content hash"))
 }

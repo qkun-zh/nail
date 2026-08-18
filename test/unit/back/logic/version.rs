@@ -239,12 +239,20 @@ async fn delete_version_soft_hides_the_version_as_admin() {
     .await
     .expect("soft delete");
     assert_eq!(data.version_id, version_id);
-    assert!(
-        crate::repository::version::read_version(&context.state.graph, &version_id)
+    assert_eq!(
+        crate::logic::version::read_version(&context.state, &actor, &version_id, None)
             .await
-            .expect("read")
-            .is_none(),
-        "soft-deleted version is hidden"
+            .expect_err("soft-deleted version hidden from a member"),
+        LogicError::not_found("version not found")
+    );
+    assert!(
+        crate::logic::version::read_version(&context.state, &admin_id, &version_id, None)
+            .await
+            .expect("admin holds Undelete::Soft")
+            .version
+            .as_str()
+            == "1.0.0",
+        "soft-deleted version visible to the admin via Undelete::Soft"
     );
     let (versions, _) =
         crate::repository::version::versions_of(&context.state.graph, &article_id, 10, 0)
@@ -319,12 +327,11 @@ async fn delete_version_soft_is_allowed_for_the_member_owner() {
     .await
     .expect("member owner soft deletes via owner bypass");
     assert_eq!(data.version_id, version_id);
-    assert!(
-        crate::repository::version::read_version(&context.state.graph, &version_id)
+    assert_eq!(
+        crate::logic::version::read_version(&context.state, &actor, &version_id, None)
             .await
-            .expect("read")
-            .is_none(),
-        "version hidden"
+            .expect_err("soft-deleted version hidden even from its owner"),
+        LogicError::not_found("version not found")
     );
 }
 

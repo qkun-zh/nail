@@ -188,9 +188,6 @@ pub async fn read_article(db: &DbHandle, article_id: &str) -> Result<Option<Arti
     let Some(id) = resolve_node_id_sync(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
         return Ok(None);
     };
-    if crate::repository::delete::has_soft_deleted_flag(&guard, id)? {
-        return Ok(None);
-    }
     Ok(enrich_articles(&guard, &[id])?.into_iter().next())
 }
 

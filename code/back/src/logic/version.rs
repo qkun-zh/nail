@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::infrastructure::pdf::{PdfUpload, content_hash_rel_path};
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::{authorize, authorize_or};
+use crate::logic::authorize::{authorize, authorize_or, require_visible_if_soft_deleted};
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::search::sync_article_best_effort;
 use crate::repository::authorization::Resource;
@@ -156,6 +156,16 @@ pub async fn read_version(
         .await
         .map_err(database_error)?
         .ok_or_else(|| LogicError::not_found("version not found"))?;
+    require_visible_if_soft_deleted(
+        state,
+        actor_id,
+        crate::repository::schema::ENTITY_TYPE_VERSION,
+        version_id,
+        PERMISSION_VERSION_UNDELETE_SOFT,
+        &Resource::Version(version_id.to_string()),
+        "version not found",
+    )
+    .await?;
 
     let created_at = nail_common::time::uuidv7_timestamp_secs(version_id).unwrap_or(0);
     let view = VersionView {

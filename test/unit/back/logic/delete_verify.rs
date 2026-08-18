@@ -654,12 +654,18 @@ async fn soft_delete_keeps_article_identity_while_hiding_it() {
     .await
     .expect("soft delete");
 
+    assert_eq!(
+        crate::logic::article::read_article(&context.state, &owner, &article_id)
+            .await
+            .expect_err("soft-deleted article hidden"),
+        LogicError::not_found("article not found")
+    );
     assert!(
         crate::repository::article::read_article(&context.state.graph, &article_id)
             .await
             .expect("read")
-            .is_none(),
-        "soft-deleted article must be hidden from reads"
+            .is_some(),
+        "the node must survive for identity/occupancy"
     );
     let guard = context.state.graph.read().await;
     let holder = crate::repository::graph::resolve_node_id_sync(
@@ -706,12 +712,11 @@ async fn soft_deleted_article_hides_its_whole_subtree_and_rejects_writes() {
             .await
             .expect("versions");
     assert!(versions.is_empty(), "version list hidden");
-    assert!(
-        crate::repository::version::read_version(&context.state.graph, &version_id)
+    assert_eq!(
+        crate::logic::version::read_version(&context.state, &owner, &version_id, None)
             .await
-            .expect("read version")
-            .is_none(),
-        "version detail hidden"
+            .expect_err("version detail hidden"),
+        LogicError::not_found("version not found")
     );
     let comments = crate::logic::comment::read_comments(&context.state, &owner, &version_id, 1, 50)
         .await
@@ -832,12 +837,11 @@ async fn soft_deleted_version_hides_its_comments_and_download() {
     .await
     .expect("soft delete version");
 
-    assert!(
-        crate::repository::version::read_version(&context.state.graph, &version_id)
+    assert_eq!(
+        crate::logic::version::read_version(&context.state, &owner, &version_id, None)
             .await
-            .expect("read version")
-            .is_none(),
-        "version hidden"
+            .expect_err("version detail hidden"),
+        LogicError::not_found("version not found")
     );
     assert_eq!(
         crate::logic::comment::read_comments(&context.state, &owner, &version_id, 1, 50)

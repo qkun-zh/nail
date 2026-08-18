@@ -155,9 +155,6 @@ pub async fn read_version(
     let Some(id) = resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, version_id)? else {
         return Ok(None);
     };
-    if crate::repository::delete::has_soft_deleted_flag(&guard, id)? {
-        return Ok(None);
-    }
     let row = read_rows_sync::<VersionRow>(&guard, &[id])?
         .into_iter()
         .next()

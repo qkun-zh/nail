@@ -234,8 +234,17 @@ pub async fn read_comments_page_by_version(
     if crate::repository::delete::has_soft_deleted_flag(&guard, version)? {
         return Ok((Vec::new(), false));
     }
-    let (page_ids, has_next) = incoming_comment_ids_page(&guard, version, limit, offset)?;
-    let items = read_comment_items(&guard, &page_ids)?;
+    read_comments_page_sync(&guard, version, limit, offset)
+}
+
+fn read_comments_page_sync(
+    guard: &agdb::DbAny,
+    version: agdb::DbId,
+    limit: u64,
+    offset: u64,
+) -> Result<(Vec<CommentTreeItem>, bool), DbError> {
+    let (page_ids, has_next) = incoming_comment_ids_page(guard, version, limit, offset)?;
+    let items = read_comment_items(guard, &page_ids)?;
     Ok((items, has_next))
 }
 
@@ -268,7 +277,7 @@ pub async fn read_comment_item(
     comment_id: &str,
 ) -> Result<Option<CommentTreeItem>, DbError> {
     let guard = db.read().await;
-    read_comment_item_sync(&guard, comment_id)
+    read_comment_item_any_sync(&guard, comment_id)
 }
 
 fn incoming_comment_ids_page(
@@ -325,16 +334,13 @@ fn child_count_sync(guard: &agdb::DbAny, comment: agdb::DbId) -> Result<u64, DbE
     Ok(edges.elements.len() as u64)
 }
 
-fn read_comment_item_sync(
+fn read_comment_item_any_sync(
     guard: &agdb::DbAny,
     comment_id: &str,
 ) -> Result<Option<CommentTreeItem>, DbError> {
     let Some(comment) = resolve_node_id_sync(guard, ENTITY_TYPE_COMMENT, comment_id)? else {
         return Ok(None);
     };
-    if crate::repository::delete::has_soft_deleted_flag(guard, comment)? {
-        return Ok(None);
-    }
     let content = read_rows_sync::<CommentRow>(guard, &[comment])?
         .into_iter()
         .next()
@@ -350,6 +356,19 @@ fn read_comment_item_sync(
         parent_id,
         child_count,
     }))
+}
+
+fn read_comment_item_sync(
+    guard: &agdb::DbAny,
+    comment_id: &str,
+) -> Result<Option<CommentTreeItem>, DbError> {
+    let Some(comment) = resolve_node_id_sync(guard, ENTITY_TYPE_COMMENT, comment_id)? else {
+        return Ok(None);
+    };
+    if crate::repository::delete::has_soft_deleted_flag(guard, comment)? {
+        return Ok(None);
+    }
+    read_comment_item_any_sync(guard, comment_id)
 }
 
 fn read_comment_items(

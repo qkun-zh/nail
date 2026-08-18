@@ -5,7 +5,9 @@ use nail_common::response::session::SessionTokenView;
 use nail_common::response::user::{UserIdView, UserListPage, UserNameView, UserView};
 
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::{authorize, authorize_anonymous, authorize_or};
+use crate::logic::authorize::{
+    authorize, authorize_anonymous, authorize_or, require_visible_if_soft_deleted,
+};
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::pow::verify_issued_pow;
 use crate::logic::search::{sync_all_best_effort, sync_article_best_effort, sync_user_best_effort};
@@ -95,12 +97,16 @@ pub async fn read_user(
     )
     .await?;
 
-    if crate::repository::delete::is_soft_deleted(&state.graph, "user", target_id)
-        .await
-        .map_err(database_error)?
-    {
-        return Err(LogicError::not_found("user not found"));
-    }
+    require_visible_if_soft_deleted(
+        state,
+        actor_id,
+        crate::repository::schema::ENTITY_TYPE_USER,
+        target_id,
+        PERMISSION_USER_UNDELETE_SOFT,
+        &Resource::User(target_id.to_string()),
+        "user not found",
+    )
+    .await?;
 
     let mut view = UserView {
         id: Some(target_id.to_string()),

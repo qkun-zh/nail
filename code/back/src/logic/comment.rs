@@ -5,7 +5,7 @@ use nail_common::response::comment::{CommentIdView, CommentListPage, CommentView
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::{authorize, authorize_or};
+use crate::logic::authorize::{authorize, authorize_or, require_visible_if_soft_deleted};
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::search::sync_article_best_effort;
 use crate::repository::authorization::Resource;
@@ -17,7 +17,7 @@ use crate::repository::comment::{
 use crate::repository::role::{
     PERMISSION_COMMENT_CREATE, PERMISSION_COMMENT_DELETE_HARD, PERMISSION_COMMENT_DELETE_SOFT,
     PERMISSION_COMMENT_DELETE_TRANSFER, PERMISSION_COMMENT_READ, PERMISSION_COMMENT_UNDELETE_SOFT,
-    PERMISSION_COMMENT_UPDATE,
+    PERMISSION_COMMENT_UPDATE, PERMISSION_VERSION_UNDELETE_SOFT,
 };
 use crate::repository::transfer::{TransferTargetError, transfer_comment};
 use crate::repository::version::{parent_article_of, read_version};
@@ -98,6 +98,16 @@ pub async fn read_comments(
     {
         return Err(LogicError::not_found("version not found"));
     }
+    require_visible_if_soft_deleted(
+        state,
+        actor_id,
+        crate::repository::schema::ENTITY_TYPE_VERSION,
+        version_id,
+        PERMISSION_VERSION_UNDELETE_SOFT,
+        &Resource::Version(version_id.to_string()),
+        "version not found",
+    )
+    .await?;
 
     let offset = page.saturating_sub(1).saturating_mul(limit);
     let (items, has_next) = read_comments_page_by_version(&state.graph, version_id, limit, offset)
@@ -126,6 +136,16 @@ pub async fn read_comment(
         .await
         .map_err(database_error)?
         .ok_or_else(|| LogicError::not_found("comment not found"))?;
+    require_visible_if_soft_deleted(
+        state,
+        actor_id,
+        crate::repository::schema::ENTITY_TYPE_COMMENT,
+        comment_id,
+        PERMISSION_COMMENT_UNDELETE_SOFT,
+        &Resource::Comment(comment_id.to_string()),
+        "comment not found",
+    )
+    .await?;
     to_comment_view(state, item).await
 }
 
