@@ -1,7 +1,7 @@
 # Permissions Coverage — Expose All 39 Cedar Actions in Frontend
 
 **Owner**: Q4z9
-**Status**: Planning — exec doc written
+**Status**: COMPLETE — all 4 slices done, final gate green
 
 ## Requirement
 
@@ -187,6 +187,24 @@ pre-existing clippy lint in `test/unit/front/infrastructure/pow/tests.rs`
    + `trunk build`.
 
 **Exit test**: all green, zero warnings, fmt clean.
+
+**Status: DONE** — items 1, 2, 4 completed in Slice 1; item 3 in Slice 2.
+Final gate (reproduced green): common 109/109, back 531/531, front 72/72
+tests; clippy zero warnings on all three crates; fmt clean; `trunk build`
+succeeds. **Task Q4z9 complete.**
+
+---
+
+## Completion record
+
+- Slice 1 `345f69e`: role `{role_id}` routing, 39 cedar actions, tag
+  apply/unapply (backend + tests).
+- Slice 2 `f3dac8f`: soft-delete visibility gating in logic reads + tests;
+  evidence committed `50d8c73`.
+- Slice 3 `0411fc9`: frontend role module, undelete/update/apply pages,
+  comment update/undelete levels, router wiring (all 39 routes).
+- Final gate: all green, zero warnings, fmt clean, trunk build succeeds.
+- Handoff recorded; exec doc removed per workflow phase 9.
 
 ## Open Unknowns
 

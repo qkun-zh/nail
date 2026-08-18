@@ -2,7 +2,7 @@
 
 **Owner**: Q4z9
 **Exec doc**: `document/exec/Q4z9_permissions-coverage.md`
-**Status**: Slice 2 done (f3dac8f); Slice 3 (frontend) next
+**Status**: COMPLETE — all slices done, final gate green; task removed per handoff rules
 
 ## Task Q4z9: expose all 39 Cedar authorization actions in the frontend
 
@@ -32,13 +32,12 @@
 - Evidence: 531/531 back tests; clippy zero warnings; fmt clean.
 - Tests: `logic/soft_delete_visibility.rs` (6 new); updated repository/delete.rs
   (5), logic/delete_verify.rs (3), logic/version.rs (2), logic/user.rs (1).
-- User decisions: none required — follows design decision 4 in exec doc.
 
 ### Stage B: Frontend
 
 #### Slice 3: Role module + undelete/update/apply pages
 
-**Status**: DONE — commit pending
+**Status**: DONE — commit `0411fc9`
 
 - `request/role.rs` + `page/role/` (list/create/detail/update/delete); tag
   apply/unapply pages (linked from article detail); version update/delete/
@@ -51,12 +50,17 @@
 
 #### Slice 4: Tests + final gate
 
-**Status**: PENDING
+**Status**: DONE
 
-- Full gate: back/common/front tests + clippy + fmt + trunk build; handoff;
-  delete exec doc.
+- Full gate reproduced green: common 109/109, back 531/531, front 72/72;
+  clippy zero warnings; fmt clean; trunk build succeeds.
 
 ## Questions for the user
 
-- None outstanding; per directive, proceeding without asking unless business
-  design is uncertain.
+- None outstanding.
+
+## Completion
+
+- All slices done; final gate green. Exec doc and this handoff file are
+  removed per workflow phase 9 / handoff rules (record retained in git
+  history via commits `345f69e`, `f3dac8f`, `50d8c73`, `0411fc9`).
