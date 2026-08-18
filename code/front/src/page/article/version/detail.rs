@@ -1,5 +1,5 @@
 use leptos::prelude::*;
-use leptos_router::components::A;
+use leptos_router::components::{A, Outlet};
 use leptos_router::hooks::use_params_map;
 use nail_common::response::version::VersionView;
 
@@ -104,5 +104,8 @@ pub fn VersionDetail() -> impl IntoView {
         .into_any()
     };
 
-    view! { <div>{render}</div> }
+    view! {
+        <div>{render}</div>
+        <Outlet/>
+    }
 }

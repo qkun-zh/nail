@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
-use leptos_router::components::A;
+use leptos_router::components::{A, Outlet};
 use leptos_router::hooks::{query_signal, use_navigate, use_params_map};
 use nail_common::response::version::VersionListPage;
 
@@ -91,5 +91,8 @@ pub fn VersionList() -> impl IntoView {
         }
     };
 
-    view! { <div>{render}</div> }
+    view! {
+        <div>{render}</div>
+        <Outlet/>
+    }
 }

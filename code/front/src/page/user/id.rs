@@ -1,15 +1,11 @@
-pub mod update;
-
 use leptos::prelude::*;
-use leptos_router::components::{A, Outlet};
 use leptos_router::hooks::use_params_map;
 
 #[component]
-pub fn EmailIndex() -> impl IntoView {
+pub fn UserId() -> impl IntoView {
     let params = use_params_map();
     let uid = move || params.get().get("uid").unwrap_or_default();
     view! {
-        <div><A href={format!("/user/{}/email/update", uid())}>update</A></div>
-        <Outlet/>
+        <p>{uid()}</p>
     }
 }

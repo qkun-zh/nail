@@ -4,7 +4,7 @@ use axum::routing::{get, post};
 
 use crate::infrastructure::state::AppState;
 use crate::interface::{
-    article, challenge, comment, config, content, role, session, token, user, version,
+    article, challenge, comment, config, content, role, session, tag, token, user, version,
 };
 use crate::logic::operations::ROUTE_ACTIONS;
 
@@ -46,6 +46,11 @@ pub const ROUTE_ROLE_READ: &str = "/role/read";
 pub const ROUTE_ROLE_NAME_READ: &str = "/role/{name}/read";
 pub const ROUTE_ROLE_NAME_UPDATE: &str = "/role/{name}/update";
 pub const ROUTE_ROLE_NAME_DELETE: &str = "/role/{name}/delete";
+pub const ROUTE_TAG_CREATE: &str = "/tag/create";
+pub const ROUTE_TAG_READ: &str = "/tag/read";
+pub const ROUTE_TAG_ID_READ: &str = "/tag/{id}/read";
+pub const ROUTE_TAG_ID_UPDATE: &str = "/tag/{id}/update";
+pub const ROUTE_TAG_ID_DELETE: &str = "/tag/{id}/delete";
 
 pub fn build_router(state: AppState) -> Router {
     let body_limit = state
@@ -121,6 +126,11 @@ pub fn build_router(state: AppState) -> Router {
         .route(ROUTE_ROLE_NAME_READ, get(role::read_role))
         .route(ROUTE_ROLE_NAME_UPDATE, post(role::update_role))
         .route(ROUTE_ROLE_NAME_DELETE, post(role::delete_role))
+        .route(ROUTE_TAG_CREATE, post(tag::create_tag))
+        .route(ROUTE_TAG_READ, get(tag::read_tags))
+        .route(ROUTE_TAG_ID_READ, get(tag::read_tag))
+        .route(ROUTE_TAG_ID_UPDATE, post(tag::update_tag))
+        .route(ROUTE_TAG_ID_DELETE, post(tag::delete_tag))
         .layer(DefaultBodyLimit::max(
             usize::try_from(body_limit).unwrap_or(usize::MAX),
         ))

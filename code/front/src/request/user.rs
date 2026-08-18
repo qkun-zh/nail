@@ -5,10 +5,18 @@ use nail_common::request::{
 use nail_common::response::EmptyView;
 use nail_common::response::email::{EmailSubjectView, EmailSubjectsView};
 use nail_common::response::session::SessionTokenView;
-use nail_common::response::user::UserNameView;
+use nail_common::response::user::{UserNameView, UserView};
 
 use crate::request::error::RequestResult;
 use crate::request::{http, url};
+
+pub async fn read_user(user_id: &str) -> RequestResult<UserView> {
+    let path = url::build_path_with_query(
+        &["user", user_id, "read"],
+        &[("name", "true"), ("email_hash", "true"), ("roles", "true")],
+    );
+    http::get_json(&path, true).await
+}
 
 pub async fn update_self_name(user_id: &str, pow: Pow) -> RequestResult<UserNameView> {
     let path = url::build_path_with_query(&["user", user_id, "update"], &[]);

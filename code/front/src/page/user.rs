@@ -1,5 +1,8 @@
+pub mod article;
 pub mod deregister;
 pub mod email;
 pub mod hub;
+pub mod id;
 pub mod logout;
 pub mod name;
+pub mod role;

@@ -7,6 +7,7 @@ pub mod email;
 pub mod role;
 pub mod search;
 pub mod session;
+pub mod tag;
 pub mod user;
 pub mod version;
 

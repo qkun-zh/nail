@@ -7,6 +7,7 @@ entity Role;
 entity Article  { owner: User };
 entity Version  { owner: User };
 entity Comment  { owner: User };
+entity Tag;
 entity Virtual;
 
 action "Article::Create"            appliesTo { principal: [User], resource: [Virtual] };
@@ -42,3 +43,7 @@ action "Role::Update"               appliesTo { principal: [User], resource: [Ro
 action "Role::Delete"               appliesTo { principal: [User], resource: [Role] };
 action "Role::Grant"                appliesTo { principal: [User], resource: [Role] };
 action "Role::Revoke"               appliesTo { principal: [User], resource: [Role] };
+action "Tag::Create"                appliesTo { principal: [User], resource: [Virtual] };
+action "Tag::Read"                  appliesTo { principal: [User], resource: [Tag, Virtual] };
+action "Tag::Update"                appliesTo { principal: [User], resource: [Tag] };
+action "Tag::Delete"                appliesTo { principal: [User], resource: [Tag] };

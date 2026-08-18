@@ -136,8 +136,8 @@ fn schema_actions_equal_seed_vocabulary_and_parse_as_uids() {
 
     assert_eq!(
         declared.len(),
-        33,
-        "schema action count (Role split into 6; Version::Delete::Transfer removed; User Create/Soft/Undelete added; Restore renamed to Undelete::Soft)"
+        37,
+        "schema action count (Role split into 6; Version::Delete::Transfer removed; User Create/Soft/Undelete added; Restore renamed to Undelete::Soft; Tag Create/Read/Update/Delete added)"
     );
     assert_eq!(declared, seeded, "schema drift vs seed vocabulary");
 

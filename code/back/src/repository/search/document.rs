@@ -8,8 +8,8 @@ use crate::repository::graph::{DbHandle, read_node_sync, read_rows_sync, resolve
 use crate::repository::schema::{
     ArticleRow, CommentRow, EDGE_ARTICLE_APPLY_TAG, EDGE_ARTICLE_HOLD_VERSION,
     EDGE_COMMENT_ATTACH_VERSION, EDGE_COMMENT_REPLY_COMMENT, EDGE_USER_AUTHOR_ARTICLE,
-    EDGE_USER_AUTHOR_COMMENT, EDGE_USER_HOLD_ROLE, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_USER,
-    KEY_TYPE, RoleRow, TagRow, UserRow, VersionRow,
+    EDGE_USER_AUTHOR_COMMENT, EDGE_USER_HOLD_ROLE, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_USER, KEY_TYPE,
+    RoleRow, TagRow, UserRow, VersionRow,
 };
 
 use super::schema::{

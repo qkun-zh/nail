@@ -47,6 +47,10 @@ pub fn permission_vocabulary() -> &'static [&'static str] {
         PERMISSION_ROLE_DELETE,
         PERMISSION_ROLE_GRANT,
         PERMISSION_ROLE_REVOKE,
+        PERMISSION_TAG_CREATE,
+        PERMISSION_TAG_READ,
+        PERMISSION_TAG_UPDATE,
+        PERMISSION_TAG_DELETE,
     ]
 }
 

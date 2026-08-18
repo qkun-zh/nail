@@ -9,7 +9,7 @@ use crate::repository::graph::{DbHandle, read_node_sync, read_rows_sync, resolve
 use crate::repository::role::RoleView;
 use crate::repository::schema::{
     EDGE_ROLE_GRANT_PERMISSION, EDGE_USER_AUTHOR_ARTICLE, EDGE_USER_HOLD_ROLE, ENTITY_TYPE_ARTICLE,
-    ENTITY_TYPE_USER, IdRow, KEY_TYPE, PermissionRow, RoleRow,
+    ENTITY_TYPE_TAG, ENTITY_TYPE_USER, IdRow, KEY_TYPE, PermissionRow, RoleRow,
 };
 use crate::repository::version::parent_article_of;
 
@@ -22,6 +22,7 @@ pub enum Resource {
     Comment(String),
     Role(String),
     User(String),
+    Tag(String),
     Virtual(String),
 }
 
@@ -260,6 +261,20 @@ pub async fn assemble_resource(
             let entity = Entity::new_no_attrs(resource_uid.clone(), HashSet::new());
             Ok((resource_uid, vec![entity]))
         }
+        Resource::Tag(tag_id) => {
+            let exists = {
+                let guard = db.read().await;
+                resolve_node_id_sync(&guard, ENTITY_TYPE_TAG, &tag_id)
+                    .map_err(|error| AssemblyError::Internal(error.to_string()))?
+                    .is_some()
+            };
+            if !exists {
+                return Err(AssemblyError::ResourceNotFound);
+            }
+            let resource_uid = tag_uid(&tag_id)?;
+            let entity = Entity::new_no_attrs(resource_uid.clone(), HashSet::new());
+            Ok((resource_uid, vec![entity]))
+        }
         Resource::Virtual(name) => {
             let resource_uid = virtual_uid(&name)?;
             let entity = Entity::new_no_attrs(resource_uid.clone(), HashSet::new());
@@ -372,6 +387,10 @@ fn version_uid(version_id: &str) -> Result<EntityUid, AssemblyError> {
 
 fn comment_uid(comment_id: &str) -> Result<EntityUid, AssemblyError> {
     parse_uid(&format!("{CEDAR_ENTITY_COMMENT}::\"{comment_id}\""))
+}
+
+fn tag_uid(tag_id: &str) -> Result<EntityUid, AssemblyError> {
+    parse_uid(&format!("{CEDAR_ENTITY_TAG}::\"{tag_id}\""))
 }
 
 fn virtual_uid(name: &str) -> Result<EntityUid, AssemblyError> {

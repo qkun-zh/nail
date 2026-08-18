@@ -9,6 +9,7 @@ pub mod principal;
 pub mod role;
 pub mod router;
 pub mod session;
+pub mod tag;
 pub mod token;
 pub mod user;
 pub mod version;
