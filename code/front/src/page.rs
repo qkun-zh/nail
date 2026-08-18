@@ -6,6 +6,7 @@ pub mod index;
 pub mod not_found;
 pub mod notify;
 pub mod pagination;
+pub mod role;
 pub mod session_gate;
 pub mod tag;
 pub mod time_format;

@@ -44,6 +44,7 @@ pub fn ArticleDetail() -> impl IntoView {
         let article_id = article.id.clone();
         let update_href = format!("/article/{article_id}/update");
         let delete_href = format!("/article/{article_id}/delete");
+        let undelete_href = format!("/article/{article_id}/undelete-soft");
         let versions_href = format!("/article/{article_id}/version");
         view! {
             <div>
@@ -62,11 +63,27 @@ pub fn ArticleDetail() -> impl IntoView {
                     view! { <p>{"tags: "}{tags}</p> }.into_any()
                 }}
                 <hr/>
+                <div>
+                    {article.tags.iter().map(|tag| {
+                        let apply_href = format!("/article/{}/tag/{}/apply", article_id, tag.id);
+                        let unapply_href = format!("/article/{}/tag/{}/unapply", article_id, tag.id);
+                        view! {
+                            <div>
+                                <span>{tag.name.clone()}</span>
+                                <span> <A href=apply_href>apply</A> </span>
+                                <span> <A href=unapply_href>unapply</A> </span>
+                            </div>
+                        }
+                    }).collect::<Vec<_>>()}
+                </div>
+                <hr/>
                 <div><A href=versions_href>version</A></div>
                 <hr/>
                 <div><A href=update_href>update</A></div>
                 <hr/>
                 <div><A href=delete_href>delete</A></div>
+                <hr/>
+                <div><A href=undelete_href>undelete</A></div>
                 <hr/>
             </div>
         }

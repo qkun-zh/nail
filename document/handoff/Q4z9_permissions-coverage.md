@@ -38,12 +38,16 @@
 
 #### Slice 3: Role module + undelete/update/apply pages
 
-**Status**: PENDING
+**Status**: DONE — commit pending
 
-- `request/role.rs`, `page/role/` (list/create/detail/update/delete);
-  tag apply/unapply pages; version/comment update/delete/undelete pages;
-  user undelete page; router wiring.
-- Exit test: `trunk build` passes; each new route navigable.
+- `request/role.rs` + `page/role/` (list/create/detail/update/delete); tag
+  apply/unapply pages (linked from article detail); version update/delete/
+  undelete pages; article + user undelete pages; comment update/undelete
+  levels in the comment section; router wired for all 39 routes.
+- Evidence: 72/72 front tests; clippy zero warnings; fmt clean; `trunk build`
+  succeeds.
+- Fixed pre-existing lint: `test/unit/front/infrastructure/pow/tests.rs`
+  `chunks_exact` → `as_chunks`.
 
 #### Slice 4: Tests + final gate
 

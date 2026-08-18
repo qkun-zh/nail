@@ -18,10 +18,12 @@ pub fn comment_detail_view(
     let Some(comment) = target.get() else {
         return view! { <p class="cmt-empty">comment not found</p> }.into_any();
     };
-    let delete_url = format!(
-        "{}/comment/{comment_id}/delete",
-        comment_view_context.base_path
-    );
+    let base_path = comment_view_context.base_path.clone();
+    let links = super::render::CommentLinks {
+        update: Some(format!("{base_path}/comment/{comment_id}/update")),
+        delete: Some(format!("{base_path}/comment/{comment_id}/delete")),
+        undelete: Some(format!("{base_path}/comment/{comment_id}/undelete-soft")),
+    };
     let form = if comment_view_context.authenticated {
         comment_form(
             reply_body,
@@ -54,7 +56,7 @@ pub fn comment_detail_view(
     };
     view! {
         <div>
-            {context_card(&comment, Some(delete_url))}
+            {context_card(&comment, links)}
             {form}
             {children_view}
             <LevelPagination

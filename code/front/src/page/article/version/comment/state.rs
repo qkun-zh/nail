@@ -111,7 +111,9 @@ pub fn build_load(
                     }
                 });
             }
-            CommentLevel::DeleteComment(_) => {
+            CommentLevel::DeleteComment(_)
+            | CommentLevel::UpdateComment(_)
+            | CommentLevel::UndeleteComment(_) => {
                 loading.set(false);
                 error.set(None);
             }
@@ -201,6 +203,117 @@ pub fn build_submit_reply(
             match result {
                 Ok(_) => {
                     notify_success(&notifications, "reply created");
+                    load(version_id);
+                }
+                Err(error) => notify_error(&notifications, error.to_string()),
+            }
+        });
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn build_submit_update(
+    notifications: Notifications,
+    posting: RwSignal<bool>,
+    update_body: RwSignal<String>,
+    limits: RwSignal<RuntimeLimits>,
+    mode: impl Fn() -> CommentLevel + Clone + 'static,
+    version_id: impl Fn() -> String + Clone + 'static,
+    base: impl Fn() -> String + Clone + 'static,
+    navigate: impl Fn(&str, NavigateOptions) + Clone + 'static,
+    load: impl Fn(String) + Clone + 'static,
+) -> impl Fn(SubmitEvent) + Clone + 'static {
+    move |event: SubmitEvent| {
+        event.prevent_default();
+        if posting.get() {
+            return;
+        }
+        let binding = mode();
+        let Some(comment_id) = comment_id_from_level(&binding) else {
+            return;
+        };
+        let content =
+            match validate_comment_content(&update_body.get(), limits.get().max_comment_body_chars)
+            {
+                Ok(value) => value,
+                Err(error) => {
+                    notify_error(&notifications, &error);
+                    return;
+                }
+            };
+        let comment_id = comment_id.to_string();
+        let version_id = version_id();
+        let base_path = base();
+        posting.set(true);
+        let notifications = notifications.clone();
+        let load = load.clone();
+        let navigate = navigate.clone();
+        leptos::task::spawn_local(async move {
+            let result = crate::request::comment::update_comment(&comment_id, &content).await;
+            posting.set(false);
+            match result {
+                Ok(_) => {
+                    notify_success(&notifications, "comment updated");
+                    navigate(
+                        &crate::page::draft::draft_url(
+                            &format!("{base_path}/comment/{comment_id}"),
+                            &[],
+                        ),
+                        leptos_router::NavigateOptions {
+                            replace: true,
+                            resolve: false,
+                            ..Default::default()
+                        },
+                    );
+                    load(version_id);
+                }
+                Err(error) => notify_error(&notifications, error.to_string()),
+            }
+        });
+    }
+}
+
+pub fn build_submit_undelete(
+    notifications: Notifications,
+    posting: RwSignal<bool>,
+    mode: impl Fn() -> CommentLevel + Clone + 'static,
+    version_id: impl Fn() -> String + Clone + 'static,
+    base: impl Fn() -> String + Clone + 'static,
+    navigate: impl Fn(&str, NavigateOptions) + Clone + 'static,
+    load: impl Fn(String) + Clone + 'static,
+) -> impl Fn() + Clone + 'static {
+    move || {
+        if posting.get() {
+            return;
+        }
+        let binding = mode();
+        let Some(comment_id) = comment_id_from_level(&binding) else {
+            return;
+        };
+        let comment_id = comment_id.to_string();
+        let version_id = version_id();
+        let base_path = base();
+        posting.set(true);
+        let notifications = notifications.clone();
+        let load = load.clone();
+        let navigate = navigate.clone();
+        leptos::task::spawn_local(async move {
+            let result = crate::request::comment::undelete_soft_comment(&comment_id).await;
+            posting.set(false);
+            match result {
+                Ok(_) => {
+                    notify_success(&notifications, "comment restored");
+                    navigate(
+                        &crate::page::draft::draft_url(
+                            &format!("{base_path}/comment/{comment_id}"),
+                            &[],
+                        ),
+                        leptos_router::NavigateOptions {
+                            replace: true,
+                            resolve: false,
+                            ..Default::default()
+                        },
+                    );
                     load(version_id);
                 }
                 Err(error) => notify_error(&notifications, error.to_string()),

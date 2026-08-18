@@ -14,5 +14,6 @@ pub fn UserHub() -> impl IntoView {
         <div><A href={format!("/user/{}/article", uid())}>article</A></div>
         <div><A href={format!("/user/{}/logout", uid())}>logout</A></div>
         <div><A href={format!("/user/{}/deregister", uid())}>deregister</A></div>
+        <div><A href={format!("/user/{}/undelete-soft", uid())}>undelete-soft</A></div>
     }
 }

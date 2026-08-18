@@ -1,7 +1,10 @@
+pub mod apply_tag;
 pub mod create;
 pub mod delete;
 pub mod detail;
 pub mod search;
 pub mod tag_picker;
+pub mod unapply_tag;
+pub mod undelete_soft;
 pub mod update;
 pub mod version;

@@ -1,3 +1,4 @@
+use nail_common::request::{DeleteBody, DeleteMode};
 use nail_common::response::version::{VersionIdView, VersionListPage, VersionView};
 
 use crate::request::error::RequestResult;
@@ -29,4 +30,20 @@ pub async fn create_version(
 ) -> RequestResult<VersionIdView> {
     let path = url::build_path_with_query(&["article", article_id, "version", "create"], &[]);
     http::post_form(&path, form, true).await
+}
+
+pub async fn update_version(version_id: &str, note: &str) -> RequestResult<VersionIdView> {
+    let path = url::build_path_with_query(&["version", version_id, "update"], &[]);
+    let body = serde_json::json!({ "note": note });
+    http::post_json(&path, &body, true).await
+}
+
+pub async fn delete_version(version_id: &str, mode: DeleteMode) -> RequestResult<VersionIdView> {
+    let path = url::build_path_with_query(&["version", version_id, "delete"], &[]);
+    http::post_json(&path, &DeleteBody { mode: Some(mode) }, true).await
+}
+
+pub async fn undelete_soft_version(version_id: &str) -> RequestResult<VersionIdView> {
+    let path = url::build_path_with_query(&["version", version_id, "undelete-soft"], &[]);
+    http::post_json(&path, &(), true).await
 }

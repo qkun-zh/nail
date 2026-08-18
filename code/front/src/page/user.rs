@@ -6,3 +6,4 @@ pub mod id;
 pub mod logout;
 pub mod name;
 pub mod role;
+pub mod undelete_soft;

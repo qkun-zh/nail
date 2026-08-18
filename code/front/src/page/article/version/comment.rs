@@ -4,11 +4,15 @@ pub mod index;
 pub mod pagination;
 pub mod render;
 pub mod state;
+pub mod undelete;
+pub mod update;
 pub mod url;
 
 use delete::comment_delete_view;
 use detail::comment_detail_view;
 use index::comment_list_view;
+use undelete::comment_undelete_view;
+use update::comment_update_view;
 
 use leptos::prelude::*;
 use leptos_router::hooks::{query_signal, use_navigate, use_params_map, use_query_map};
@@ -22,6 +26,7 @@ use crate::page::session_gate::who_are_you;
 use render::{CommentViewContext, STYLE};
 use state::{
     CommentSignals, build_load, build_submit_comment, build_submit_delete, build_submit_reply,
+    build_submit_undelete, build_submit_update,
 };
 use url::{CommentLevel, comment_level_from_path};
 #[component]
@@ -49,6 +54,7 @@ pub fn CommentSection() -> impl IntoView {
     let delete_mode = RwSignal::new(DeleteMode::Transfer);
     let body = RwSignal::new(query.get_untracked().get("body").unwrap_or_default());
     let reply_body = RwSignal::new(query.get_untracked().get("reply").unwrap_or_default());
+    let update_body = RwSignal::new(query.get_untracked().get("update").unwrap_or_default());
 
     let sync_url = {
         let navigate = navigate.clone();
@@ -71,7 +77,16 @@ pub fn CommentSection() -> impl IntoView {
                     }
                     format!("{base_path}/comment/{comment_id}")
                 }
-                CommentLevel::DeleteComment(_) | CommentLevel::Invalid => return,
+                CommentLevel::UpdateComment(comment_id) => {
+                    let value = update_body.get();
+                    if !value.trim().is_empty() {
+                        pairs.push(("update".to_string(), value));
+                    }
+                    format!("{base_path}/comment/{comment_id}/update")
+                }
+                CommentLevel::DeleteComment(_)
+                | CommentLevel::UndeleteComment(_)
+                | CommentLevel::Invalid => return,
             };
             pairs.push(("page".to_string(), page_value.to_string()));
             let refs: Vec<(&str, &str)> = pairs
@@ -135,6 +150,26 @@ pub fn CommentSection() -> impl IntoView {
         version_id_param,
         load.get_value(),
     );
+    let on_submit_update = build_submit_update(
+        notifications.clone(),
+        posting,
+        update_body,
+        limits,
+        mode,
+        version_id_param,
+        base,
+        navigate.clone(),
+        load.get_value(),
+    );
+    let on_submit_undelete = build_submit_undelete(
+        notifications.clone(),
+        posting,
+        mode,
+        version_id_param,
+        base,
+        navigate.clone(),
+        load.get_value(),
+    );
     let on_submit_delete = build_submit_delete(
         notifications,
         posting,
@@ -190,6 +225,28 @@ pub fn CommentSection() -> impl IntoView {
                         }
                         comment_delete_view(delete_mode, comment_view_context.posting, on_submit_delete.clone())
                             .into_any()
+                    }
+                    CommentLevel::UpdateComment(_) => {
+                        if !authenticated {
+                            return who_are_you();
+                        }
+                        comment_update_view(
+                            update_body,
+                            comment_view_context.posting,
+                            comment_view_context.max_chars,
+                            on_submit_update.clone(),
+                        )
+                        .into_any()
+                    }
+                    CommentLevel::UndeleteComment(_) => {
+                        if !authenticated {
+                            return who_are_you();
+                        }
+                        comment_undelete_view(
+                            comment_view_context.posting,
+                            on_submit_undelete.clone(),
+                        )
+                        .into_any()
                     }
                     CommentLevel::Invalid => {
                         view! { <p class="cmt-empty">comment not found</p> }.into_any()

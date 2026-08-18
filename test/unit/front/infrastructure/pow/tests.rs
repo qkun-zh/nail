@@ -58,7 +58,9 @@ fn solution_is_a_valid_hex_of_ninety_six_bytes() {
     let decoded: Vec<u8> = pow
         .solution
         .as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| {
             let hex = std::str::from_utf8(pair).expect("ascii");
             u8::from_str_radix(hex, 16).expect("hex digit")

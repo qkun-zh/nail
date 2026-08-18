@@ -164,6 +164,19 @@ updated `repository/delete.rs` (5), `logic/delete_verify.rs` (3),
 
 **Exit test**: `trunk build` passes; each new route navigable.
 
+**Status: DONE** — commit pending. New: `request/role.rs`, `page/role/`
+(list/create/detail/update/delete); `request/tag.rs::apply_tag/unapply_tag` +
+`page/article/apply_tag.rs`/`unapply_tag.rs` (linked from article detail);
+`request/{version,comment,user,article}.rs` update/delete/undelete fns +
+`page/article/version/{update,delete,undelete_soft}.rs`,
+`page/article/undelete_soft.rs`, `page/user/undelete_soft.rs`; comment
+section gains update/undelete levels (`comment/{id}/update`,
+`comment/{id}/undelete-soft`) with links on the comment detail card; router
+wired for all 39 routes. Evidence: 72/72 front tests (incl. new url-level
+tests), clippy zero warnings, fmt clean, `trunk build` succeeds. Fixed
+pre-existing clippy lint in `test/unit/front/infrastructure/pow/tests.rs`
+(`chunks_exact` → `as_chunks`).
+
 ### Slice 4: Tests + final gate
 
 1. Tag apply/unapply authorization tests.

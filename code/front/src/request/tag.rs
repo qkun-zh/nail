@@ -1,4 +1,5 @@
 use nail_common::request::{CreateTagRequest, TagUpdateRequest};
+use nail_common::response::EmptyView;
 pub use nail_common::response::tag::{TagListItem, TagListPage, TagNameView};
 
 use crate::request::error::RequestResult;
@@ -43,5 +44,15 @@ pub async fn update_tag(tag_id: &str, name: &str) -> RequestResult<TagNameView> 
 
 pub async fn delete_tag(tag_id: &str) -> RequestResult<()> {
     let path = url::build_path_with_query(&["tag", tag_id, "delete"], &[]);
+    http::post_json(&path, &(), true).await
+}
+
+pub async fn apply_tag(article_id: &str, tag_id: &str) -> RequestResult<EmptyView> {
+    let path = url::build_path_with_query(&["article", article_id, "tag", tag_id, "apply"], &[]);
+    http::post_json(&path, &(), true).await
+}
+
+pub async fn unapply_tag(article_id: &str, tag_id: &str) -> RequestResult<EmptyView> {
+    let path = url::build_path_with_query(&["article", article_id, "tag", tag_id, "unapply"], &[]);
     http::post_json(&path, &(), true).await
 }

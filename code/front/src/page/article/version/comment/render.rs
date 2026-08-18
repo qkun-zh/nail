@@ -227,7 +227,13 @@ pub fn comment_rows(
         .collect()
 }
 
-pub fn context_card(comment: &CommentView, delete_url: Option<String>) -> impl IntoView {
+pub struct CommentLinks {
+    pub update: Option<String>,
+    pub delete: Option<String>,
+    pub undelete: Option<String>,
+}
+
+pub fn context_card(comment: &CommentView, links: CommentLinks) -> impl IntoView {
     let time = format_timestamp(comment.created_at);
     let user_name = comment.user_name.clone();
     let body = comment.content.clone();
@@ -238,7 +244,9 @@ pub fn context_card(comment: &CommentView, delete_url: Option<String>) -> impl I
                 <span class="cmt-time">{time}</span>
             </div>
             <p class="cmt-body">{body}</p>
-            {delete_url.map(|url| view! { <p class="cmt-body"><A href=url>delete</A></p> })}
+            {links.update.map(|url| view! { <p class="cmt-body"><A href=url>update</A></p> })}
+            {links.delete.map(|url| view! { <p class="cmt-body"><A href=url>delete</A></p> })}
+            {links.undelete.map(|url| view! { <p class="cmt-body"><A href=url>undelete</A></p> })}
         </div>
     }
 }

@@ -61,3 +61,20 @@ pub async fn delete_comment(comment_id: &str, mode: DeleteMode) -> RequestResult
     let path = url::build_path_with_query(&["comment", comment_id, "delete"], &[]);
     http::post_json(&path, &DeleteBody { mode: Some(mode) }, true).await
 }
+
+pub async fn update_comment(comment_id: &str, content: &str) -> RequestResult<CommentIdView> {
+    let path = url::build_path_with_query(&["comment", comment_id, "update"], &[]);
+    http::post_json(
+        &path,
+        &CreateCommentRequest {
+            content: content.to_string(),
+        },
+        true,
+    )
+    .await
+}
+
+pub async fn undelete_soft_comment(comment_id: &str) -> RequestResult<CommentIdView> {
+    let path = url::build_path_with_query(&["comment", comment_id, "undelete-soft"], &[]);
+    http::post_json(&path, &(), true).await
+}

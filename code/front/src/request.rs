@@ -6,6 +6,7 @@ pub mod envelope;
 pub mod error;
 pub mod http;
 pub mod pow;
+pub mod role;
 pub mod session;
 pub mod tag;
 pub mod url;

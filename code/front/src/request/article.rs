@@ -38,3 +38,8 @@ pub async fn delete_article(article_id: &str, mode: DeleteMode) -> RequestResult
     let path = url::build_path_with_query(&["article", article_id, "delete"], &[]);
     http::post_json(&path, &DeleteBody { mode: Some(mode) }, true).await
 }
+
+pub async fn undelete_soft_article(article_id: &str) -> RequestResult<ArticleIdView> {
+    let path = url::build_path_with_query(&["article", article_id, "undelete-soft"], &[]);
+    http::post_json(&path, &(), true).await
+}

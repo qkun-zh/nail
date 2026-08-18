@@ -1,7 +1,9 @@
 pub enum CommentLevel {
     VersionComments,
     Comment(String),
+    UpdateComment(String),
     DeleteComment(String),
+    UndeleteComment(String),
     Invalid,
 }
 
@@ -14,6 +16,14 @@ pub fn comment_level_from_path(comment_path: &str) -> CommentLevel {
             if !comment_id.is_empty() {
                 return CommentLevel::DeleteComment(comment_id.to_string());
             }
+        } else if let Some(comment_id) = rest.strip_suffix("/update") {
+            if !comment_id.is_empty() {
+                return CommentLevel::UpdateComment(comment_id.to_string());
+            }
+        } else if let Some(comment_id) = rest.strip_suffix("/undelete-soft") {
+            if !comment_id.is_empty() {
+                return CommentLevel::UndeleteComment(comment_id.to_string());
+            }
         } else if !rest.is_empty() {
             return CommentLevel::Comment(rest.to_string());
         }
@@ -23,9 +33,10 @@ pub fn comment_level_from_path(comment_path: &str) -> CommentLevel {
 
 pub fn comment_id_from_level(level: &CommentLevel) -> Option<&str> {
     match level {
-        CommentLevel::Comment(comment_id) | CommentLevel::DeleteComment(comment_id) => {
-            Some(comment_id)
-        }
+        CommentLevel::Comment(comment_id)
+        | CommentLevel::UpdateComment(comment_id)
+        | CommentLevel::DeleteComment(comment_id)
+        | CommentLevel::UndeleteComment(comment_id) => Some(comment_id),
         CommentLevel::VersionComments | CommentLevel::Invalid => None,
     }
 }

@@ -75,6 +75,9 @@ pub fn VersionDetail() -> impl IntoView {
         let created_at = format_timestamp(version.created_at);
         let article_id = params.get().get("article_id").unwrap_or_default();
         let comments_href = format!("/article/{article_id}/version/{}/comment", version.id);
+        let update_href = format!("/article/{article_id}/version/{}/update", version.id);
+        let delete_href = format!("/article/{article_id}/version/{}/delete", version.id);
+        let undelete_href = format!("/article/{article_id}/version/{}/undelete-soft", version.id);
         let download = match download_url.get() {
             Some(url) => view! { <DownloadLink url=url/> }.into_any(),
             None => match download_error.get() {
@@ -98,6 +101,12 @@ pub fn VersionDetail() -> impl IntoView {
                 {download}
                 <hr/>
                 <div><A href=comments_href>comment</A></div>
+                <hr/>
+                <div><A href=update_href>update</A></div>
+                <hr/>
+                <div><A href=delete_href>delete</A></div>
+                <hr/>
+                <div><A href=undelete_href>undelete</A></div>
                 <hr/>
             </div>
         }

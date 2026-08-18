@@ -84,6 +84,11 @@ pub async fn deregister_self(
     http::post_json(&path, &body, true).await
 }
 
+pub async fn undelete_soft_user(user_id: &str) -> RequestResult<EmptyView> {
+    let path = url::build_path_with_query(&["user", user_id, "undelete-soft"], &[]);
+    http::post_json(&path, &(), true).await
+}
+
 #[cfg(test)]
 #[path = "../../../../test/unit/front/request/user/tests.rs"]
 mod tests;
