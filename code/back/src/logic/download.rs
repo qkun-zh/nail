@@ -21,20 +21,20 @@ pub async fn resolve_version_pdf_path(
         actor_id,
         PERMISSION_VERSION_READ,
         &Resource::Version(version_id.to_string()),
-        "article version not found",
+        "version content not found",
     )
     .await?;
     let parent = parent_article_of(&state.graph, version_id)
         .await
         .map_err(database_error)?
-        .ok_or_else(|| LogicError::not_found("article version not found"))?;
+        .ok_or_else(|| LogicError::not_found("version content not found"))?;
     if parent != article_id {
-        return Err(LogicError::not_found("article version not found"));
+        return Err(LogicError::not_found("version content not found"));
     }
     let entry = read_version(&state.graph, version_id)
         .await
         .map_err(database_error)?
-        .ok_or_else(|| LogicError::not_found("article version not found"))?;
+        .ok_or_else(|| LogicError::not_found("version content not found"))?;
     require_visible_if_soft_deleted(
         state,
         actor_id,
@@ -42,7 +42,7 @@ pub async fn resolve_version_pdf_path(
         version_id,
         PERMISSION_VERSION_UNDELETE_SOFT,
         &Resource::Version(version_id.to_string()),
-        "article version not found",
+        "version content not found",
     )
     .await?;
     pdf_final_path(&state.config.server.pdf_storage_path, &entry.content_hash)
@@ -93,15 +93,15 @@ pub async fn consume_download_token(
             "download token is bound to another account",
         ));
     }
+    if entry.version_id != version_id {
+        return Err(LogicError::not_found("version content not found"));
+    }
     let consumed = state
         .caches
         .download
         .consume_if(&key, |entry| entry.user_id == actor_id);
-    let Some(consumed) = consumed else {
+    let Some(_consumed) = consumed else {
         return Err(LogicError::bad_request("invalid or expired download token"));
     };
-    if consumed.version_id != version_id {
-        return Err(LogicError::not_found("article version not found"));
-    }
     resolve_version_pdf_path(state, actor_id, article_id, version_id).await
 }
