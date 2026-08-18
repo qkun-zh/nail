@@ -9,10 +9,9 @@ use uuid::Uuid;
 
 use crate::infrastructure::pdf::{PdfUpload, content_hash_rel_path};
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::{authorize, authorize_or, require_visible_if_soft_deleted};
+use crate::logic::authorize::{EntityRef, authorize_entity_or, require_entity_visible};
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::search::sync_article_best_effort;
-use crate::repository::authorization::Resource;
 use crate::repository::delete::{
     clear_soft_deleted_flag, delete_version as delete_version_node, soft_delete_version,
 };
@@ -79,12 +78,11 @@ pub async fn create_version(
     raw_note: &str,
     upload: PdfUpload,
 ) -> Result<String, LogicError> {
-    authorize_or(
+    authorize_entity_or(
         state,
         actor_id,
         PERMISSION_VERSION_CREATE,
-        &Resource::Article(article_id.to_string()),
-        "article not found",
+        EntityRef::Article(article_id),
     )
     .await?;
 
@@ -134,12 +132,11 @@ pub async fn read_version(
     version_id: &str,
     article_id: Option<&str>,
 ) -> Result<VersionView, LogicError> {
-    authorize_or(
+    authorize_entity_or(
         state,
         actor_id,
         PERMISSION_VERSION_READ,
-        &Resource::Version(version_id.to_string()),
-        "version not found",
+        EntityRef::Version(version_id),
     )
     .await?;
     let parent_article = parent_article_of(&state.graph, version_id)
@@ -156,16 +153,7 @@ pub async fn read_version(
         .await
         .map_err(database_error)?
         .ok_or_else(|| LogicError::not_found("version not found"))?;
-    require_visible_if_soft_deleted(
-        state,
-        actor_id,
-        crate::repository::schema::ENTITY_TYPE_VERSION,
-        version_id,
-        PERMISSION_VERSION_UNDELETE_SOFT,
-        &Resource::Version(version_id.to_string()),
-        "version not found",
-    )
-    .await?;
+    require_entity_visible(state, actor_id, EntityRef::Version(version_id)).await?;
 
     let created_at = nail_common::time::uuidv7_timestamp_secs(version_id).unwrap_or(0);
     let view = VersionView {
@@ -184,11 +172,11 @@ pub async fn read_versions(
     page: u64,
     limit: u64,
 ) -> Result<VersionListPage, LogicError> {
-    authorize(
+    authorize_entity_or(
         state,
         actor_id,
         PERMISSION_VERSION_READ,
-        &Resource::Virtual("any".to_string()),
+        EntityRef::Article(article_id),
     )
     .await?;
     let offset = page.saturating_sub(1).saturating_mul(limit);
@@ -215,12 +203,11 @@ pub async fn update_version(
     version_id: &str,
     raw_note: &str,
 ) -> Result<VersionIdView, LogicError> {
-    authorize_or(
+    authorize_entity_or(
         state,
         actor_id,
         PERMISSION_VERSION_UPDATE,
-        &Resource::Version(version_id.to_string()),
-        "version not found",
+        EntityRef::Version(version_id),
     )
     .await?;
     let note = validate_note(raw_note, state.config.server.max_version_note_chars)?;
@@ -240,12 +227,11 @@ pub async fn delete_version(
 ) -> Result<VersionIdView, LogicError> {
     match mode {
         Some(DeleteMode::Soft) => {
-            authorize_or(
+            authorize_entity_or(
                 state,
                 actor_id,
                 PERMISSION_VERSION_DELETE_SOFT,
-                &Resource::Version(version_id.to_string()),
-                "version not found",
+                EntityRef::Version(version_id),
             )
             .await?;
             let parent_article = parent_article_of(&state.graph, version_id)
@@ -269,12 +255,11 @@ pub async fn delete_version(
             })
         }
         Some(DeleteMode::Hard) => {
-            authorize_or(
+            authorize_entity_or(
                 state,
                 actor_id,
                 PERMISSION_VERSION_DELETE_HARD,
-                &Resource::Version(version_id.to_string()),
-                "version not found",
+                EntityRef::Version(version_id),
             )
             .await?;
             let parent_article = parent_article_of(&state.graph, version_id)
@@ -302,12 +287,11 @@ pub async fn undelete_soft_version(
     actor_id: &str,
     version_id: &str,
 ) -> Result<VersionIdView, LogicError> {
-    authorize_or(
+    authorize_entity_or(
         state,
         actor_id,
         PERMISSION_VERSION_UNDELETE_SOFT,
-        &Resource::Version(version_id.to_string()),
-        "version not found",
+        EntityRef::Version(version_id),
     )
     .await?;
     let hidden = crate::repository::delete::is_soft_deleted(&state.graph, "version", version_id)

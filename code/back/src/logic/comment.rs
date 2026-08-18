@@ -73,7 +73,13 @@ pub async fn read_comments(
     page: u64,
     limit: u64,
 ) -> Result<CommentListPage, LogicError> {
-    authorize_global(state, actor_id, PERMISSION_COMMENT_READ).await?;
+    authorize_entity_or(
+        state,
+        actor_id,
+        PERMISSION_COMMENT_READ,
+        EntityRef::Version(version_id),
+    )
+    .await?;
     if read_version(&state.graph, version_id)
         .await
         .map_err(database_error)?
@@ -120,7 +126,13 @@ pub async fn read_comment_children(
     page: u64,
     limit: u64,
 ) -> Result<CommentListPage, LogicError> {
-    authorize_global(state, actor_id, PERMISSION_COMMENT_READ).await?;
+    authorize_entity_or(
+        state,
+        actor_id,
+        PERMISSION_COMMENT_READ,
+        EntityRef::Comment(parent_comment_id),
+    )
+    .await?;
     let offset = page.saturating_sub(1).saturating_mul(limit);
     let (items, has_next) =
         read_comment_children_page(&state.graph, parent_comment_id, limit, offset)
