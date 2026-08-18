@@ -59,7 +59,9 @@ pub async fn read_user_name(state: &AppState, session_token: &str) -> Result<Str
 pub fn delete_session(state: &AppState, pow: &Pow, session_token: &str) -> Result<(), LogicError> {
     let user_id = read_session(state, session_token)?;
     verify_issued_pow(state, pow)?;
-    let key = token_key(session_token)
+    let token = normalize_token(session_token)
+        .ok_or_else(|| LogicError::unauthorized("invalid session"))?;
+    let key = token_key(&token)
         .map_err(|error| LogicError::internal(format!("failed to hash session token: {error}")))?;
     state.caches.session.delete(&key);
     tracing::info!(user_id = %user_id, "session deleted");
