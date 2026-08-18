@@ -1,0 +1,36 @@
+use leptos::prelude::*;
+use leptos_router::hooks::use_params_map;
+
+use crate::request::tag::{self, TagNameView};
+
+#[component]
+pub fn TagDetail() -> impl IntoView {
+    let params = use_params_map();
+    let tag = RwSignal::new(None::<TagNameView>);
+    let error = RwSignal::new(None::<String>);
+
+    Effect::new(move |_| {
+        let tag_id = params.get().get("tag_id").unwrap_or_default();
+        leptos::task::spawn_local(async move {
+            match tag::read_tag(&tag_id).await {
+                Ok(tag_view) => tag.set(Some(tag_view)),
+                Err(err) => error.set(Some(err.to_string())),
+            }
+        });
+    });
+
+    let render = move || {
+        if let Some(message) = error.get() {
+            return view! { <p>{message}</p> }.into_any();
+        }
+        let Some(tag_view) = tag.get() else {
+            return view! { <p>"Loading..."</p> }.into_any();
+        };
+        view! {
+            <h1>"Tag: " {tag_view.name}</h1>
+        }
+        .into_any()
+    };
+
+    view! { {render} }
+}

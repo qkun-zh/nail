@@ -14,13 +14,21 @@ use crate::page::article::version::index::VersionList;
 use crate::page::authenticate::Authenticate;
 use crate::page::index::Index;
 use crate::page::not_found::NotFound;
+use crate::page::tag::create::CreateTag;
+use crate::page::tag::delete::DeleteTag;
+use crate::page::tag::detail::TagDetail;
+use crate::page::tag::list::TagList;
+use crate::page::tag::update::UpdateTag;
+use crate::page::user::article::UserArticle;
 use crate::page::user::deregister::Deregister;
 use crate::page::user::email::EmailIndex;
 use crate::page::user::email::update::EmailUpdate;
 use crate::page::user::hub::UserHub;
+use crate::page::user::id::UserId;
 use crate::page::user::logout::Logout;
 use crate::page::user::name::Name;
 use crate::page::user::name::update::NameUpdate;
+use crate::page::user::role::UserRole;
 
 #[component]
 pub fn AppRouter() -> impl IntoView {
@@ -32,24 +40,44 @@ pub fn AppRouter() -> impl IntoView {
                 <Route path=path!("/search") view=Search/>
                 <ParentRoute path=path!("/user/:uid") view=Outlet>
                     <Route path=path!("") view=UserHub/>
-                    <Route path=path!("/name") view=Name/>
-                    <Route path=path!("/name/update") view=NameUpdate/>
-                    <Route path=path!("/email") view=EmailIndex/>
-                    <Route path=path!("/email/update") view=EmailUpdate/>
+                    <Route path=path!("/id") view=UserId/>
+                    <ParentRoute path=path!("/name") view=Outlet>
+                        <Route path=path!("") view=Name/>
+                        <Route path=path!("/update") view=NameUpdate/>
+                    </ParentRoute>
+                    <ParentRoute path=path!("/email") view=Outlet>
+                        <Route path=path!("") view=EmailIndex/>
+                        <Route path=path!("/update") view=EmailUpdate/>
+                    </ParentRoute>
+                    <Route path=path!("/role") view=UserRole/>
+                    <Route path=path!("/article") view=UserArticle/>
                     <Route path=path!("/logout") view=Logout/>
                     <Route path=path!("/deregister") view=Deregister/>
                 </ParentRoute>
                 <Route path=path!("/article/create") view=CreateArticle/>
-                <Route path=path!("/article/:article_id") view=ArticleDetail/>
-                <Route path=path!("/article/:article_id/update") view=UpdateArticle/>
-                <Route path=path!("/article/:article_id/delete") view=DeleteArticle/>
-                <Route path=path!("/article/:article_id/version") view=VersionList/>
-                <Route path=path!("/article/:article_id/version/create") view=CreateVersion/>
-                <Route path=path!("/article/:article_id/version/:version_id") view=VersionDetail/>
-                <Route
-                    path=path!("/article/:article_id/version/:version_id/*comment_path")
-                    view=CommentSection
-                />
+                <ParentRoute path=path!("/article/:article_id") view=Outlet>
+                    <Route path=path!("") view=ArticleDetail/>
+                    <Route path=path!("/update") view=UpdateArticle/>
+                    <Route path=path!("/delete") view=DeleteArticle/>
+                    <ParentRoute path=path!("/version") view=Outlet>
+                        <Route path=path!("") view=VersionList/>
+                        <Route path=path!("/create") view=CreateVersion/>
+                        <ParentRoute path=path!("/:version_id") view=Outlet>
+                            <Route path=path!("") view=VersionDetail/>
+                            <Route
+                                path=path!("/*comment_path")
+                                view=CommentSection
+                            />
+                        </ParentRoute>
+                    </ParentRoute>
+                </ParentRoute>
+                <Route path=path!("/tag/create") view=CreateTag/>
+                <ParentRoute path=path!("/tag/:tag_id") view=Outlet>
+                    <Route path=path!("") view=TagDetail/>
+                    <Route path=path!("/update") view=UpdateTag/>
+                    <Route path=path!("/delete") view=DeleteTag/>
+                </ParentRoute>
+                <Route path=path!("/tag") view=TagList/>
             </Routes>
         </Router>
     }

@@ -7,6 +7,7 @@ pub mod error;
 pub mod http;
 pub mod pow;
 pub mod session;
+pub mod tag;
 pub mod url;
 pub mod user;
 pub mod version;
