@@ -150,3 +150,15 @@ tracked; deleting is lossless-ish but they are not mine.)
 - 2026-08-20: created. Baseline: tree clean except 2 untracked ice dumps;
   clippy 0 on all three crates (nightly + stable); sweep of 467 pub items
   shows zero with <2 references; evidence gathered per §3/§5.
+- 2026-08-20: GATE APPROVED (orchestrator). Q1 = SKIP OffsetTime (false
+  positive: field is read at logging.rs:40; no code change, documented in §3
+  D1). Q2 = delete the 2 untracked rustc-ice dumps.
+- 2026-08-20: Slice 1 (front allows) — probe-removed both; nightly clippy
+  (project gate toolchain) FIRED both: js.rs `cast_sign_loss`/`cast_possible_truncation`
+  ("implied by `-D clippy::pedantic`" on clippy 1.99 nightly — cast lints are
+  part of pedantic on this toolchain, contradicting D1's prediction), and
+  state.rs `too_many_arguments` (9/7). Both allows RESTORED per protocol. No
+  net code change. NOTE: stable clippy cannot run with the mandated
+  `-Zcodegen-backend=cranelift` flags (rejected: "option Z is only accepted on
+  the nightly compiler"), so the nightly run is the gate; a stable run without
+  the mandated flags is not a project gate.
