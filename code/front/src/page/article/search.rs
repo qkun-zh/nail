@@ -2,6 +2,7 @@ use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
 use leptos_router::hooks::{use_navigate, use_query_map};
 use nail_common::response::search::SearchArticleItem;
+use nail_common::search::SearchRange;
 
 use crate::infrastructure::limits::use_limits;
 use crate::page::notify::{notify_error, use_notifications};
@@ -15,42 +16,69 @@ mod versions;
 use form::SearchForm;
 use results::SearchResults;
 
-const RANGE_KEYS: [&str; 12] = [
-    "title",
-    "summary",
-    "author_name",
-    "comment",
-    "note",
-    "tag",
-    "version_number",
-    "article_id",
-    "version_id",
-    "comment_id",
-    "author_id",
-    "role",
-];
-const RANGE_LABELS: [&str; 12] = [
-    "title",
-    "summary",
-    "author name",
-    "comment",
-    "version note",
-    "tag",
-    "version number",
-    "article id",
-    "version id",
-    "comment id",
-    "author id",
-    "role",
+struct RangeSpec {
+    range: SearchRange,
+    label: &'static str,
+}
+
+const RANGE_SPECS: [RangeSpec; 12] = [
+    RangeSpec {
+        range: SearchRange::Title,
+        label: "title",
+    },
+    RangeSpec {
+        range: SearchRange::Summary,
+        label: "summary",
+    },
+    RangeSpec {
+        range: SearchRange::AuthorName,
+        label: "author name",
+    },
+    RangeSpec {
+        range: SearchRange::Comment,
+        label: "comment",
+    },
+    RangeSpec {
+        range: SearchRange::Note,
+        label: "version note",
+    },
+    RangeSpec {
+        range: SearchRange::Tag,
+        label: "tag",
+    },
+    RangeSpec {
+        range: SearchRange::VersionNumber,
+        label: "version number",
+    },
+    RangeSpec {
+        range: SearchRange::ArticleId,
+        label: "article id",
+    },
+    RangeSpec {
+        range: SearchRange::VersionId,
+        label: "version id",
+    },
+    RangeSpec {
+        range: SearchRange::CommentId,
+        label: "comment id",
+    },
+    RangeSpec {
+        range: SearchRange::AuthorId,
+        label: "author id",
+    },
+    RangeSpec {
+        range: SearchRange::Role,
+        label: "role",
+    },
 ];
 const SEARCH_PATHNAME: &str = "/search";
 
 fn checked_range_subset(checked: &[bool]) -> String {
-    RANGE_KEYS
+    RANGE_SPECS
         .iter()
         .enumerate()
         .filter(|(index, _)| checked[*index])
-        .map(|(_, key)| *key)
+        .map(|(_, spec)| spec.range.as_str())
         .collect::<Vec<_>>()
         .join(",")
 }
@@ -99,8 +127,11 @@ pub fn Search() -> impl IntoView {
     if let Some(ranges_param) = params.get("ranges") {
         let mut checked = vec![false; 12];
         if !ranges_param.is_empty() {
-            for (index, key) in RANGE_KEYS.iter().enumerate() {
-                if ranges_param.split(',').any(|piece| piece == *key) {
+            for (index, spec) in RANGE_SPECS.iter().enumerate() {
+                if ranges_param
+                    .split(',')
+                    .any(|piece| piece == spec.range.as_str())
+                {
                     checked[index] = true;
                 }
             }
@@ -307,3 +338,7 @@ pub fn Search() -> impl IntoView {
         </div>
     }
 }
+
+#[cfg(test)]
+#[path = "../../../../../test/unit/front/page/search/tests.rs"]
+mod tests;

@@ -1,7 +1,7 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
 
-use super::RANGE_LABELS;
+use super::RANGE_SPECS;
 
 #[component]
 pub(super) fn SearchForm(
@@ -31,10 +31,10 @@ pub(super) fn SearchForm(
                     <div class="controls">
                         <div class="group">
                             <span class="group-title">ranges</span>
-                            {RANGE_LABELS
+                            {RANGE_SPECS
                                 .iter()
                                 .enumerate()
-                                .map(|(index, label)| {
+                                .map(|(index, spec)| {
                                     let handler = move |event: web_sys::Event| {
                                         on_range_change.run((index, event));
                                     };
@@ -42,7 +42,7 @@ pub(super) fn SearchForm(
                                     view! {
                                         <label>
                                             <input type="checkbox" prop:checked=checked on:change=handler/>
-                                            {*label}
+                                            {spec.label}
                                         </label>
                                     }
                                 })
