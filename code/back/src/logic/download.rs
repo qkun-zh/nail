@@ -3,9 +3,9 @@ use std::path::PathBuf;
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{EntityRef, authorize_entity_or, require_entity_visible};
 use crate::logic::error::{LogicError, database_error};
-use crate::logic::session::normalize_token;
+use crate::logic::session::{hash_canonical_token, hash_token};
 use crate::logic::version::pdf_final_path;
-use crate::repository::cache::{DownloadTokenEntry, token_key};
+use crate::repository::cache::DownloadTokenEntry;
 use crate::repository::role::PERMISSION_VERSION_READ;
 use crate::repository::version::{parent_article_of, read_version};
 
@@ -47,8 +47,7 @@ pub async fn mint_download_token(
     resolve_version_pdf_path(state, actor_id, article_id, version_id).await?;
 
     let token = uuid::Uuid::now_v7().to_string();
-    let key = token_key(&token)
-        .map_err(|error| LogicError::internal(format!("failed to hash download token: {error}")))?;
+    let key = hash_canonical_token(&token)?;
     state.caches.download.insert(
         &key,
         DownloadTokenEntry {
@@ -68,10 +67,10 @@ pub async fn consume_download_token(
     version_id: &str,
     raw_token: &str,
 ) -> Result<PathBuf, LogicError> {
-    let token = normalize_token(raw_token)
-        .ok_or_else(|| LogicError::bad_request("invalid or expired download token"))?;
-    let key = token_key(&token)
-        .map_err(|error| LogicError::internal(format!("failed to hash download token: {error}")))?;
+    let key = hash_token(
+        raw_token,
+        LogicError::bad_request("invalid or expired download token"),
+    )?;
     let entry = state
         .caches
         .download

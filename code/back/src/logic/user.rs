@@ -13,9 +13,8 @@ use crate::logic::error::{LogicError, database_error};
 use crate::logic::pagination::paginate;
 use crate::logic::pow::verify_issued_pow;
 use crate::logic::search::{sync_all_best_effort, sync_article_best_effort, sync_user_best_effort};
-use crate::logic::session::normalize_token;
+use crate::logic::session::hash_token;
 use crate::repository::authorization::Resource;
-use crate::repository::cache::token_key;
 use crate::repository::role::{
     PERMISSION_USER_CREATE, PERMISSION_USER_DELETE_HARD, PERMISSION_USER_DELETE_SOFT,
     PERMISSION_USER_DELETE_TRANSFER, PERMISSION_USER_READ, PERMISSION_USER_UNDELETE_SOFT,
@@ -48,11 +47,11 @@ pub async fn create_user(state: &AppState, pow: &Pow) -> Result<String, LogicErr
     )
     .await?;
     verify_issued_pow(state, pow)?;
-    let token = normalize_token(&pow.payload)
-        .ok_or_else(|| LogicError::bad_request("invalid or expired token"))?;
+    let key = hash_token(
+        &pow.payload,
+        LogicError::bad_request("invalid or expired token"),
+    )?;
 
-    let key = token_key(&token)
-        .map_err(|error| LogicError::internal(format!("failed to hash email token: {error}")))?;
     let entry = state
         .caches
         .create_user
@@ -283,10 +282,10 @@ async fn handle_delete_user_transfer(
     )
     .await?;
     verify_issued_pow(state, pow)?;
-    let token = normalize_token(&pow.payload)
-        .ok_or_else(|| LogicError::bad_request("invalid delete token"))?;
-    let token_hash = token_key(&token)
-        .map_err(|error| LogicError::internal(format!("failed to hash delete token: {error}")))?;
+    let token_hash = hash_token(
+        &pow.payload,
+        LogicError::bad_request("invalid delete token"),
+    )?;
 
     let Some(entry) = state.caches.delete_user.read(&token_hash) else {
         let user_exists = read_user_node(&state.graph, actor_id)
@@ -344,10 +343,10 @@ async fn handle_delete_user_soft(
     )
     .await?;
     verify_issued_pow(state, pow)?;
-    let token = normalize_token(&pow.payload)
-        .ok_or_else(|| LogicError::bad_request("invalid delete token"))?;
-    let token_hash = token_key(&token)
-        .map_err(|error| LogicError::internal(format!("failed to hash delete token: {error}")))?;
+    let token_hash = hash_token(
+        &pow.payload,
+        LogicError::bad_request("invalid delete token"),
+    )?;
 
     let Some(entry) = state.caches.delete_user.read(&token_hash) else {
         let user_exists = read_user_node(&state.graph, actor_id)

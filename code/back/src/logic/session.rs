@@ -5,7 +5,7 @@ use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{EntityRef, authorize_entity};
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::pow::verify_issued_pow;
-use crate::repository::cache::{SessionTokenEntry, token_key};
+use crate::repository::cache::SessionTokenEntry;
 
 pub fn normalize_token(raw: &str) -> Option<String> {
     let cleaned: String = raw
@@ -15,11 +15,18 @@ pub fn normalize_token(raw: &str) -> Option<String> {
     Uuid::parse_str(&cleaned).ok().map(|uuid| uuid.to_string())
 }
 
+pub fn hash_canonical_token(token: &str) -> Result<String, LogicError> {
+    crate::repository::cache::token_key(token)
+        .map_err(|error| LogicError::internal(format!("failed to hash token: {error}")))
+}
+
+pub fn hash_token(raw: &str, invalid: LogicError) -> Result<String, LogicError> {
+    let token = normalize_token(raw).ok_or(invalid)?;
+    hash_canonical_token(&token)
+}
+
 pub fn read_session(state: &AppState, raw_token: &str) -> Result<String, LogicError> {
-    let token =
-        normalize_token(raw_token).ok_or_else(|| LogicError::unauthorized("invalid session"))?;
-    let key = token_key(&token)
-        .map_err(|error| LogicError::internal(format!("failed to hash session token: {error}")))?;
+    let key = hash_token(raw_token, LogicError::unauthorized("invalid session"))?;
     state
         .caches
         .session
@@ -30,8 +37,7 @@ pub fn read_session(state: &AppState, raw_token: &str) -> Result<String, LogicEr
 
 pub fn create_session(state: &AppState, user_id: &str) -> Result<String, LogicError> {
     let session_token = Uuid::now_v7().to_string();
-    let session_key = token_key(&session_token)
-        .map_err(|error| LogicError::internal(format!("failed to hash session token: {error}")))?;
+    let session_key = hash_canonical_token(&session_token)?;
     state.caches.session.insert(
         &session_key,
         SessionTokenEntry {
@@ -60,10 +66,7 @@ pub async fn read_user_name(state: &AppState, session_token: &str) -> Result<Str
 pub fn delete_session(state: &AppState, pow: &Pow, session_token: &str) -> Result<(), LogicError> {
     let user_id = read_session(state, session_token)?;
     verify_issued_pow(state, pow)?;
-    let token = normalize_token(session_token)
-        .ok_or_else(|| LogicError::unauthorized("invalid session"))?;
-    let key = token_key(&token)
-        .map_err(|error| LogicError::internal(format!("failed to hash session token: {error}")))?;
+    let key = hash_token(session_token, LogicError::unauthorized("invalid session"))?;
     state.caches.session.delete(&key);
     tracing::info!(user_id = %user_id, "session deleted");
     Ok(())

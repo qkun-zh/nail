@@ -14,6 +14,42 @@ fn normalize_token_strips_whitespace_and_requires_a_uuid() {
     assert_eq!(normalize_token(""), None);
 }
 
+#[test]
+fn hash_canonical_token_matches_the_repository_token_key() {
+    let token = uuid::Uuid::now_v7().to_string();
+    let via_logic = crate::logic::session::hash_canonical_token(&token).expect("hash");
+    assert_eq!(via_logic, token_key(&token).expect("token key"));
+}
+
+#[test]
+fn hash_token_normalizes_then_hashes() {
+    let token = uuid::Uuid::now_v7().to_string();
+    let key = crate::logic::session::hash_token(
+        &format!(" {token}\n"),
+        LogicError::bad_request("invalid"),
+    )
+    .expect("hash");
+    assert_eq!(key, token_key(&token).expect("token key"));
+}
+
+#[test]
+fn hash_token_rejects_a_non_uuid_payload_with_the_given_error() {
+    let error = crate::logic::session::hash_token(
+        "not-a-uuid",
+        LogicError::bad_request("invalid or expired token"),
+    )
+    .unwrap_err();
+    assert_eq!(error, LogicError::bad_request("invalid or expired token"));
+}
+
+#[test]
+fn hash_token_rejects_an_empty_payload_with_the_given_error() {
+    let error =
+        crate::logic::session::hash_token("", LogicError::bad_request("invalid delete token"))
+            .unwrap_err();
+    assert_eq!(error, LogicError::bad_request("invalid delete token"));
+}
+
 #[tokio::test]
 async fn read_session_returns_the_user_id_for_a_known_token() {
     let context = TestCtx::new().await.expect("test context");
