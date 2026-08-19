@@ -7,6 +7,14 @@ use crate::logic::session::read_session;
 
 pub const SESSION_TOKEN_HEADER: &str = "session-token";
 
+pub fn read_session_token(parts: &Parts) -> Option<String> {
+    parts
+        .headers
+        .get(SESSION_TOKEN_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_string)
+}
+
 #[derive(Debug, Clone)]
 pub struct Principal {
     pub user_id: String,
@@ -22,11 +30,7 @@ impl FromRequestParts<AppState> for Principal {
         parts: &mut Parts,
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
-        let token = parts
-            .headers
-            .get(SESSION_TOKEN_HEADER)
-            .and_then(|value| value.to_str().ok())
-            .map(str::to_string)
+        let token = read_session_token(parts)
             .ok_or_else(|| ApiError::unauthorized("missing session-token header"))?;
         let user_id = read_session(state, &token).map_err(ApiError::from_logic)?;
         Ok(Self { user_id, token })

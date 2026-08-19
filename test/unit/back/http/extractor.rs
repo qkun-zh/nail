@@ -5,6 +5,7 @@ use axum::http::StatusCode;
 use super::context::TestCtx;
 use crate::interface::envelope::ApiError;
 use crate::interface::extractor::AppPaged;
+use crate::interface::principal::read_session_token;
 
 async fn extract(uri: &str, context: &TestCtx) -> Result<(u64, u64), ApiError> {
     let (mut parts, _) = Request::builder()
@@ -88,4 +89,39 @@ async fn app_paged_rejects_a_non_numeric_limit() {
         .expect_err("must reject");
     assert_eq!(error.status, StatusCode::BAD_REQUEST);
     assert_eq!(error.message, "invalid query parameters");
+}
+
+#[test]
+fn read_session_token_returns_the_header_value() {
+    let (parts, _) = Request::builder()
+        .uri("/token/create")
+        .header("session-token", "tok-123")
+        .body(())
+        .expect("request")
+        .into_parts();
+    assert_eq!(read_session_token(&parts).as_deref(), Some("tok-123"));
+}
+
+#[test]
+fn read_session_token_returns_none_when_the_header_is_absent() {
+    let (parts, _) = Request::builder()
+        .uri("/token/create")
+        .body(())
+        .expect("request")
+        .into_parts();
+    assert_eq!(read_session_token(&parts), None);
+}
+
+#[test]
+fn read_session_token_returns_none_for_a_non_utf8_header() {
+    let (mut parts, _) = Request::builder()
+        .uri("/token/create")
+        .body(())
+        .expect("request")
+        .into_parts();
+    parts.headers.insert(
+        "session-token",
+        axum::http::HeaderValue::from_bytes(b"\xff").expect("header"),
+    );
+    assert_eq!(read_session_token(&parts), None);
 }
