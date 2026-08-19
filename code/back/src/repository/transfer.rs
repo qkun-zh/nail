@@ -1,12 +1,13 @@
 use agdb::{DbError, QueryBuilder};
 
 use crate::repository::graph::{
-    DbHandle, read_node_sync, read_rows_in_txn, resolve_node_id_in_txn, resolve_node_id_sync,
+    DbHandle, edge_count, incoming_edges, insert_edge, outgoing_edges, read_node, read_rows,
+    resolve_node_id,
 };
 use crate::repository::role::{ROLE_RECYCLER, users_holding_role};
 use crate::repository::schema::{
     EDGE_USER_AUTHOR_ARTICLE, EDGE_USER_AUTHOR_COMMENT, ENTITY_TYPE_COMMENT, ENTITY_TYPE_USER,
-    IdRow, KEY_TYPE,
+    IdRow,
 };
 
 pub struct AccountTransferOutcome {
@@ -72,12 +73,12 @@ pub async fn transfer_account_assets(
         .ok_or(TransferError::NoRecycler)?;
     let mut guard = db.write().await;
     guard.transaction_mut(|transaction| {
-        let recycler = resolve_node_id_in_txn(transaction, ENTITY_TYPE_USER, &target)?
+        let recycler = resolve_node_id(transaction, ENTITY_TYPE_USER, &target)?
             .ok_or(TransferError::NoRecycler)?;
         let article_ids =
             repoint_from_user(transaction, recycler, author_id, EDGE_USER_AUTHOR_ARTICLE)?;
         repoint_from_user(transaction, recycler, author_id, EDGE_USER_AUTHOR_COMMENT)?;
-        if let Some(user_node) = resolve_node_id_in_txn(transaction, ENTITY_TYPE_USER, author_id)? {
+        if let Some(user_node) = resolve_node_id(transaction, ENTITY_TYPE_USER, author_id)? {
             transaction.exec_mut(QueryBuilder::remove().ids([user_node]).query())?;
         }
         Ok(AccountTransferOutcome {
@@ -115,23 +116,12 @@ async fn transfer_target_ownership(
     let mut exclude: Vec<String> = Vec::new();
     {
         let guard = db.read().await;
-        let Some(target_node) = resolve_node_id_sync(&guard, target_kind, target_id)? else {
+        let Some(target_node) = resolve_node_id(&guard, target_kind, target_id)? else {
             return Err(TransferTargetError::TargetMissing);
         };
-        let owner_edges = guard.exec(
-            QueryBuilder::search()
-                .to(target_node)
-                .where_()
-                .distance(agdb::CountComparison::Equal(1))
-                .and()
-                .edge()
-                .and()
-                .key(KEY_TYPE)
-                .value(edge_type)
-                .query(),
-        )?;
-        if let Some(edge) = owner_edges.elements.first()
-            && let Some(row) = read_node_sync::<IdRow>(&guard, edge.from)?
+        let owner_edges = incoming_edges(&guard, target_node, edge_type)?;
+        if let Some(edge) = owner_edges.first()
+            && let Some(row) = read_node::<IdRow>(&guard, edge.from)?
         {
             exclude.push(row.id);
         }
@@ -141,36 +131,17 @@ async fn transfer_target_ownership(
         .ok_or(TransferTargetError::NoRecycler)?;
     let mut guard = db.write().await;
     guard.transaction_mut(|transaction| {
-        let recycler = resolve_node_id_in_txn(transaction, ENTITY_TYPE_USER, &target)?
+        let recycler = resolve_node_id(transaction, ENTITY_TYPE_USER, &target)?
             .ok_or(TransferTargetError::NoRecycler)?;
-        let target_node = resolve_node_id_in_txn(transaction, target_kind, target_id)?
+        let target_node = resolve_node_id(transaction, target_kind, target_id)?
             .ok_or(TransferTargetError::TargetMissing)?;
-        let edges = transaction.exec(
-            QueryBuilder::search()
-                .to(target_node)
-                .where_()
-                .distance(agdb::CountComparison::Equal(1))
-                .and()
-                .edge()
-                .and()
-                .key(KEY_TYPE)
-                .value(edge_type)
-                .query(),
-        )?;
+        let edges = incoming_edges(transaction, target_node, edge_type)?;
         let edge = edges
-            .elements
             .first()
             .ok_or(TransferTargetError::TargetOwnerMissing)?;
         let edge_ids = [edge.id];
         transaction.exec_mut(QueryBuilder::remove().ids(edge_ids).query())?;
-        transaction.exec_mut(
-            QueryBuilder::insert()
-                .edges()
-                .from(recycler)
-                .to([target_node])
-                .values([[(KEY_TYPE, edge_type).into()]])
-                .query(),
-        )?;
+        insert_edge(transaction, edge_type, recycler.into(), target_node.into())?;
         Ok(())
     })
 }
@@ -181,40 +152,22 @@ fn repoint_from_user(
     author_id: &str,
     edge_type: &str,
 ) -> Result<Vec<String>, DbError> {
-    let Some(author) = resolve_node_id_in_txn(transaction, ENTITY_TYPE_USER, author_id)? else {
+    let Some(author) = resolve_node_id(transaction, ENTITY_TYPE_USER, author_id)? else {
         return Ok(Vec::new());
     };
-    let edges = transaction.exec(
-        QueryBuilder::search()
-            .from(author)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(edge_type)
-            .query(),
-    )?;
-    let targets: Vec<agdb::DbId> = edges.elements.iter().map(|element| element.to).collect();
-    if edges.elements.is_empty() {
+    let edges = outgoing_edges(transaction, author, edge_type)?;
+    let targets: Vec<agdb::DbId> = edges.iter().map(|element| element.to).collect();
+    if edges.is_empty() {
         return Ok(Vec::new());
     }
-    let target_ids = read_rows_in_txn::<IdRow>(transaction, &targets)?
+    let target_ids = read_rows::<IdRow>(transaction, &targets)?
         .into_iter()
         .map(|row| row.id)
         .collect();
-    let edge_ids: Vec<agdb::DbId> = edges.elements.iter().map(|element| element.id).collect();
+    let edge_ids: Vec<agdb::DbId> = edges.iter().map(|element| element.id).collect();
     transaction.exec_mut(QueryBuilder::remove().ids(edge_ids).query())?;
     for target in &targets {
-        transaction.exec_mut(
-            QueryBuilder::insert()
-                .edges()
-                .from(recycler)
-                .to([*target])
-                .values([[(KEY_TYPE, edge_type).into()]])
-                .query(),
-        )?;
+        insert_edge(transaction, edge_type, recycler.into(), (*target).into())?;
     }
     Ok(target_ids)
 }
@@ -230,11 +183,11 @@ async fn pick_recycler_target(
         if exclude.contains(&user_id) {
             continue;
         }
-        let Some(node) = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, &user_id)? else {
+        let Some(node) = resolve_node_id(&guard, ENTITY_TYPE_USER, &user_id)? else {
             continue;
         };
-        let articles = count_edges_sync(&guard, node, EDGE_USER_AUTHOR_ARTICLE)?;
-        let comments = count_edges_sync(&guard, node, EDGE_USER_AUTHOR_COMMENT)?;
+        let articles = edge_count(&guard, node, EDGE_USER_AUTHOR_ARTICLE)?;
+        let comments = edge_count(&guard, node, EDGE_USER_AUTHOR_COMMENT)?;
         let total = articles + comments;
         let better = match &best {
             None => true,
@@ -247,22 +200,4 @@ async fn pick_recycler_target(
         }
     }
     Ok(best.map(|(user_id, _)| user_id))
-}
-
-fn count_edges_sync(db: &agdb::DbAny, from: agdb::DbId, edge_type: &str) -> Result<u64, DbError> {
-    Ok(db
-        .exec(
-            QueryBuilder::search()
-                .from(from)
-                .where_()
-                .distance(agdb::CountComparison::Equal(1))
-                .and()
-                .edge()
-                .and()
-                .key(KEY_TYPE)
-                .value(edge_type)
-                .query(),
-        )?
-        .elements
-        .len() as u64)
 }

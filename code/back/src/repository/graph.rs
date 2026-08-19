@@ -47,19 +47,6 @@ pub(crate) fn resolve_node_id_sync(
     }
 }
 
-pub(crate) fn resolve_node_id_in_txn(
-    transaction: &agdb::DbAnyTransactionMut,
-    kind: &str,
-    business_id: &str,
-) -> Result<Option<agdb::DbId>, DbError> {
-    let alias = alias_of(kind, business_id);
-    match transaction.exec(QueryBuilder::select().ids([alias]).query()) {
-        Ok(result) => Ok(result.elements.first().map(|element| element.id)),
-        Err(error) if is_not_found(&error) => Ok(None),
-        Err(error) => Err(error),
-    }
-}
-
 pub(crate) fn find_by_index_sync(
     database: &DbAny,
     index_key: &str,
@@ -92,26 +79,6 @@ pub(crate) fn find_by_index(
     Ok(result.elements.iter().map(|element| element.id).collect())
 }
 
-pub(crate) fn read_rows_in_txn<T>(
-    transaction: &agdb::DbAnyTransactionMut,
-    ids: &[agdb::DbId],
-) -> Result<Vec<T>, DbError>
-where
-    T: DbType<ValueType = T> + DbTypeMarker,
-{
-    if ids.is_empty() {
-        return Ok(Vec::new());
-    }
-    let keys = T::db_keys();
-    let search_ids = QueryBuilder::search()
-        .elements()
-        .where_()
-        .ids(ids.to_vec())
-        .query();
-    let result = transaction.exec(QueryBuilder::select().values(keys).ids(search_ids).query())?;
-    result.try_into()
-}
-
 pub(crate) fn read_rows_sync<T>(database: &DbAny, ids: &[agdb::DbId]) -> Result<Vec<T>, DbError>
 where
     T: DbType<ValueType = T> + DbTypeMarker,
@@ -127,15 +94,6 @@ where
         .query();
     let result = database.exec(QueryBuilder::select().values(keys).ids(search_ids).query())?;
     result.try_into()
-}
-
-pub(crate) fn read_node_sync<T>(database: &DbAny, id: agdb::DbId) -> Result<Option<T>, DbError>
-where
-    T: DbType<ValueType = T> + DbTypeMarker,
-{
-    Ok(read_rows_sync::<T>(database, std::slice::from_ref(&id))?
-        .into_iter()
-        .next())
 }
 
 pub(crate) trait GraphQuery {
@@ -247,6 +205,14 @@ pub(crate) fn incoming_edges(
             .query(),
     )?;
     Ok(result.elements)
+}
+
+pub(crate) fn edge_count(
+    executor: &impl GraphQuery,
+    from: agdb::DbId,
+    edge_type: &str,
+) -> Result<u64, DbError> {
+    Ok(outgoing_edges(executor, from, edge_type)?.len() as u64)
 }
 
 pub(crate) fn existing_index_keys(database: &DbAny) -> Result<HashSet<String>, DbError> {

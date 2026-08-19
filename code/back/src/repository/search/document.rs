@@ -1,15 +1,17 @@
 use std::collections::HashSet;
 
-use agdb::{DbError, QueryBuilder};
+use agdb::DbError;
 use nail_common::search::SearchRange;
 use seekstorm::index::Document;
 
-use crate::repository::graph::{DbHandle, read_node_sync, read_rows_sync, resolve_node_id_sync};
+use crate::repository::graph::{
+    DbHandle, incoming_edges, outgoing_edges, read_node, read_rows, resolve_node_id,
+};
 use crate::repository::schema::{
     ArticleRow, CommentRow, EDGE_ARTICLE_APPLY_TAG, EDGE_ARTICLE_HOLD_VERSION,
     EDGE_COMMENT_ATTACH_VERSION, EDGE_COMMENT_REPLY_COMMENT, EDGE_USER_AUTHOR_ARTICLE,
-    EDGE_USER_AUTHOR_COMMENT, EDGE_USER_HOLD_ROLE, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_USER, KEY_TYPE,
-    RoleRow, TagRow, UserRow, VersionRow,
+    EDGE_USER_AUTHOR_COMMENT, EDGE_USER_HOLD_ROLE, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_USER, RoleRow,
+    TagRow, UserRow, VersionRow,
 };
 
 use super::schema::{
@@ -117,24 +119,13 @@ pub(super) fn read_comment_outcome(document: &Document) -> SearchCommentOutcome 
 }
 
 fn read_user_roles_sync(guard: &agdb::DbAny, user_id: &str) -> Result<String, DbError> {
-    let Some(user_db_id) = resolve_node_id_sync(guard, ENTITY_TYPE_USER, user_id)? else {
+    let Some(user_db_id) = resolve_node_id(guard, ENTITY_TYPE_USER, user_id)? else {
         return Ok(String::new());
     };
-    let edges = guard.exec(
-        QueryBuilder::search()
-            .from(user_db_id)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_USER_HOLD_ROLE)
-            .query(),
-    )?;
+    let edges = outgoing_edges(guard, user_db_id, EDGE_USER_HOLD_ROLE)?;
     let mut roles = Vec::new();
-    for edge in &edges.elements {
-        if let Some(row) = read_node_sync::<RoleRow>(guard, edge.to)? {
+    for edge in &edges {
+        if let Some(row) = read_node::<RoleRow>(guard, edge.to)? {
             roles.push(row.role_name);
         }
     }
@@ -147,13 +138,13 @@ pub(super) async fn build_documents(
     article_id: &str,
 ) -> anyhow::Result<Vec<Document>> {
     let guard = db.read().await;
-    let Some(article) = resolve_node_id_sync(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
+    let Some(article) = resolve_node_id(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
         return Ok(Vec::new());
     };
     if crate::repository::delete::has_soft_deleted_flag(&guard, article)? {
         return Ok(Vec::new());
     }
-    let article_row = read_rows_sync::<ArticleRow>(&guard, &[article])?
+    let article_row = read_rows::<ArticleRow>(&guard, &[article])?
         .into_iter()
         .next();
     let title = article_row
@@ -172,22 +163,11 @@ pub(super) async fn build_documents(
     };
     let tags = read_tag_names(&guard, article)?;
 
-    let version_edges = guard.exec(
-        QueryBuilder::search()
-            .from(article)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_HOLD_VERSION)
-            .query(),
-    )?;
+    let version_edges = outgoing_edges(&guard, article, EDGE_ARTICLE_HOLD_VERSION)?;
 
     let mut documents = Vec::new();
-    for version_edge in &version_edges.elements {
-        let Some(version_row) = read_rows_sync::<VersionRow>(&guard, &[version_edge.to])?
+    for version_edge in &version_edges {
+        let Some(version_row) = read_rows::<VersionRow>(&guard, &[version_edge.to])?
             .into_iter()
             .next()
         else {
@@ -227,7 +207,7 @@ pub(super) async fn build_documents(
         documents.push(version_doc);
 
         for comment_node in comments_of_version(&guard, version_edge.to)? {
-            let Some(comment_row) = read_rows_sync::<CommentRow>(&guard, &[comment_node])?
+            let Some(comment_row) = read_rows::<CommentRow>(&guard, &[comment_node])?
                 .into_iter()
                 .next()
             else {
@@ -302,19 +282,8 @@ fn incoming_comment_nodes(
     node: agdb::DbId,
     edge_type: &str,
 ) -> Result<Vec<agdb::DbId>, DbError> {
-    let edges = guard.exec(
-        QueryBuilder::search()
-            .to(node)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(edge_type)
-            .query(),
-    )?;
-    Ok(edges.elements.iter().map(|edge| edge.from).collect())
+    let edges = incoming_edges(guard, node, edge_type)?;
+    Ok(edges.iter().map(|edge| edge.from).collect())
 }
 
 fn read_owner(
@@ -322,21 +291,10 @@ fn read_owner(
     node: agdb::DbId,
     edge_type: &str,
 ) -> Result<(String, String), DbError> {
-    let edges = guard.exec(
-        QueryBuilder::search()
-            .to(node)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(edge_type)
-            .query(),
-    )?;
-    Ok(match edges.elements.first() {
+    let edges = incoming_edges(guard, node, edge_type)?;
+    Ok(match edges.first() {
         Some(edge) => {
-            let rows = read_rows_sync::<UserRow>(guard, &[edge.from])?;
+            let rows = read_rows::<UserRow>(guard, &[edge.from])?;
             let row = rows.into_iter().next();
             (
                 row.as_ref().map(|r| r.id.clone()).unwrap_or_default(),
@@ -348,21 +306,10 @@ fn read_owner(
 }
 
 fn read_tag_names(guard: &agdb::DbAny, article: agdb::DbId) -> Result<Vec<String>, DbError> {
-    let edges = guard.exec(
-        QueryBuilder::search()
-            .from(article)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_APPLY_TAG)
-            .query(),
-    )?;
-    let mut tags = Vec::with_capacity(edges.elements.len());
-    for edge in &edges.elements {
-        if let Some(name) = read_rows_sync::<TagRow>(guard, &[edge.to])?
+    let edges = outgoing_edges(guard, article, EDGE_ARTICLE_APPLY_TAG)?;
+    let mut tags = Vec::with_capacity(edges.len());
+    for edge in &edges {
+        if let Some(name) = read_rows::<TagRow>(guard, &[edge.to])?
             .into_iter()
             .next()
             .map(|row| row.tag_name)
