@@ -41,6 +41,68 @@ async fn create_seeded_article(
     .expect("create article")
 }
 
+#[test]
+fn paginate_returns_the_page_slice_and_has_next() {
+    let items: Vec<u64> = (0..10).collect();
+    let (page, has_next) = crate::logic::pagination::paginate(items, 1, 4);
+    assert_eq!(page, vec![0, 1, 2, 3]);
+    assert!(has_next);
+
+    let items: Vec<u64> = (0..10).collect();
+    let (page, has_next) = crate::logic::pagination::paginate(items, 3, 4);
+    assert_eq!(page, vec![8, 9]);
+    assert!(!has_next);
+}
+
+#[test]
+fn paginate_page_zero_behaves_like_page_one() {
+    let items: Vec<u64> = (0..10).collect();
+    let (page, has_next) = crate::logic::pagination::paginate(items, 0, 4);
+    assert_eq!(page, vec![0, 1, 2, 3]);
+    assert!(has_next);
+}
+
+#[test]
+fn paginate_a_huge_page_is_empty_without_next() {
+    let items: Vec<u64> = (0..10).collect();
+    let (page, has_next) = crate::logic::pagination::paginate(items, u64::MAX, 4);
+    assert!(page.is_empty());
+    assert!(!has_next);
+}
+
+#[test]
+fn paginate_an_empty_collection_has_no_next() {
+    let (page, has_next) = crate::logic::pagination::paginate(Vec::<u64>::new(), 1, 4);
+    assert!(page.is_empty());
+    assert!(!has_next);
+}
+
+#[test]
+fn page_offset_is_one_based() {
+    assert_eq!(crate::logic::pagination::page_offset(1, 4), 0);
+    assert_eq!(crate::logic::pagination::page_offset(2, 4), 4);
+    assert_eq!(crate::logic::pagination::page_offset(0, 4), 0);
+    assert_eq!(
+        crate::logic::pagination::page_offset(u64::MAX, 200),
+        u64::MAX
+    );
+}
+
+#[test]
+fn paginate_matches_the_legacy_offset_form_has_next() {
+    for total in 0..=32u64 {
+        for page in 1..=8u64 {
+            for limit in 1..=5u64 {
+                let offset = page.saturating_sub(1).saturating_mul(limit);
+                let (_, has_next) =
+                    crate::logic::pagination::paginate((0..total).collect(), page, limit);
+                let legacy = total as u64 > offset + limit;
+                assert_eq!(has_next, legacy, "total={total} page={page} limit={limit}");
+            }
+        }
+    }
+}
+
 #[tokio::test]
 async fn version_pages_tile_the_full_history_exactly_once() {
     let context = TestCtx::new().await.expect("test context");

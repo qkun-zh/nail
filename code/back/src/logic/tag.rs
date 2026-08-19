@@ -1,6 +1,7 @@
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{EntityRef, authorize_entity, authorize_entity_or, authorize_global};
 use crate::logic::error::{LogicError, database_error};
+use crate::logic::pagination::paginate;
 use crate::repository::role::{
     PERMISSION_TAG_APPLY, PERMISSION_TAG_CREATE, PERMISSION_TAG_DELETE, PERMISSION_TAG_READ,
     PERMISSION_TAG_UNAPPLY, PERMISSION_TAG_UPDATE,
@@ -42,12 +43,7 @@ pub async fn read_tags(
     authorize_global(state, actor_id, PERMISSION_TAG_READ).await?;
     let tags = read_tag_nodes(&state.graph).await.map_err(database_error)?;
     let total = tags.len() as u64;
-    let offset = page.saturating_sub(1).saturating_mul(limit);
-    let page_tags: Vec<_> = tags
-        .iter()
-        .skip(usize::try_from(offset).unwrap_or(usize::MAX))
-        .take(usize::try_from(limit).unwrap_or(usize::MAX))
-        .collect();
+    let (page_tags, has_next) = paginate(tags, page, limit);
 
     let mut tag_list = Vec::with_capacity(page_tags.len());
     for tag in &page_tags {
@@ -60,7 +56,6 @@ pub async fn read_tags(
             article_count,
         });
     }
-    let has_next = page < total.div_ceil(limit);
     Ok(TagListPage {
         tag_list,
         has_next,

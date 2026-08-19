@@ -9,6 +9,7 @@ use crate::logic::authorize::{
     EntityRef, authorize_entity_or, authorize_global, require_entity_visible,
 };
 use crate::logic::error::{LogicError, database_error};
+use crate::logic::pagination::page_offset;
 use crate::logic::search::sync_article_best_effort;
 use crate::repository::comment::{
     CommentTreeItem, CreateCommentError, create_reply_comment, create_top_level_comment,
@@ -89,7 +90,7 @@ pub async fn read_comments(
     }
     require_entity_visible(state, actor_id, EntityRef::Version(version_id)).await?;
 
-    let offset = page.saturating_sub(1).saturating_mul(limit);
+    let offset = page_offset(page, limit);
     let (items, has_next) = read_comments_page_by_version(&state.graph, version_id, limit, offset)
         .await
         .map_err(database_error)?;
@@ -133,7 +134,7 @@ pub async fn read_comment_children(
         EntityRef::Comment(parent_comment_id),
     )
     .await?;
-    let offset = page.saturating_sub(1).saturating_mul(limit);
+    let offset = page_offset(page, limit);
     let (items, has_next) =
         read_comment_children_page(&state.graph, parent_comment_id, limit, offset)
             .await

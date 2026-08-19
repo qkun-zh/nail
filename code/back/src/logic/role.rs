@@ -1,13 +1,13 @@
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{EntityRef, authorize_entity, authorize_entity_or, authorize_global};
 use crate::logic::error::{LogicError, database_error};
+use crate::logic::pagination::paginate;
 use crate::repository::role::{
     PERMISSION_ROLE_CREATE, PERMISSION_ROLE_DELETE, PERMISSION_ROLE_GRANT, PERMISSION_ROLE_READ,
     PERMISSION_ROLE_REVOKE, PERMISSION_ROLE_UPDATE, REQUIRED_ROLES, ROLE_ADMIN,
-    RoleView as RepositoryRoleView, create_role as create_role_node,
-    delete_role as delete_role_node, grant_permission_to_role, hold_role,
-    read_role as read_role_node, read_role_by_id as read_role_node_by_id, read_role_members,
-    read_roles as read_role_nodes, revoke_permission_from_role, unhold_role,
+    create_role as create_role_node, delete_role as delete_role_node, grant_permission_to_role,
+    hold_role, read_role as read_role_node, read_role_by_id as read_role_node_by_id,
+    read_role_members, read_roles as read_role_nodes, revoke_permission_from_role, unhold_role,
 };
 use nail_common::response::role::{RoleListItem, RoleListPage, RoleNameView, RoleView};
 
@@ -63,12 +63,7 @@ pub async fn read_roles(
         .await
         .map_err(database_error)?;
     let total = roles.len() as u64;
-    let offset = page.saturating_sub(1).saturating_mul(limit);
-    let page_roles: Vec<RepositoryRoleView> = roles
-        .into_iter()
-        .skip(usize::try_from(offset).unwrap_or(usize::MAX))
-        .take(usize::try_from(limit).unwrap_or(usize::MAX))
-        .collect();
+    let (page_roles, has_next) = paginate(roles, page, limit);
 
     let mut role_list = Vec::with_capacity(page_roles.len());
     for role in &page_roles {
@@ -83,7 +78,6 @@ pub async fn read_roles(
             member_count,
         });
     }
-    let has_next = page < total.div_ceil(limit);
     Ok(RoleListPage {
         role_list,
         has_next,

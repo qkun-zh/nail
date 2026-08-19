@@ -11,6 +11,7 @@ use crate::infrastructure::pdf::{PdfUpload, content_hash_rel_path};
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{EntityRef, authorize_entity_or, require_entity_visible};
 use crate::logic::error::{LogicError, database_error};
+use crate::logic::pagination::page_offset;
 use crate::logic::search::sync_article_best_effort;
 use crate::repository::delete::{
     clear_soft_deleted_flag, delete_version as delete_version_node, soft_delete_version,
@@ -179,7 +180,7 @@ pub async fn read_versions(
         EntityRef::Article(article_id),
     )
     .await?;
-    let offset = page.saturating_sub(1).saturating_mul(limit);
+    let offset = page_offset(page, limit);
     let (items, has_next) = versions_of(&state.graph, article_id, limit, offset)
         .await
         .map_err(database_error)?;

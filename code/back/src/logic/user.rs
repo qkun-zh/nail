@@ -10,6 +10,7 @@ use crate::logic::authorize::{
     require_entity_readable,
 };
 use crate::logic::error::{LogicError, database_error};
+use crate::logic::pagination::paginate;
 use crate::logic::pow::verify_issued_pow;
 use crate::logic::search::{sync_all_best_effort, sync_article_best_effort, sync_user_best_effort};
 use crate::logic::session::normalize_token;
@@ -129,12 +130,7 @@ pub async fn read_users(
         .await
         .map_err(database_error)?;
     let total = users.len() as u64;
-    let offset = page.saturating_sub(1).saturating_mul(limit);
-    let page_users: Vec<_> = users
-        .into_iter()
-        .skip(usize::try_from(offset).unwrap_or(usize::MAX))
-        .take(usize::try_from(limit).unwrap_or(usize::MAX))
-        .collect();
+    let (page_users, has_next) = paginate(users, page, limit);
 
     let mut user_list = Vec::with_capacity(page_users.len());
     for user in &page_users {
@@ -147,7 +143,6 @@ pub async fn read_users(
             roles,
         });
     }
-    let has_next = page < total.div_ceil(limit);
     Ok(UserListPage {
         user_list,
         has_next,

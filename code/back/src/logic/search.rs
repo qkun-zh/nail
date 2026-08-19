@@ -9,6 +9,7 @@ use nail_common::search::SearchRange;
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::authorize_global;
 use crate::logic::error::LogicError;
+use crate::logic::pagination::{page_offset, paginate};
 use crate::repository::role::PERMISSION_ARTICLE_READ;
 use crate::repository::search::{SearchCommentOutcome, SearchDocOutcome, SearchRequest};
 
@@ -53,7 +54,7 @@ pub async fn search_articles(
         state.config.server.search_page_size,
         state.config.server.max_search_pages,
     )?;
-    let offset = page.saturating_sub(1).saturating_mul(limit);
+    let offset = page_offset(page, limit);
 
     let outcome = state
         .search
@@ -72,13 +73,7 @@ pub async fn search_articles(
         .map_err(|error| LogicError::internal(format!("search failed: {error}")))?;
 
     let article_list = assemble_tree(&outcome.docs);
-    let sliced: Vec<SearchArticleItem> = article_list
-        .iter()
-        .skip(usize::try_from(offset).unwrap_or(usize::MAX))
-        .take(usize::try_from(limit).unwrap_or(usize::MAX))
-        .cloned()
-        .collect();
-    let has_next = article_list.len() as u64 > offset + limit;
+    let (sliced, has_next) = paginate(article_list, page, limit);
 
     Ok(SearchPage {
         article_list: sliced,

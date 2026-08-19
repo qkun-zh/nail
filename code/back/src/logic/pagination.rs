@@ -3,6 +3,21 @@ use crate::logic::error::LogicError;
 pub const MAX_PAGE_SIZE: u64 = 200;
 pub const MAX_PAGE: u64 = 10_000;
 
+pub fn page_offset(page: u64, limit: u64) -> u64 {
+    page.saturating_sub(1).saturating_mul(limit)
+}
+
+pub fn paginate<T>(items: Vec<T>, page: u64, limit: u64) -> (Vec<T>, bool) {
+    let total = items.len() as u64;
+    let items = items
+        .into_iter()
+        .skip(usize::try_from(page_offset(page, limit)).unwrap_or(usize::MAX))
+        .take(usize::try_from(limit).unwrap_or(usize::MAX))
+        .collect();
+    let has_next = page < total.div_ceil(limit);
+    (items, has_next)
+}
+
 pub fn clamp_page_limit(
     page: Option<u64>,
     limit: Option<u64>,
