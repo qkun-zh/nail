@@ -34,35 +34,6 @@ pub(crate) fn is_not_found(error: &DbError) -> bool {
     error.ty == DbErrorType::NotFound
 }
 
-pub(crate) fn resolve_node_id_sync(
-    database: &DbAny,
-    kind: &str,
-    business_id: &str,
-) -> Result<Option<agdb::DbId>, DbError> {
-    let alias = alias_of(kind, business_id);
-    match database.exec(QueryBuilder::select().ids([alias]).query()) {
-        Ok(result) => Ok(result.elements.first().map(|element| element.id)),
-        Err(error) if is_not_found(&error) => Ok(None),
-        Err(error) => Err(error),
-    }
-}
-
-pub(crate) fn find_by_index_sync(
-    database: &DbAny,
-    index_key: &str,
-    value: &str,
-) -> Result<Vec<agdb::DbId>, DbError> {
-    let result = database.exec(
-        QueryBuilder::select()
-            .values([agdb::DbValue::String(index_key.to_string())])
-            .search()
-            .index(index_key)
-            .value(value)
-            .query(),
-    )?;
-    Ok(result.elements.iter().map(|element| element.id).collect())
-}
-
 pub(crate) fn find_by_index(
     executor: &impl GraphQuery,
     index_key: &str,
@@ -77,23 +48,6 @@ pub(crate) fn find_by_index(
             .query(),
     )?;
     Ok(result.elements.iter().map(|element| element.id).collect())
-}
-
-pub(crate) fn read_rows_sync<T>(database: &DbAny, ids: &[agdb::DbId]) -> Result<Vec<T>, DbError>
-where
-    T: DbType<ValueType = T> + DbTypeMarker,
-{
-    if ids.is_empty() {
-        return Ok(Vec::new());
-    }
-    let keys = T::db_keys();
-    let search_ids = QueryBuilder::search()
-        .elements()
-        .where_()
-        .ids(ids.to_vec())
-        .query();
-    let result = database.exec(QueryBuilder::select().values(keys).ids(search_ids).query())?;
-    result.try_into()
 }
 
 pub(crate) trait GraphQuery {

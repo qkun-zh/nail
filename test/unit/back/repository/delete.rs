@@ -307,7 +307,7 @@ async fn has_soft_deleted_flag(
 ) -> bool {
     let guard = state.graph.read().await;
     let Some(node) =
-        crate::repository::graph::resolve_node_id_sync(&guard, kind, id).expect("resolve node")
+        crate::repository::graph::resolve_node_id(&guard, kind, id).expect("resolve node")
     else {
         return false;
     };

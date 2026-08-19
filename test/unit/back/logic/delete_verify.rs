@@ -668,7 +668,7 @@ async fn soft_delete_keeps_article_identity_while_hiding_it() {
         "the node must survive for identity/occupancy"
     );
     let guard = context.state.graph.read().await;
-    let holder = crate::repository::graph::resolve_node_id_sync(
+    let holder = crate::repository::graph::resolve_node_id(
         &guard,
         crate::repository::schema::ENTITY_TYPE_ARTICLE,
         &article_id,

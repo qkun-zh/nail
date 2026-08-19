@@ -2,9 +2,7 @@ use std::collections::HashMap;
 
 use agdb::{DbError, QueryBuilder};
 
-use crate::repository::graph::{
-    DbHandle, find_by_index_sync, read_rows_sync, resolve_node_id_sync,
-};
+use crate::repository::graph::{DbHandle, find_by_index, read_node, resolve_node_id};
 use crate::repository::schema::{
     ENTITY_TYPE_USER, IdRow, KEY_EMAIL_ADDRESS_HASH, KEY_TYPE, KEY_USER_NAME, UserRow, alias_of,
 };
@@ -44,9 +42,9 @@ impl std::error::Error for UserWriteError {}
 
 pub async fn create_user(db: &DbHandle, email_address_hash: &str) -> Result<String, DbError> {
     let mut guard = db.write().await;
-    let ids = find_by_index_sync(&guard, KEY_EMAIL_ADDRESS_HASH, email_address_hash)?;
+    let ids = find_by_index(&guard, KEY_EMAIL_ADDRESS_HASH, email_address_hash)?;
     if let Some(user_id) = ids.first()
-        && let Some(row) = read_rows_sync::<IdRow>(&guard, &[*user_id])?.first()
+        && let Some(row) = read_node::<IdRow>(&guard, *user_id)?
     {
         return Ok(row.id.clone());
     }
@@ -72,23 +70,19 @@ pub async fn read_user_by_email_address_hash(
     email_address_hash: &str,
 ) -> Result<Option<String>, DbError> {
     let guard = db.read().await;
-    let ids = find_by_index_sync(&guard, KEY_EMAIL_ADDRESS_HASH, email_address_hash)?;
+    let ids = find_by_index(&guard, KEY_EMAIL_ADDRESS_HASH, email_address_hash)?;
     let Some(user_id) = ids.first() else {
         return Ok(None);
     };
-    Ok(read_rows_sync::<IdRow>(&guard, &[*user_id])?
-        .first()
-        .map(|row| row.id.clone()))
+    Ok(read_node::<IdRow>(&guard, *user_id)?.map(|row| row.id.clone()))
 }
 
 pub async fn read_user(db: &DbHandle, user_id: &str) -> Result<Option<UserEntry>, DbError> {
     let guard = db.read().await;
-    let Some(id) = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)? else {
+    let Some(id) = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)? else {
         return Ok(None);
     };
-    let row = read_rows_sync::<UserRow>(&guard, &[id])?
-        .into_iter()
-        .next()
+    let row = read_node::<UserRow>(&guard, id)?
         .ok_or_else(|| DbError::query(agdb::DbErrorType::NotFound, "user row missing"))?;
     Ok(Some(UserEntry {
         email_address_hash: row.email_address_hash,
@@ -103,13 +97,10 @@ pub async fn read_user_names(
     let guard = db.read().await;
     let mut names = HashMap::new();
     for user_id in user_ids {
-        let Some(node) = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)? else {
+        let Some(node) = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)? else {
             continue;
         };
-        if let Some(row) = read_rows_sync::<UserRow>(&guard, &[node])?
-            .into_iter()
-            .next()
-        {
+        if let Some(row) = read_node::<UserRow>(&guard, node)? {
             names.insert(user_id.clone(), row.name);
         }
     }
@@ -122,10 +113,10 @@ pub async fn update_user_name(
     name: &str,
 ) -> Result<(), UserWriteError> {
     let mut guard = db.write().await;
-    let id = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)
+    let id = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)
         .map_err(UserWriteError::Db)?
         .ok_or(UserWriteError::UserMissing)?;
-    let taken = find_by_index_sync(&guard, KEY_USER_NAME, name)
+    let taken = find_by_index(&guard, KEY_USER_NAME, name)
         .map_err(UserWriteError::Db)?
         .into_iter()
         .any(|other_id| other_id != id);
@@ -151,19 +142,17 @@ pub async fn update_user_email(
     new_email_address_hash: &str,
 ) -> Result<(), UserWriteError> {
     let mut guard = db.write().await;
-    let id = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)
+    let id = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)
         .map_err(UserWriteError::Db)?
         .ok_or(UserWriteError::UserMissing)?;
-    let current_hash = read_rows_sync::<UserRow>(&guard, &[id])
+    let current_hash = read_node::<UserRow>(&guard, id)
         .map_err(UserWriteError::Db)?
-        .into_iter()
-        .next()
         .map(|row| row.email_address_hash)
         .unwrap_or_default();
     if current_hash != old_email_address_hash {
         return Err(UserWriteError::EmailMismatch);
     }
-    let taken = find_by_index_sync(&guard, KEY_EMAIL_ADDRESS_HASH, new_email_address_hash)
+    let taken = find_by_index(&guard, KEY_EMAIL_ADDRESS_HASH, new_email_address_hash)
         .map_err(UserWriteError::Db)?
         .into_iter()
         .any(|other_id| other_id != id);
@@ -197,10 +186,7 @@ pub async fn read_users(db: &DbHandle) -> Result<Vec<UserListItem>, DbError> {
         if crate::repository::delete::has_soft_deleted_flag(&guard, element.id)? {
             continue;
         }
-        if let Some(row) = read_rows_sync::<UserRow>(&guard, &[element.id])?
-            .into_iter()
-            .next()
-        {
+        if let Some(row) = read_node::<UserRow>(&guard, element.id)? {
             users.push(UserListItem {
                 id: row.id,
                 name: row.name,

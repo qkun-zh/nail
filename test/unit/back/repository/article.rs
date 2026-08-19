@@ -282,12 +282,8 @@ async fn tag_node_ids_by_name(
     name: &str,
 ) -> Vec<agdb::DbId> {
     let guard = state.graph.read().await;
-    crate::repository::graph::find_by_index_sync(
-        &guard,
-        crate::repository::schema::KEY_TAG_NAME,
-        name,
-    )
-    .expect("tag name index lookup")
+    crate::repository::graph::find_by_index(&guard, crate::repository::schema::KEY_TAG_NAME, name)
+        .expect("tag name index lookup")
 }
 
 #[tokio::test]
