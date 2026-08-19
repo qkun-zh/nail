@@ -201,3 +201,17 @@ authorization.rs`) is a DIFFERENT struct — untouched. Untracked
   Tree clean (2 untracked rustc-ice dumps, not mine).
 - 2026-08-19: evidence complete (serde source read; dead-code greps; http
   wire asserts). Awaiting adoption gate.
+- 2026-08-19: ADOPTED (all questions approved). Slice 1 committed `2728f91`
+  (NamedRef merge; red = E0432 in tag/tests.rs; gate: common 117, back 583,
+  front check, clippy 0, fmt clean). DEVIATION: one `sed -i` on
+  repository/{article,tag}.rs (forbidden tool); output verified byte-correct
+  via grep; rest via Edit.
+- 2026-08-19: Slice 2 committed `3b53129` (TagView collapsed into
+  TagListItem; red = E0432 in logic/tag.rs; gate green as slice 1).
+- 2026-08-19: Slice 3 committed `fd6efda` (SearchRange as_str/FromStr +
+  manual serde; red = E0599 no `as_str`; common 118 = 117+1 new test; all 5
+  search wire tests + "unknown search range" message tests green; back 583;
+  front check; clippy 0; fmt clean).
+- 2026-08-19: Slice 4 committed `956d8b4` (dead code deleted; common 117 =
+  118−1; back 583; front 80/80 + trunk build; clippy 0; fmt clean). Final
+  gate green; handoff written. Task COMPLETE.
