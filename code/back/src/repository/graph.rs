@@ -92,6 +92,22 @@ pub(crate) fn find_by_index_in_txn(
     Ok(result.elements.iter().map(|element| element.id).collect())
 }
 
+pub(crate) fn find_by_index(
+    executor: &impl GraphQuery,
+    index_key: &str,
+    value: &str,
+) -> Result<Vec<agdb::DbId>, DbError> {
+    let result = executor.exec_query(
+        QueryBuilder::select()
+            .values([agdb::DbValue::String(index_key.to_string())])
+            .search()
+            .index(index_key)
+            .value(value)
+            .query(),
+    )?;
+    Ok(result.elements.iter().map(|element| element.id).collect())
+}
+
 pub(crate) fn read_rows_in_txn<T>(
     transaction: &agdb::DbAnyTransactionMut,
     ids: &[agdb::DbId],
@@ -276,13 +292,47 @@ pub(crate) fn existing_index_keys(database: &DbAny) -> Result<HashSet<String>, D
     Ok(keys)
 }
 
+pub(crate) trait GraphWrite {
+    fn exec_mut_query<T: agdb::QueryMut>(
+        &mut self,
+        query: T,
+    ) -> Result<agdb::QueryResult, agdb::DbError>;
+}
+
+impl GraphWrite for DbAny {
+    fn exec_mut_query<T: agdb::QueryMut>(
+        &mut self,
+        query: T,
+    ) -> Result<agdb::QueryResult, agdb::DbError> {
+        self.exec_mut(query)
+    }
+}
+
+impl GraphWrite for agdb::DbAnyTransactionMut<'_> {
+    fn exec_mut_query<T: agdb::QueryMut>(
+        &mut self,
+        query: T,
+    ) -> Result<agdb::QueryResult, agdb::DbError> {
+        self.exec_mut(query)
+    }
+}
+
+impl GraphWrite for RwLockWriteGuard<'_, DbAny> {
+    fn exec_mut_query<T: agdb::QueryMut>(
+        &mut self,
+        query: T,
+    ) -> Result<agdb::QueryResult, agdb::DbError> {
+        (**self).exec_mut(query)
+    }
+}
+
 pub(crate) fn insert_edge(
-    transaction: &mut agdb::DbAnyTransactionMut,
+    executor: &mut impl GraphWrite,
     edge_type: &str,
     from: agdb::QueryId,
     to: agdb::QueryId,
 ) -> Result<(), DbError> {
-    transaction.exec_mut(
+    executor.exec_mut_query(
         QueryBuilder::insert()
             .edges()
             .from(from)

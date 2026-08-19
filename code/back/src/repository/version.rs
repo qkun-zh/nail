@@ -2,8 +2,8 @@ use agdb::{DbError, DbErrorType, QueryBuilder};
 use semver::Version;
 
 use crate::repository::graph::{
-    DbHandle, find_by_index_in_txn, find_by_index_sync, insert_edge, read_node_in_txn,
-    read_rows_sync, resolve_node_id_in_txn, resolve_node_id_sync,
+    DbHandle, find_by_index, incoming_edges, insert_edge, outgoing_edges, read_node, read_rows,
+    resolve_node_id,
 };
 use crate::repository::schema::{
     ArticleRow, EDGE_ARTICLE_HOLD_VERSION, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_VERSION, IdRow,
@@ -74,32 +74,20 @@ pub async fn create_version(
 ) -> Result<(), CreateVersionError> {
     let mut guard = db.write().await;
     guard.transaction_mut(|transaction| {
-        let Some(article) = resolve_node_id_in_txn(transaction, ENTITY_TYPE_ARTICLE, article_id)?
-        else {
+        let Some(article) = resolve_node_id(transaction, ENTITY_TYPE_ARTICLE, article_id)? else {
             return Err(CreateVersionError::ArticleMissing);
         };
         if crate::repository::delete::has_soft_deleted_flag_in_txn(transaction, article)? {
             return Err(CreateVersionError::ArticleMissing);
         }
-        if !find_by_index_in_txn(transaction, KEY_CONTENT_HASH, &draft.content_hash)?.is_empty() {
+        if !find_by_index(transaction, KEY_CONTENT_HASH, &draft.content_hash)?.is_empty() {
             return Err(CreateVersionError::ContentHashTaken);
         }
-        let edges = transaction.exec(
-            QueryBuilder::search()
-                .from(article)
-                .where_()
-                .distance(agdb::CountComparison::Equal(1))
-                .and()
-                .edge()
-                .and()
-                .key(KEY_TYPE)
-                .value(EDGE_ARTICLE_HOLD_VERSION)
-                .query(),
-        )?;
+        let edges = outgoing_edges(transaction, article, EDGE_ARTICLE_HOLD_VERSION)?;
         let mut max_existing: Option<Version> = None;
-        for edge in &edges.elements {
+        for edge in &edges {
             let Some(stored) =
-                read_node_in_txn::<VersionRow>(transaction, edge.to)?.map(|row| row.version_number)
+                read_node::<VersionRow>(transaction, edge.to)?.map(|row| row.version_number)
             else {
                 continue;
             };
@@ -152,10 +140,10 @@ pub async fn read_version(
     version_id: &str,
 ) -> Result<Option<VersionEntry>, DbError> {
     let guard = db.read().await;
-    let Some(id) = resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, version_id)? else {
+    let Some(id) = resolve_node_id(&guard, ENTITY_TYPE_VERSION, version_id)? else {
         return Ok(None);
     };
-    let row = read_rows_sync::<VersionRow>(&guard, &[id])?
+    let row = read_rows::<VersionRow>(&guard, &[id])?
         .into_iter()
         .next()
         .ok_or_else(|| DbError::query(DbErrorType::NotFound, "version row missing"))?;
@@ -168,7 +156,7 @@ pub async fn read_version(
 
 pub async fn update_version(db: &DbHandle, version_id: &str, note: &str) -> Result<(), DbError> {
     let mut guard = db.write().await;
-    let Some(id) = resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, version_id)? else {
+    let Some(id) = resolve_node_id(&guard, ENTITY_TYPE_VERSION, version_id)? else {
         return Ok(());
     };
     if crate::repository::delete::has_soft_deleted_flag(&guard, id)? {
@@ -191,7 +179,7 @@ pub async fn versions_of(
     offset: u64,
 ) -> Result<(Vec<VersionListItem>, bool), DbError> {
     let guard = db.read().await;
-    let Some(article) = resolve_node_id_sync(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
+    let Some(article) = resolve_node_id(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
         return Ok((Vec::new(), false));
     };
     if crate::repository::delete::has_soft_deleted_flag(&guard, article)? {
@@ -222,8 +210,8 @@ pub async fn versions_of(
         .take(limit)
         .map(|element| element.id)
         .collect();
-    let id_rows = read_rows_sync::<IdRow>(&guard, &version_nodes)?;
-    let version_rows = read_rows_sync::<VersionRow>(&guard, &version_nodes)?;
+    let id_rows = read_rows::<IdRow>(&guard, &version_nodes)?;
+    let version_rows = read_rows::<VersionRow>(&guard, &version_nodes)?;
     let list: Vec<VersionListItem> = id_rows
         .into_iter()
         .zip(version_rows)
@@ -240,28 +228,17 @@ pub async fn content_hash_owner(
     content_hash: &str,
 ) -> Result<Option<ContentHashOwner>, DbError> {
     let guard = db.read().await;
-    let ids = find_by_index_sync(&guard, KEY_CONTENT_HASH, content_hash)?;
+    let ids = find_by_index(&guard, KEY_CONTENT_HASH, content_hash)?;
     let Some(version_id) = ids.first() else {
         return Ok(None);
     };
-    let version_business_id = read_rows_sync::<IdRow>(&guard, &[*version_id])?
+    let version_business_id = read_rows::<IdRow>(&guard, &[*version_id])?
         .first()
         .map(|row| row.id.clone())
         .unwrap_or_default();
-    let edges = guard.exec(
-        QueryBuilder::search()
-            .to(*version_id)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_HOLD_VERSION)
-            .query(),
-    )?;
-    let article_title = match edges.elements.first() {
-        Some(edge) => read_rows_sync::<ArticleRow>(&guard, &[edge.from])?
+    let edges = incoming_edges(&guard, *version_id, EDGE_ARTICLE_HOLD_VERSION)?;
+    let article_title = match edges.first() {
+        Some(edge) => read_rows::<ArticleRow>(&guard, &[edge.from])?
             .first()
             .map(|row| row.title.clone())
             .unwrap_or_default(),
@@ -275,23 +252,12 @@ pub async fn content_hash_owner(
 
 pub async fn parent_article_of(db: &DbHandle, version_id: &str) -> Result<Option<String>, DbError> {
     let guard = db.read().await;
-    let Some(version) = resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, version_id)? else {
+    let Some(version) = resolve_node_id(&guard, ENTITY_TYPE_VERSION, version_id)? else {
         return Ok(None);
     };
-    let edges = guard.exec(
-        QueryBuilder::search()
-            .to(version)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_HOLD_VERSION)
-            .query(),
-    )?;
-    Ok(edges.elements.first().and_then(|edge| {
-        read_rows_sync::<IdRow>(&guard, &[edge.from])
+    let edges = incoming_edges(&guard, version, EDGE_ARTICLE_HOLD_VERSION)?;
+    Ok(edges.first().and_then(|edge| {
+        read_rows::<IdRow>(&guard, &[edge.from])
             .ok()
             .and_then(|rows| rows.into_iter().next())
             .map(|row| row.id)
