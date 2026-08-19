@@ -16,6 +16,8 @@ pub struct Principal {
 impl FromRequestParts<AppState> for Principal {
     type Rejection = ApiError;
 
+    #[allow(unknown_lints)]
+    #[allow(clippy::unused_async_trait_impl)]
     async fn from_request_parts(
         parts: &mut Parts,
         state: &AppState,
