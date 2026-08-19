@@ -1,3 +1,6 @@
+use crate::validate::PrintableAscii;
+use crate::validate::ValidationError;
+use crate::validate::validate_with_policy;
 use std::fmt;
 
 /// Validates and trims printable-ASCII text.
@@ -10,23 +13,7 @@ pub fn validate_ascii_text(
     max_chars: usize,
     allow_newline: bool,
 ) -> Result<String, TextError> {
-    let trimmed = raw.trim();
-    if trimmed.is_empty() {
-        return Err(TextError::Empty);
-    }
-    for ch in trimmed.chars() {
-        if !ch.is_ascii() {
-            return Err(TextError::ContainsForbiddenChar(ch));
-        }
-        let byte = ch as u8;
-        if !((0x20..=0x7e).contains(&byte) || (allow_newline && byte == b'\n')) {
-            return Err(TextError::ContainsForbiddenChar(ch));
-        }
-    }
-    if trimmed.chars().count() > max_chars {
-        return Err(TextError::TooLong { max_chars });
-    }
-    Ok(trimmed.to_string())
+    validate_with_policy::<TextError, _>(raw, max_chars, &PrintableAscii { allow_newline })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -54,6 +41,18 @@ impl fmt::Display for TextError {
 }
 
 impl std::error::Error for TextError {}
+
+impl ValidationError for TextError {
+    fn empty() -> Self {
+        TextError::Empty
+    }
+    fn too_long(max_chars: usize) -> Self {
+        TextError::TooLong { max_chars }
+    }
+    fn forbidden(ch: char) -> Self {
+        TextError::ContainsForbiddenChar(ch)
+    }
+}
 
 #[cfg(test)]
 #[path = "../../../test/unit/common/text/tests.rs"]
