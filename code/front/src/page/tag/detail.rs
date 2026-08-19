@@ -2,12 +2,12 @@ use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 
 use crate::page::validation::validate_uuid;
-use crate::request::tag::{self, TagNameView};
+use crate::request::tag::{self, NamedRef};
 
 #[component]
 pub fn TagDetail() -> impl IntoView {
     let params = use_params_map();
-    let tag = RwSignal::new(None::<TagNameView>);
+    let tag = RwSignal::new(None::<NamedRef>);
     let error = RwSignal::new(None::<String>);
 
     Effect::new(move |_| {

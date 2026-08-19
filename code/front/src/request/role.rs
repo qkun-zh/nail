@@ -2,7 +2,8 @@ use nail_common::request::{
     ChangeList, CreateRoleRequest, DeleteBody, DeleteMode, RoleUpdateRequest,
 };
 use nail_common::response::ListPage;
-use nail_common::response::role::{RoleListItem, RoleNameView, RoleView};
+use nail_common::response::NamedRef;
+use nail_common::response::role::{RoleListItem, RoleView};
 
 use crate::request::error::RequestResult;
 use crate::request::validate::validate_id;
@@ -22,7 +23,7 @@ pub async fn read_role(role_id: &str) -> RequestResult<RoleView> {
     http::get_json(&path, true).await
 }
 
-pub async fn create_role(name: &str) -> RequestResult<RoleNameView> {
+pub async fn create_role(name: &str) -> RequestResult<NamedRef> {
     let path = url::build_path_with_query(&["role", "create"], &[]);
     let body = CreateRoleRequest {
         name: name.to_string(),
@@ -52,7 +53,7 @@ pub async fn update_role(
     http::post_json(&path, &body, true).await
 }
 
-pub async fn delete_role(role_id: &str) -> RequestResult<RoleNameView> {
+pub async fn delete_role(role_id: &str) -> RequestResult<NamedRef> {
     let role_id = validate_id(role_id, "role_id")?;
     let path = url::build_path_with_query(&["role", &role_id, "delete"], &[]);
     http::post_json(

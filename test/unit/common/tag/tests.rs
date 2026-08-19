@@ -1,7 +1,7 @@
+use crate::response::NamedRef;
 use crate::tag::MAX_TAG_NAME_CHAR_COUNT;
 use crate::tag::TagNameError;
 use crate::tag::TagNamesError;
-use crate::tag::TagRef;
 use crate::tag::parse_tags;
 use crate::tag::validate_tag_name;
 
@@ -101,17 +101,17 @@ fn deduplication_does_not_consume_the_count() {
 }
 
 #[test]
-fn tag_ref_round_trips_on_the_wire() {
-    let tag_ref = TagRef {
+fn named_ref_round_trips_on_the_wire() {
+    let tag_ref = NamedRef {
         id: "0197c0b0-0000-7000-8000-000000000000".to_string(),
         name: "rust".to_string(),
     };
-    let json = serde_json::to_string(&tag_ref).expect("serialize tag ref");
+    let json = serde_json::to_string(&tag_ref).expect("serialize named ref");
     assert_eq!(
         json,
         r#"{"id":"0197c0b0-0000-7000-8000-000000000000","name":"rust"}"#
     );
-    let decoded: TagRef = serde_json::from_str(&json).expect("deserialize tag ref");
+    let decoded: NamedRef = serde_json::from_str(&json).expect("deserialize named ref");
     assert_eq!(decoded, tag_ref);
 }
 

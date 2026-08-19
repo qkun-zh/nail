@@ -2,7 +2,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use nail_common::request::{CreateTagRequest, DeleteBody, DeleteMode, TagUpdateRequest};
-use nail_common::response::tag::TagNameView;
+use nail_common::response::NamedRef;
 use serde::Deserialize;
 
 use crate::infrastructure::state::AppState;
@@ -20,7 +20,7 @@ pub async fn create_tag(
         .map_err(ApiError::from_logic)?;
     Ok(json_response(
         StatusCode::CREATED,
-        TagNameView { id, name },
+        NamedRef { id, name },
         "created",
     ))
 }
@@ -59,11 +59,7 @@ pub async fn update_tag(
     let (id, name) = crate::logic::tag::update_tag(&state, &principal.user_id, &tag_id, &name)
         .await
         .map_err(ApiError::from_logic)?;
-    Ok(json_response(
-        StatusCode::OK,
-        TagNameView { id, name },
-        "ok",
-    ))
+    Ok(json_response(StatusCode::OK, NamedRef { id, name }, "ok"))
 }
 
 pub async fn delete_tag(

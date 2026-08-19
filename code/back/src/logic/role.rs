@@ -9,7 +9,8 @@ use crate::repository::role::{
     hold_role, read_role as read_role_node, read_role_by_id as read_role_node_by_id,
     read_role_members, read_roles as read_role_nodes, revoke_permission_from_role, unhold_role,
 };
-use nail_common::response::role::{RoleListItem, RoleNameView, RoleView};
+use nail_common::response::NamedRef;
+use nail_common::response::role::{RoleListItem, RoleView};
 
 pub struct RoleUpdate<'a> {
     pub permissions_add: &'a [String],
@@ -107,7 +108,7 @@ pub async fn update_role(
     actor_id: &str,
     role_id: &str,
     update: RoleUpdate<'_>,
-) -> Result<RoleNameView, LogicError> {
+) -> Result<NamedRef, LogicError> {
     let RoleUpdate {
         permissions_add,
         permissions_remove,
@@ -183,7 +184,7 @@ pub async fn update_role(
                 LogicError::internal(format!("failed to unhold role for {user}: {error}"))
             })?;
     }
-    Ok(RoleNameView {
+    Ok(NamedRef {
         id: role_id.to_string(),
         name,
     })
@@ -193,7 +194,7 @@ pub async fn delete_role(
     state: &AppState,
     actor_id: &str,
     role_id: &str,
-) -> Result<RoleNameView, LogicError> {
+) -> Result<NamedRef, LogicError> {
     let role = read_role_node_by_id(&state.graph, role_id)
         .await?
         .ok_or_else(|| LogicError::not_found("role not found"))?;
@@ -213,7 +214,7 @@ pub async fn delete_role(
     delete_role_node(&state.graph, &name)
         .await
         .map_err(|error| LogicError::internal(format!("failed to delete role: {error}")))?;
-    Ok(RoleNameView {
+    Ok(NamedRef {
         id: role_id.to_string(),
         name,
     })

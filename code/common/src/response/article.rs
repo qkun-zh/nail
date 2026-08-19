@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::tag::TagRef;
+use crate::response::NamedRef;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ArticleView {
@@ -10,7 +10,7 @@ pub struct ArticleView {
     pub title: String,
     pub summary: String,
     pub created_at: u64,
-    pub tags: Vec<TagRef>,
+    pub tags: Vec<NamedRef>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

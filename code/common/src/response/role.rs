@@ -15,9 +15,3 @@ pub struct RoleListItem {
     pub permissions: Vec<String>,
     pub member_count: u64,
 }
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RoleNameView {
-    pub id: String,
-    pub name: String,
-}

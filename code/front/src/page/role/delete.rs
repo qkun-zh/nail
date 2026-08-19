@@ -1,7 +1,7 @@
 use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map};
-use nail_common::response::role::RoleNameView;
+use nail_common::response::NamedRef;
 
 use crate::page::validation::validate_uuid;
 use crate::request::role::{self};
@@ -11,7 +11,7 @@ pub fn DeleteRole() -> impl IntoView {
     let params = use_params_map();
     let navigate = use_navigate();
 
-    let role = RwSignal::new(None::<RoleNameView>);
+    let role = RwSignal::new(None::<NamedRef>);
     let submitting = RwSignal::new(false);
     let error = RwSignal::new(None::<String>);
 
@@ -23,7 +23,7 @@ pub fn DeleteRole() -> impl IntoView {
         }
         leptos::task::spawn_local(async move {
             match role::read_role(&role_id).await {
-                Ok(view) => role.set(Some(RoleNameView {
+                Ok(view) => role.set(Some(NamedRef {
                     id: view.id,
                     name: view.name,
                 })),

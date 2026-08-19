@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use agdb::{DbError, QueryBuilder};
-use nail_common::tag::TagRef;
+use nail_common::response::NamedRef;
 
 use crate::repository::graph::{
     DbHandle, find_by_index, highest_version_number, incoming_edges, insert_edge, outgoing_edges,
@@ -40,7 +40,7 @@ pub struct ArticleView {
     pub summary: String,
     pub author_id: String,
     pub author_name: String,
-    pub tags: Vec<TagRef>,
+    pub tags: Vec<NamedRef>,
     pub latest_version: String,
     pub latest_version_id: String,
 }
@@ -367,7 +367,7 @@ fn enrich_articles(guard: &agdb::DbAny, ids: &[agdb::DbId]) -> Result<Vec<Articl
         if latest_version.is_empty() && !stored_latest_id.is_empty() {
             latest_version_id = String::new();
         }
-        let mut tags: Vec<TagRef> = tags_by_article
+        let mut tags: Vec<NamedRef> = tags_by_article
             .get(id)
             .map(|tag_nodes| {
                 tag_nodes
@@ -375,7 +375,7 @@ fn enrich_articles(guard: &agdb::DbAny, ids: &[agdb::DbId]) -> Result<Vec<Articl
                     .filter_map(|tag_node| {
                         let name = tag_name_by_node.get(tag_node)?;
                         let tag_id = tag_id_by_node.get(tag_node)?;
-                        Some(TagRef {
+                        Some(NamedRef {
                             id: tag_id.clone(),
                             name: name.clone(),
                         })

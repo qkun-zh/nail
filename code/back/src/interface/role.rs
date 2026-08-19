@@ -2,7 +2,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use nail_common::request::{CreateRoleRequest, DeleteBody, DeleteMode, RoleUpdateRequest};
-use nail_common::response::role::RoleNameView;
+use nail_common::response::NamedRef;
 
 use crate::infrastructure::state::AppState;
 use crate::interface::envelope::{ApiError, json_response};
@@ -19,7 +19,7 @@ pub async fn create_role(
         .map_err(ApiError::from_logic)?;
     Ok(json_response(
         StatusCode::CREATED,
-        RoleNameView { id, name },
+        NamedRef { id, name },
         "created",
     ))
 }

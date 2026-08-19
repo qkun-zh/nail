@@ -58,6 +58,12 @@ pub struct ListPage<T> {
     pub total: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NamedRef {
+    pub id: String,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EmptyView {}
 

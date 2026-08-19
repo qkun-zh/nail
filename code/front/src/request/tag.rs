@@ -1,7 +1,8 @@
 use nail_common::request::{CreateTagRequest, TagUpdateRequest};
 use nail_common::response::EmptyView;
 use nail_common::response::ListPage;
-pub use nail_common::response::tag::{TagListItem, TagNameView};
+pub use nail_common::response::NamedRef;
+pub use nail_common::response::tag::TagListItem;
 
 use crate::request::error::RequestResult;
 use crate::request::validate::validate_id;
@@ -26,13 +27,13 @@ pub async fn read_tags(
     http::get_json(&path, true).await
 }
 
-pub async fn read_tag(tag_id: &str) -> RequestResult<TagNameView> {
+pub async fn read_tag(tag_id: &str) -> RequestResult<NamedRef> {
     let tag_id = validate_id(tag_id, "tag_id")?;
     let path = url::build_path_with_query(&["tag", &tag_id, "read"], &[]);
     http::get_json(&path, true).await
 }
 
-pub async fn create_tag(name: &str) -> RequestResult<TagNameView> {
+pub async fn create_tag(name: &str) -> RequestResult<NamedRef> {
     let path = url::build_path_with_query(&["tag", "create"], &[]);
     let body = CreateTagRequest {
         name: name.to_string(),
@@ -40,7 +41,7 @@ pub async fn create_tag(name: &str) -> RequestResult<TagNameView> {
     http::post_json(&path, &body, true).await
 }
 
-pub async fn update_tag(tag_id: &str, name: &str) -> RequestResult<TagNameView> {
+pub async fn update_tag(tag_id: &str, name: &str) -> RequestResult<NamedRef> {
     let tag_id = validate_id(tag_id, "tag_id")?;
     let path = url::build_path_with_query(&["tag", &tag_id, "update"], &[]);
     let body = TagUpdateRequest {

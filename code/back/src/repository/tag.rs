@@ -1,5 +1,5 @@
 use agdb::{DbAnyTransactionMut, DbError, QueryBuilder};
-use nail_common::tag::TagRef;
+use nail_common::response::NamedRef;
 
 use crate::repository::graph::DbHandle;
 use crate::repository::graph::{
@@ -13,9 +13,9 @@ use crate::repository::schema::{
 pub fn create_tag_in_txn(
     transaction: &mut DbAnyTransactionMut,
     name: &str,
-) -> Result<TagRef, DbError> {
+) -> Result<NamedRef, DbError> {
     if let Some(existing_id) = find_tag_id_by_name_in_txn(transaction, name)? {
-        return Ok(TagRef {
+        return Ok(NamedRef {
             id: existing_id,
             name: name.to_string(),
         });
@@ -33,7 +33,7 @@ pub fn create_tag_in_txn(
             })
             .query(),
     )?;
-    Ok(TagRef {
+    Ok(NamedRef {
         id: tag_id,
         name: name.to_string(),
     })

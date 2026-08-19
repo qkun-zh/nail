@@ -1,16 +1,9 @@
 use crate::validate::AlphanumericDashUnderscore;
 use crate::validate::ValidationError;
 use crate::validate::validate_with_policy;
-use serde::{Deserialize, Serialize};
 use std::fmt;
 
 pub const MAX_TAG_NAME_CHAR_COUNT: usize = 32;
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct TagRef {
-    pub id: String,
-    pub name: String,
-}
 
 /// Validates and trims a single tag name.
 ///
