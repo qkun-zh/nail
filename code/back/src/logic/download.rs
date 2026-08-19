@@ -1,13 +1,12 @@
 use std::path::PathBuf;
 
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::{authorize_or, require_visible_if_soft_deleted};
+use crate::logic::authorize::{EntityRef, authorize_entity_or, require_entity_visible};
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::session::normalize_token;
 use crate::logic::version::pdf_final_path;
-use crate::repository::authorization::Resource;
 use crate::repository::cache::{DownloadTokenEntry, token_key};
-use crate::repository::role::{PERMISSION_VERSION_READ, PERMISSION_VERSION_UNDELETE_SOFT};
+use crate::repository::role::PERMISSION_VERSION_READ;
 use crate::repository::version::{parent_article_of, read_version};
 
 pub async fn resolve_version_pdf_path(
@@ -16,35 +15,25 @@ pub async fn resolve_version_pdf_path(
     article_id: &str,
     version_id: &str,
 ) -> Result<PathBuf, LogicError> {
-    authorize_or(
+    authorize_entity_or(
         state,
         actor_id,
         PERMISSION_VERSION_READ,
-        &Resource::Version(version_id.to_string()),
-        "version content not found",
+        EntityRef::Version(version_id),
     )
     .await?;
     let parent = parent_article_of(&state.graph, version_id)
         .await
         .map_err(database_error)?
-        .ok_or_else(|| LogicError::not_found("version content not found"))?;
+        .ok_or_else(|| LogicError::not_found("version not found"))?;
     if parent != article_id {
-        return Err(LogicError::not_found("version content not found"));
+        return Err(LogicError::not_found("version not found"));
     }
     let entry = read_version(&state.graph, version_id)
         .await
         .map_err(database_error)?
-        .ok_or_else(|| LogicError::not_found("version content not found"))?;
-    require_visible_if_soft_deleted(
-        state,
-        actor_id,
-        crate::repository::schema::ENTITY_TYPE_VERSION,
-        version_id,
-        PERMISSION_VERSION_UNDELETE_SOFT,
-        &Resource::Version(version_id.to_string()),
-        "version content not found",
-    )
-    .await?;
+        .ok_or_else(|| LogicError::not_found("version not found"))?;
+    require_entity_visible(state, actor_id, EntityRef::Version(version_id)).await?;
     pdf_final_path(&state.config.server.pdf_storage_path, &entry.content_hash)
         .ok_or_else(|| LogicError::internal("invalid content hash"))
 }
@@ -94,7 +83,7 @@ pub async fn consume_download_token(
         ));
     }
     if entry.version_id != version_id {
-        return Err(LogicError::not_found("version content not found"));
+        return Err(LogicError::not_found("version not found"));
     }
     let consumed = state
         .caches

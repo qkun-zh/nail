@@ -287,5 +287,5 @@ async fn read_content_reports_a_missing_version() {
         )
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
-    assert_eq!(body["message"].as_str(), Some("version content not found"));
+    assert_eq!(body["message"].as_str(), Some("version not found"));
 }

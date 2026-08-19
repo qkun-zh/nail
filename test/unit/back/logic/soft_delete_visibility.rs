@@ -162,7 +162,7 @@ async fn soft_deleted_version_download_needs_undelete() {
         )
         .await
         .expect_err("member denied"),
-        LogicError::not_found("version content not found")
+        LogicError::not_found("version not found")
     );
     crate::logic::download::mint_download_token(
         &context.state,
