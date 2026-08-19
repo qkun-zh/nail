@@ -216,3 +216,10 @@ Test trajectory: 80 → 79 → 79 → 79 → 81 → 82.
 
 - 2026-08-20: exec doc written; baseline verified green (check clean, 80/80
   tests, trunk build OK, fmt clean, clippy 0). Awaiting adoption gate.
+- 2026-08-20: adoption approved (A evidence-only; E skip; Q1/Q2 keep +
+  document; Q3 skip + document; G delete; F RANGE_SPECS).
+- 2026-08-20: slice 0 (docs, `6d80156`) → slice 1 (G, `ba62d56`, 79/79) →
+  slice 2 (B1, `1a4fe91`, 79/79) → slice 3 (B2, `6724973`, 79/79) → slice 4
+  (D, `dbd2bf7`, 81/81) → slice 5 (F, `d98563d`, 82/82) → slice 6 final gate
+  (fmt/clippy/check clean, 82/82, trunk build OK). Handoff DONE. No
+  deviations.
