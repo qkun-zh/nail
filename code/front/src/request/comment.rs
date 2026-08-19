@@ -12,7 +12,7 @@ pub async fn read_comments(
 ) -> RequestResult<CommentListPage> {
     let version_id = validate_id(version_id, "version_id")?;
     let path = url::build_path_with_query(
-        &["version", &version_id, "comments", "read"],
+        &["version", &version_id, "comment", "read"],
         &[("page", &page.to_string()), ("limit", &limit.to_string())],
     );
     http::get_json(&path, true).await
@@ -31,7 +31,7 @@ pub async fn read_comment_children(
 ) -> RequestResult<CommentListPage> {
     let parent_id = validate_id(parent_id, "parent_id")?;
     let path = url::build_path_with_query(
-        &["comment", &parent_id, "replies", "read"],
+        &["comment", &parent_id, "reply", "read"],
         &[("page", &page.to_string()), ("limit", &limit.to_string())],
     );
     http::get_json(&path, true).await
@@ -39,7 +39,7 @@ pub async fn read_comment_children(
 
 pub async fn create_comment(version_id: &str, content: &str) -> RequestResult<CommentIdView> {
     let version_id = validate_id(version_id, "version_id")?;
-    let path = url::build_path_with_query(&["version", &version_id, "comments", "create"], &[]);
+    let path = url::build_path_with_query(&["version", &version_id, "comment", "create"], &[]);
     http::post_json(
         &path,
         &CreateCommentRequest {
@@ -52,7 +52,7 @@ pub async fn create_comment(version_id: &str, content: &str) -> RequestResult<Co
 
 pub async fn create_reply(parent_id: &str, content: &str) -> RequestResult<CommentIdView> {
     let parent_id = validate_id(parent_id, "parent_id")?;
-    let path = url::build_path_with_query(&["comments", &parent_id, "replies", "create"], &[]);
+    let path = url::build_path_with_query(&["comment", &parent_id, "reply", "create"], &[]);
     http::post_json(
         &path,
         &CreateCommentRequest {

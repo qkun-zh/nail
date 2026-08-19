@@ -31,11 +31,11 @@ pub const ROUTE_VERSION_ID_READ: &str = "/version/{id}/read";
 pub const ROUTE_VERSION_ID_UPDATE: &str = "/version/{id}/update";
 pub const ROUTE_VERSION_ID_DELETE: &str = "/version/{id}/delete";
 pub const ROUTE_VERSION_ID_UNDELETE_SOFT: &str = "/version/{id}/undelete-soft";
-pub const ROUTE_VERSION_ID_COMMENTS_CREATE: &str = "/version/{id}/comments/create";
-pub const ROUTE_COMMENTS_ID_REPLIES_CREATE: &str = "/comments/{id}/replies/create";
-pub const ROUTE_VERSION_ID_COMMENTS_READ: &str = "/version/{id}/comments/read";
+pub const ROUTE_VERSION_ID_COMMENT_CREATE: &str = "/version/{id}/comment/create";
+pub const ROUTE_COMMENT_ID_REPLY_CREATE: &str = "/comment/{id}/reply/create";
+pub const ROUTE_VERSION_ID_COMMENT_READ: &str = "/version/{id}/comment/read";
 pub const ROUTE_COMMENT_ID_READ: &str = "/comment/{id}/read";
-pub const ROUTE_COMMENT_ID_REPLIES_READ: &str = "/comment/{id}/replies/read";
+pub const ROUTE_COMMENT_ID_REPLY_READ: &str = "/comment/{id}/reply/read";
 pub const ROUTE_COMMENT_ID_UPDATE: &str = "/comment/{id}/update";
 pub const ROUTE_COMMENT_ID_DELETE: &str = "/comment/{id}/delete";
 pub const ROUTE_COMMENT_ID_UNDELETE_SOFT: &str = "/comment/{id}/undelete-soft";
@@ -93,17 +93,14 @@ pub fn build_router(state: AppState) -> Router {
             post(version::undelete_soft_version),
         )
         .route(
-            ROUTE_VERSION_ID_COMMENTS_CREATE,
+            ROUTE_VERSION_ID_COMMENT_CREATE,
             post(comment::create_comment),
         )
-        .route(
-            ROUTE_COMMENTS_ID_REPLIES_CREATE,
-            post(comment::create_reply),
-        )
-        .route(ROUTE_VERSION_ID_COMMENTS_READ, get(comment::read_comments))
+        .route(ROUTE_COMMENT_ID_REPLY_CREATE, post(comment::create_reply))
+        .route(ROUTE_VERSION_ID_COMMENT_READ, get(comment::read_comments))
         .route(ROUTE_COMMENT_ID_READ, get(comment::read_comment))
         .route(
-            ROUTE_COMMENT_ID_REPLIES_READ,
+            ROUTE_COMMENT_ID_REPLY_READ,
             get(comment::read_comment_children),
         )
         .route(ROUTE_COMMENT_ID_UPDATE, post(comment::update_comment))

@@ -83,7 +83,7 @@ async fn create_comment_over_http() {
 
     let (status, body) = context
         .post(
-            &format!("/version/{version_id}/comments/create"),
+            &format!("/version/{version_id}/comment/create"),
             json!({ "content": "hello" }),
             Some(&token),
         )
@@ -101,7 +101,7 @@ async fn create_reply_over_http() {
 
     let (_, created) = context
         .post(
-            &format!("/version/{version_id}/comments/create"),
+            &format!("/version/{version_id}/comment/create"),
             json!({ "content": "top" }),
             Some(&token),
         )
@@ -110,7 +110,7 @@ async fn create_reply_over_http() {
 
     let (status, body) = context
         .post(
-            &format!("/comments/{top_id}/replies/create"),
+            &format!("/comment/{top_id}/reply/create"),
             json!({ "content": "reply" }),
             Some(&token),
         )
@@ -126,7 +126,7 @@ async fn read_comments_over_http() {
     let version_id = version_fixture(&context, &user_id).await;
     context
         .post(
-            &format!("/version/{version_id}/comments/create"),
+            &format!("/version/{version_id}/comment/create"),
             json!({ "content": "hello" }),
             Some(&token),
         )
@@ -134,7 +134,7 @@ async fn read_comments_over_http() {
 
     let (status, body) = context
         .get(
-            &format!("/version/{version_id}/comments/read?page=1&limit=8"),
+            &format!("/version/{version_id}/comment/read?page=1&limit=8"),
             Some(&token),
         )
         .await;
@@ -152,7 +152,7 @@ async fn read_comments_rejects_a_page_beyond_max_search_pages() {
 
     let (status, body) = context
         .get(
-            &format!("/version/{version_id}/comments/read?page=1025"),
+            &format!("/version/{version_id}/comment/read?page=1025"),
             Some(&token),
         )
         .await;
@@ -172,7 +172,7 @@ async fn read_comments_requires_a_read_grant() {
     let (_, outsider) = plain_session(&context, "bob@example.com").await;
     let (status, body) = context
         .get(
-            &format!("/version/{version_id}/comments/read"),
+            &format!("/version/{version_id}/comment/read"),
             Some(&outsider),
         )
         .await;
@@ -186,7 +186,7 @@ async fn read_comment_requires_a_read_grant() {
     let version_id = version_fixture(&context, &user_id).await;
     let (status, create_body) = context
         .post(
-            &format!("/version/{version_id}/comments/create"),
+            &format!("/version/{version_id}/comment/create"),
             json!({ "content": "hello" }),
             Some(&token),
         )
@@ -210,7 +210,7 @@ async fn read_comment_children_requires_a_read_grant() {
     let version_id = version_fixture(&context, &user_id).await;
     let (status, create_body) = context
         .post(
-            &format!("/version/{version_id}/comments/create"),
+            &format!("/version/{version_id}/comment/create"),
             json!({ "content": "top" }),
             Some(&token),
         )
@@ -223,7 +223,7 @@ async fn read_comment_children_requires_a_read_grant() {
     let (_, outsider) = plain_session(&context, "bob@example.com").await;
     let (status, body) = context
         .get(
-            &format!("/comment/{comment_id}/replies/read"),
+            &format!("/comment/{comment_id}/reply/read"),
             Some(&outsider),
         )
         .await;
@@ -237,7 +237,7 @@ async fn read_comment_children_returns_the_replies_over_http() {
     let version_id = version_fixture(&context, &user_id).await;
     let (status, create_body) = context
         .post(
-            &format!("/version/{version_id}/comments/create"),
+            &format!("/version/{version_id}/comment/create"),
             json!({ "content": "top" }),
             Some(&token),
         )
@@ -249,7 +249,7 @@ async fn read_comment_children_returns_the_replies_over_http() {
 
     let (status, reply_body) = context
         .post(
-            &format!("/comments/{comment_id}/replies/create"),
+            &format!("/comment/{comment_id}/reply/create"),
             json!({ "content": "a reply" }),
             Some(&token),
         )
@@ -257,7 +257,7 @@ async fn read_comment_children_returns_the_replies_over_http() {
     assert_eq!(status, StatusCode::CREATED, "body: {reply_body}");
 
     let (status, body) = context
-        .get(&format!("/comment/{comment_id}/replies/read"), Some(&token))
+        .get(&format!("/comment/{comment_id}/reply/read"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     let comments = body["data"]["comments"].as_array().expect("comments");
@@ -272,7 +272,7 @@ async fn read_comment_children_rejects_a_page_beyond_max_search_pages() {
     let version_id = version_fixture(&context, &user_id).await;
     let (_, create_body) = context
         .post(
-            &format!("/version/{version_id}/comments/create"),
+            &format!("/version/{version_id}/comment/create"),
             json!({ "content": "root" }),
             Some(&token),
         )
@@ -281,7 +281,7 @@ async fn read_comment_children_rejects_a_page_beyond_max_search_pages() {
 
     let (status, body) = context
         .get(
-            &format!("/comment/{comment_id}/replies/read?page=1025"),
+            &format!("/comment/{comment_id}/reply/read?page=1025"),
             Some(&token),
         )
         .await;
@@ -300,7 +300,7 @@ async fn update_comment_over_http() {
     let version_id = version_fixture(&context, &user_id).await;
     let (_, created) = context
         .post(
-            &format!("/version/{version_id}/comments/create"),
+            &format!("/version/{version_id}/comment/create"),
             json!({ "content": "hello" }),
             Some(&token),
         )
@@ -334,7 +334,7 @@ async fn delete_comment_transfer_over_http() {
     let version_id = version_fixture(&context, &user_id).await;
     let (_, created) = context
         .post(
-            &format!("/version/{version_id}/comments/create"),
+            &format!("/version/{version_id}/comment/create"),
             json!({ "content": "hello" }),
             Some(&token),
         )
@@ -359,7 +359,7 @@ async fn delete_comment_soft_hides_the_comment_over_http() {
     let version_id = version_fixture(&context, &user_id).await;
     let (_, created) = context
         .post(
-            &format!("/version/{version_id}/comments/create"),
+            &format!("/version/{version_id}/comment/create"),
             json!({ "content": "hello" }),
             Some(&token),
         )
@@ -391,7 +391,7 @@ async fn undelete_soft_comment_revives_the_comment_over_http() {
     let version_id = version_fixture(&context, &user_id).await;
     let (_, created) = context
         .post(
-            &format!("/version/{version_id}/comments/create"),
+            &format!("/version/{version_id}/comment/create"),
             json!({ "content": "hello" }),
             Some(&token),
         )
@@ -430,7 +430,7 @@ async fn undelete_soft_comment_is_forbidden_for_a_member_owner() {
     let version_id = version_fixture(&context, &user_id).await;
     let (_, created) = context
         .post(
-            &format!("/version/{version_id}/comments/create"),
+            &format!("/version/{version_id}/comment/create"),
             json!({ "content": "hello" }),
             Some(&token),
         )
@@ -464,7 +464,7 @@ async fn delete_comment_requires_a_mode_over_http() {
     let version_id = version_fixture(&context, &user_id).await;
     let (_, created) = context
         .post(
-            &format!("/version/{version_id}/comments/create"),
+            &format!("/version/{version_id}/comment/create"),
             json!({ "content": "hello" }),
             Some(&token),
         )
@@ -489,7 +489,7 @@ async fn create_comment_requires_a_session_over_http() {
 
     let (status, body) = context
         .post(
-            &format!("/version/{version_id}/comments/create"),
+            &format!("/version/{version_id}/comment/create"),
             json!({ "content": "hello" }),
             None,
         )
@@ -504,7 +504,7 @@ async fn create_comment_reports_a_missing_version() {
 
     let (status, body) = context
         .post(
-            &format!("/version/{}/comments/create", Uuid::now_v7()),
+            &format!("/version/{}/comment/create", Uuid::now_v7()),
             json!({ "content": "hello" }),
             Some(&token),
         )
@@ -523,7 +523,7 @@ async fn create_reply_reports_a_missing_parent() {
 
     let (status, body) = context
         .post(
-            &format!("/comments/{}/replies/create", Uuid::now_v7()),
+            &format!("/comment/{}/reply/create", Uuid::now_v7()),
             json!({ "content": "reply" }),
             Some(&token),
         )
@@ -543,7 +543,7 @@ async fn create_reply_reports_a_thread_too_deep() {
 
     let (_, created) = context
         .post(
-            &format!("/version/{version_id}/comments/create"),
+            &format!("/version/{version_id}/comment/create"),
             json!({ "content": "root" }),
             Some(&token),
         )
@@ -556,7 +556,7 @@ async fn create_reply_reports_a_thread_too_deep() {
     for _ in 0..64 {
         let (status, body) = context
             .post(
-                &format!("/comments/{parent_id}/replies/create"),
+                &format!("/comment/{parent_id}/reply/create"),
                 json!({ "content": "reply" }),
                 Some(&token),
             )
@@ -570,7 +570,7 @@ async fn create_reply_reports_a_thread_too_deep() {
 
     let (status, body) = context
         .post(
-            &format!("/comments/{parent_id}/replies/create"),
+            &format!("/comment/{parent_id}/reply/create"),
             json!({ "content": "overflow" }),
             Some(&token),
         )
@@ -606,7 +606,7 @@ async fn delete_comment_hard_removes_the_comment() {
     let version_id = version_fixture(&context, &user_id).await;
     let (_, created) = context
         .post(
-            &format!("/version/{version_id}/comments/create"),
+            &format!("/version/{version_id}/comment/create"),
             json!({ "content": "hello" }),
             Some(&token),
         )
@@ -631,7 +631,7 @@ async fn delete_comment_hard_is_forbidden_for_a_member_owner() {
     let version_id = version_fixture(&context, &user_id).await;
     let (_, created) = context
         .post(
-            &format!("/version/{version_id}/comments/create"),
+            &format!("/version/{version_id}/comment/create"),
             json!({ "content": "hello" }),
             Some(&token),
         )
@@ -657,7 +657,7 @@ async fn delete_comment_is_forbidden_for_a_non_owner() {
     let version_id = version_fixture(&context, &user_id).await;
     let (_, created) = context
         .post(
-            &format!("/version/{version_id}/comments/create"),
+            &format!("/version/{version_id}/comment/create"),
             json!({ "content": "hello" }),
             Some(&token),
         )

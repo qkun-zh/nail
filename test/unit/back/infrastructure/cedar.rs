@@ -126,7 +126,7 @@ fn generated_route_constants_match_their_literal_paths() {
     use crate::interface::router::{
         ROUTE_ARTICLE_ID_VERSION_ID_CONTENT_READ, ROUTE_CHALLENGE_CREATE, ROUTE_COMMENT_ID_DELETE,
         ROUTE_ROLE_ID_DELETE, ROUTE_ROLE_ID_READ, ROUTE_ROLE_ID_UPDATE, ROUTE_USER_ID_READ,
-        ROUTE_VERSION_ID_COMMENTS_CREATE,
+        ROUTE_VERSION_ID_COMMENT_CREATE,
     };
     assert_eq!(ROUTE_CHALLENGE_CREATE, "/challenge/create");
     assert_eq!(ROUTE_USER_ID_READ, "/user/{id}/read");
@@ -135,8 +135,8 @@ fn generated_route_constants_match_their_literal_paths() {
         "/article/{id}/version/{version_id}/content/read"
     );
     assert_eq!(
-        ROUTE_VERSION_ID_COMMENTS_CREATE,
-        "/version/{id}/comments/create"
+        ROUTE_VERSION_ID_COMMENT_CREATE,
+        "/version/{id}/comment/create"
     );
     assert_eq!(ROUTE_ROLE_ID_READ, "/role/{id}/read");
     assert_eq!(ROUTE_ROLE_ID_UPDATE, "/role/{id}/update");
