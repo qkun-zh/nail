@@ -171,3 +171,15 @@ tracked; deleting is lossless-ish but they are not mine.)
   read at logging.rs:40). Bonus probes: stable clippy (no cranelift flag,
   LLVM backend) on back (2.49s) and front wasm32 (1m06s) — 0 warnings.
   No net code change.
+- 2026-08-20: Slice 3 — the 2 untracked `rustc-ice-*.txt` dumps deleted per
+  Q2 approval (plain rm; untracked so no git op). Tree clean.
+- 2026-08-20: Slice 4 — FINAL GATE green. Matrix: common 117/117;
+  back per-module runs configuration 11, infrastructure 45, logic 282,
+  repository 108, http 139 — each run reports binary total 583; the +1s in
+  logic/repository are ONE test double-matched by both substring filters
+  (`back_tests::logic_session::hash_canonical_token_matches_the_repository_token_key`);
+  disjoint split = 11/45/281/107/139 = 583, matching the brief exactly.
+  front 82/82 + `cargo +nightly check` clean + `trunk build` success; fmt
+  clean on all three; clippy `-D warnings` 0 on all three (nightly+cranelift
+  AND stable-LLVM); health checks back+proxy OK. Task complete — exec doc
+  retained per repo practice (workflow §9 deletion deferred; see report).
