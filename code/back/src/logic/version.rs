@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::infrastructure::pdf::{PdfUpload, content_hash_rel_path};
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{EntityRef, authorize_entity_or, require_entity_visible};
-use crate::logic::error::{LogicError, database_error};
+use crate::logic::error::LogicError;
 use crate::logic::pagination::page_offset;
 use crate::logic::search::sync_article_best_effort;
 use crate::repository::delete::{
@@ -21,9 +21,8 @@ use crate::repository::role::{
     PERMISSION_VERSION_READ, PERMISSION_VERSION_UNDELETE_SOFT, PERMISSION_VERSION_UPDATE,
 };
 use crate::repository::version::{
-    CreateVersionError, VersionDraft, content_hash_owner, create_version as create_version_node,
-    parent_article_of, read_version as read_version_node, update_version as update_version_node,
-    versions_of,
+    VersionDraft, content_hash_owner, create_version as create_version_node, parent_article_of,
+    read_version as read_version_node, update_version as update_version_node, versions_of,
 };
 
 pub fn validate_version(raw: &str) -> Result<String, LogicError> {
@@ -126,7 +125,7 @@ pub async fn create_version(
         }
         Err(error) => {
             drop(upload);
-            Err(map_create_version_error(error))
+            Err(error.into())
         }
     }
 }
@@ -305,18 +304,4 @@ pub(crate) fn validate_note(raw: &str, max_chars: u64) -> Result<String, LogicEr
         true,
     )
     .map_err(|error| LogicError::bad_request(error.to_string()))
-}
-
-fn map_create_version_error(error: CreateVersionError) -> LogicError {
-    match error {
-        CreateVersionError::ArticleMissing => LogicError::not_found("article not found"),
-        CreateVersionError::NotGreater => {
-            LogicError::bad_request("new version must be strictly greater than the latest version")
-        }
-        CreateVersionError::InvalidNumber => LogicError::bad_request("invalid version number"),
-        CreateVersionError::ContentHashTaken => {
-            LogicError::bad_request("identical PDF already exists")
-        }
-        CreateVersionError::Db(error) => database_error(error),
-    }
 }

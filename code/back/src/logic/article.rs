@@ -7,16 +7,15 @@ use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{
     EntityRef, authorize_entity_or, authorize_global, require_entity_readable,
 };
-use crate::logic::error::{LogicError, database_error};
+use crate::logic::error::LogicError;
 use crate::logic::search::sync_article_best_effort;
 use crate::logic::version::{
     place_uploaded_pdf, reject_duplicate_content_hash, remove_orphaned_pdfs, validate_note,
     validate_version,
 };
 use crate::repository::article::{
-    ArticleDraft, ArticleUpdate, CreateArticleError, UpdateArticleError,
-    create_article as create_article_node, read_article as read_article_node,
-    update_article as update_article_node,
+    ArticleDraft, ArticleUpdate, create_article as create_article_node,
+    read_article as read_article_node, update_article as update_article_node,
 };
 use crate::repository::role::{
     PERMISSION_ARTICLE_CREATE, PERMISSION_ARTICLE_DELETE_HARD, PERMISSION_ARTICLE_DELETE_SOFT,
@@ -24,7 +23,7 @@ use crate::repository::role::{
     PERMISSION_ARTICLE_UPDATE,
 };
 use crate::repository::tag::read_tag_by_name;
-use crate::repository::transfer::{TransferTargetError, transfer_article};
+use crate::repository::transfer::transfer_article;
 use crate::repository::version::VersionDraft;
 
 pub struct ArticleCreateInput<'a> {
@@ -84,7 +83,7 @@ pub async fn create_article(
         }
         Err(error) => {
             drop(upload);
-            Err(map_create_article_error(error))
+            Err(error.into())
         }
     }
 }
@@ -139,8 +138,7 @@ pub async fn update_article(
             tags,
         },
     )
-    .await
-    .map_err(map_update_article_error)?;
+    .await?;
     sync_article_best_effort(state, article_id).await;
     Ok(ArticleIdView {
         article_id: article_id.to_string(),
@@ -162,20 +160,7 @@ pub async fn delete_article(
                 EntityRef::Article(article_id),
             )
             .await?;
-            transfer_article(&state.graph, article_id)
-                .await
-                .map_err(|error| match error {
-                    TransferTargetError::TargetMissing => {
-                        LogicError::not_found("article not found")
-                    }
-                    TransferTargetError::TargetOwnerMissing => {
-                        LogicError::internal("article has no owner")
-                    }
-                    TransferTargetError::NoRecycler => {
-                        LogicError::internal("no recycler available")
-                    }
-                    TransferTargetError::Db(error) => database_error(error),
-                })?;
+            transfer_article(&state.graph, article_id).await?;
             sync_article_best_effort(state, article_id).await;
             Ok(ArticleIdView {
                 article_id: article_id.to_string(),
@@ -283,23 +268,4 @@ async fn validate_tags(
         }
     }
     Ok(tags)
-}
-
-fn map_create_article_error(error: CreateArticleError) -> LogicError {
-    match error {
-        CreateArticleError::AuthorMissing => LogicError::internal("author not found"),
-        CreateArticleError::TitleTaken => LogicError::bad_request("title already exists"),
-        CreateArticleError::ContentHashTaken => {
-            LogicError::bad_request("identical PDF already exists")
-        }
-        CreateArticleError::Db(error) => database_error(error),
-    }
-}
-
-fn map_update_article_error(error: UpdateArticleError) -> LogicError {
-    match error {
-        UpdateArticleError::Missing => LogicError::not_found("article not found"),
-        UpdateArticleError::TitleTaken => LogicError::bad_request("title already exists"),
-        UpdateArticleError::Db(error) => database_error(error),
-    }
 }

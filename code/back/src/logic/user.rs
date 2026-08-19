@@ -20,7 +20,6 @@ use crate::repository::role::{
     PERMISSION_USER_DELETE_TRANSFER, PERMISSION_USER_READ, PERMISSION_USER_UNDELETE_SOFT,
     PERMISSION_USER_UPDATE, ROLE_MEMBER,
 };
-use crate::repository::transfer::TransferError;
 use crate::repository::user::{
     UserWriteError, read_user as read_user_node, read_users as read_user_nodes, update_user_name,
 };
@@ -227,9 +226,7 @@ async fn handle_update_name(
     verify_issued_pow(state, pow)?;
     let name = nail_common::name::validate_name(&pow.payload)
         .map_err(|error| LogicError::bad_request(error.to_string()))?;
-    update_user_name(&state.graph, actor_id, &name)
-        .await
-        .map_err(name_update_error)?;
+    update_user_name(&state.graph, actor_id, &name).await?;
     Ok(name)
 }
 
@@ -252,7 +249,7 @@ async fn handle_admin_update_name(
         .await
         .map_err(|error| match error {
             UserWriteError::UserMissing => LogicError::not_found("user not found"),
-            other => name_update_error(other),
+            other => other.into(),
         })?;
     Ok(name)
 }
@@ -289,14 +286,8 @@ async fn handle_delete_user_transfer(
         ));
     }
 
-    let outcome = crate::repository::transfer::transfer_account_assets(&state.graph, actor_id)
-        .await
-        .map_err(|error| match error {
-            TransferError::NoRecycler => LogicError::internal("no recycler available"),
-            TransferError::Db(error) => {
-                LogicError::internal(format!("failed to transfer account assets: {error}"))
-            }
-        })?;
+    let outcome =
+        crate::repository::transfer::transfer_account_assets(&state.graph, actor_id).await?;
 
     let email_address_hash = entry.email_address_hash;
     state.caches.delete_user.consume(&token_hash);
@@ -403,15 +394,4 @@ async fn handle_delete_user_hard(
     crate::logic::version::remove_orphaned_pdfs(state, &outcome.removed_pdf_hashes).await;
     sync_all_best_effort(state).await;
     Ok(())
-}
-
-fn name_update_error(error: UserWriteError) -> LogicError {
-    match error {
-        UserWriteError::AlreadyTaken => LogicError::bad_request("name already taken"),
-        UserWriteError::UserMissing => LogicError::unauthorized("user not found"),
-        UserWriteError::EmailMismatch => LogicError::internal("unexpected email mismatch"),
-        UserWriteError::Db(error) => {
-            LogicError::internal(format!("failed to update name: {error}"))
-        }
-    }
 }

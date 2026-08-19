@@ -34,9 +34,7 @@ pub async fn create_comment(
     let content =
         validate_comment_content(raw_content, state.config.server.max_comment_body_chars)?;
     let comment_id = Uuid::now_v7().to_string();
-    create_top_level_comment(&state.graph, &comment_id, actor_id, version_id, &content)
-        .await
-        .map_err(|error| map_create_comment_error(error, false))?;
+    create_top_level_comment(&state.graph, &comment_id, actor_id, version_id, &content).await?;
     sync_article_best_effort_for_version(state, version_id).await;
     Ok(comment_id)
 }
@@ -60,7 +58,12 @@ pub async fn create_reply(
         MAX_COMMENT_TREE_DEPTH,
     )
     .await
-    .map_err(|error| map_create_comment_error(error, true))?;
+    .map_err(|error| match error {
+        CreateCommentError::TargetNotFound => LogicError::not_found(
+            "reply target not found (the parent comment may have been removed)",
+        ),
+        other => other.into(),
+    })?;
     sync_article_best_effort_for_comment(state, parent_comment_id).await;
     Ok(comment_id)
 }
@@ -232,7 +235,15 @@ pub async fn delete_comment(
             .await?;
             transfer_comment(&state.graph, comment_id)
                 .await
-                .map_err(map_transfer_error)?;
+                .map_err(|error| match error {
+                    TransferTargetError::TargetMissing => {
+                        LogicError::not_found("comment not found")
+                    }
+                    TransferTargetError::TargetOwnerMissing => {
+                        LogicError::internal("comment has no owner")
+                    }
+                    other => other.into(),
+                })?;
         }
         Some(DeleteMode::Hard) => {
             authorize_entity_or(
@@ -303,31 +314,6 @@ fn validate_comment_content(raw: &str, max_chars: u64) -> Result<String, LogicEr
         true,
     )
     .map_err(|error| LogicError::bad_request(error.to_string()))
-}
-
-fn map_create_comment_error(error: CreateCommentError, is_reply: bool) -> LogicError {
-    match error {
-        CreateCommentError::TargetNotFound if is_reply => LogicError::not_found(
-            "reply target not found (the parent comment may have been removed)",
-        ),
-        CreateCommentError::TargetNotFound => {
-            LogicError::not_found("comment target not found (the version may have been removed)")
-        }
-        CreateCommentError::CommentIdExists => LogicError::internal("comment id already exists"),
-        CreateCommentError::CommentTreeTooDeep => LogicError::bad_request(format!(
-            "comment thread too deep (max {MAX_COMMENT_TREE_DEPTH} reply layers)"
-        )),
-        CreateCommentError::Db(error) => database_error(error),
-    }
-}
-
-fn map_transfer_error(error: TransferTargetError) -> LogicError {
-    match error {
-        TransferTargetError::TargetMissing => LogicError::not_found("comment not found"),
-        TransferTargetError::TargetOwnerMissing => LogicError::internal("comment has no owner"),
-        TransferTargetError::NoRecycler => LogicError::internal("no recycler available"),
-        TransferTargetError::Db(error) => database_error(error),
-    }
 }
 
 async fn sync_article_best_effort_for_comment(state: &AppState, comment_id: &str) {

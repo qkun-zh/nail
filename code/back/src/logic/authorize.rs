@@ -1,6 +1,6 @@
 use crate::infrastructure::state::AppState;
 use crate::logic::error::LogicError;
-use crate::repository::authorization::{AssemblyError, Resource, assemble, assemble_resource};
+use crate::repository::authorization::{Resource, assemble, assemble_resource};
 use crate::repository::role::{
     PERMISSION_ARTICLE_READ, PERMISSION_ARTICLE_UNDELETE_SOFT, PERMISSION_COMMENT_READ,
     PERMISSION_COMMENT_UNDELETE_SOFT, PERMISSION_ROLE_READ, PERMISSION_TAG_READ,
@@ -36,9 +36,7 @@ pub async fn authorize(
     action: &str,
     resource: &Resource,
 ) -> Result<(), LogicError> {
-    let assembly = assemble(&state.graph, actor_id, resource.clone())
-        .await
-        .map_err(map_assembly_error)?;
+    let assembly = assemble(&state.graph, actor_id, resource.clone()).await?;
     let allowed = crate::infrastructure::cedar::decide(
         &assembly.principal,
         action,
@@ -58,9 +56,8 @@ pub async fn authorize_anonymous(
     action: &str,
     resource: &Resource,
 ) -> Result<(), LogicError> {
-    let (resource_uid, resource_entities) = assemble_resource(&state.graph, resource.clone())
-        .await
-        .map_err(map_assembly_error)?;
+    let (resource_uid, resource_entities) =
+        assemble_resource(&state.graph, resource.clone()).await?;
     let principal = "User::\"anonymous\""
         .parse::<cedar_policy::EntityUid>()
         .map_err(|error| LogicError::internal(format!("invalid anonymous principal: {error}")))?;
@@ -87,13 +84,6 @@ pub async fn authorize_or(
         Ok(()) => Ok(()),
         Err(LogicError::NotFound(_)) => Err(LogicError::not_found(not_found_message)),
         Err(error) => Err(error),
-    }
-}
-
-fn map_assembly_error(error: AssemblyError) -> LogicError {
-    match error {
-        AssemblyError::ResourceNotFound => LogicError::not_found("resource not found"),
-        AssemblyError::Internal(message) => LogicError::internal(message),
     }
 }
 
