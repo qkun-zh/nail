@@ -105,7 +105,13 @@ pub fn CommentSection() -> impl IntoView {
     };
 
     Effect::new(move |previous: Option<()>| {
-        let _ = (body.get(), reply_body.get(), update_body.get(), comment_path(), page.get());
+        let _ = (
+            body.get(),
+            reply_body.get(),
+            update_body.get(),
+            comment_path(),
+            page.get(),
+        );
         if previous.is_none() {
             return;
         }

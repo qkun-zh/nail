@@ -161,9 +161,10 @@ async fn probe_4_token_must_survive_a_version_mismatch_attempt() {
         .await
         .expect("article b");
 
-    let url = crate::logic::download::mint_download_token(&state, &author_id, &article_id, &version_id)
-        .await
-        .expect("mint");
+    let url =
+        crate::logic::download::mint_download_token(&state, &author_id, &article_id, &version_id)
+            .await
+            .expect("mint");
     let token = url.split("?token=").nth(1).expect("token");
 
     let error = crate::logic::download::consume_download_token(
@@ -177,7 +178,13 @@ async fn probe_4_token_must_survive_a_version_mismatch_attempt() {
     .expect_err("mis-targeted consume");
     assert!(matches!(error, LogicError::NotFound(_)));
 
-    crate::logic::download::consume_download_token(&state, &author_id, &article_id, &version_id, token)
-        .await
-        .expect("token must survive a version-mismatch attempt for its intended target");
+    crate::logic::download::consume_download_token(
+        &state,
+        &author_id,
+        &article_id,
+        &version_id,
+        token,
+    )
+    .await
+    .expect("token must survive a version-mismatch attempt for its intended target");
 }
