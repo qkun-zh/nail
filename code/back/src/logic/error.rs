@@ -1,5 +1,14 @@
 use axum::http::StatusCode;
 
+use crate::repository::article::{CreateArticleError, UpdateArticleError};
+use crate::repository::authorization::AssemblyError;
+use crate::repository::comment::CreateCommentError;
+use crate::repository::transfer::{TransferError, TransferTargetError};
+use crate::repository::user::UserWriteError;
+use crate::repository::version::CreateVersionError;
+
+pub(crate) const MAX_COMMENT_TREE_DEPTH: usize = 64;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LogicError {
     BadRequest(String),
@@ -70,4 +79,110 @@ impl std::error::Error for LogicError {}
 
 pub fn database_error(error: impl std::fmt::Display) -> LogicError {
     LogicError::internal(format!("database query failed: {error}"))
+}
+
+impl From<agdb::DbError> for LogicError {
+    fn from(error: agdb::DbError) -> Self {
+        database_error(error)
+    }
+}
+
+impl From<CreateArticleError> for LogicError {
+    fn from(error: CreateArticleError) -> Self {
+        match error {
+            CreateArticleError::AuthorMissing => LogicError::internal("author not found"),
+            CreateArticleError::TitleTaken => LogicError::bad_request("title already exists"),
+            CreateArticleError::ContentHashTaken => {
+                LogicError::bad_request("identical PDF already exists")
+            }
+            CreateArticleError::Db(error) => database_error(error),
+        }
+    }
+}
+
+impl From<UpdateArticleError> for LogicError {
+    fn from(error: UpdateArticleError) -> Self {
+        match error {
+            UpdateArticleError::Missing => LogicError::not_found("article not found"),
+            UpdateArticleError::TitleTaken => LogicError::bad_request("title already exists"),
+            UpdateArticleError::Db(error) => database_error(error),
+        }
+    }
+}
+
+impl From<CreateCommentError> for LogicError {
+    fn from(error: CreateCommentError) -> Self {
+        match error {
+            CreateCommentError::TargetNotFound => LogicError::not_found(
+                "comment target not found (the version may have been removed)",
+            ),
+            CreateCommentError::CommentIdExists => {
+                LogicError::internal("comment id already exists")
+            }
+            CreateCommentError::CommentTreeTooDeep => LogicError::bad_request(format!(
+                "comment thread too deep (max {MAX_COMMENT_TREE_DEPTH} reply layers)"
+            )),
+            CreateCommentError::Db(error) => database_error(error),
+        }
+    }
+}
+
+impl From<CreateVersionError> for LogicError {
+    fn from(error: CreateVersionError) -> Self {
+        match error {
+            CreateVersionError::ArticleMissing => LogicError::not_found("article not found"),
+            CreateVersionError::NotGreater => LogicError::bad_request(
+                "new version must be strictly greater than the latest version",
+            ),
+            CreateVersionError::InvalidNumber => LogicError::bad_request("invalid version number"),
+            CreateVersionError::ContentHashTaken => {
+                LogicError::bad_request("identical PDF already exists")
+            }
+            CreateVersionError::Db(error) => database_error(error),
+        }
+    }
+}
+
+impl From<TransferError> for LogicError {
+    fn from(error: TransferError) -> Self {
+        match error {
+            TransferError::NoRecycler => LogicError::internal("no recycler available"),
+            TransferError::Db(error) => {
+                LogicError::internal(format!("failed to transfer account assets: {error}"))
+            }
+        }
+    }
+}
+
+impl From<TransferTargetError> for LogicError {
+    fn from(error: TransferTargetError) -> Self {
+        match error {
+            TransferTargetError::TargetMissing => LogicError::not_found("article not found"),
+            TransferTargetError::TargetOwnerMissing => LogicError::internal("article has no owner"),
+            TransferTargetError::NoRecycler => LogicError::internal("no recycler available"),
+            TransferTargetError::Db(error) => database_error(error),
+        }
+    }
+}
+
+impl From<UserWriteError> for LogicError {
+    fn from(error: UserWriteError) -> Self {
+        match error {
+            UserWriteError::AlreadyTaken => LogicError::bad_request("name already taken"),
+            UserWriteError::UserMissing => LogicError::unauthorized("user not found"),
+            UserWriteError::EmailMismatch => LogicError::internal("unexpected email mismatch"),
+            UserWriteError::Db(error) => {
+                LogicError::internal(format!("failed to update name: {error}"))
+            }
+        }
+    }
+}
+
+impl From<AssemblyError> for LogicError {
+    fn from(error: AssemblyError) -> Self {
+        match error {
+            AssemblyError::ResourceNotFound => LogicError::not_found("resource not found"),
+            AssemblyError::Internal(message) => LogicError::internal(message),
+        }
+    }
 }

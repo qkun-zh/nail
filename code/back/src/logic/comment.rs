@@ -8,7 +8,7 @@ use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{
     EntityRef, authorize_entity_or, authorize_global, require_entity_visible,
 };
-use crate::logic::error::{LogicError, database_error};
+use crate::logic::error::{LogicError, MAX_COMMENT_TREE_DEPTH, database_error};
 use crate::logic::pagination::page_offset;
 use crate::logic::search::sync_article_best_effort;
 use crate::repository::comment::{
@@ -23,8 +23,6 @@ use crate::repository::role::{
 };
 use crate::repository::transfer::{TransferTargetError, transfer_comment};
 use crate::repository::version::{parent_article_of, read_version};
-
-const MAX_COMMENT_TREE_DEPTH: usize = 64;
 
 pub async fn create_comment(
     state: &AppState,
