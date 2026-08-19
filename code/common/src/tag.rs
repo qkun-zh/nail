@@ -1,3 +1,6 @@
+use crate::validate::AlphanumericDashUnderscore;
+use crate::validate::ValidationError;
+use crate::validate::validate_with_policy;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -16,19 +19,11 @@ pub struct TagRef {
 /// exceeds [`MAX_TAG_NAME_CHAR_COUNT`], or
 /// [`TagNameError::ContainsForbiddenChar`] for an invalid character.
 pub fn validate_tag_name(raw_name: &str) -> Result<String, TagNameError> {
-    let trimmed = raw_name.trim();
-    if trimmed.is_empty() {
-        return Err(TagNameError::Empty);
-    }
-    for ch in trimmed.chars() {
-        if !(ch.is_ascii_alphanumeric() || ch == '-' || ch == '_') {
-            return Err(TagNameError::ContainsForbiddenChar(ch));
-        }
-    }
-    if trimmed.chars().count() > MAX_TAG_NAME_CHAR_COUNT {
-        return Err(TagNameError::TooLong);
-    }
-    Ok(trimmed.to_string())
+    validate_with_policy::<TagNameError, _>(
+        raw_name,
+        MAX_TAG_NAME_CHAR_COUNT,
+        &AlphanumericDashUnderscore,
+    )
 }
 
 /// Parses whitespace-separated tags, deduplicating them.
@@ -75,6 +70,18 @@ impl fmt::Display for TagNameError {
                 write!(f, "tag name cannot contain '{ch}'")
             }
         }
+    }
+}
+
+impl ValidationError for TagNameError {
+    fn empty() -> Self {
+        TagNameError::Empty
+    }
+    fn too_long(_max_chars: usize) -> Self {
+        TagNameError::TooLong
+    }
+    fn forbidden(ch: char) -> Self {
+        TagNameError::ContainsForbiddenChar(ch)
     }
 }
 

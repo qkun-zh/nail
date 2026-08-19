@@ -1,3 +1,6 @@
+use crate::validate::AlphanumericDashUnderscore;
+use crate::validate::ValidationError;
+use crate::validate::validate_with_policy;
 use std::fmt;
 
 pub const MAX_NAME_CHAR_COUNT: usize = 32;
@@ -9,19 +12,7 @@ pub const MAX_NAME_CHAR_COUNT: usize = 32;
 /// [`MAX_NAME_CHAR_COUNT`], or [`NameError::ContainsForbiddenChar`] for an
 /// invalid character.
 pub fn validate_name(raw_name: &str) -> Result<String, NameError> {
-    let trimmed = raw_name.trim();
-    if trimmed.is_empty() {
-        return Err(NameError::Empty);
-    }
-    for ch in trimmed.chars() {
-        if !ch.is_ascii_alphanumeric() && ch != '-' && ch != '_' {
-            return Err(NameError::ContainsForbiddenChar(ch));
-        }
-    }
-    if trimmed.chars().count() > MAX_NAME_CHAR_COUNT {
-        return Err(NameError::TooLong);
-    }
-    Ok(trimmed.to_string())
+    validate_with_policy::<NameError, _>(raw_name, MAX_NAME_CHAR_COUNT, &AlphanumericDashUnderscore)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,6 +35,18 @@ impl fmt::Display for NameError {
 }
 
 impl std::error::Error for NameError {}
+
+impl ValidationError for NameError {
+    fn empty() -> Self {
+        NameError::Empty
+    }
+    fn too_long(_max_chars: usize) -> Self {
+        NameError::TooLong
+    }
+    fn forbidden(ch: char) -> Self {
+        NameError::ContainsForbiddenChar(ch)
+    }
+}
 
 #[cfg(test)]
 #[path = "../../../test/unit/common/name/tests.rs"]
