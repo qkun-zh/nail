@@ -1130,13 +1130,10 @@ async fn search_reports_an_article_level_hit_once_across_versions() {
     .await
     .expect("create version");
 
-    let page = crate::logic::search::search_articles(
-        &context.state,
-        &actor,
-        &params(Some("marker")),
-    )
-    .await
-    .expect("search marker");
+    let page =
+        crate::logic::search::search_articles(&context.state, &actor, &params(Some("marker")))
+            .await
+            .expect("search marker");
     let item = page
         .article_list
         .iter()
