@@ -1,7 +1,6 @@
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::{authorize, authorize_or};
+use crate::logic::authorize::{EntityRef, authorize_entity, authorize_entity_or, authorize_global};
 use crate::logic::error::{LogicError, database_error};
-use crate::repository::authorization::Resource;
 use crate::repository::role::{
     PERMISSION_ROLE_CREATE, PERMISSION_ROLE_DELETE, PERMISSION_ROLE_GRANT, PERMISSION_ROLE_READ,
     PERMISSION_ROLE_REVOKE, PERMISSION_ROLE_UPDATE, REQUIRED_ROLES, ROLE_ADMIN,
@@ -12,33 +11,11 @@ use crate::repository::role::{
 };
 use nail_common::response::role::{RoleListItem, RoleListPage, RoleNameView, RoleView};
 
-fn role_console() -> Resource {
-    Resource::Virtual("any".to_string())
-}
-
 pub struct RoleUpdate<'a> {
     pub permissions_add: &'a [String],
     pub permissions_remove: &'a [String],
     pub users_add: &'a [String],
     pub users_remove: &'a [String],
-}
-
-async fn require_role_action(
-    state: &AppState,
-    actor_id: &str,
-    action: &str,
-) -> Result<(), LogicError> {
-    authorize(state, actor_id, action, &role_console()).await
-}
-
-async fn require_role_read_list(state: &AppState, actor_id: &str) -> Result<(), LogicError> {
-    authorize(
-        state,
-        actor_id,
-        PERMISSION_ROLE_READ,
-        &Resource::Virtual("any".to_string()),
-    )
-    .await
 }
 
 pub fn validate_role_name(raw: &str) -> Result<String, LogicError> {
@@ -60,7 +37,7 @@ pub async fn create_role(
     actor_id: &str,
     raw_name: &str,
 ) -> Result<(String, String), LogicError> {
-    require_role_action(state, actor_id, PERMISSION_ROLE_CREATE).await?;
+    authorize_global(state, actor_id, PERMISSION_ROLE_CREATE).await?;
     let name = validate_role_name(raw_name)?;
     if read_role_node(&state.graph, &name)
         .await
@@ -81,7 +58,7 @@ pub async fn read_roles(
     page: u64,
     limit: u64,
 ) -> Result<RoleListPage, LogicError> {
-    require_role_read_list(state, actor_id).await?;
+    authorize_global(state, actor_id, PERMISSION_ROLE_READ).await?;
     let roles = read_role_nodes(&state.graph)
         .await
         .map_err(database_error)?;
@@ -123,12 +100,11 @@ pub async fn read_role(
         .await
         .map_err(database_error)?
         .ok_or_else(|| LogicError::not_found("role not found"))?;
-    authorize_or(
+    authorize_entity_or(
         state,
         actor_id,
         PERMISSION_ROLE_READ,
-        &Resource::Role(role.role_name.clone()),
-        "role not found",
+        EntityRef::Role(role.role_name.as_str()),
     )
     .await?;
     let members = read_role_members(&state.graph, &role.role_name)
@@ -162,29 +138,29 @@ pub async fn update_role(
     let has_adds = !permissions_add.is_empty() || !users_add.is_empty();
     let has_removes = !permissions_remove.is_empty() || !users_remove.is_empty();
     if has_adds || has_removes {
-        authorize(
+        authorize_entity(
             state,
             actor_id,
             PERMISSION_ROLE_UPDATE,
-            &Resource::Role(name.clone()),
+            EntityRef::Role(&name),
         )
         .await?;
     }
     if has_adds {
-        authorize(
+        authorize_entity(
             state,
             actor_id,
             PERMISSION_ROLE_GRANT,
-            &Resource::Role(name.clone()),
+            EntityRef::Role(&name),
         )
         .await?;
     }
     if has_removes {
-        authorize(
+        authorize_entity(
             state,
             actor_id,
             PERMISSION_ROLE_REVOKE,
-            &Resource::Role(name.clone()),
+            EntityRef::Role(&name),
         )
         .await?;
     }
@@ -240,12 +216,11 @@ pub async fn delete_role(
         .map_err(database_error)?
         .ok_or_else(|| LogicError::not_found("role not found"))?;
     let name = role.role_name;
-    authorize_or(
+    authorize_entity_or(
         state,
         actor_id,
         PERMISSION_ROLE_DELETE,
-        &Resource::Role(name.clone()),
-        "role not found",
+        EntityRef::Role(&name),
     )
     .await?;
     if REQUIRED_ROLES.contains(&name.as_str()) {
