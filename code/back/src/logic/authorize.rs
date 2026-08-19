@@ -1,5 +1,5 @@
 use crate::infrastructure::state::AppState;
-use crate::logic::error::{LogicError, database_error};
+use crate::logic::error::LogicError;
 use crate::repository::authorization::{AssemblyError, Resource, assemble, assemble_resource};
 use crate::repository::role::{
     PERMISSION_ARTICLE_READ, PERMISSION_ARTICLE_UNDELETE_SOFT, PERMISSION_COMMENT_READ,
@@ -20,9 +20,7 @@ pub async fn require_visible_if_soft_deleted(
     resource: &Resource,
     not_found_message: &str,
 ) -> Result<(), LogicError> {
-    if crate::repository::delete::is_soft_deleted(&state.graph, entity_type, business_id)
-        .await
-        .map_err(database_error)?
+    if crate::repository::delete::is_soft_deleted(&state.graph, entity_type, business_id).await?
         && authorize(state, actor_id, undelete_action, resource)
             .await
             .is_err()

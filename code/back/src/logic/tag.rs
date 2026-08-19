@@ -1,6 +1,6 @@
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{EntityRef, authorize_entity, authorize_entity_or, authorize_global};
-use crate::logic::error::{LogicError, database_error};
+use crate::logic::error::LogicError;
 use crate::logic::pagination::paginate;
 use crate::repository::role::{
     PERMISSION_TAG_APPLY, PERMISSION_TAG_CREATE, PERMISSION_TAG_DELETE, PERMISSION_TAG_READ,
@@ -21,11 +21,7 @@ pub async fn create_tag(
     authorize_global(state, actor_id, PERMISSION_TAG_CREATE).await?;
     let name = nail_common::tag::validate_tag_name(raw_name)
         .map_err(|error| LogicError::bad_request(error.to_string()))?;
-    if read_tag_by_name(&state.graph, &name)
-        .await
-        .map_err(database_error)?
-        .is_some()
-    {
+    if read_tag_by_name(&state.graph, &name).await?.is_some() {
         return Err(LogicError::bad_request("tag already exists"));
     }
     let tag_id = create_tag_node(&state.graph, &name)
@@ -41,15 +37,13 @@ pub async fn read_tags(
     limit: u64,
 ) -> Result<TagListPage, LogicError> {
     authorize_global(state, actor_id, PERMISSION_TAG_READ).await?;
-    let tags = read_tag_nodes(&state.graph).await.map_err(database_error)?;
+    let tags = read_tag_nodes(&state.graph).await?;
     let total = tags.len() as u64;
     let (page_tags, has_next) = paginate(tags, page, limit);
 
     let mut tag_list = Vec::with_capacity(page_tags.len());
     for tag in &page_tags {
-        let article_count = count_tag_articles(&state.graph, &tag.id)
-            .await
-            .map_err(database_error)?;
+        let article_count = count_tag_articles(&state.graph, &tag.id).await?;
         tag_list.push(TagListItem {
             id: tag.id.clone(),
             name: tag.tag_name.clone(),
@@ -70,12 +64,9 @@ pub async fn read_tag(
 ) -> Result<TagView, LogicError> {
     authorize_global(state, actor_id, PERMISSION_TAG_READ).await?;
     let tag = read_tag_by_id(&state.graph, tag_id)
-        .await
-        .map_err(database_error)?
+        .await?
         .ok_or_else(|| LogicError::not_found("tag not found"))?;
-    let article_count = count_tag_articles(&state.graph, &tag.id)
-        .await
-        .map_err(database_error)?;
+    let article_count = count_tag_articles(&state.graph, &tag.id).await?;
     Ok(TagView {
         id: tag.id,
         name: tag.tag_name,
@@ -98,16 +89,10 @@ pub async fn update_tag(
     .await?;
     let name = nail_common::tag::validate_tag_name(raw_name)
         .map_err(|error| LogicError::bad_request(error.to_string()))?;
-    if read_tag_by_id(&state.graph, tag_id)
-        .await
-        .map_err(database_error)?
-        .is_none()
-    {
+    if read_tag_by_id(&state.graph, tag_id).await?.is_none() {
         return Err(LogicError::not_found("tag not found"));
     }
-    if let Some(existing) = read_tag_by_name(&state.graph, &name)
-        .await
-        .map_err(database_error)?
+    if let Some(existing) = read_tag_by_name(&state.graph, &name).await?
         && existing.id != tag_id
     {
         return Err(LogicError::bad_request("tag name already exists"));
@@ -126,11 +111,7 @@ pub async fn delete_tag(state: &AppState, actor_id: &str, tag_id: &str) -> Resul
         EntityRef::Tag(tag_id),
     )
     .await?;
-    if read_tag_by_id(&state.graph, tag_id)
-        .await
-        .map_err(database_error)?
-        .is_none()
-    {
+    if read_tag_by_id(&state.graph, tag_id).await?.is_none() {
         return Err(LogicError::not_found("tag not found"));
     }
     delete_tag_node(&state.graph, tag_id)
@@ -152,10 +133,7 @@ pub async fn apply_tag(
         EntityRef::Tag(tag_id),
     )
     .await?;
-    if !crate::repository::article::article_exists(&state.graph, article_id)
-        .await
-        .map_err(database_error)?
-    {
+    if !crate::repository::article::article_exists(&state.graph, article_id).await? {
         return Err(LogicError::not_found("article not found"));
     }
     apply_tag_to_article(&state.graph, article_id, tag_id)
@@ -177,10 +155,7 @@ pub async fn unapply_tag(
         EntityRef::Tag(tag_id),
     )
     .await?;
-    if !crate::repository::article::article_exists(&state.graph, article_id)
-        .await
-        .map_err(database_error)?
-    {
+    if !crate::repository::article::article_exists(&state.graph, article_id).await? {
         return Err(LogicError::not_found("article not found"));
     }
     unapply_tag_from_article(&state.graph, article_id, tag_id)

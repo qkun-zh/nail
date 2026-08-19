@@ -9,7 +9,7 @@ use crate::logic::authorize::{
     EntityRef, authorize_anonymous, authorize_entity, authorize_entity_or, authorize_global,
     require_entity_readable,
 };
-use crate::logic::error::{LogicError, database_error};
+use crate::logic::error::LogicError;
 use crate::logic::pagination::paginate;
 use crate::logic::pow::verify_issued_pow;
 use crate::logic::search::{sync_all_best_effort, sync_article_best_effort, sync_user_best_effort};
@@ -63,14 +63,11 @@ pub async fn create_user(state: &AppState, pow: &Pow) -> Result<String, LogicErr
             Ok(user_id) => user_id,
             Err(error) => {
                 state.caches.create_user.insert(&key, entry);
-                return Err(database_error(error));
+                return Err(error.into());
             }
         };
 
-    if crate::repository::delete::is_soft_deleted(&state.graph, "user", &user_id)
-        .await
-        .map_err(database_error)?
-    {
+    if crate::repository::delete::is_soft_deleted(&state.graph, "user", &user_id).await? {
         return Err(LogicError::bad_request("email address is deactivated"));
     }
 
@@ -97,8 +94,7 @@ pub async fn read_user(
     };
     if name_requested || email_hash_requested {
         let entry = read_user_node(&state.graph, target_id)
-            .await
-            .map_err(database_error)?
+            .await?
             .ok_or_else(|| LogicError::not_found("user not found"))?;
         if name_requested {
             view.name = Some(entry.name);
@@ -107,13 +103,9 @@ pub async fn read_user(
             view.email_hash = Some(entry.email_address_hash);
         }
     }
-    let roles = crate::repository::role::roles_of_user(&state.graph, target_id)
-        .await
-        .map_err(database_error)?;
+    let roles = crate::repository::role::roles_of_user(&state.graph, target_id).await?;
     view.roles = Some(roles);
-    let articles = crate::repository::article::articles_of_user(&state.graph, target_id)
-        .await
-        .map_err(database_error)?;
+    let articles = crate::repository::article::articles_of_user(&state.graph, target_id).await?;
     view.articles = Some(articles);
     Ok(view)
 }
@@ -125,17 +117,13 @@ pub async fn read_users(
     limit: u64,
 ) -> Result<UserListPage, LogicError> {
     authorize_global(state, actor_id, PERMISSION_USER_READ).await?;
-    let users = read_user_nodes(&state.graph)
-        .await
-        .map_err(database_error)?;
+    let users = read_user_nodes(&state.graph).await?;
     let total = users.len() as u64;
     let (page_users, has_next) = paginate(users, page, limit);
 
     let mut user_list = Vec::with_capacity(page_users.len());
     for user in &page_users {
-        let roles = crate::repository::role::roles_of_user(&state.graph, &user.id)
-            .await
-            .map_err(database_error)?;
+        let roles = crate::repository::role::roles_of_user(&state.graph, &user.id).await?;
         user_list.push(nail_common::response::user::UserListItem {
             id: user.id.clone(),
             name: user.name.clone(),
@@ -288,10 +276,7 @@ async fn handle_delete_user_transfer(
     )?;
 
     let Some(entry) = state.caches.delete_user.read(&token_hash) else {
-        let user_exists = read_user_node(&state.graph, actor_id)
-            .await
-            .map_err(database_error)?
-            .is_some();
+        let user_exists = read_user_node(&state.graph, actor_id).await?.is_some();
         if user_exists {
             return Err(LogicError::bad_request("invalid or expired delete token"));
         }
@@ -349,10 +334,7 @@ async fn handle_delete_user_soft(
     )?;
 
     let Some(entry) = state.caches.delete_user.read(&token_hash) else {
-        let user_exists = read_user_node(&state.graph, actor_id)
-            .await
-            .map_err(database_error)?
-            .is_some();
+        let user_exists = read_user_node(&state.graph, actor_id).await?.is_some();
         if user_exists {
             return Err(LogicError::bad_request("invalid or expired delete token"));
         }

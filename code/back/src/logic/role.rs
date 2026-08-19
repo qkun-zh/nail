@@ -1,6 +1,6 @@
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{EntityRef, authorize_entity, authorize_entity_or, authorize_global};
-use crate::logic::error::{LogicError, database_error};
+use crate::logic::error::LogicError;
 use crate::logic::pagination::paginate;
 use crate::repository::role::{
     PERMISSION_ROLE_CREATE, PERMISSION_ROLE_DELETE, PERMISSION_ROLE_GRANT, PERMISSION_ROLE_READ,
@@ -39,11 +39,7 @@ pub async fn create_role(
 ) -> Result<(String, String), LogicError> {
     authorize_global(state, actor_id, PERMISSION_ROLE_CREATE).await?;
     let name = validate_role_name(raw_name)?;
-    if read_role_node(&state.graph, &name)
-        .await
-        .map_err(database_error)?
-        .is_some()
-    {
+    if read_role_node(&state.graph, &name).await?.is_some() {
         return Err(LogicError::bad_request("role already exists"));
     }
     let role_id = create_role_node(&state.graph, &name)
@@ -59,17 +55,14 @@ pub async fn read_roles(
     limit: u64,
 ) -> Result<RoleListPage, LogicError> {
     authorize_global(state, actor_id, PERMISSION_ROLE_READ).await?;
-    let roles = read_role_nodes(&state.graph)
-        .await
-        .map_err(database_error)?;
+    let roles = read_role_nodes(&state.graph).await?;
     let total = roles.len() as u64;
     let (page_roles, has_next) = paginate(roles, page, limit);
 
     let mut role_list = Vec::with_capacity(page_roles.len());
     for role in &page_roles {
         let member_count = read_role_members(&state.graph, &role.role_name)
-            .await
-            .map_err(database_error)?
+            .await?
             .len() as u64;
         role_list.push(RoleListItem {
             id: role.id.clone(),
@@ -91,8 +84,7 @@ pub async fn read_role(
     role_id: &str,
 ) -> Result<RoleView, LogicError> {
     let role = read_role_node_by_id(&state.graph, role_id)
-        .await
-        .map_err(database_error)?
+        .await?
         .ok_or_else(|| LogicError::not_found("role not found"))?;
     authorize_entity_or(
         state,
@@ -101,9 +93,7 @@ pub async fn read_role(
         EntityRef::Role(role.role_name.as_str()),
     )
     .await?;
-    let members = read_role_members(&state.graph, &role.role_name)
-        .await
-        .map_err(database_error)?;
+    let members = read_role_members(&state.graph, &role.role_name).await?;
     Ok(RoleView {
         id: role.id,
         name: role.role_name,
@@ -125,8 +115,7 @@ pub async fn update_role(
         users_remove,
     } = update;
     let role = read_role_node_by_id(&state.graph, role_id)
-        .await
-        .map_err(database_error)?
+        .await?
         .ok_or_else(|| LogicError::not_found("role not found"))?;
     let name = role.role_name;
     let has_adds = !permissions_add.is_empty() || !users_add.is_empty();
@@ -206,8 +195,7 @@ pub async fn delete_role(
     role_id: &str,
 ) -> Result<RoleNameView, LogicError> {
     let role = read_role_node_by_id(&state.graph, role_id)
-        .await
-        .map_err(database_error)?
+        .await?
         .ok_or_else(|| LogicError::not_found("role not found"))?;
     let name = role.role_name;
     authorize_entity_or(

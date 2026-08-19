@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{EntityRef, authorize_entity_or, require_entity_visible};
-use crate::logic::error::{LogicError, database_error};
+use crate::logic::error::LogicError;
 use crate::logic::session::{hash_canonical_token, hash_token};
 use crate::logic::version::pdf_final_path;
 use crate::repository::cache::DownloadTokenEntry;
@@ -23,15 +23,13 @@ pub async fn resolve_version_pdf_path(
     )
     .await?;
     let parent = parent_article_of(&state.graph, version_id)
-        .await
-        .map_err(database_error)?
+        .await?
         .ok_or_else(|| LogicError::not_found("version not found"))?;
     if parent != article_id {
         return Err(LogicError::not_found("version not found"));
     }
     let entry = read_version(&state.graph, version_id)
-        .await
-        .map_err(database_error)?
+        .await?
         .ok_or_else(|| LogicError::not_found("version not found"))?;
     require_entity_visible(state, actor_id, EntityRef::Version(version_id)).await?;
     pdf_final_path(&state.config.server.pdf_storage_path, &entry.content_hash)

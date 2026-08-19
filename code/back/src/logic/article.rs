@@ -96,8 +96,7 @@ pub async fn read_article(
 ) -> Result<ArticleView, LogicError> {
     require_entity_readable(state, actor_id, EntityRef::Article(article_id)).await?;
     let article = read_article_node(&state.graph, article_id)
-        .await
-        .map_err(database_error)?
+        .await?
         .ok_or_else(|| LogicError::not_found("article not found"))?;
 
     let created_at = nail_common::time::uuidv7_timestamp_secs(&article.id).unwrap_or(0);
@@ -190,9 +189,8 @@ pub async fn delete_article(
                 EntityRef::Article(article_id),
             )
             .await?;
-            let outcome = crate::repository::delete::delete_article(&state.graph, article_id)
-                .await
-                .map_err(database_error)?;
+            let outcome =
+                crate::repository::delete::delete_article(&state.graph, article_id).await?;
             remove_orphaned_pdfs(state, &outcome.removed_pdf_hashes).await;
             sync_article_best_effort(state, article_id).await;
             Ok(ArticleIdView {
@@ -209,14 +207,11 @@ pub async fn delete_article(
             .await?;
             let already_deleted =
                 crate::repository::delete::is_soft_deleted(&state.graph, "article", article_id)
-                    .await
-                    .map_err(database_error)?;
+                    .await?;
             if already_deleted {
                 return Err(LogicError::bad_request("already soft-deleted"));
             }
-            crate::repository::delete::soft_delete_article(&state.graph, article_id)
-                .await
-                .map_err(database_error)?;
+            crate::repository::delete::soft_delete_article(&state.graph, article_id).await?;
             sync_article_best_effort(state, article_id).await;
             Ok(ArticleIdView {
                 article_id: article_id.to_string(),
@@ -240,15 +235,12 @@ pub async fn undelete_soft_article(
         EntityRef::Article(article_id),
     )
     .await?;
-    let hidden = crate::repository::delete::is_soft_deleted(&state.graph, "article", article_id)
-        .await
-        .map_err(database_error)?;
+    let hidden =
+        crate::repository::delete::is_soft_deleted(&state.graph, "article", article_id).await?;
     if !hidden {
         return Err(LogicError::bad_request("not soft-deleted"));
     }
-    crate::repository::delete::clear_soft_deleted_flag(&state.graph, article_id)
-        .await
-        .map_err(database_error)?;
+    crate::repository::delete::clear_soft_deleted_flag(&state.graph, article_id).await?;
     sync_article_best_effort(state, article_id).await;
     Ok(ArticleIdView {
         article_id: article_id.to_string(),
@@ -284,11 +276,7 @@ async fn validate_tags(
         return Err(LogicError::bad_request("at least one tag is required"));
     }
     for name in &tags {
-        if read_tag_by_name(&state.graph, name)
-            .await
-            .map_err(database_error)?
-            .is_none()
-        {
+        if read_tag_by_name(&state.graph, name).await?.is_none() {
             return Err(LogicError::bad_request(format!(
                 "tag \"{name}\" does not exist"
             )));

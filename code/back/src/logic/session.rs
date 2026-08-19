@@ -3,7 +3,7 @@ use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{EntityRef, authorize_entity};
-use crate::logic::error::{LogicError, database_error};
+use crate::logic::error::LogicError;
 use crate::logic::pow::verify_issued_pow;
 use crate::repository::cache::SessionTokenEntry;
 
@@ -57,8 +57,7 @@ pub async fn read_user_name(state: &AppState, session_token: &str) -> Result<Str
     )
     .await?;
     let entry = crate::repository::user::read_user(&state.graph, &user_id)
-        .await
-        .map_err(database_error)?
+        .await?
         .ok_or_else(|| LogicError::unauthorized("user not found"))?;
     Ok(entry.name)
 }
