@@ -228,3 +228,6 @@ only judgment calls and are evidence-backed.
 ## Change log
 
 - 2026-08-19: created.
+- 2026-08-19: slice 1 committed `fa24f69` (common `ListPage<T>` + back producers + repo count helpers + back/common tests; common 117, back 583 green per-module; fmt/clippy clean).
+- 2026-08-19: slice 2 committed `24d3262` (frontend consumers + search page-echo removal; front 80 tests, check, fmt, clippy, trunk build green).
+- 2026-08-19: final gate green — common 117, back 583 (per-module; full-suite binary OOM-killed by system at load 22, env constraint), front 80 + trunk build; handoff written, task COMPLETE.
