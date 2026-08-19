@@ -100,7 +100,6 @@ fn map_assembly_error(error: AssemblyError) -> LogicError {
 }
 
 #[derive(Clone, Copy)]
-#[allow(dead_code)]
 pub enum EntityRef<'a> {
     Article(&'a str),
     Version(&'a str),
@@ -166,7 +165,6 @@ impl EntityRef<'_> {
     }
 }
 
-#[allow(dead_code)]
 pub async fn authorize_global(
     state: &AppState,
     actor_id: &str,
@@ -181,7 +179,6 @@ pub async fn authorize_global(
     .await
 }
 
-#[allow(dead_code)]
 pub async fn authorize_entity(
     state: &AppState,
     actor_id: &str,
@@ -191,7 +188,6 @@ pub async fn authorize_entity(
     authorize(state, actor_id, action, &entity.resource()).await
 }
 
-#[allow(dead_code)]
 pub async fn authorize_entity_or(
     state: &AppState,
     actor_id: &str,
@@ -208,7 +204,6 @@ pub async fn authorize_entity_or(
     .await
 }
 
-#[allow(dead_code)]
 pub async fn require_entity_visible(
     state: &AppState,
     actor_id: &str,
@@ -229,7 +224,6 @@ pub async fn require_entity_visible(
     .await
 }
 
-#[allow(dead_code)]
 pub async fn require_entity_readable(
     state: &AppState,
     actor_id: &str,
