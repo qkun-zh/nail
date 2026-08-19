@@ -38,15 +38,6 @@ pub fn validate_comment_content(raw: &str, max_chars: u64) -> Result<String, Str
     .map_err(|error| error.to_string())
 }
 
-#[allow(dead_code)]
-pub fn validate_tags(raw: &str, max_count: usize) -> Result<Vec<String>, String> {
-    let tags = nail_common::tag::parse_tags(raw, max_count).map_err(|error| error.to_string())?;
-    if tags.is_empty() {
-        return Err("at least one tag is required".to_string());
-    }
-    Ok(tags)
-}
-
 pub fn validate_uuid(raw: &str) -> Result<String, String> {
     let value = raw.trim();
     let bytes = value.as_bytes();

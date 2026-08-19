@@ -1,7 +1,7 @@
 use std::sync::OnceLock;
 
 use leptos::prelude::*;
-use leptos_router::components::{A, Outlet};
+use leptos_router::components::A;
 use nail_common::response::session::SessionView;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,16 +74,4 @@ pub fn who_are_you() -> AnyView {
         <div><A href="/authenticate">authenticate</A></div>
     }
     .into_any()
-}
-
-#[component]
-pub fn RootGate() -> impl IntoView {
-    let status = use_session_status();
-    view! {
-        {move || match status.get() {
-            SessionStatus::Checking => view! { <p>checking session...</p> }.into_any(),
-            SessionStatus::Authenticated(_) => view! { <Outlet/> }.into_any(),
-            SessionStatus::Anonymous => who_are_you(),
-        }}
-    }
 }

@@ -1,6 +1,6 @@
 use crate::page::validation::{
     looks_like_pdf, validate_comment_content, validate_name, validate_note, validate_pdf_selection,
-    validate_summary, validate_tags, validate_title, validate_uuid,
+    validate_summary, validate_title, validate_uuid,
 };
 
 #[test]
@@ -44,19 +44,6 @@ fn comment_content_obeys_its_ascii_limit() {
     assert_eq!(validate_comment_content("hi", 1024), Ok("hi".to_string()));
     assert!(validate_comment_content("", 1024).is_err());
     assert!(validate_comment_content("x".repeat(1025).as_str(), 1024).is_err());
-}
-
-#[test]
-fn tags_mirror_the_backend_parser() {
-    assert_eq!(
-        validate_tags("a b", 8),
-        Ok(vec!["a".to_string(), "b".to_string()])
-    );
-    assert!(validate_tags("no-hash", 8).is_ok());
-    assert!(validate_tags("", 8).is_err());
-    let nine = "1 2 3 4 5 6 7 8 9";
-    assert!(validate_tags(nine, 8).is_err());
-    assert_eq!(validate_tags("ab", 8), Ok(vec!["ab".to_string()]));
 }
 
 #[test]
