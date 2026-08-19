@@ -75,13 +75,16 @@ Handoff files: `document/handoff/<4-char>_<slug>.md`.
 - **Task II — common validators unification.** common/src/{validate,name,tag,text}.rs + tests.
   Preserve per-policy behavior (name/tag: `-`/`_`; text: printable+newline). One
   `CharPolicy` + one `ValidationError`. No wire change.
-- **Task III — common named-struct dedup + dead code.**
+- **Task III — common named-struct dedup + dead code.** (REORDERED LATER — touches
+  frontend `request/*` which a concurrent agent is actively refactoring; dispatch
+  after concurrent frontend work stabilizes. Re-verify tree first.)
   Merge TagRef/TagNameView/RoleNameView → `NamedRef`; collapse view==listitem
   duplicates (keep RoleListItem which genuinely differs); delete
   `has_consistent_email_pow_pair`; SearchRange single Display/FromStr+label
   (keep same serde strings → no wire change). Update all back/front consumers.
-- **Task IV — ListPage<T> unification (WIRE B1–B6).** Atomic across
-  common+back+front+tests. common defines `ListPage<T>{items,has_next,total}`;
+- **Task IV — ListPage<T> unification (WIRE B1–B6).** (REORDERED LATER — touches
+  frontend list pages; same concurrent-conflict reason.)
+  Atomic across common+back+front+tests. common defines `ListPage<T>{items,has_next,total}`;
   back produces it; front reads `items`; http tests updated. Drop `page` echo.
 - **Task V — repository graph abstraction.** graph.rs add
   `outgoing_edges/incoming_edges/edge_count`; kill ~30 dup query blocks; kill
@@ -137,4 +140,5 @@ Each sub-agent MUST, in order:
 - 2026-08-19: Master plan created (this file). Scope A1–A4, B1–B6 approved.
 - 2026-08-19: Task II DONE (reviewed, committed): `454e4a2` (shared validate module), `f030c6f` (name/tag), `cb8243c` (text), `71fc173` (exec+handoff docs). Behavior/messages preserved; 116/116 common tests green; fmt/clippy clean; no-ripple check clean in back/front.
 - 2026-08-19: CONCURRENT AGENT active on shared local `main`: committed `5ceb421` (feat(front): validate path ids) + more (branch ahead of origin/main); staged uncommitted frontend changes incl. new `code/front/src/request/validate.rs`, `test/unit/front/request/validate/tests.rs`, edits to `request/{article,comment,download,role,tag,user,version}.rs`. PUSH HELD: pushing local main would publish un-audited concurrent work. Coordination needed before any push.
-- 2026-08-19: Next task (Task III, common named-struct dedup) may touch frontend `request/*` + back consumers — CONFLICT RISK with concurrent agent's request-layer refactor. Re-check before dispatch.
+- 2026-08-19: ORCHESTRATOR DECISION (recorded): (1) REORDER — dispatch backend-only tasks (V, VI, VII-backend) before frontend-touching tasks (III, IV, VIII, VII-routes) to avoid clashing with the concurrent agent's frontend `request/*` refactor; re-verify the tree at every dispatch. (2) HOLD ALL PUSHES until the concurrent agent's work on local `main` is stable/audited or the user directs a coordinated push; committing locally is safe (commits are independent).
+- 2026-08-19: Task II committed on `main` (local). Next: Task V (repository graph abstraction).
