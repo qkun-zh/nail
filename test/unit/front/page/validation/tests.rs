@@ -1,6 +1,6 @@
 use crate::page::validation::{
     looks_like_pdf, validate_comment_content, validate_name, validate_note, validate_pdf_selection,
-    validate_summary, validate_tags, validate_title,
+    validate_summary, validate_tags, validate_title, validate_uuid,
 };
 
 #[test]
@@ -57,6 +57,22 @@ fn tags_mirror_the_backend_parser() {
     let nine = "1 2 3 4 5 6 7 8 9";
     assert!(validate_tags(nine, 8).is_err());
     assert_eq!(validate_tags("ab", 8), Ok(vec!["ab".to_string()]));
+}
+
+#[test]
+fn uuid_rejects_bad_format_and_accepts_canonical() {
+    let canonical = "01a018c7-f177-7da1-a821-5f1000648383";
+    assert_eq!(validate_uuid(canonical), Ok(canonical.to_string()));
+    assert_eq!(
+        validate_uuid(" 01a018c7-f177-7da1-a821-5f1000648383 "),
+        Ok(canonical.to_string())
+    );
+    assert!(validate_uuid("01a00100-d22d-73c3-a5c3-c54e9b8f6f3").is_err());
+    assert!(validate_uuid("01a00100-d22d-73c3-a5c3-c54e9b8f6f32z").is_err());
+    assert!(validate_uuid("01a00100d22d73c3a5c3c54e9b8f6f32").is_err());
+    assert!(validate_uuid("01a00100-d22d-73c3-a5c3-c54e9b8f6f32-").is_err());
+    assert!(validate_uuid("not-a-uuid").is_err());
+    assert!(validate_uuid("").is_err());
 }
 
 #[test]

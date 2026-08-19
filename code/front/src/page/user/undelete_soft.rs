@@ -3,6 +3,7 @@ use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map};
 
 use crate::page::notify::{notify_error, notify_success, use_notifications};
+use crate::page::validation::validate_uuid;
 
 #[component]
 pub fn UndeleteSoftUser() -> impl IntoView {
@@ -23,6 +24,12 @@ pub fn UndeleteSoftUser() -> impl IntoView {
         let uid = params.get().get("uid").unwrap_or_default();
         let navigate = navigate.clone();
         let notifications = notifications.clone();
+        if let Err(message) = validate_uuid(&uid) {
+            notify_error(&notifications, message.clone());
+            error.set(Some(message));
+            working.set(false);
+            return;
+        }
         leptos::task::spawn_local(async move {
             match crate::request::user::undelete_soft_user(&uid).await {
                 Ok(_) => {

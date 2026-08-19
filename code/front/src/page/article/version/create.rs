@@ -7,7 +7,7 @@ use crate::infrastructure::limits::use_limits;
 use crate::page::author_gate::{denied_view, use_author_gate};
 use crate::page::draft::persist_draft;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
-use crate::page::validation::{validate_note, validate_pdf_selection};
+use crate::page::validation::{validate_note, validate_pdf_selection, validate_uuid};
 
 #[component]
 pub fn CreateVersion() -> impl IntoView {
@@ -41,6 +41,10 @@ pub fn CreateVersion() -> impl IntoView {
         let Some(article_id) = params.get().get("article_id") else {
             return;
         };
+        if let Err(message) = validate_uuid(&article_id) {
+            notify_error(&notifications, message);
+            return;
+        }
         let version_value = version.get();
         if version_value.trim().is_empty() {
             notify_error(&notifications, "version is required");

@@ -7,7 +7,7 @@ use crate::page::article::tag_picker::TagPicker;
 use crate::page::author_gate::{denied_view, use_author_gate};
 use crate::page::draft::persist_draft;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
-use crate::page::validation::{validate_summary, validate_title};
+use crate::page::validation::{validate_summary, validate_title, validate_uuid};
 
 #[component]
 pub fn UpdateArticle() -> impl IntoView {
@@ -47,6 +47,10 @@ pub fn UpdateArticle() -> impl IntoView {
             return;
         };
         let notifications = effect_notifications.clone();
+        if let Err(message) = validate_uuid(&id) {
+            notify_error(&notifications, message);
+            return;
+        }
         leptos::task::spawn_local(async move {
             match crate::request::article::read_article(&id).await {
                 Ok(view) => {
@@ -80,6 +84,10 @@ pub fn UpdateArticle() -> impl IntoView {
         let Some(id) = params.get().get("article_id") else {
             return;
         };
+        if let Err(message) = validate_uuid(&id) {
+            notify_error(&submit_notifications, message);
+            return;
+        }
         let limits = limits.get();
         let title_value = match validate_title(&title.get(), limits.max_title_chars) {
             Ok(value) => value,

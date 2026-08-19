@@ -2,6 +2,8 @@ use crate::page::article::version::comment::url::{
     CommentLevel, comment_id_from_level, comment_level_from_path,
 };
 
+const COMMENT_ID: &str = "01a018c7-f177-7da1-a821-5f1000648383";
+
 #[test]
 fn empty_path_is_invalid() {
     assert!(matches!(comment_level_from_path(""), CommentLevel::Invalid));
@@ -17,31 +19,43 @@ fn comment_root_is_the_version_comments_level() {
 
 #[test]
 fn comment_with_id_is_the_comment_level() {
-    let level = comment_level_from_path("comment/abc123");
-    assert!(matches!(level, CommentLevel::Comment(ref id) if id == "abc123"));
+    let level = comment_level_from_path(&format!("comment/{COMMENT_ID}"));
+    assert!(matches!(level, CommentLevel::Comment(ref id) if id == COMMENT_ID));
 }
 
 #[test]
 fn comment_delete_suffix_is_the_delete_level() {
-    let level = comment_level_from_path("comment/abc123/delete");
-    assert!(matches!(level, CommentLevel::DeleteComment(ref id) if id == "abc123"));
+    let level = comment_level_from_path(&format!("comment/{COMMENT_ID}/delete"));
+    assert!(matches!(level, CommentLevel::DeleteComment(ref id) if id == COMMENT_ID));
 }
 
 #[test]
 fn comment_update_suffix_is_the_update_level() {
-    let level = comment_level_from_path("comment/abc123/update");
+    let level = comment_level_from_path(&format!("comment/{COMMENT_ID}/update"));
     assert!(matches!(
         level,
-        CommentLevel::UpdateComment(ref id) if id == "abc123"
+        CommentLevel::UpdateComment(ref id) if id == COMMENT_ID
     ));
 }
 
 #[test]
 fn comment_undelete_suffix_is_the_undelete_level() {
-    let level = comment_level_from_path("comment/abc123/undelete-soft");
+    let level = comment_level_from_path(&format!("comment/{COMMENT_ID}/undelete-soft"));
     assert!(matches!(
         level,
-        CommentLevel::UndeleteComment(ref id) if id == "abc123"
+        CommentLevel::UndeleteComment(ref id) if id == COMMENT_ID
+    ));
+}
+
+#[test]
+fn malformed_comment_id_is_invalid() {
+    assert!(matches!(
+        comment_level_from_path("comment/abc123"),
+        CommentLevel::Invalid
+    ));
+    assert!(matches!(
+        comment_level_from_path("comment/abc123/delete"),
+        CommentLevel::Invalid
     ));
 }
 

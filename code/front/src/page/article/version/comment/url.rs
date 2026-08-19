@@ -1,3 +1,5 @@
+use crate::page::validation::validate_uuid;
+
 pub enum CommentLevel {
     VersionComments,
     Comment(String),
@@ -13,22 +15,26 @@ pub fn comment_level_from_path(comment_path: &str) -> CommentLevel {
     }
     if let Some(rest) = comment_path.strip_prefix("comment/") {
         if let Some(comment_id) = rest.strip_suffix("/delete") {
-            if !comment_id.is_empty() {
-                return CommentLevel::DeleteComment(comment_id.to_string());
-            }
+            return valid_comment_level(comment_id, CommentLevel::DeleteComment);
         } else if let Some(comment_id) = rest.strip_suffix("/update") {
-            if !comment_id.is_empty() {
-                return CommentLevel::UpdateComment(comment_id.to_string());
-            }
+            return valid_comment_level(comment_id, CommentLevel::UpdateComment);
         } else if let Some(comment_id) = rest.strip_suffix("/undelete-soft") {
-            if !comment_id.is_empty() {
-                return CommentLevel::UndeleteComment(comment_id.to_string());
-            }
+            return valid_comment_level(comment_id, CommentLevel::UndeleteComment);
         } else if !rest.is_empty() {
-            return CommentLevel::Comment(rest.to_string());
+            return valid_comment_level(rest, CommentLevel::Comment);
         }
     }
     CommentLevel::Invalid
+}
+
+fn valid_comment_level(
+    comment_id: &str,
+    level: impl FnOnce(String) -> CommentLevel,
+) -> CommentLevel {
+    match validate_uuid(comment_id) {
+        Ok(value) => level(value),
+        Err(_) => CommentLevel::Invalid,
+    }
 }
 
 pub fn comment_id_from_level(level: &CommentLevel) -> Option<&str> {

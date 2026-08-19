@@ -7,6 +7,7 @@ use nail_common::response::version::VersionListPage;
 use crate::infrastructure::limits::use_limits;
 use crate::page::notify::{notify_error, use_notifications};
 use crate::page::pagination::{PrevNext, clamp_page_size};
+use crate::page::validation::validate_uuid;
 
 #[derive(Clone)]
 enum VersionPage {
@@ -30,6 +31,11 @@ pub fn VersionList() -> impl IntoView {
         let limit = clamp_page_size(limits.get().search_page_size, 8);
         let page_value = current_page.get();
         let notifications = notifications.clone();
+        if let Err(error_message) = validate_uuid(&article_id) {
+            notify_error(&notifications, error_message.clone());
+            state.set(VersionPage::Error(error_message));
+            return;
+        }
         leptos::task::spawn_local(async move {
             match crate::request::version::read_versions(&article_id, page_value, limit).await {
                 Ok(view) => state.set(VersionPage::Loaded(view)),

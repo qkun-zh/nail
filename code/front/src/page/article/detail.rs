@@ -5,6 +5,7 @@ use nail_common::response::article::ArticleView;
 
 use crate::page::notify::{notify_error, use_notifications};
 use crate::page::time_format::format_timestamp;
+use crate::page::validation::validate_uuid;
 
 #[component]
 pub fn ArticleDetail() -> impl IntoView {
@@ -16,6 +17,11 @@ pub fn ArticleDetail() -> impl IntoView {
     Effect::new(move |_| {
         let article_id = params.get().get("article_id").unwrap_or_default();
         let notifications = notifications.clone();
+        if let Err(error_message) = validate_uuid(&article_id) {
+            notify_error(&notifications, error_message.clone());
+            error.set(Some(error_message));
+            return;
+        }
         leptos::task::spawn_local(async move {
             match crate::request::article::read_article(&article_id).await {
                 Ok(view) => article.set(Some(view)),

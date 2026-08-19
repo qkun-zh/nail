@@ -2,6 +2,7 @@ use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map};
 
+use crate::page::validation::validate_uuid;
 use crate::request::tag::{self, TagNameView};
 
 #[component]
@@ -16,6 +17,10 @@ pub fn UpdateTag() -> impl IntoView {
 
     Effect::new(move |_| {
         let tag_id = params.get().get("tag_id").unwrap_or_default();
+        if let Err(message) = validate_uuid(&tag_id) {
+            error.set(Some(message));
+            return;
+        }
         leptos::task::spawn_local(async move {
             match tag::read_tag(&tag_id).await {
                 Ok(tag_view) => {
@@ -33,6 +38,11 @@ pub fn UpdateTag() -> impl IntoView {
         error.set(None);
 
         let tag_id = params.get().get("tag_id").unwrap_or_default();
+        if let Err(message) = validate_uuid(&tag_id) {
+            error.set(Some(message));
+            submitting.set(false);
+            return;
+        }
         let name = name.get();
         let navigate = navigate.clone();
         leptos::task::spawn_local(async move {

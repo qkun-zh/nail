@@ -2,6 +2,7 @@ use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map};
 
+use crate::page::validation::validate_uuid;
 use crate::request::tag::{self, TagNameView};
 
 #[component]
@@ -15,6 +16,10 @@ pub fn DeleteTag() -> impl IntoView {
 
     Effect::new(move |_| {
         let tag_id = params.get().get("tag_id").unwrap_or_default();
+        if let Err(message) = validate_uuid(&tag_id) {
+            error.set(Some(message));
+            return;
+        }
         leptos::task::spawn_local(async move {
             match tag::read_tag(&tag_id).await {
                 Ok(tag_view) => tag.set(Some(tag_view)),
@@ -29,6 +34,11 @@ pub fn DeleteTag() -> impl IntoView {
 
         let tag_id = params.get().get("tag_id").unwrap_or_default();
         let navigate = navigate.clone();
+        if let Err(message) = validate_uuid(&tag_id) {
+            error.set(Some(message));
+            submitting.set(false);
+            return;
+        }
         leptos::task::spawn_local(async move {
             match tag::delete_tag(&tag_id).await {
                 Ok(()) => {

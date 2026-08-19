@@ -4,6 +4,7 @@ use leptos_router::hooks::use_params_map;
 use nail_common::response::role::RoleView;
 
 use crate::page::notify::{notify_error, use_notifications};
+use crate::page::validation::validate_uuid;
 
 #[component]
 pub fn RoleDetail() -> impl IntoView {
@@ -15,6 +16,11 @@ pub fn RoleDetail() -> impl IntoView {
     Effect::new(move |_| {
         let role_id = params.get().get("role_id").unwrap_or_default();
         let notifications = notifications.clone();
+        if let Err(error_message) = validate_uuid(&role_id) {
+            notify_error(&notifications, error_message.clone());
+            error.set(Some(error_message));
+            return;
+        }
         leptos::task::spawn_local(async move {
             match crate::request::role::read_role(&role_id).await {
                 Ok(view) => role.set(Some(view)),

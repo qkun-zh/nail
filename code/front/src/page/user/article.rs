@@ -4,6 +4,7 @@ use leptos_router::hooks::use_params_map;
 
 use crate::page::notify::{notify_error, use_notifications};
 use crate::page::time_format::format_timestamp;
+use crate::page::validation::validate_uuid;
 
 #[component]
 pub fn UserArticle() -> impl IntoView {
@@ -15,6 +16,10 @@ pub fn UserArticle() -> impl IntoView {
     Effect::new(move |_| {
         let id = uid();
         let notifications = notifications.clone();
+        if let Err(error) = validate_uuid(&id) {
+            notify_error(&notifications, error);
+            return;
+        }
         leptos::task::spawn_local(async move {
             match crate::request::user::read_user(&id).await {
                 Ok(view) => articles.set(view.articles),

@@ -5,6 +5,7 @@ use nail_common::response::version::VersionView;
 
 use crate::page::notify::{notify_error, use_notifications};
 use crate::page::time_format::format_timestamp;
+use crate::page::validation::validate_uuid;
 
 #[component]
 fn DownloadLink(url: String) -> impl IntoView {
@@ -43,6 +44,13 @@ pub fn VersionDetail() -> impl IntoView {
         let version_id = params.get().get("version_id").unwrap_or_default();
         let article_id = params.get().get("article_id").unwrap_or_default();
         let notifications = effect_notifications.clone();
+        if let Err(error_message) =
+            validate_uuid(&version_id).and_then(|_| validate_uuid(&article_id))
+        {
+            notify_error(&notifications, error_message.clone());
+            error.set(Some(error_message));
+            return;
+        }
         leptos::task::spawn_local(async move {
             match crate::request::version::read_version(&version_id, &article_id).await {
                 Ok(view) => {

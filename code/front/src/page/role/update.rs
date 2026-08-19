@@ -3,6 +3,7 @@ use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map};
 
 use crate::page::notify::{notify_error, notify_success, use_notifications};
+use crate::page::validation::validate_uuid;
 
 fn split_entries(value: &str) -> Vec<String> {
     value
@@ -35,6 +36,12 @@ pub fn UpdateRole() -> impl IntoView {
         error.set(None);
 
         let role_id = params.get().get("role_id").unwrap_or_default();
+        if let Err(message) = validate_uuid(&role_id) {
+            notify_error(&notifications, message.clone());
+            error.set(Some(message));
+            submitting.set(false);
+            return;
+        }
         let permissions_add = split_entries(&permissions_add.get());
         let permissions_remove = split_entries(&permissions_remove.get());
         let users_add = split_entries(&users_add.get());

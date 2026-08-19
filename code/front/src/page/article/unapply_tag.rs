@@ -3,6 +3,7 @@ use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map};
 
 use crate::page::notify::{notify_error, notify_success, use_notifications};
+use crate::page::validation::validate_uuid;
 
 #[component]
 pub fn UnapplyTag() -> impl IntoView {
@@ -24,6 +25,12 @@ pub fn UnapplyTag() -> impl IntoView {
         let tag_id = params.get().get("tag_id").unwrap_or_default();
         let navigate = navigate.clone();
         let notifications = notifications.clone();
+        if let Err(message) = validate_uuid(&article_id).and_then(|_| validate_uuid(&tag_id)) {
+            notify_error(&notifications, message.clone());
+            error.set(Some(message));
+            working.set(false);
+            return;
+        }
         leptos::task::spawn_local(async move {
             match crate::request::tag::unapply_tag(&article_id, &tag_id).await {
                 Ok(_) => {

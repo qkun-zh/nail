@@ -3,6 +3,8 @@ use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
 use nail_common::request::DeleteMode;
 
+use crate::page::validation::validate_uuid;
+
 fn mode_from_str(value: &str) -> Option<DeleteMode> {
     match value {
         "soft" => Some(DeleteMode::Soft),
@@ -39,6 +41,11 @@ pub fn DeleteVersion() -> impl IntoView {
         let version_id = version_id();
         let article_id = article_id();
         let navigate = navigate.clone();
+        if let Err(message) = validate_uuid(&version_id).and_then(|_| validate_uuid(&article_id)) {
+            error.set(Some(message));
+            working.set(false);
+            return;
+        }
         leptos::task::spawn_local(async move {
             match crate::request::version::delete_version(&version_id, mode.get()).await {
                 Ok(_) => {

@@ -5,6 +5,7 @@ use nail_common::request::DeleteMode;
 
 use crate::page::author_gate::{denied_view, use_author_gate};
 use crate::page::notify::{notify_error, notify_success, use_notifications};
+use crate::page::validation::validate_uuid;
 
 fn mode_to_str(mode: DeleteMode) -> &'static str {
     match mode {
@@ -75,6 +76,11 @@ pub fn DeleteArticle() -> impl IntoView {
         let Some(id) = params.get().get("article_id") else {
             return;
         };
+        if let Err(message) = validate_uuid(&id) {
+            notify_error(&delete_notifications, message);
+            working.set(false);
+            return;
+        }
         working.set(true);
         let notifications = delete_notifications.clone();
         leptos::task::spawn_local(async move {

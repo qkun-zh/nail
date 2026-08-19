@@ -3,6 +3,7 @@ use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map};
 use nail_common::response::role::RoleNameView;
 
+use crate::page::validation::validate_uuid;
 use crate::request::role::{self};
 
 #[component]
@@ -16,6 +17,10 @@ pub fn DeleteRole() -> impl IntoView {
 
     Effect::new(move |_| {
         let role_id = params.get().get("role_id").unwrap_or_default();
+        if let Err(message) = validate_uuid(&role_id) {
+            error.set(Some(message));
+            return;
+        }
         leptos::task::spawn_local(async move {
             match role::read_role(&role_id).await {
                 Ok(view) => role.set(Some(RoleNameView {
@@ -36,6 +41,11 @@ pub fn DeleteRole() -> impl IntoView {
 
         let role_id = params.get().get("role_id").unwrap_or_default();
         let navigate = navigate.clone();
+        if let Err(message) = validate_uuid(&role_id) {
+            error.set(Some(message));
+            submitting.set(false);
+            return;
+        }
         leptos::task::spawn_local(async move {
             match role::delete_role(&role_id).await {
                 Ok(_) => {

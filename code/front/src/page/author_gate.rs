@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 
 use crate::page::notify::{notify_error, use_notifications};
+use crate::page::validation::validate_uuid;
 
 pub fn denied_view() -> AnyView {
     view! { <p>you are denied!</p> }.into_any()
@@ -25,6 +26,11 @@ pub fn use_author_gate(
         };
         if id.trim().is_empty() {
             denied.set(false);
+            checked.set(true);
+            return;
+        }
+        if let Err(message) = validate_uuid(&id) {
+            notify_error(&notification, message);
             checked.set(true);
             return;
         }

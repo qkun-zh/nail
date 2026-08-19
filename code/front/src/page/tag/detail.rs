@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 use leptos_router::hooks::use_params_map;
 
+use crate::page::validation::validate_uuid;
 use crate::request::tag::{self, TagNameView};
 
 #[component]
@@ -11,6 +12,10 @@ pub fn TagDetail() -> impl IntoView {
 
     Effect::new(move |_| {
         let tag_id = params.get().get("tag_id").unwrap_or_default();
+        if let Err(error_message) = validate_uuid(&tag_id) {
+            error.set(Some(error_message));
+            return;
+        }
         leptos::task::spawn_local(async move {
             match tag::read_tag(&tag_id).await {
                 Ok(tag_view) => tag.set(Some(tag_view)),

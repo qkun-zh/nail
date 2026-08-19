@@ -22,6 +22,7 @@ use nail_common::response::comment::{CommentListPage, CommentView};
 use crate::infrastructure::limits::use_limits;
 use crate::page::notify::use_notifications;
 use crate::page::session_gate::who_are_you;
+use crate::page::validation::validate_uuid;
 
 use render::{CommentViewContext, STYLE};
 use state::{
@@ -136,6 +137,10 @@ pub fn CommentSection() -> impl IntoView {
         let _ = comment_path();
         let version_id = version_id_param();
         let load = load.get_value();
+        if let Err(error_message) = validate_uuid(&version_id) {
+            error.set(Some(error_message));
+            return;
+        }
         load(version_id);
     });
 
