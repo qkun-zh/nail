@@ -63,6 +63,7 @@ pub struct SearchCommentOutcome {
     pub author_name: String,
     pub content: String,
     pub article_title: String,
+    pub article_author_id: String,
     pub article_author_name: String,
     pub version_number: String,
 }

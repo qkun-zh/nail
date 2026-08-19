@@ -70,22 +70,26 @@ pub(super) async fn enrich_comment_headers(
             user_nodes.push(edge.from);
         }
     }
-    let author_name_by_node: HashMap<agdb::DbId, String> =
+    let author_by_node: HashMap<agdb::DbId, (String, String)> =
         read_rows_sync::<UserRow>(&guard, &user_nodes)?
             .into_iter()
-            .filter_map(|row| row.db_id.map(|node| (node, row.name)))
+            .filter_map(|row| row.db_id.map(|node| (node, (row.id, row.name))))
             .collect();
 
     for comment in comments.iter_mut() {
         let article_node = article_by_id.get(comment.article_id.as_str());
+        let author = article_node
+            .and_then(|node| author_by_article.get(node))
+            .and_then(|user_node| author_by_node.get(user_node));
         comment.article_title = article_node
             .and_then(|node| title_by_node.get(node))
             .cloned()
             .unwrap_or_default();
-        comment.article_author_name = article_node
-            .and_then(|node| author_by_article.get(node))
-            .and_then(|user_node| author_name_by_node.get(user_node))
-            .cloned()
+        comment.article_author_id = author
+            .map(|(id, _)| id.clone())
+            .unwrap_or_default();
+        comment.article_author_name = author
+            .map(|(_, name)| name.clone())
             .unwrap_or_default();
         comment.version_number = version_by_id
             .get(comment.version_id.as_str())

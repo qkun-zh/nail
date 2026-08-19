@@ -110,6 +110,7 @@ pub(super) fn read_comment_outcome(document: &Document) -> SearchCommentOutcome 
         author_name: read_highlighted_or_raw(document, FIELD_AUTHOR_NAME),
         content: read_highlighted_or_raw(document, FIELD_CONTENT),
         article_title: String::new(),
+        article_author_id: String::new(),
         article_author_name: String::new(),
         version_number: String::new(),
     }

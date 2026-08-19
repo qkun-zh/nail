@@ -162,7 +162,7 @@ fn assemble_tree(docs: &[SearchDocOutcome]) -> Vec<SearchArticleItem> {
                         articles.push(ArticleBuilder {
                             article_id: comment.article_id.clone(),
                             title: comment.article_title.clone(),
-                            author_id: String::new(),
+                            author_id: comment.article_author_id.clone(),
                             author_name: comment.article_author_name.clone(),
                             time: format_search_time(uuidv7_secs(&comment.article_id)),
                             article_hits: Vec::new(),
