@@ -2,7 +2,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use nail_common::request::{CreateCommentRequest, DeleteBody};
-use nail_common::response::comment::{CommentIdView, CommentListPage, CommentView};
+use nail_common::response::comment::{CommentIdView, CommentView};
 
 use crate::infrastructure::state::AppState;
 use crate::interface::envelope::{ApiError, json_response};
@@ -82,15 +82,16 @@ pub async fn read_comment_children(
     AppPath(parent_comment_id): AppPath<String>,
     AppPaged((page, limit)): AppPaged,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data: CommentListPage = crate::logic::comment::read_comment_children(
-        &state,
-        &principal.user_id,
-        &parent_comment_id,
-        page,
-        limit,
-    )
-    .await
-    .map_err(ApiError::from_logic)?;
+    let data: nail_common::response::ListPage<CommentView> =
+        crate::logic::comment::read_comment_children(
+            &state,
+            &principal.user_id,
+            &parent_comment_id,
+            page,
+            limit,
+        )
+        .await
+        .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 

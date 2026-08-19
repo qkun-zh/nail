@@ -748,9 +748,8 @@ async fn search_returns_hits_for_a_keyword() {
         )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
-    let list = body["data"]["article_list"]
-        .as_array()
-        .expect("article_list");
+    let list = body["data"]["items"].as_array().expect("article_list");
+    assert_eq!(body["data"]["total"].as_u64(), Some(1));
     assert!(
         list.iter()
             .any(|item| item["title"].as_str() == Some("<mark>Needle</mark> In A Haystack"))

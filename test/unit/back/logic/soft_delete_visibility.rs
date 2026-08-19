@@ -202,7 +202,7 @@ async fn comments_of_a_soft_deleted_version_are_gated_by_undelete() {
     let page = crate::logic::comment::read_comments(&context.state, &admin_id, &version_id, 1, 50)
         .await
         .expect("admin passes the visibility gate");
-    assert_eq!(page.comments.len(), 0);
+    assert_eq!(page.items.len(), 0);
     assert!(!page.has_next);
 }
 

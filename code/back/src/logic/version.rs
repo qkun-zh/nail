@@ -1,9 +1,7 @@
 use std::path::PathBuf;
 
 use nail_common::request::DeleteMode;
-use nail_common::response::version::{
-    VersionIdView, VersionListItem, VersionListPage, VersionView,
-};
+use nail_common::response::version::{VersionIdView, VersionListItem, VersionView};
 use semver::Version;
 use uuid::Uuid;
 
@@ -173,7 +171,7 @@ pub async fn read_versions(
     article_id: &str,
     page: u64,
     limit: u64,
-) -> Result<VersionListPage, LogicError> {
+) -> Result<nail_common::response::ListPage<VersionListItem>, LogicError> {
     authorize_entity_or(
         state,
         actor_id,
@@ -181,19 +179,20 @@ pub async fn read_versions(
         EntityRef::Article(article_id),
     )
     .await?;
+    let total = crate::repository::version::count_versions_of(&state.graph, article_id).await?;
     let offset = page_offset(page, limit);
     let (items, has_next) = versions_of(&state.graph, article_id, limit, offset).await?;
-    let version_list: Vec<VersionListItem> = items
+    let items: Vec<VersionListItem> = items
         .into_iter()
         .map(|item| VersionListItem {
             id: item.id.clone(),
             version: item.version_number,
         })
         .collect();
-    Ok(VersionListPage {
-        version_list,
-        page,
+    Ok(nail_common::response::ListPage {
+        items,
         has_next,
+        total,
     })
 }
 

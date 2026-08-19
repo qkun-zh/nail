@@ -17,13 +17,6 @@ pub struct RoleListItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RoleListPage {
-    pub role_list: Vec<RoleListItem>,
-    pub has_next: bool,
-    pub total: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RoleNameView {
     pub id: String,
     pub name: String,

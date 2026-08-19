@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use nail_common::request::ArticleSearchParams;
 use nail_common::response::search::{
-    SearchArticleItem, SearchCommentItem, SearchHit, SearchPage, SearchVersionItem,
+    SearchArticleItem, SearchCommentItem, SearchHit, SearchVersionItem,
 };
 use nail_common::search::SearchRange;
 
@@ -17,7 +17,7 @@ pub async fn search_articles(
     state: &AppState,
     actor_id: &str,
     params: &ArticleSearchParams,
-) -> Result<SearchPage, LogicError> {
+) -> Result<nail_common::response::ListPage<SearchArticleItem>, LogicError> {
     authorize_global(state, actor_id, PERMISSION_ARTICLE_READ).await?;
     let max_query_chars = state.config.server.max_search_query_chars;
 
@@ -73,12 +73,13 @@ pub async fn search_articles(
         .map_err(|error| LogicError::internal(format!("search failed: {error}")))?;
 
     let article_list = assemble_tree(&outcome.docs);
-    let (sliced, has_next) = paginate(article_list, page, limit);
+    let total = article_list.len() as u64;
+    let (items, has_next) = paginate(article_list, page, limit);
 
-    Ok(SearchPage {
-        article_list: sliced,
-        page,
+    Ok(nail_common::response::ListPage {
+        items,
         has_next,
+        total,
     })
 }
 

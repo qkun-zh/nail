@@ -15,13 +15,6 @@ pub struct VersionListItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct VersionListPage {
-    pub version_list: Vec<VersionListItem>,
-    pub page: u64,
-    pub has_next: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct VersionIdView {
     pub version_id: String,
 }

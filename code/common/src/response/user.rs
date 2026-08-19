@@ -32,10 +32,3 @@ pub struct UserListItem {
     pub name: String,
     pub roles: Vec<String>,
 }
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct UserListPage {
-    pub user_list: Vec<UserListItem>,
-    pub has_next: bool,
-    pub total: u64,
-}

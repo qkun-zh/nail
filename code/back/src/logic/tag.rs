@@ -11,7 +11,7 @@ use crate::repository::tag::{
     delete_tag as delete_tag_node, read_tag_by_id, read_tag_by_name, read_tags as read_tag_nodes,
     unapply_tag_from_article, update_tag as update_tag_node,
 };
-use nail_common::response::tag::{TagListItem, TagListPage, TagView};
+use nail_common::response::tag::{TagListItem, TagView};
 
 pub async fn create_tag(
     state: &AppState,
@@ -35,23 +35,23 @@ pub async fn read_tags(
     actor_id: &str,
     page: u64,
     limit: u64,
-) -> Result<TagListPage, LogicError> {
+) -> Result<nail_common::response::ListPage<TagListItem>, LogicError> {
     authorize_global(state, actor_id, PERMISSION_TAG_READ).await?;
     let tags = read_tag_nodes(&state.graph).await?;
     let total = tags.len() as u64;
     let (page_tags, has_next) = paginate(tags, page, limit);
 
-    let mut tag_list = Vec::with_capacity(page_tags.len());
+    let mut items = Vec::with_capacity(page_tags.len());
     for tag in &page_tags {
         let article_count = count_tag_articles(&state.graph, &tag.id).await?;
-        tag_list.push(TagListItem {
+        items.push(TagListItem {
             id: tag.id.clone(),
             name: tag.tag_name.clone(),
             article_count,
         });
     }
-    Ok(TagListPage {
-        tag_list,
+    Ok(nail_common::response::ListPage {
+        items,
         has_next,
         total,
     })

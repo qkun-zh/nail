@@ -168,7 +168,7 @@ async fn search_allows_a_page_at_max_search_pages() {
         crate::logic::search::search_articles(&context.state, &admin(&context).await, &request)
             .await
             .expect("page at the limit is allowed");
-    assert!(page.article_list.is_empty());
+    assert!(page.items.is_empty());
 }
 
 #[tokio::test]
@@ -225,11 +225,11 @@ async fn search_articles_returns_nothing_for_an_empty_query() {
     .await
     .expect("search");
     assert_eq!(
-        page.article_list.len() as u64,
+        page.items.len() as u64,
         0,
         "empty query must return no articles"
     );
-    assert!(page.article_list.is_empty());
+    assert!(page.items.is_empty());
 }
 
 #[tokio::test]
@@ -276,15 +276,15 @@ async fn search_filters_by_iso8601_time_range_and_renders_utc_times() {
             .await
             .expect("search");
     assert_eq!(
-        page.article_list.len() as u64,
+        page.items.len() as u64,
         1,
         "only the recent article falls in the range"
     );
-    assert_eq!(page.article_list[0].title, "Recent One");
+    assert_eq!(page.items[0].title, "Recent One");
     assert!(
-        page.article_list[0].time.ends_with('Z'),
+        page.items[0].time.ends_with('Z'),
         "time should be UTC ISO8601: {}",
-        page.article_list[0].time
+        page.items[0].time
     );
 }
 
@@ -371,7 +371,7 @@ async fn search_combines_keyword_range_time_author_tag() {
     .await
     .expect("quantum");
     assert_eq!(
-        page.article_list.len() as u64,
+        page.items.len() as u64,
         2,
         "quantum hits A(title) and B(summary)"
     );
@@ -382,12 +382,8 @@ async fn search_combines_keyword_range_time_author_tag() {
         crate::logic::search::search_articles(&context.state, &admin(&context).await, &title_only)
             .await
             .expect("quantum title");
-    assert_eq!(
-        page.article_list.len() as u64,
-        1,
-        "title-only search finds only A"
-    );
-    assert_eq!(page.article_list[0].title, "<mark>Quantum</mark> Index");
+    assert_eq!(page.items.len() as u64, 1, "title-only search finds only A");
+    assert_eq!(page.items[0].title, "<mark>Quantum</mark> Index");
 
     let page = crate::logic::search::search_articles(
         &context.state,
@@ -396,7 +392,7 @@ async fn search_combines_keyword_range_time_author_tag() {
     )
     .await
     .expect("rust tag");
-    assert_eq!(page.article_list.len() as u64, 2, "rust tag hits A and C");
+    assert_eq!(page.items.len() as u64, 2, "rust tag hits A and C");
 
     let page = crate::logic::search::search_articles(
         &context.state,
@@ -405,7 +401,7 @@ async fn search_combines_keyword_range_time_author_tag() {
     )
     .await
     .expect("alice author");
-    assert_eq!(page.article_list.len() as u64, 2, "alice authored A and C");
+    assert_eq!(page.items.len() as u64, 2, "alice authored A and C");
 
     let page = crate::logic::search::search_articles(
         &context.state,
@@ -415,7 +411,7 @@ async fn search_combines_keyword_range_time_author_tag() {
     .await
     .expect("pipeline");
     assert_eq!(
-        page.article_list.len() as u64,
+        page.items.len() as u64,
         2,
         "pipeline hits A(note) and B(summary)"
     );
@@ -432,7 +428,7 @@ async fn search_combines_keyword_range_time_author_tag() {
     )
     .await
     .expect("from only");
-    assert_eq!(page.article_list.len() as u64, 2, "from-only keeps A and B");
+    assert_eq!(page.items.len() as u64, 2, "from-only keeps A and B");
 
     let to = nail_common::time::format_rfc3339_utc(now - 60_000).expect("to");
     let page = crate::logic::search::search_articles(
@@ -447,7 +443,7 @@ async fn search_combines_keyword_range_time_author_tag() {
     .await
     .expect("to only");
     assert_eq!(
-        page.article_list.len() as u64,
+        page.items.len() as u64,
         3,
         "to-only keeps everything before now"
     );
@@ -464,11 +460,7 @@ async fn search_combines_keyword_range_time_author_tag() {
     )
     .await
     .expect("quantum+from");
-    assert_eq!(
-        page.article_list.len() as u64,
-        2,
-        "quantum within 6h is A and B"
-    );
+    assert_eq!(page.items.len() as u64, 2, "quantum within 6h is A and B");
 
     let to3 = nail_common::time::format_rfc3339_utc(now - 3 * 3_600_000).expect("to3");
     let page = crate::logic::search::search_articles(
@@ -484,11 +476,11 @@ async fn search_combines_keyword_range_time_author_tag() {
     .await
     .expect("quantum+window");
     assert_eq!(
-        page.article_list.len() as u64,
+        page.items.len() as u64,
         1,
         "quantum in [now-6h, now-3h] is B only"
     );
-    assert_eq!(page.article_list[0].title, "Lunar Cache");
+    assert_eq!(page.items[0].title, "Lunar Cache");
 }
 
 #[tokio::test]
@@ -545,7 +537,7 @@ async fn search_paginates_with_limit_and_page() {
     )
     .await
     .expect("page 1");
-    assert_eq!(page.article_list.len(), 2);
+    assert_eq!(page.items.len(), 2);
     assert!(page.has_next);
     let page2 = crate::logic::search::search_articles(
         &context.state,
@@ -558,7 +550,7 @@ async fn search_paginates_with_limit_and_page() {
     )
     .await
     .expect("page 2");
-    assert_eq!(page2.article_list.len(), 1);
+    assert_eq!(page2.items.len(), 1);
     assert!(!page2.has_next);
 }
 
@@ -586,10 +578,10 @@ async fn bare_tag_search_matches_tag_field() {
     .await
     .expect("search rust");
     assert!(
-        page.article_list.len() as u64 >= 1,
+        page.items.len() as u64 >= 1,
         "rust should find the article via its tag"
     );
-    let tag_hit = page.article_list[0]
+    let tag_hit = page.items[0]
         .article_hits
         .iter()
         .find(|hit| hit.label == "tag")
@@ -627,11 +619,11 @@ async fn single_char_query_reports_field_hits() {
     .await
     .expect("search 9");
     assert!(
-        page.article_list.len() as u64 >= 1,
+        page.items.len() as u64 >= 1,
         "single-char query must find the article"
     );
     let item = page
-        .article_list
+        .items
         .iter()
         .find(|item| item.title == "Sample 9 for scheduler")
         .expect("article present");
@@ -675,11 +667,11 @@ async fn search_articles_returns_nothing_for_empty_ranges() {
             .await
             .expect("search");
     assert_eq!(
-        page.article_list.len() as u64,
+        page.items.len() as u64,
         0,
         "empty ranges must return no articles"
     );
-    assert!(page.article_list.is_empty());
+    assert!(page.items.is_empty());
 }
 
 #[tokio::test]
@@ -725,9 +717,9 @@ async fn space_separated_keywords_match_any_field_or() {
     )
     .await
     .expect("alpha beta or");
-    assert_eq!(page.article_list.len() as u64, 3, "space must OR the terms");
+    assert_eq!(page.items.len() as u64, 3, "space must OR the terms");
     let mut titles: Vec<String> = page
-        .article_list
+        .items
         .iter()
         .map(|a| a.title.replace("<mark>", "").replace("</mark>", ""))
         .collect();
@@ -750,12 +742,12 @@ async fn space_separated_keywords_match_any_field_or() {
     .await
     .expect("+alpha +beta and");
     assert_eq!(
-        page.article_list.len() as u64,
+        page.items.len() as u64,
         1,
         "leading '+' on both terms must AND"
     );
     assert_eq!(
-        page.article_list[0]
+        page.items[0]
             .title
             .replace("<mark>", "")
             .replace("</mark>", ""),
@@ -770,12 +762,12 @@ async fn space_separated_keywords_match_any_field_or() {
     .await
     .expect("alpha +beta");
     assert_eq!(
-        page.article_list.len() as u64,
+        page.items.len() as u64,
         2,
         "required beta matches its two articles"
     );
     let mut titles: Vec<String> = page
-        .article_list
+        .items
         .iter()
         .map(|a| a.title.replace("<mark>", "").replace("</mark>", ""))
         .collect();
@@ -790,12 +782,12 @@ async fn space_separated_keywords_match_any_field_or() {
     .await
     .expect("alpha -beta");
     assert_eq!(
-        page.article_list.len() as u64,
+        page.items.len() as u64,
         1,
         "alpha -beta must exclude Beta and Alpha Beta"
     );
     assert_eq!(
-        page.article_list[0]
+        page.items[0]
             .title
             .replace("<mark>", "")
             .replace("</mark>", ""),
@@ -827,10 +819,10 @@ async fn keyword_that_misses_tags_does_not_report_a_tag_hit() {
     .await
     .expect("search unique");
     assert!(
-        page.article_list.len() as u64 >= 1,
+        page.items.len() as u64 >= 1,
         "unique should find the article via its title"
     );
-    let item = &page.article_list[0];
+    let item = &page.items[0];
     assert_eq!(item.title, "<mark>Unique</mark> Title");
     assert!(
         !item.article_hits.iter().any(|hit| hit.label == "tag"),

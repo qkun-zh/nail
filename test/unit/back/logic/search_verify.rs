@@ -93,7 +93,7 @@ async fn search_hides_a_soft_deleted_article() {
         crate::logic::search::search_articles(&context.state, &actor, &params(Some("needle")))
             .await
             .expect("before delete");
-    assert_eq!(page.article_list.len(), 1, "indexed before delete");
+    assert_eq!(page.items.len(), 1, "indexed before delete");
 
     crate::logic::article::delete_article(
         &context.state,
@@ -109,7 +109,7 @@ async fn search_hides_a_soft_deleted_article() {
             .await
             .expect("after delete");
     assert_eq!(
-        page.article_list.len(),
+        page.items.len(),
         0,
         "soft-deleted article hidden from search (subtree hidden)"
     );
@@ -144,7 +144,7 @@ async fn search_hides_the_versions_of_a_soft_deleted_article() {
             .await
             .expect("search version number");
     assert_eq!(
-        page.article_list.len(),
+        page.items.len(),
         0,
         "the versions of a soft-deleted article are hidden from search"
     );
@@ -187,7 +187,7 @@ async fn search_hides_the_comments_of_a_soft_deleted_article() {
             .await
             .expect("search comment");
     assert_eq!(
-        page.article_list.len(),
+        page.items.len(),
         0,
         "the comment of a soft-deleted article is hidden from search"
     );
@@ -248,7 +248,7 @@ async fn search_hides_a_soft_deleted_version_but_keeps_siblings() {
         .await
         .expect("search note");
     let item = page
-        .article_list
+        .items
         .iter()
         .find(|item| strip_marks(&item.title) == "Dual Version Title")
         .expect("article remains");
@@ -301,7 +301,7 @@ async fn search_hides_a_soft_deleted_version_and_its_comments() {
             .await
             .expect("search marker");
     assert_eq!(
-        page.article_list.len(),
+        page.items.len(),
         0,
         "comment doc of a soft-deleted version is hidden"
     );
@@ -309,7 +309,7 @@ async fn search_hides_a_soft_deleted_version_and_its_comments() {
         .await
         .expect("search note");
     assert!(
-        page.article_list
+        page.items
             .iter()
             .all(|item| strip_marks(&item.title) != "Versioned Comment Title"),
         "the soft-deleted version's own doc must be gone"
@@ -357,7 +357,7 @@ async fn search_hides_a_soft_deleted_comment_and_its_replies() {
             .expect("search deleted top");
     assert!(
         !page
-            .article_list
+            .items
             .iter()
             .any(|item| item.versions.iter().any(|version| {
                 version
@@ -371,7 +371,7 @@ async fn search_hides_a_soft_deleted_comment_and_its_replies() {
         .await
         .expect("search kept reply");
     assert_eq!(
-        page.article_list.len(),
+        page.items.len(),
         0,
         "reply doc of a soft-deleted parent is hidden"
     );
@@ -406,7 +406,7 @@ async fn search_removes_a_hard_deleted_article() {
         crate::logic::search::search_articles(&context.state, &owner, &params(Some("needle")))
             .await
             .expect("search");
-    assert!(page.article_list.is_empty(), "hard delete clears the docs");
+    assert!(page.items.is_empty(), "hard delete clears the docs");
 }
 
 #[tokio::test]
@@ -425,14 +425,17 @@ async fn search_order_is_stable_across_repeated_queries() {
         crate::logic::search::search_articles(&context.state, &actor, &params(Some("stable")))
             .await
             .expect("second query");
-    let ids = |page: &nail_common::response::search::SearchPage| -> Vec<String> {
-        page.article_list
+    let ids = |page: &nail_common::response::ListPage<
+        nail_common::response::search::SearchArticleItem,
+    >|
+     -> Vec<String> {
+        page.items
             .iter()
             .map(|item| item.article_id.clone())
             .collect()
     };
     assert_eq!(ids(&first), ids(&second), "identical query must not drift");
-    assert_eq!(first.article_list.len(), 3);
+    assert_eq!(first.items.len(), 3);
 }
 
 #[tokio::test]
@@ -455,7 +458,7 @@ async fn search_matches_keywords_case_insensitively() {
             .await
             .expect("uppercase query");
     assert!(
-        page.article_list
+        page.items
             .iter()
             .any(|item| strip_marks(&item.title) == "CaseProbe Title"),
         "uppercase query must match lowercase stored title"
@@ -493,14 +496,14 @@ async fn search_limits_results_to_a_single_range() {
         .await
         .expect("title only");
     assert!(
-        page.article_list
+        page.items
             .iter()
             .any(|item| strip_marks(&item.title) == "Range Title Word"),
         "the word in the title must hit the title range"
     );
     assert!(
         !page
-            .article_list
+            .items
             .iter()
             .any(|item| strip_marks(&item.title) == "Second Title"),
         "the same word in a summary must NOT hit the title range"
@@ -527,14 +530,14 @@ async fn search_summary_range_only_matches_the_summary_field() {
     let page = crate::logic::search::search_articles(&context.state, &actor, &summary_only)
         .await
         .expect("summary only");
-    assert_eq!(page.article_list.len(), 1, "summary-only hit");
+    assert_eq!(page.items.len(), 1, "summary-only hit");
     assert!(
-        page.article_list[0]
+        page.items[0]
             .article_hits
             .iter()
             .any(|hit| hit.label == "summary"),
         "hit label must be summary, got {:?}",
-        page.article_list[0].article_hits
+        page.items[0].article_hits
     );
 }
 
@@ -558,7 +561,7 @@ async fn search_note_range_only_matches_the_note_field() {
     let page = crate::logic::search::search_articles(&context.state, &actor, &note_only)
         .await
         .expect("note only");
-    assert_eq!(page.article_list.len(), 1, "note-only hit");
+    assert_eq!(page.items.len(), 1, "note-only hit");
 }
 
 #[tokio::test]
@@ -584,7 +587,7 @@ async fn search_author_range_matches_the_author_name() {
     let page = crate::logic::search::search_articles(&context.state, &actor, &author_only)
         .await
         .expect("author only");
-    assert_eq!(page.article_list.len(), 1, "author-only hit");
+    assert_eq!(page.items.len(), 1, "author-only hit");
 }
 
 #[tokio::test]
@@ -613,17 +616,13 @@ async fn search_author_name_refreshes_after_a_rename() {
     )
     .await
     .expect("new name");
-    assert_eq!(
-        page.article_list.len(),
-        1,
-        "renamed author must be findable"
-    );
+    assert_eq!(page.items.len(), 1, "renamed author must be findable");
     let page =
         crate::logic::search::search_articles(&context.state, &actor, &params(Some("renamed")))
             .await
             .expect("old name");
     assert_eq!(
-        strip_marks(&page.article_list[0].author_name),
+        strip_marks(&page.items[0].author_name),
         "new-author-name",
         "stale author name must not persist"
     );
@@ -662,7 +661,7 @@ async fn search_time_range_is_inclusive_at_the_boundaries() {
         .await
         .expect("from==article time");
     assert_eq!(
-        page.article_list.len(),
+        page.items.len(),
         1,
         "article at the exact from boundary must be included"
     );
@@ -702,7 +701,7 @@ async fn search_excludes_articles_outside_the_time_range() {
         .await
         .expect("old range");
     assert!(
-        page.article_list.is_empty(),
+        page.items.is_empty(),
         "article created now must not match an old time window"
     );
 }
@@ -726,7 +725,7 @@ async fn search_has_next_flips_only_after_the_last_page() {
     let page = crate::logic::search::search_articles(&context.state, &actor, &request)
         .await
         .expect("page 1");
-    assert_eq!(page.article_list.len(), 1);
+    assert_eq!(page.items.len(), 1);
     assert!(page.has_next, "page 1 of 3 must have next");
 
     let request = ArticleSearchParams {
@@ -736,7 +735,7 @@ async fn search_has_next_flips_only_after_the_last_page() {
     let page = crate::logic::search::search_articles(&context.state, &actor, &request)
         .await
         .expect("page 2");
-    assert_eq!(page.article_list.len(), 1);
+    assert_eq!(page.items.len(), 1);
     assert!(page.has_next, "page 2 of 3 must have next");
 
     let request = ArticleSearchParams {
@@ -746,7 +745,7 @@ async fn search_has_next_flips_only_after_the_last_page() {
     let page = crate::logic::search::search_articles(&context.state, &actor, &request)
         .await
         .expect("page 3");
-    assert_eq!(page.article_list.len(), 1);
+    assert_eq!(page.items.len(), 1);
     assert!(!page.has_next, "page 3 of 3 must not have next");
 }
 
@@ -782,7 +781,7 @@ async fn search_pages_do_not_duplicate_or_skip_articles() {
         let page = crate::logic::search::search_articles(&context.state, &actor, &request)
             .await
             .expect("page");
-        for item in &page.article_list {
+        for item in &page.items {
             seen.push(item.article_id.clone());
         }
     }
@@ -820,7 +819,7 @@ async fn search_page_beyond_the_result_set_is_empty() {
     let page = crate::logic::search::search_articles(&context.state, &actor, &request)
         .await
         .expect("far page");
-    assert!(page.article_list.is_empty());
+    assert!(page.items.is_empty());
     assert!(!page.has_next, "far page must not promise more");
 }
 
@@ -834,7 +833,7 @@ async fn search_empty_index_returns_no_results() {
         crate::logic::search::search_articles(&context.state, &actor, &params(Some("anything")))
             .await
             .expect("search on empty index");
-    assert!(page.article_list.is_empty());
+    assert!(page.items.is_empty());
     assert!(!page.has_next);
 }
 
@@ -857,8 +856,8 @@ async fn search_summary_hit_reports_a_summary_label_but_title_does_not() {
         crate::logic::search::search_articles(&context.state, &actor, &params(Some("marker")))
             .await
             .expect("search marker");
-    assert_eq!(page.article_list.len(), 1);
-    let labels: Vec<String> = page.article_list[0]
+    assert_eq!(page.items.len(), 1);
+    let labels: Vec<String> = page.items[0]
         .article_hits
         .iter()
         .map(|hit| hit.label.clone())
@@ -867,7 +866,7 @@ async fn search_summary_hit_reports_a_summary_label_but_title_does_not() {
         labels.iter().any(|label| label == "summary"),
         "summary hit missing: {labels:?}"
     );
-    let version_labels: Vec<String> = page.article_list[0]
+    let version_labels: Vec<String> = page.items[0]
         .versions
         .iter()
         .flat_map(|version| version.version_hits.iter().map(|hit| hit.label.clone()))
@@ -897,8 +896,8 @@ async fn search_version_number_hit_shows_the_version_card() {
         crate::logic::search::search_articles(&context.state, &actor, &params(Some("1.0.0")))
             .await
             .expect("search version number");
-    assert_eq!(page.article_list.len(), 1);
-    let item = &page.article_list[0];
+    assert_eq!(page.items.len(), 1);
+    let item = &page.items[0];
     assert_eq!(strip_marks(&item.title), "Version Card Probe");
     assert_eq!(item.versions.len(), 1);
     assert_eq!(strip_marks(&item.versions[0].version_number), "1.0.0");
@@ -926,10 +925,7 @@ async fn search_reports_nothing_for_a_word_in_no_field() {
     )
     .await
     .expect("search absent");
-    assert!(
-        page.article_list.is_empty(),
-        "absent word must find nothing"
-    );
+    assert!(page.items.is_empty(), "absent word must find nothing");
 }
 
 #[tokio::test]
@@ -971,7 +967,7 @@ async fn search_after_hard_delete_of_one_article_keeps_the_others() {
         .await
         .expect("search keep");
     assert_eq!(
-        page.article_list.len(),
+        page.items.len(),
         1,
         "hard delete must remove only its own docs"
     );
@@ -1007,9 +1003,9 @@ async fn search_version_number_range_finds_versions() {
     let page = crate::logic::search::search_articles(&context.state, &actor, &version_only)
         .await
         .expect("version number search");
-    assert_eq!(page.article_list.len(), 1, "version number hit");
+    assert_eq!(page.items.len(), 1, "version number hit");
     assert!(
-        page.article_list[0]
+        page.items[0]
             .versions
             .iter()
             .any(|version| strip_marks(&version.version_number) == "2.0.0"),
@@ -1051,7 +1047,7 @@ async fn search_after_clear_flag_and_resync_revives_the_article() {
             .await
             .expect("search revived");
     assert_eq!(
-        page.article_list.len(),
+        page.items.len(),
         1,
         "cleared flag + resync must bring the article back"
     );
@@ -1084,12 +1080,8 @@ async fn search_a_comment_only_phrase_lists_it_under_its_article_and_version() {
         crate::logic::search::search_articles(&context.state, &actor, &params(Some("zephyr")))
             .await
             .expect("search zephyr");
-    assert_eq!(
-        page.article_list.len(),
-        1,
-        "comment match lists its article"
-    );
-    let article = &page.article_list[0];
+    assert_eq!(page.items.len(), 1, "comment match lists its article");
+    let article = &page.items[0];
     assert_eq!(
         strip_marks(&article.title),
         "Ordinary Title",
@@ -1135,7 +1127,7 @@ async fn search_reports_an_article_level_hit_once_across_versions() {
             .await
             .expect("search marker");
     let item = page
-        .article_list
+        .items
         .iter()
         .find(|item| strip_marks(&item.title) == "Multi Version Marker")
         .expect("article present");
@@ -1178,12 +1170,8 @@ async fn search_comment_only_article_keeps_its_author_id() {
         crate::logic::search::search_articles(&context.state, &actor, &params(Some("zephyr")))
             .await
             .expect("search zephyr");
-    assert_eq!(
-        page.article_list.len(),
-        1,
-        "comment match lists its article"
-    );
-    let article = &page.article_list[0];
+    assert_eq!(page.items.len(), 1, "comment match lists its article");
+    let article = &page.items[0];
     assert_eq!(
         article.author_id, actor,
         "an article surfaced via a comment must keep its author id so the author link is valid"

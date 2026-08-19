@@ -139,9 +139,10 @@ async fn read_comments_over_http() {
         )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert_eq!(body["data"]["comments"].as_array().map(Vec::len), Some(1));
+    assert_eq!(body["data"]["items"].as_array().map(Vec::len), Some(1));
     assert_eq!(body["data"]["has_next"].as_bool(), Some(false));
-    assert!(body["data"]["comments"][0]["user_name"].as_str().is_some());
+    assert_eq!(body["data"]["total"].as_u64(), Some(1));
+    assert!(body["data"]["items"][0]["user_name"].as_str().is_some());
 }
 
 #[tokio::test]
@@ -260,7 +261,7 @@ async fn read_comment_children_returns_the_replies_over_http() {
         .get(&format!("/comment/{comment_id}/reply/read"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
-    let comments = body["data"]["comments"].as_array().expect("comments");
+    let comments = body["data"]["items"].as_array().expect("comments");
     assert_eq!(comments.len(), 1);
     assert_eq!(comments[0]["content"].as_str(), Some("a reply"));
 }

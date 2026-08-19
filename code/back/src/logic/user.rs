@@ -2,7 +2,7 @@ use nail_common::pow::Pow;
 use nail_common::request::{DeleteMode, UserDeleteRequest, UserUpdateRequest};
 use nail_common::response::EmptyView;
 use nail_common::response::session::SessionTokenView;
-use nail_common::response::user::{UserIdView, UserListPage, UserNameView, UserView};
+use nail_common::response::user::{UserIdView, UserListItem, UserNameView, UserView};
 
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{
@@ -114,23 +114,23 @@ pub async fn read_users(
     actor_id: &str,
     page: u64,
     limit: u64,
-) -> Result<UserListPage, LogicError> {
+) -> Result<nail_common::response::ListPage<UserListItem>, LogicError> {
     authorize_global(state, actor_id, PERMISSION_USER_READ).await?;
     let users = read_user_nodes(&state.graph).await?;
     let total = users.len() as u64;
     let (page_users, has_next) = paginate(users, page, limit);
 
-    let mut user_list = Vec::with_capacity(page_users.len());
+    let mut items = Vec::with_capacity(page_users.len());
     for user in &page_users {
         let roles = crate::repository::role::roles_of_user(&state.graph, &user.id).await?;
-        user_list.push(nail_common::response::user::UserListItem {
+        items.push(UserListItem {
             id: user.id.clone(),
             name: user.name.clone(),
             roles,
         });
     }
-    Ok(UserListPage {
-        user_list,
+    Ok(nail_common::response::ListPage {
+        items,
         has_next,
         total,
     })

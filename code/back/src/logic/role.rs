@@ -9,7 +9,7 @@ use crate::repository::role::{
     hold_role, read_role as read_role_node, read_role_by_id as read_role_node_by_id,
     read_role_members, read_roles as read_role_nodes, revoke_permission_from_role, unhold_role,
 };
-use nail_common::response::role::{RoleListItem, RoleListPage, RoleNameView, RoleView};
+use nail_common::response::role::{RoleListItem, RoleNameView, RoleView};
 
 pub struct RoleUpdate<'a> {
     pub permissions_add: &'a [String],
@@ -53,26 +53,26 @@ pub async fn read_roles(
     actor_id: &str,
     page: u64,
     limit: u64,
-) -> Result<RoleListPage, LogicError> {
+) -> Result<nail_common::response::ListPage<RoleListItem>, LogicError> {
     authorize_global(state, actor_id, PERMISSION_ROLE_READ).await?;
     let roles = read_role_nodes(&state.graph).await?;
     let total = roles.len() as u64;
     let (page_roles, has_next) = paginate(roles, page, limit);
 
-    let mut role_list = Vec::with_capacity(page_roles.len());
+    let mut items = Vec::with_capacity(page_roles.len());
     for role in &page_roles {
         let member_count = read_role_members(&state.graph, &role.role_name)
             .await?
             .len() as u64;
-        role_list.push(RoleListItem {
+        items.push(RoleListItem {
             id: role.id.clone(),
             name: role.role_name.clone(),
             permissions: role.permissions.clone(),
             member_count,
         });
     }
-    Ok(RoleListPage {
-        role_list,
+    Ok(nail_common::response::ListPage {
+        items,
         has_next,
         total,
     })

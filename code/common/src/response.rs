@@ -51,6 +51,13 @@ pub struct RuntimeLimits {
     pub max_search_pages: u64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ListPage<T> {
+    pub items: Vec<T>,
+    pub has_next: bool,
+    pub total: u64,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EmptyView {}
 

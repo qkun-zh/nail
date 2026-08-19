@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use nail_common::request::DeleteMode;
-use nail_common::response::comment::{CommentIdView, CommentListPage, CommentView};
+use nail_common::response::comment::{CommentIdView, CommentView};
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
@@ -74,7 +74,7 @@ pub async fn read_comments(
     version_id: &str,
     page: u64,
     limit: u64,
-) -> Result<CommentListPage, LogicError> {
+) -> Result<nail_common::response::ListPage<CommentView>, LogicError> {
     authorize_entity_or(
         state,
         actor_id,
@@ -87,13 +87,19 @@ pub async fn read_comments(
     }
     require_entity_visible(state, actor_id, EntityRef::Version(version_id)).await?;
 
+    let total =
+        crate::repository::comment::count_comments_by_version(&state.graph, version_id).await?;
     let offset = page_offset(page, limit);
     let (items, has_next) =
         read_comments_page_by_version(&state.graph, version_id, limit, offset).await?;
 
-    let comments = build_comment_views(state, items).await?;
+    let items = build_comment_views(state, items).await?;
 
-    Ok(CommentListPage { comments, has_next })
+    Ok(nail_common::response::ListPage {
+        items,
+        has_next,
+        total,
+    })
 }
 
 pub async fn read_comment(
@@ -121,7 +127,7 @@ pub async fn read_comment_children(
     parent_comment_id: &str,
     page: u64,
     limit: u64,
-) -> Result<CommentListPage, LogicError> {
+) -> Result<nail_common::response::ListPage<CommentView>, LogicError> {
     authorize_entity_or(
         state,
         actor_id,
@@ -129,6 +135,8 @@ pub async fn read_comment_children(
         EntityRef::Comment(parent_comment_id),
     )
     .await?;
+    let total =
+        crate::repository::comment::count_comment_children(&state.graph, parent_comment_id).await?;
     let offset = page_offset(page, limit);
     let (items, has_next) =
         read_comment_children_page(&state.graph, parent_comment_id, limit, offset)
@@ -140,8 +148,12 @@ pub async fn read_comment_children(
                     database_error(error)
                 }
             })?;
-    let comments = build_comment_views(state, items).await?;
-    Ok(CommentListPage { comments, has_next })
+    let items = build_comment_views(state, items).await?;
+    Ok(nail_common::response::ListPage {
+        items,
+        has_next,
+        total,
+    })
 }
 
 async fn build_comment_views(

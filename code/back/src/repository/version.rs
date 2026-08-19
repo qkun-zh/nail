@@ -170,6 +170,32 @@ pub async fn update_version(db: &DbHandle, version_id: &str, note: &str) -> Resu
     Ok(())
 }
 
+pub async fn count_versions_of(db: &DbHandle, article_id: &str) -> Result<u64, DbError> {
+    let guard = db.read().await;
+    let Some(article) = resolve_node_id(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
+        return Ok(0);
+    };
+    if crate::repository::delete::has_soft_deleted_flag(&guard, article)? {
+        return Ok(0);
+    }
+    let nodes = guard.exec(
+        QueryBuilder::search()
+            .from(article)
+            .where_()
+            .distance(agdb::CountComparison::Equal(2))
+            .and()
+            .node()
+            .and()
+            .key(KEY_TYPE)
+            .value(ENTITY_TYPE_VERSION)
+            .and()
+            .not()
+            .keys(KEY_SOFT_DELETED)
+            .query(),
+    )?;
+    Ok(nodes.elements.len() as u64)
+}
+
 pub async fn versions_of(
     db: &DbHandle,
     article_id: &str,

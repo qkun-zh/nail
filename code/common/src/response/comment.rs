@@ -14,12 +14,6 @@ pub struct CommentView {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CommentListPage {
-    pub comments: Vec<CommentView>,
-    pub has_next: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CommentIdView {
     pub comment_id: String,
 }

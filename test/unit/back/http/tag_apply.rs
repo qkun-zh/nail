@@ -36,7 +36,8 @@ async fn create_article_and_tag(context: &TestCtx, token: &str) -> (String, Stri
     }
     let tag_id = {
         let (_, body) = context.get("/tag/read?page=1&limit=200", Some(token)).await;
-        body["data"]["tag_list"]
+        assert_eq!(body["data"]["total"].as_u64(), Some(2));
+        body["data"]["items"]
             .as_array()
             .expect("tag list")
             .iter()

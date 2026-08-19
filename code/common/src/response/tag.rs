@@ -15,13 +15,6 @@ pub struct TagListItem {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TagListPage {
-    pub tag_list: Vec<TagListItem>,
-    pub has_next: bool,
-    pub total: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TagNameView {
     pub id: String,
     pub name: String,

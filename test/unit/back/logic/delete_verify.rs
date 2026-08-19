@@ -105,7 +105,7 @@ async fn hard_delete_article_removes_versions_comments_and_search_docs() {
     )
     .await
     .expect("search");
-    assert!(page.article_list.is_empty(), "search docs must be gone");
+    assert!(page.items.is_empty(), "search docs must be gone");
 }
 
 #[tokio::test]
@@ -159,7 +159,7 @@ async fn hard_delete_version_removes_only_that_version_and_its_comments() {
         crate::logic::comment::read_comments(&context.state, &owner, &second_version_id, 1, 10)
             .await
             .expect("comments of v2");
-    assert_eq!(comments.comments.len(), 1, "v2 comment must survive");
+    assert_eq!(comments.items.len(), 1, "v2 comment must survive");
 }
 
 #[tokio::test]
@@ -198,11 +198,11 @@ async fn hard_delete_comment_removes_the_subtree_but_keeps_siblings() {
         .await
         .expect("comments");
     assert_eq!(
-        comments.comments.len(),
+        comments.items.len(),
         1,
         "only the sibling must remain at top level"
     );
-    assert_eq!(comments.comments[0].id, sibling);
+    assert_eq!(comments.items[0].id, sibling);
 }
 
 #[tokio::test]
@@ -299,11 +299,7 @@ async fn transfer_article_repoints_ownership_but_keeps_content_readable() {
     let versions = crate::logic::version::read_versions(&context.state, &owner, &article_id, 1, 10)
         .await
         .expect("versions");
-    assert_eq!(
-        versions.version_list.len(),
-        1,
-        "version must survive transfer"
-    );
+    assert_eq!(versions.items.len(), 1, "version must survive transfer");
     let _ = version_id;
 }
 
@@ -350,9 +346,9 @@ async fn transfer_article_updates_the_search_author_name() {
     )
     .await
     .expect("search");
-    assert_eq!(page.article_list.len(), 1);
+    assert_eq!(page.items.len(), 1);
     assert_eq!(
-        page.article_list[0].author_name, recycler_name,
+        page.items[0].author_name, recycler_name,
         "search must reflect the recycler as the new author"
     );
 }
@@ -381,7 +377,7 @@ async fn transfer_comment_repoints_ownership_but_keeps_it_visible() {
         .await
         .expect("comments");
     assert_eq!(
-        comments.comments.len(),
+        comments.items.len(),
         1,
         "transferred comment must stay visible"
     );
@@ -635,7 +631,7 @@ async fn hard_delete_user_removes_content_and_search_docs() {
     )
     .await
     .expect("search");
-    assert!(page.article_list.is_empty(), "search must be cleaned up");
+    assert!(page.items.is_empty(), "search must be cleaned up");
 }
 
 #[tokio::test]
@@ -769,7 +765,7 @@ async fn soft_deleted_article_hides_its_whole_subtree_and_rejects_writes() {
     )
     .await
     .expect("search");
-    assert!(page.article_list.is_empty(), "article gone from search");
+    assert!(page.items.is_empty(), "article gone from search");
 }
 
 #[tokio::test]
@@ -810,7 +806,7 @@ async fn soft_deleted_article_restore_brings_back_the_whole_subtree() {
     let comments = crate::logic::comment::read_comments(&context.state, &owner, &version_id, 1, 50)
         .await
         .expect("comments back");
-    assert_eq!(comments.comments.len(), 1, "comments back");
+    assert_eq!(comments.items.len(), 1, "comments back");
 }
 
 #[tokio::test]

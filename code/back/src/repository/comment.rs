@@ -194,6 +194,47 @@ pub async fn owner_of_comment(db: &DbHandle, comment_id: &str) -> Result<Option<
     }))
 }
 
+pub async fn count_comments_by_version(db: &DbHandle, version_id: &str) -> Result<u64, DbError> {
+    let guard = db.read().await;
+    let Some(version) = resolve_node_id(&guard, ENTITY_TYPE_VERSION, version_id)? else {
+        return Ok(0);
+    };
+    if crate::repository::delete::has_soft_deleted_flag(&guard, version)? {
+        return Ok(0);
+    }
+    count_incoming_comments_sync(&guard, version)
+}
+
+pub async fn count_comment_children(
+    db: &DbHandle,
+    parent_comment_id: &str,
+) -> Result<u64, DbError> {
+    let guard = db.read().await;
+    let Some(parent) = resolve_node_id(&guard, ENTITY_TYPE_COMMENT, parent_comment_id)? else {
+        return Ok(0);
+    };
+    count_incoming_comments_sync(&guard, parent)
+}
+
+fn count_incoming_comments_sync(guard: &agdb::DbAny, node: agdb::DbId) -> Result<u64, DbError> {
+    let comments = guard.exec(
+        QueryBuilder::search()
+            .to(node)
+            .where_()
+            .distance(agdb::CountComparison::Equal(2))
+            .and()
+            .node()
+            .and()
+            .key(KEY_TYPE)
+            .value(ENTITY_TYPE_COMMENT)
+            .and()
+            .not()
+            .keys(KEY_SOFT_DELETED)
+            .query(),
+    )?;
+    Ok(comments.elements.len() as u64)
+}
+
 pub async fn read_comments_page_by_version(
     db: &DbHandle,
     version_id: &str,

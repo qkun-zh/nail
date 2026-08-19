@@ -128,17 +128,13 @@ async fn version_pages_tile_the_full_history_exactly_once() {
             crate::logic::version::read_versions(&context.state, &actor, &article_id, page, 1)
                 .await
                 .expect("page");
-        assert_eq!(
-            result.version_list.len(),
-            1,
-            "page {page} must hold one item"
-        );
+        assert_eq!(result.items.len(), 1, "page {page} must hold one item");
         assert_eq!(
             result.has_next,
             page < 5,
             "has_next on page {page} must reflect the remaining tail"
         );
-        seen.push(result.version_list[0].version.clone());
+        seen.push(result.items[0].version.clone());
     }
     assert_eq!(seen.len(), 5, "five pages must yield five versions");
     assert_eq!(
@@ -177,11 +173,11 @@ async fn version_pages_with_limit_two_tile_exactly() {
         crate::logic::version::read_versions(&context.state, &actor, &article_id, 3, 2)
             .await
             .expect("page 3");
-    assert_eq!(page_one.version_list.len(), 2);
+    assert_eq!(page_one.items.len(), 2);
     assert!(page_one.has_next);
-    assert_eq!(page_two.version_list.len(), 2);
+    assert_eq!(page_two.items.len(), 2);
     assert!(page_two.has_next);
-    assert_eq!(page_three.version_list.len(), 2, "last page is partial");
+    assert_eq!(page_three.items.len(), 2, "last page is partial");
     assert!(!page_three.has_next);
 }
 
@@ -195,7 +191,7 @@ async fn version_page_beyond_the_end_is_empty() {
     let page = crate::logic::version::read_versions(&context.state, &actor, &article_id, 9, 10)
         .await
         .expect("far page");
-    assert!(page.version_list.is_empty());
+    assert!(page.items.is_empty());
     assert!(!page.has_next);
 }
 
@@ -219,7 +215,7 @@ async fn version_limit_larger_than_total_returns_everything_without_next() {
     let page = crate::logic::version::read_versions(&context.state, &actor, &article_id, 1, 100)
         .await
         .expect("wide page");
-    assert_eq!(page.version_list.len(), 2);
+    assert_eq!(page.items.len(), 2);
     assert!(!page.has_next);
 }
 
@@ -248,12 +244,10 @@ async fn version_pages_are_stable_across_repeated_reads() {
     let second = crate::logic::version::read_versions(&context.state, &actor, &article_id, 1, 2)
         .await
         .expect("second read");
-    let ids = |page: &nail_common::response::version::VersionListPage| -> Vec<String> {
-        page.version_list
-            .iter()
-            .map(|item| item.id.clone())
-            .collect()
-    };
+    let ids = |page: &nail_common::response::ListPage<
+        nail_common::response::version::VersionListItem,
+    >|
+     -> Vec<String> { page.items.iter().map(|item| item.id.clone()).collect() };
     assert_eq!(ids(&first), ids(&second), "identical read must not drift");
 }
 
@@ -294,8 +288,8 @@ async fn version_pages_tile_exactly_when_a_middle_version_is_soft_deleted() {
             crate::logic::version::read_versions(&context.state, &actor, &article_id, page, 1)
                 .await
                 .expect("page");
-        assert_eq!(result.version_list.len(), 1, "page {page}");
-        seen.push(result.version_list[0].version.clone());
+        assert_eq!(result.items.len(), 1, "page {page}");
+        seen.push(result.items[0].version.clone());
     }
     assert_eq!(seen, vec!["1.0.4", "1.0.2", "1.0.0"]);
 }
@@ -329,8 +323,8 @@ async fn version_soft_deleted_first_version_does_not_shift_later_pages() {
     let page = crate::logic::version::read_versions(&context.state, &actor, &article_id, 1, 10)
         .await
         .expect("page");
-    assert_eq!(page.version_list.len(), 1, "only the live version remains");
-    assert_eq!(page.version_list[0].version, "2.0.0");
+    assert_eq!(page.items.len(), 1, "only the live version remains");
+    assert_eq!(page.items[0].version, "2.0.0");
 }
 
 #[tokio::test]
@@ -358,9 +352,9 @@ async fn comment_pages_tile_all_top_level_comments_exactly_once() {
             crate::logic::comment::read_comments(&context.state, &actor, &version_id, page, 1)
                 .await
                 .expect("page");
-        assert_eq!(result.comments.len(), 1, "page {page} holds one comment");
+        assert_eq!(result.items.len(), 1, "page {page} holds one comment");
         assert_eq!(result.has_next, page < 4, "has_next on page {page}");
-        seen.push(result.comments[0].id.clone());
+        seen.push(result.items[0].id.clone());
     }
     expected.sort_unstable();
     seen.sort_unstable();
@@ -380,7 +374,7 @@ async fn comment_page_beyond_the_end_is_empty() {
     let page = crate::logic::comment::read_comments(&context.state, &actor, &version_id, 9, 10)
         .await
         .expect("far page");
-    assert!(page.comments.is_empty());
+    assert!(page.items.is_empty());
     assert!(!page.has_next);
 }
 
@@ -417,8 +411,8 @@ async fn comment_pages_tile_only_live_comments_when_one_is_soft_deleted() {
             crate::logic::comment::read_comments(&context.state, &actor, &version_id, page, 1)
                 .await
                 .expect("page");
-        assert_eq!(result.comments.len(), 1, "page {page}");
-        seen.push(result.comments[0].id.clone());
+        assert_eq!(result.items.len(), 1, "page {page}");
+        seen.push(result.items[0].id.clone());
     }
     let mut expected = ids.clone();
     expected.remove(1);
@@ -458,9 +452,9 @@ async fn reply_pages_tile_the_full_thread_exactly_once() {
             crate::logic::comment::read_comment_children(&context.state, &actor, &top, page, 1)
                 .await
                 .expect("page");
-        assert_eq!(result.comments.len(), 1, "page {page}");
+        assert_eq!(result.items.len(), 1, "page {page}");
         assert_eq!(result.has_next, page < 4, "has_next on page {page}");
-        seen.push(result.comments[0].id.clone());
+        seen.push(result.items[0].id.clone());
     }
     expected.sort_unstable();
     seen.sort_unstable();
@@ -483,7 +477,7 @@ async fn reply_pages_beyond_the_end_are_empty() {
     let page = crate::logic::comment::read_comment_children(&context.state, &actor, &top, 9, 10)
         .await
         .expect("far page");
-    assert!(page.comments.is_empty());
+    assert!(page.items.is_empty());
     assert!(!page.has_next);
 }
 
@@ -573,9 +567,9 @@ async fn search_pages_tile_all_matches_with_limit_two() {
         )
         .await
         .expect("page");
-        assert_eq!(result.article_list.len(), if page < 3 { 2 } else { 1 });
+        assert_eq!(result.items.len(), if page < 3 { 2 } else { 1 });
         assert_eq!(result.has_next, page < 3);
-        for item in result.article_list {
+        for item in result.items {
             seen.push(item.article_id.clone());
         }
     }
@@ -594,7 +588,7 @@ async fn pagination_page_zero_is_treated_as_page_one() {
     let page = crate::logic::version::read_versions(&context.state, &actor, &article_id, 0, 10)
         .await
         .expect("page zero");
-    assert_eq!(page.version_list.len(), 1, "page 0 must behave like page 1");
+    assert_eq!(page.items.len(), 1, "page 0 must behave like page 1");
 }
 
 #[tokio::test]
@@ -617,5 +611,5 @@ async fn search_page_zero_is_treated_as_page_one() {
     )
     .await
     .expect("page zero");
-    assert_eq!(page.article_list.len(), 1, "page 0 must behave like page 1");
+    assert_eq!(page.items.len(), 1, "page 0 must behave like page 1");
 }

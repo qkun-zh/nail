@@ -99,15 +99,30 @@ fn search_article_item_round_trips_with_hits() -> anyhow::Result<()> {
 }
 
 #[test]
-fn search_page_round_trips_with_paging_fields() -> anyhow::Result<()> {
-    let page = crate::response::search::SearchPage {
-        article_list: Vec::new(),
-        page: 1,
+fn list_page_round_trips_with_items_has_next_and_total() -> anyhow::Result<()> {
+    let page = crate::response::ListPage {
+        items: Vec::<crate::response::tag::TagListItem>::new(),
         has_next: false,
+        total: 3,
     };
     let json = serde_json::to_string(&page)?;
-    let decoded: crate::response::search::SearchPage = serde_json::from_str(&json)?;
+    assert_eq!(json, r#"{"items":[],"has_next":false,"total":3}"#);
+    let decoded: crate::response::ListPage<crate::response::tag::TagListItem> =
+        serde_json::from_str(&json)?;
     assert_eq!(decoded, page);
+    Ok(())
+}
+
+#[test]
+fn list_page_serializes_items_field_for_each_item_type() -> anyhow::Result<()> {
+    for page in [
+        serde_json::json!({"items": [], "has_next": false, "total": 0}),
+        serde_json::json!({"items": [], "has_next": true, "total": 5}),
+    ] {
+        let decoded: crate::response::ListPage<crate::response::user::UserListItem> =
+            serde_json::from_value(page)?;
+        assert!(decoded.items.is_empty());
+    }
     Ok(())
 }
 

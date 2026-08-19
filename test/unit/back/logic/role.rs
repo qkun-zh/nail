@@ -77,7 +77,7 @@ async fn delete_role_rejects_required_role() {
     let role = read_roles(&context.state, &admin_id, 1, 100)
         .await
         .expect("roles")
-        .role_list
+        .items
         .into_iter()
         .find(|role| role.name == "admin")
         .expect("admin role");
@@ -115,7 +115,7 @@ async fn update_role_rejects_destructive_change_on_required_role() {
     let role = read_roles(&context.state, &admin_id, 1, 100)
         .await
         .expect("roles")
-        .role_list
+        .items
         .into_iter()
         .find(|role| role.name == "member")
         .expect("member role");
@@ -149,7 +149,7 @@ async fn read_roles_is_paginated() {
     let page = read_roles(&context.state, &admin_id, 1, 1)
         .await
         .expect("page");
-    assert_eq!(page.role_list.len(), 1);
+    assert_eq!(page.items.len(), 1);
     assert!(page.has_next);
 }
 

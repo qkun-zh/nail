@@ -46,7 +46,7 @@ async fn role_id_by_name(context: &TestCtx, token: &str, name: &str) -> String {
     let (_, body) = context
         .get("/role/read?page=1&limit=200", Some(token))
         .await;
-    body["data"]["role_list"]
+    body["data"]["items"]
         .as_array()
         .expect("role list")
         .iter()
@@ -113,7 +113,7 @@ async fn read_roles_reports_real_member_counts() {
         .get("/role/read?page=1&limit=200", Some(&token))
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
-    let roles = body["data"]["role_list"].as_array().expect("role list");
+    let roles = body["data"]["items"].as_array().expect("role list");
     let editor = roles
         .iter()
         .find(|role| role["id"].as_str() == Some(editor_role_id.as_str()))

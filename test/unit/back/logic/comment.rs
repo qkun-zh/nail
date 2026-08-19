@@ -131,7 +131,7 @@ async fn read_comments_returns_top_level_comments_with_child_counts() {
     let data = read_comments(&state, &author_id, &version_id, 1, 8)
         .await
         .expect("read");
-    let comments = &data.comments;
+    let comments = &data.items;
     assert_eq!(comments.len(), 1);
     assert_eq!(comments[0].id, top);
     assert!(comments[0].parent_id.is_none());
@@ -141,7 +141,7 @@ async fn read_comments_returns_top_level_comments_with_child_counts() {
     let children = read_comment_children(&state, &author_id, &top, 1, 8)
         .await
         .expect("children");
-    let child_list = &children.comments;
+    let child_list = &children.items;
     assert_eq!(child_list.len(), 1);
     assert_eq!(child_list[0].id, reply);
     assert_eq!(child_list[0].parent_id.as_deref(), Some(top.as_str()));
@@ -343,7 +343,7 @@ async fn delete_comment_soft_hides_the_comment_and_its_replies() {
         .await
         .expect("comments");
     assert!(
-        page.comments.is_empty(),
+        page.items.is_empty(),
         "soft-deleted top-level comment hidden from the version page"
     );
     assert!(

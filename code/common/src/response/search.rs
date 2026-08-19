@@ -37,10 +37,3 @@ pub struct SearchCommentItem {
     pub time: String,
     pub content: String,
 }
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SearchPage {
-    pub article_list: Vec<SearchArticleItem>,
-    pub page: u64,
-    pub has_next: bool,
-}
