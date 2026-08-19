@@ -85,12 +85,8 @@ pub(super) async fn enrich_comment_headers(
             .and_then(|node| title_by_node.get(node))
             .cloned()
             .unwrap_or_default();
-        comment.article_author_id = author
-            .map(|(id, _)| id.clone())
-            .unwrap_or_default();
-        comment.article_author_name = author
-            .map(|(_, name)| name.clone())
-            .unwrap_or_default();
+        comment.article_author_id = author.map(|(id, _)| id.clone()).unwrap_or_default();
+        comment.article_author_name = author.map(|(_, name)| name.clone()).unwrap_or_default();
         comment.version_number = version_by_id
             .get(comment.version_id.as_str())
             .and_then(|node| version_number_by_node.get(node))

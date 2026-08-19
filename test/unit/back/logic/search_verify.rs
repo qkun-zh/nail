@@ -1104,3 +1104,91 @@ async fn search_a_comment_only_phrase_lists_it_under_its_article_and_version() {
         "the zephyr keyword lives only here"
     );
 }
+
+#[tokio::test]
+async fn search_reports_an_article_level_hit_once_across_versions() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let (article_id, _) = create_seeded_article(
+        &context,
+        &actor,
+        "Multi Version Marker",
+        "shared marker phrase",
+        "rust",
+        "1.0.0",
+        "note",
+    )
+    .await;
+    crate::logic::version::create_version(
+        &context.state,
+        &actor,
+        &article_id,
+        "2.0.0",
+        "note",
+        context.upload(&unique_pdf("v2")),
+    )
+    .await
+    .expect("create version");
+
+    let page = crate::logic::search::search_articles(
+        &context.state,
+        &actor,
+        &params(Some("marker")),
+    )
+    .await
+    .expect("search marker");
+    let item = page
+        .article_list
+        .iter()
+        .find(|item| strip_marks(&item.title) == "Multi Version Marker")
+        .expect("article present");
+    let summary_hits = item
+        .article_hits
+        .iter()
+        .filter(|hit| hit.label == "summary")
+        .count();
+    assert_eq!(
+        summary_hits, 1,
+        "an article-level summary hit must appear once even with 2 versions, got {:?}",
+        item.article_hits
+    );
+}
+
+#[tokio::test]
+async fn search_comment_only_article_keeps_its_author_id() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "bob@example.com").await;
+    let (_, version_id) = create_seeded_article(
+        &context,
+        &actor,
+        "Commented Only",
+        "summary",
+        "rust",
+        "1.0.0",
+        "note",
+    )
+    .await;
+    crate::logic::comment::create_comment(
+        &context.state,
+        &actor,
+        &version_id,
+        "the zephyr marker lives only in a comment",
+    )
+    .await
+    .expect("comment");
+
+    let page =
+        crate::logic::search::search_articles(&context.state, &actor, &params(Some("zephyr")))
+            .await
+            .expect("search zephyr");
+    assert_eq!(
+        page.article_list.len(),
+        1,
+        "comment match lists its article"
+    );
+    let article = &page.article_list[0];
+    assert_eq!(
+        article.author_id, actor,
+        "an article surfaced via a comment must keep its author id so the author link is valid"
+    );
+}
