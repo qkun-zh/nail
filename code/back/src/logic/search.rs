@@ -242,25 +242,9 @@ fn parse_ranges(raw: Option<&str>) -> Result<Vec<SearchRange>, LogicError> {
         if token.is_empty() {
             continue;
         }
-        let range = match token {
-            "title" => SearchRange::Title,
-            "summary" => SearchRange::Summary,
-            "author_name" => SearchRange::AuthorName,
-            "comment" => SearchRange::Comment,
-            "note" => SearchRange::Note,
-            "tag" => SearchRange::Tag,
-            "version_number" => SearchRange::VersionNumber,
-            "article_id" => SearchRange::ArticleId,
-            "version_id" => SearchRange::VersionId,
-            "comment_id" => SearchRange::CommentId,
-            "author_id" => SearchRange::AuthorId,
-            "role" => SearchRange::Role,
-            _ => {
-                return Err(LogicError::bad_request(format!(
-                    "unknown search range: {token}"
-                )));
-            }
-        };
+        let range = token
+            .parse::<SearchRange>()
+            .map_err(LogicError::bad_request)?;
         if !ranges.contains(&range) {
             ranges.push(range);
         }

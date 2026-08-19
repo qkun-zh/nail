@@ -90,3 +90,30 @@ fn search_range_labels_are_english() {
         assert_eq!(range.label(), label);
     }
 }
+
+#[test]
+fn search_range_as_str_matches_wire_and_round_trips() -> anyhow::Result<()> {
+    for range in [
+        SearchRange::Title,
+        SearchRange::Summary,
+        SearchRange::AuthorName,
+        SearchRange::Comment,
+        SearchRange::Note,
+        SearchRange::Tag,
+        SearchRange::VersionNumber,
+        SearchRange::ArticleId,
+        SearchRange::VersionId,
+        SearchRange::CommentId,
+        SearchRange::AuthorId,
+        SearchRange::Role,
+    ] {
+        let wire = serde_json::to_string(&range)?;
+        assert_eq!(wire, format!("\"{}\"", range.as_str()));
+        let parsed: SearchRange = range
+            .as_str()
+            .parse()
+            .map_err(|message: String| anyhow::anyhow!("{message}"))?;
+        assert_eq!(parsed, range);
+    }
+    Ok(())
+}
