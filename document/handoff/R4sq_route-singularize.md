@@ -14,7 +14,7 @@ clippy 0 warnings, frontend `cargo check` clean.
 
 ### Commits
 
-- `<hash>` refactor(routes): singularize comment routes A1-A4
+- `9548d0f` refactor(routes): singularize comment routes A1-A4
 
 ### Decisions / notes
 
