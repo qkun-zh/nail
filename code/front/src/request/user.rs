@@ -5,6 +5,7 @@ use nail_common::request::{
 use nail_common::response::EmptyView;
 use nail_common::response::email::{EmailSubjectView, EmailSubjectsView};
 use nail_common::response::session::SessionTokenView;
+pub use nail_common::response::user::UserListPage;
 use nail_common::response::user::{UserNameView, UserView};
 
 use crate::request::error::RequestResult;
@@ -14,6 +15,14 @@ pub async fn read_user(user_id: &str) -> RequestResult<UserView> {
     let path = url::build_path_with_query(
         &["user", user_id, "read"],
         &[("name", "true"), ("email_hash", "true"), ("roles", "true")],
+    );
+    http::get_json(&path, true).await
+}
+
+pub async fn read_users(page: u64, limit: u64) -> RequestResult<UserListPage> {
+    let path = url::build_path_with_query(
+        &["user", "read"],
+        &[("page", &page.to_string()), ("limit", &limit.to_string())],
     );
     http::get_json(&path, true).await
 }

@@ -36,6 +36,7 @@ use crate::page::user::email::EmailIndex;
 use crate::page::user::email::update::EmailUpdate;
 use crate::page::user::hub::UserHub;
 use crate::page::user::id::UserId;
+use crate::page::user::list::UserList;
 use crate::page::user::logout::Logout;
 use crate::page::user::name::Name;
 use crate::page::user::name::update::NameUpdate;
@@ -50,6 +51,7 @@ pub fn AppRouter() -> impl IntoView {
                 <Route path=path!("") view=Index/>
                 <Route path=path!("/authenticate") view=Authenticate/>
                 <Route path=path!("/search") view=Search/>
+                <Route path=path!("/user") view=UserList/>
                 <ParentRoute path=path!("/user/:uid") view=Outlet>
                     <Route path=path!("") view=UserHub/>
                     <Route path=path!("/id") view=UserId/>
