@@ -6,7 +6,8 @@ use nail_common::response::user::{UserIdView, UserListPage, UserNameView, UserVi
 
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{
-    authorize, authorize_anonymous, authorize_or, require_visible_if_soft_deleted,
+    EntityRef, authorize_anonymous, authorize_entity, authorize_entity_or, authorize_global,
+    require_entity_readable,
 };
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::pow::verify_issued_pow;
@@ -88,25 +89,7 @@ pub async fn read_user(
     name_requested: bool,
     email_hash_requested: bool,
 ) -> Result<UserView, LogicError> {
-    authorize_or(
-        state,
-        actor_id,
-        PERMISSION_USER_READ,
-        &Resource::User(target_id.to_string()),
-        "user not found",
-    )
-    .await?;
-
-    require_visible_if_soft_deleted(
-        state,
-        actor_id,
-        crate::repository::schema::ENTITY_TYPE_USER,
-        target_id,
-        PERMISSION_USER_UNDELETE_SOFT,
-        &Resource::User(target_id.to_string()),
-        "user not found",
-    )
-    .await?;
+    require_entity_readable(state, actor_id, EntityRef::User(target_id)).await?;
 
     let mut view = UserView {
         id: Some(target_id.to_string()),
@@ -141,13 +124,7 @@ pub async fn read_users(
     page: u64,
     limit: u64,
 ) -> Result<UserListPage, LogicError> {
-    authorize(
-        state,
-        actor_id,
-        PERMISSION_USER_READ,
-        &Resource::Virtual("any".to_string()),
-    )
-    .await?;
+    authorize_global(state, actor_id, PERMISSION_USER_READ).await?;
     let users = read_user_nodes(&state.graph)
         .await
         .map_err(database_error)?;
@@ -189,11 +166,11 @@ pub async fn update_user(
             let pow = request.pow.ok_or_else(|| {
                 LogicError::bad_request("pow is required to confirm the email update")
             })?;
-            authorize(
+            authorize_entity(
                 state,
                 actor_id,
                 PERMISSION_USER_UPDATE,
-                &Resource::User(actor_id.to_string()),
+                EntityRef::User(actor_id),
             )
             .await?;
             let new_session_token = crate::logic::email::update_user_email(
@@ -258,11 +235,11 @@ async fn handle_update_name(
     actor_id: &str,
     pow: &Pow,
 ) -> Result<String, LogicError> {
-    authorize(
+    authorize_entity(
         state,
         actor_id,
         PERMISSION_USER_UPDATE,
-        &Resource::User(actor_id.to_string()),
+        EntityRef::User(actor_id),
     )
     .await?;
     verify_issued_pow(state, pow)?;
@@ -280,12 +257,11 @@ async fn handle_admin_update_name(
     target_id: &str,
     raw_name: &str,
 ) -> Result<String, LogicError> {
-    authorize_or(
+    authorize_entity_or(
         state,
         actor_id,
         PERMISSION_USER_UPDATE,
-        &Resource::User(target_id.to_string()),
-        "user not found",
+        EntityRef::User(target_id),
     )
     .await?;
     let name = nail_common::name::validate_name(raw_name)
@@ -304,11 +280,11 @@ async fn handle_delete_user_transfer(
     actor_id: &str,
     pow: &Pow,
 ) -> Result<(), LogicError> {
-    authorize(
+    authorize_entity(
         state,
         actor_id,
         PERMISSION_USER_DELETE_TRANSFER,
-        &Resource::User(actor_id.to_string()),
+        EntityRef::User(actor_id),
     )
     .await?;
     verify_issued_pow(state, pow)?;
@@ -365,11 +341,11 @@ async fn handle_delete_user_soft(
     actor_id: &str,
     pow: &Pow,
 ) -> Result<(), LogicError> {
-    authorize(
+    authorize_entity(
         state,
         actor_id,
         PERMISSION_USER_DELETE_SOFT,
-        &Resource::User(actor_id.to_string()),
+        EntityRef::User(actor_id),
     )
     .await?;
     verify_issued_pow(state, pow)?;
@@ -419,11 +395,11 @@ pub async fn undelete_soft_user(
     actor_id: &str,
     target_id: &str,
 ) -> Result<(), LogicError> {
-    authorize(
+    authorize_entity(
         state,
         actor_id,
         PERMISSION_USER_UNDELETE_SOFT,
-        &Resource::User(target_id.to_string()),
+        EntityRef::User(target_id),
     )
     .await?;
     crate::repository::delete::undelete_soft_user(&state.graph, target_id)
@@ -438,11 +414,11 @@ async fn handle_delete_user_hard(
     actor_id: &str,
     target_id: &str,
 ) -> Result<(), LogicError> {
-    authorize(
+    authorize_entity(
         state,
         actor_id,
         PERMISSION_USER_DELETE_HARD,
-        &Resource::User(target_id.to_string()),
+        EntityRef::User(target_id),
     )
     .await?;
     let outcome = crate::repository::delete::delete_user(&state.graph, target_id)
