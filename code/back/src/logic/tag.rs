@@ -7,8 +7,8 @@ use crate::repository::role::{
 };
 use crate::repository::tag::{
     apply_tag_to_article, count_tag_articles, create_tag as create_tag_node,
-    delete_tag as delete_tag_node, read_tag_articles, read_tag_by_id, read_tag_by_name,
-    read_tags as read_tag_nodes, unapply_tag_from_article, update_tag as update_tag_node,
+    delete_tag as delete_tag_node, read_tag_by_id, read_tag_by_name, read_tags as read_tag_nodes,
+    unapply_tag_from_article, update_tag as update_tag_node,
 };
 use nail_common::response::tag::{TagListItem, TagListPage, TagView};
 
@@ -142,33 +142,6 @@ pub async fn delete_tag(state: &AppState, actor_id: &str, tag_id: &str) -> Resul
         .await
         .map_err(|error| LogicError::internal(format!("failed to delete tag: {error}")))?;
     Ok(())
-}
-
-#[allow(dead_code)]
-pub async fn read_tag_detail(
-    state: &AppState,
-    actor_id: &str,
-    tag_id: &str,
-) -> Result<(TagView, Vec<String>), LogicError> {
-    authorize_global(state, actor_id, PERMISSION_TAG_READ).await?;
-    let tag = read_tag_by_id(&state.graph, tag_id)
-        .await
-        .map_err(database_error)?
-        .ok_or_else(|| LogicError::not_found("tag not found"))?;
-    let article_count = count_tag_articles(&state.graph, &tag.id)
-        .await
-        .map_err(database_error)?;
-    let article_ids = read_tag_articles(&state.graph, &tag.id)
-        .await
-        .map_err(database_error)?;
-    Ok((
-        TagView {
-            id: tag.id,
-            name: tag.tag_name,
-            article_count,
-        },
-        article_ids,
-    ))
 }
 
 pub async fn apply_tag(

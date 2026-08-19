@@ -204,7 +204,7 @@ pub async fn unapply_tag_from_article(
     Ok(())
 }
 
-#[allow(dead_code)]
+#[cfg(test)]
 pub async fn read_tag_articles(db: &DbHandle, tag_id: &str) -> Result<Vec<String>, DbError> {
     let guard = db.read().await;
     let Some(db_id) = resolve_node_id(&guard, ENTITY_TYPE_TAG, tag_id)? else {
