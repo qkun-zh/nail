@@ -24,7 +24,7 @@ pub fn CreateArticle() -> impl IntoView {
     let selected_tags = RwSignal::new(
         tags_from_query
             .split_whitespace()
-            .map(|s| s.to_string())
+            .map(str::to_string)
             .collect::<Vec<_>>(),
     );
     let version = RwSignal::new(query.get_untracked().get("version").unwrap_or_default());
