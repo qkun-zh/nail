@@ -1,11 +1,12 @@
 use std::collections::HashSet;
+use std::ops::Deref;
 use std::path::Path;
 use std::sync::Arc;
 
-use agdb::{DbAny, DbError, DbErrorType, DbType, DbTypeMarker, QueryBuilder};
-use tokio::sync::RwLock;
+use agdb::{DbAny, DbError, DbErrorType, DbType, DbTypeMarker, Query, QueryBuilder};
+use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use crate::repository::schema::alias_of;
+use crate::repository::schema::{KEY_TYPE, alias_of};
 
 pub type DbHandle = Arc<RwLock<DbAny>>;
 
@@ -149,6 +150,117 @@ where
     Ok(read_rows_sync::<T>(database, std::slice::from_ref(&id))?
         .into_iter()
         .next())
+}
+
+pub(crate) trait GraphQuery {
+    fn exec_query<T: Query>(&self, query: T) -> Result<agdb::QueryResult, agdb::DbError>;
+}
+
+impl GraphQuery for DbAny {
+    fn exec_query<T: Query>(&self, query: T) -> Result<agdb::QueryResult, agdb::DbError> {
+        self.exec(query)
+    }
+}
+
+impl GraphQuery for agdb::DbAnyTransactionMut<'_> {
+    fn exec_query<T: Query>(&self, query: T) -> Result<agdb::QueryResult, agdb::DbError> {
+        self.exec(query)
+    }
+}
+
+impl GraphQuery for RwLockReadGuard<'_, DbAny> {
+    fn exec_query<T: Query>(&self, query: T) -> Result<agdb::QueryResult, agdb::DbError> {
+        self.deref().exec(query)
+    }
+}
+
+impl GraphQuery for RwLockWriteGuard<'_, DbAny> {
+    fn exec_query<T: Query>(&self, query: T) -> Result<agdb::QueryResult, agdb::DbError> {
+        self.deref().exec(query)
+    }
+}
+
+pub(crate) fn resolve_node_id(
+    executor: &impl GraphQuery,
+    kind: &str,
+    business_id: &str,
+) -> Result<Option<agdb::DbId>, DbError> {
+    let alias = alias_of(kind, business_id);
+    match executor.exec_query(QueryBuilder::select().ids([alias]).query()) {
+        Ok(result) => Ok(result.elements.first().map(|element| element.id)),
+        Err(error) if is_not_found(&error) => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+pub(crate) fn read_rows<T>(
+    executor: &impl GraphQuery,
+    ids: &[agdb::DbId],
+) -> Result<Vec<T>, DbError>
+where
+    T: DbType<ValueType = T> + DbTypeMarker,
+{
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    let keys = T::db_keys();
+    let search_ids = QueryBuilder::search()
+        .elements()
+        .where_()
+        .ids(ids.to_vec())
+        .query();
+    let result =
+        executor.exec_query(QueryBuilder::select().values(keys).ids(search_ids).query())?;
+    result.try_into()
+}
+
+pub(crate) fn read_node<T>(executor: &impl GraphQuery, id: agdb::DbId) -> Result<Option<T>, DbError>
+where
+    T: DbType<ValueType = T> + DbTypeMarker,
+{
+    Ok(read_rows::<T>(executor, std::slice::from_ref(&id))?
+        .into_iter()
+        .next())
+}
+
+pub(crate) fn outgoing_edges(
+    executor: &impl GraphQuery,
+    from: agdb::DbId,
+    edge_type: &str,
+) -> Result<Vec<agdb::DbElement>, DbError> {
+    let result = executor.exec_query(
+        QueryBuilder::search()
+            .from(from)
+            .where_()
+            .distance(agdb::CountComparison::Equal(1))
+            .and()
+            .edge()
+            .and()
+            .key(KEY_TYPE)
+            .value(edge_type)
+            .query(),
+    )?;
+    Ok(result.elements)
+}
+
+pub(crate) fn incoming_edges(
+    executor: &impl GraphQuery,
+    to: agdb::DbId,
+    edge_type: &str,
+) -> Result<Vec<agdb::DbElement>, DbError> {
+    let result = executor.exec_query(
+        QueryBuilder::search()
+            .to(to)
+            .where_()
+            .distance(agdb::CountComparison::Equal(1))
+            .and()
+            .edge()
+            .and()
+            .key(KEY_TYPE)
+            .value(edge_type)
+            .query(),
+    )?;
+    Ok(result.elements)
 }
 
 pub(crate) fn existing_index_keys(database: &DbAny) -> Result<HashSet<String>, DbError> {

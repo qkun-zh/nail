@@ -1,13 +1,12 @@
 use agdb::{DbError, QueryBuilder};
 
 use crate::repository::graph::{
-    DbHandle, read_node_in_txn, resolve_node_id_in_txn, resolve_node_id_sync,
+    DbHandle, incoming_edges, outgoing_edges, read_node, resolve_node_id,
 };
 use crate::repository::schema::{
     EDGE_ARTICLE_HOLD_VERSION, EDGE_COMMENT_ATTACH_VERSION, EDGE_COMMENT_REPLY_COMMENT,
     EDGE_USER_AUTHOR_ARTICLE, EDGE_USER_AUTHOR_COMMENT, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_COMMENT,
-    ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, KEY_LATEST_VERSION_ID, KEY_SOFT_DELETED, KEY_TYPE,
-    VersionRow,
+    ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, KEY_LATEST_VERSION_ID, KEY_SOFT_DELETED, VersionRow,
 };
 #[derive(Debug, Default)]
 pub struct DeleteOutcome {
@@ -18,37 +17,15 @@ pub async fn delete_user(db: &DbHandle, user_id: &str) -> Result<DeleteOutcome, 
     let mut guard = db.write().await;
     guard.transaction_mut(|transaction| {
         let mut outcome = DeleteOutcome::default();
-        let Some(user) = resolve_node_id_in_txn(transaction, ENTITY_TYPE_USER, user_id)? else {
+        let Some(user) = resolve_node_id(transaction, ENTITY_TYPE_USER, user_id)? else {
             return Ok(outcome);
         };
-        let article_edges = transaction.exec(
-            QueryBuilder::search()
-                .from(user)
-                .where_()
-                .distance(agdb::CountComparison::Equal(1))
-                .and()
-                .edge()
-                .and()
-                .key(KEY_TYPE)
-                .value(EDGE_USER_AUTHOR_ARTICLE)
-                .query(),
-        )?;
-        for edge in &article_edges.elements {
+        let article_edges = outgoing_edges(transaction, user, EDGE_USER_AUTHOR_ARTICLE)?;
+        for edge in &article_edges {
             delete_article_in_txn(transaction, edge.to, &mut outcome)?;
         }
-        let comment_edges = transaction.exec(
-            QueryBuilder::search()
-                .from(user)
-                .where_()
-                .distance(agdb::CountComparison::Equal(1))
-                .and()
-                .edge()
-                .and()
-                .key(KEY_TYPE)
-                .value(EDGE_USER_AUTHOR_COMMENT)
-                .query(),
-        )?;
-        for edge in &comment_edges.elements {
+        let comment_edges = outgoing_edges(transaction, user, EDGE_USER_AUTHOR_COMMENT)?;
+        for edge in &comment_edges {
             delete_comment_tree_in_txn(transaction, edge.to)?;
         }
         transaction.exec_mut(QueryBuilder::remove().ids([user]).query())?;
@@ -60,8 +37,7 @@ pub async fn delete_article(db: &DbHandle, article_id: &str) -> Result<DeleteOut
     let mut guard = db.write().await;
     guard.transaction_mut(|transaction| {
         let mut outcome = DeleteOutcome::default();
-        let Some(article) = resolve_node_id_in_txn(transaction, ENTITY_TYPE_ARTICLE, article_id)?
-        else {
+        let Some(article) = resolve_node_id(transaction, ENTITY_TYPE_ARTICLE, article_id)? else {
             return Ok(outcome);
         };
         delete_article_in_txn(transaction, article, &mut outcome)?;
@@ -73,8 +49,7 @@ pub async fn delete_comment(db: &DbHandle, comment_id: &str) -> Result<DeleteOut
     let mut guard = db.write().await;
     guard.transaction_mut(|transaction| {
         let outcome = DeleteOutcome::default();
-        let Some(comment) = resolve_node_id_in_txn(transaction, ENTITY_TYPE_COMMENT, comment_id)?
-        else {
+        let Some(comment) = resolve_node_id(transaction, ENTITY_TYPE_COMMENT, comment_id)? else {
             return Ok(outcome);
         };
         delete_comment_tree_in_txn(transaction, comment)?;
@@ -86,24 +61,10 @@ pub async fn delete_version(db: &DbHandle, version_id: &str) -> Result<DeleteOut
     let mut guard = db.write().await;
     guard.transaction_mut(|transaction| {
         let mut outcome = DeleteOutcome::default();
-        let Some(version) = resolve_node_id_in_txn(transaction, ENTITY_TYPE_VERSION, version_id)?
-        else {
+        let Some(version) = resolve_node_id(transaction, ENTITY_TYPE_VERSION, version_id)? else {
             return Ok(outcome);
         };
-        let article_id = transaction
-            .exec(
-                QueryBuilder::search()
-                    .to(version)
-                    .where_()
-                    .distance(agdb::CountComparison::Equal(1))
-                    .and()
-                    .edge()
-                    .and()
-                    .key(KEY_TYPE)
-                    .value(EDGE_ARTICLE_HOLD_VERSION)
-                    .query(),
-            )?
-            .elements
+        let article_id = incoming_edges(transaction, version, EDGE_ARTICLE_HOLD_VERSION)?
             .first()
             .map(|edge| edge.from);
         delete_version_in_txn(transaction, version, &mut outcome)?;
@@ -114,8 +75,11 @@ pub async fn delete_version(db: &DbHandle, version_id: &str) -> Result<DeleteOut
     })
 }
 
-pub fn has_soft_deleted_flag(guard: &agdb::DbAny, id: agdb::DbId) -> Result<bool, DbError> {
-    let result = guard.exec(
+pub(crate) fn has_soft_deleted_flag(
+    executor: &impl crate::repository::graph::GraphQuery,
+    id: agdb::DbId,
+) -> Result<bool, DbError> {
+    let result = executor.exec_query(
         QueryBuilder::search()
             .elements()
             .where_()
@@ -132,17 +96,7 @@ pub(crate) fn has_soft_deleted_flag_in_txn(
     transaction: &agdb::DbAnyTransactionMut,
     id: agdb::DbId,
 ) -> Result<bool, DbError> {
-    let result = transaction.exec(
-        QueryBuilder::search()
-            .elements()
-            .where_()
-            .ids([agdb::QueryId::from(id)])
-            .and()
-            .key(KEY_SOFT_DELETED)
-            .value(agdb::Comparison::GreaterThan(agdb::DbValue::U64(0)))
-            .query(),
-    )?;
-    Ok(!result.elements.is_empty())
+    has_soft_deleted_flag(transaction, id)
 }
 
 pub async fn soft_delete_article(db: &DbHandle, article_id: &str) -> Result<(), DbError> {
@@ -185,7 +139,7 @@ fn resolve_any_node_id_sync(
         ENTITY_TYPE_VERSION,
         ENTITY_TYPE_COMMENT,
     ] {
-        if let Some(id) = resolve_node_id_sync(guard, kind, business_id)? {
+        if let Some(id) = resolve_node_id(guard, kind, business_id)? {
             return Ok(Some((kind.to_string(), id)));
         }
     }
@@ -198,7 +152,7 @@ pub async fn is_soft_deleted(
     business_id: &str,
 ) -> Result<bool, DbError> {
     let guard = db.read().await;
-    let Some(id) = resolve_node_id_sync(&guard, entity_type, business_id)? else {
+    let Some(id) = resolve_node_id(&guard, entity_type, business_id)? else {
         return Ok(false);
     };
     has_soft_deleted_flag(&guard, id)
@@ -211,7 +165,7 @@ async fn adjust_soft_delete_count(
     delta: i64,
 ) -> Result<(), DbError> {
     let mut guard = db.write().await;
-    let Some(id) = resolve_node_id_sync(&guard, entity_type, business_id)? else {
+    let Some(id) = resolve_node_id(&guard, entity_type, business_id)? else {
         return Ok(());
     };
     guard.transaction_mut(|transaction| {
@@ -240,34 +194,12 @@ fn adjust_user_subtree_in_txn(
     user: agdb::DbId,
     delta: i64,
 ) -> Result<(), DbError> {
-    let article_edges = transaction.exec(
-        QueryBuilder::search()
-            .from(user)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_USER_AUTHOR_ARTICLE)
-            .query(),
-    )?;
-    for edge in &article_edges.elements {
+    let article_edges = outgoing_edges(transaction, user, EDGE_USER_AUTHOR_ARTICLE)?;
+    for edge in &article_edges {
         adjust_article_subtree_in_txn(transaction, edge.to, delta)?;
     }
-    let comment_edges = transaction.exec(
-        QueryBuilder::search()
-            .from(user)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_USER_AUTHOR_COMMENT)
-            .query(),
-    )?;
-    for edge in &comment_edges.elements {
+    let comment_edges = outgoing_edges(transaction, user, EDGE_USER_AUTHOR_COMMENT)?;
+    for edge in &comment_edges {
         adjust_comment_tree_in_txn(transaction, edge.to, delta)?;
     }
     adjust_node_soft_delete_count_in_txn(transaction, user, delta)?;
@@ -279,19 +211,8 @@ fn adjust_article_subtree_in_txn(
     article: agdb::DbId,
     delta: i64,
 ) -> Result<(), DbError> {
-    let version_edges = transaction.exec(
-        QueryBuilder::search()
-            .from(article)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_HOLD_VERSION)
-            .query(),
-    )?;
-    for edge in &version_edges.elements {
+    let version_edges = outgoing_edges(transaction, article, EDGE_ARTICLE_HOLD_VERSION)?;
+    for edge in &version_edges {
         adjust_version_subtree_in_txn(transaction, edge.to, delta)?;
     }
     adjust_node_soft_delete_count_in_txn(transaction, article, delta)?;
@@ -303,19 +224,8 @@ fn adjust_version_subtree_in_txn(
     version: agdb::DbId,
     delta: i64,
 ) -> Result<(), DbError> {
-    let comment_edges = transaction.exec(
-        QueryBuilder::search()
-            .to(version)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_COMMENT_ATTACH_VERSION)
-            .query(),
-    )?;
-    for edge in &comment_edges.elements {
+    let comment_edges = incoming_edges(transaction, version, EDGE_COMMENT_ATTACH_VERSION)?;
+    for edge in &comment_edges {
         adjust_comment_tree_in_txn(transaction, edge.from, delta)?;
     }
     adjust_node_soft_delete_count_in_txn(transaction, version, delta)?;
@@ -327,19 +237,8 @@ fn adjust_comment_tree_in_txn(
     comment: agdb::DbId,
     delta: i64,
 ) -> Result<(), DbError> {
-    let reply_edges = transaction.exec(
-        QueryBuilder::search()
-            .to(comment)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_COMMENT_REPLY_COMMENT)
-            .query(),
-    )?;
-    for edge in &reply_edges.elements {
+    let reply_edges = incoming_edges(transaction, comment, EDGE_COMMENT_REPLY_COMMENT)?;
+    for edge in &reply_edges {
         adjust_comment_tree_in_txn(transaction, edge.from, delta)?;
     }
     adjust_node_soft_delete_count_in_txn(transaction, comment, delta)?;
@@ -406,19 +305,8 @@ fn delete_article_in_txn(
     article: agdb::DbId,
     outcome: &mut DeleteOutcome,
 ) -> Result<(), DbError> {
-    let version_edges = transaction.exec(
-        QueryBuilder::search()
-            .from(article)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_HOLD_VERSION)
-            .query(),
-    )?;
-    for edge in &version_edges.elements {
+    let version_edges = outgoing_edges(transaction, article, EDGE_ARTICLE_HOLD_VERSION)?;
+    for edge in &version_edges {
         delete_version_in_txn(transaction, edge.to, outcome)?;
     }
     transaction.exec_mut(QueryBuilder::remove().ids([article]).query())?;
@@ -430,22 +318,11 @@ fn delete_version_in_txn(
     version: agdb::DbId,
     outcome: &mut DeleteOutcome,
 ) -> Result<(), DbError> {
-    let comment_edges = transaction.exec(
-        QueryBuilder::search()
-            .to(version)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_COMMENT_ATTACH_VERSION)
-            .query(),
-    )?;
-    for edge in &comment_edges.elements {
+    let comment_edges = incoming_edges(transaction, version, EDGE_COMMENT_ATTACH_VERSION)?;
+    for edge in &comment_edges {
         delete_comment_tree_in_txn(transaction, edge.from)?;
     }
-    if let Some(row) = read_node_in_txn::<VersionRow>(transaction, version)? {
+    if let Some(row) = read_node::<VersionRow>(transaction, version)? {
         outcome.removed_pdf_hashes.push(row.content_hash);
     }
     transaction.exec_mut(QueryBuilder::remove().ids([version]).query())?;
@@ -456,19 +333,8 @@ fn delete_comment_tree_in_txn(
     transaction: &mut agdb::DbAnyTransactionMut,
     comment: agdb::DbId,
 ) -> Result<(), DbError> {
-    let reply_edges = transaction.exec(
-        QueryBuilder::search()
-            .to(comment)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_COMMENT_REPLY_COMMENT)
-            .query(),
-    )?;
-    for edge in &reply_edges.elements {
+    let reply_edges = incoming_edges(transaction, comment, EDGE_COMMENT_REPLY_COMMENT)?;
+    for edge in &reply_edges {
         delete_comment_tree_in_txn(transaction, edge.from)?;
     }
     transaction.exec_mut(QueryBuilder::remove().ids([comment]).query())?;
@@ -479,22 +345,10 @@ fn refresh_latest_version_in_txn(
     transaction: &mut agdb::DbAnyTransactionMut,
     article: agdb::DbId,
 ) -> Result<(), DbError> {
-    let version_edges = transaction.exec(
-        QueryBuilder::search()
-            .from(article)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_ARTICLE_HOLD_VERSION)
-            .query(),
-    )?;
+    let version_edges = outgoing_edges(transaction, article, EDGE_ARTICLE_HOLD_VERSION)?;
     let latest_id = version_edges
-        .elements
         .iter()
-        .filter_map(|edge| read_node_in_txn::<VersionRow>(transaction, edge.to).transpose())
+        .filter_map(|edge| read_node::<VersionRow>(transaction, edge.to).transpose())
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()
         .map(|row| row.id)
