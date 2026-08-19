@@ -6,40 +6,30 @@ use nail_common::response::version::VersionIdView;
 use serde::Deserialize;
 
 use crate::infrastructure::state::AppState;
-use crate::interface::article::{read_text_field, stream_pdf_field};
 use crate::interface::envelope::{ApiError, json_response};
 use crate::interface::extractor::{AppJson, AppMultipart, AppPaged, AppPath, AppQuery};
+use crate::interface::multipart::{MultipartField, collect_fields};
 use crate::interface::principal::Principal;
 
 pub async fn create_version(
     State(state): State<AppState>,
     principal: Principal,
     AppPath(article_id): AppPath<String>,
-    AppMultipart(mut multipart): AppMultipart,
+    AppMultipart(multipart): AppMultipart,
 ) -> Result<impl IntoResponse, ApiError> {
-    let mut version = None;
-    let mut note = None;
-    let mut upload = None;
-
-    while let Some(field) = multipart
-        .next_field()
-        .await
-        .map_err(|error| super::article::map_multipart_error(&error))?
-    {
-        let name = field.name().unwrap_or_default().to_string();
-        match name.as_str() {
-            "file" => upload = Some(stream_pdf_field(&state, field).await?),
-            "version" => version = Some(read_text_field(&state, field).await?),
-            "note" => note = Some(read_text_field(&state, field).await?),
-            _ => {
-                drop(field);
-            }
-        }
-    }
-
-    let version = version.ok_or_else(|| ApiError::bad_request("version is required"))?;
-    let note = note.ok_or_else(|| ApiError::bad_request("note is required"))?;
-    let upload = upload.ok_or_else(|| ApiError::bad_request("file is required"))?;
+    let mut fields = collect_fields(&state, multipart, &["file"], &["version", "note"]).await?;
+    let version = fields
+        .remove("version")
+        .and_then(MultipartField::into_text)
+        .ok_or_else(|| ApiError::bad_request("version is required"))?;
+    let note = fields
+        .remove("note")
+        .and_then(MultipartField::into_text)
+        .ok_or_else(|| ApiError::bad_request("note is required"))?;
+    let upload = fields
+        .remove("file")
+        .and_then(MultipartField::into_pdf)
+        .ok_or_else(|| ApiError::bad_request("file is required"))?;
 
     let version_id = crate::logic::version::create_version(
         &state,

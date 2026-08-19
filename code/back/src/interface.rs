@@ -5,6 +5,7 @@ pub mod config;
 pub mod content;
 pub mod envelope;
 pub mod extractor;
+pub mod multipart;
 pub mod principal;
 pub mod role;
 pub mod router;
