@@ -5,8 +5,9 @@ use nail_common::response::comment::CommentView;
 
 use crate::page::session_gate::who_are_you;
 
-use super::pagination::{COMMENTS_PER_PAGE, LevelPagination};
+use super::pagination::COMMENTS_PER_PAGE;
 use super::render::{CommentViewContext, comment_form, comment_rows};
+use crate::page::pagination::LevelPagination;
 
 pub fn comment_list_view(
     roots: RwSignal<Option<ListPage<CommentView>>>,

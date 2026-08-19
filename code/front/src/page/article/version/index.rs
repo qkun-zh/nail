@@ -1,13 +1,12 @@
 use leptos::prelude::*;
-use leptos_router::NavigateOptions;
 use leptos_router::components::{A, Outlet};
-use leptos_router::hooks::{query_signal, use_navigate, use_params_map};
+use leptos_router::hooks::{query_signal, use_params_map};
 use nail_common::response::ListPage;
 use nail_common::response::version::VersionListItem;
 
 use crate::infrastructure::limits::use_limits;
 use crate::page::notify::{notify_error, use_notifications};
-use crate::page::pagination::{PrevNext, clamp_page_size};
+use crate::page::pagination::{LevelPagination, clamp_page_size};
 use crate::page::validation::validate_uuid;
 
 #[derive(Clone)]
@@ -22,7 +21,6 @@ pub fn VersionList() -> impl IntoView {
     let params = use_params_map();
     let notifications = use_notifications();
     let limits = use_limits();
-    let navigate = use_navigate();
     let state = RwSignal::new(VersionPage::Loading);
     let (page_signal, _set_page) = query_signal::<u64>("page");
     let current_page = Memo::new(move |_| page_signal.get().unwrap_or(1).max(1));
@@ -56,7 +54,6 @@ pub fn VersionList() -> impl IntoView {
             let create_href = format!("/article/{article_id}/version/create");
             let current_page = current_page.get();
             let has_next = view.has_next;
-            let has_prev = current_page > 1;
             let rows = view
                 .items
                 .into_iter()
@@ -68,23 +65,11 @@ pub fn VersionList() -> impl IntoView {
                     }
                 })
                 .collect_view();
-            let navigate = navigate.clone();
-            let on_go = Callback::new(move |target: u64| {
-                navigate(
-                    &format!("/article/{article_id}/version?page={target}"),
-                    NavigateOptions {
-                        resolve: false,
-                        replace: true,
-                        ..Default::default()
-                    },
-                );
-            });
             let pagination = view! {
-                <PrevNext
+                <LevelPagination
                     current=move || current_page
-                    has_prev=move || has_prev
                     has_next=move || has_next
-                    on_go=on_go
+                    base_href=format!("/article/{article_id}/version")
                 />
             };
             view! {
