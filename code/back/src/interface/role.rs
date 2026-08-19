@@ -3,18 +3,11 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use nail_common::request::{CreateRoleRequest, DeleteBody, DeleteMode, RoleUpdateRequest};
 use nail_common::response::role::RoleNameView;
-use serde::Deserialize;
 
 use crate::infrastructure::state::AppState;
 use crate::interface::envelope::{ApiError, json_response};
-use crate::interface::extractor::{AppJson, AppPath, AppQuery};
+use crate::interface::extractor::{AppJson, AppPaged, AppPath};
 use crate::interface::principal::Principal;
-
-#[derive(Debug, Default, Deserialize)]
-pub struct RoleListParams {
-    pub page: Option<u64>,
-    pub limit: Option<u64>,
-}
 
 pub async fn create_role(
     State(state): State<AppState>,
@@ -33,14 +26,8 @@ pub async fn create_role(
 pub async fn read_roles(
     State(state): State<AppState>,
     principal: Principal,
-    AppQuery(params): AppQuery<RoleListParams>,
+    AppPaged((page, limit)): AppPaged,
 ) -> Result<impl IntoResponse, ApiError> {
-    let (page, limit) = crate::logic::pagination::clamp_page_limit(
-        params.page,
-        params.limit,
-        state.config.server.search_page_size,
-        state.config.server.max_search_pages,
-    )?;
     let data = crate::logic::role::read_roles(&state, &principal.user_id, page, limit).await?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }

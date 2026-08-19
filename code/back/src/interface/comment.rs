@@ -3,11 +3,10 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use nail_common::request::{CreateCommentRequest, DeleteBody};
 use nail_common::response::comment::{CommentIdView, CommentListPage, CommentView};
-use serde::Deserialize;
 
 use crate::infrastructure::state::AppState;
 use crate::interface::envelope::{ApiError, json_response};
-use crate::interface::extractor::{AppJson, AppPath, AppQuery};
+use crate::interface::extractor::{AppJson, AppPaged, AppPath};
 use crate::interface::principal::Principal;
 
 pub async fn create_comment(
@@ -50,24 +49,12 @@ pub async fn create_reply(
     ))
 }
 
-#[derive(Debug, Default, Deserialize)]
-pub struct CommentsReadParams {
-    pub page: Option<u64>,
-    pub limit: Option<u64>,
-}
-
 pub async fn read_comments(
     State(state): State<AppState>,
     principal: Principal,
     AppPath(version_id): AppPath<String>,
-    AppQuery(params): AppQuery<CommentsReadParams>,
+    AppPaged((page, limit)): AppPaged,
 ) -> Result<impl IntoResponse, ApiError> {
-    let (page, limit) = crate::logic::pagination::clamp_page_limit(
-        params.page,
-        params.limit,
-        state.config.server.search_page_size,
-        state.config.server.max_search_pages,
-    )?;
     let data =
         crate::logic::comment::read_comments(&state, &principal.user_id, &version_id, page, limit)
             .await?;
@@ -88,14 +75,8 @@ pub async fn read_comment_children(
     State(state): State<AppState>,
     principal: Principal,
     AppPath(parent_comment_id): AppPath<String>,
-    AppQuery(params): AppQuery<CommentsReadParams>,
+    AppPaged((page, limit)): AppPaged,
 ) -> Result<impl IntoResponse, ApiError> {
-    let (page, limit) = crate::logic::pagination::clamp_page_limit(
-        params.page,
-        params.limit,
-        state.config.server.search_page_size,
-        state.config.server.max_search_pages,
-    )?;
     let data: CommentListPage = crate::logic::comment::read_comment_children(
         &state,
         &principal.user_id,

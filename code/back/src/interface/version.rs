@@ -8,7 +8,7 @@ use serde::Deserialize;
 use crate::infrastructure::state::AppState;
 use crate::interface::article::{read_text_field, stream_pdf_field};
 use crate::interface::envelope::{ApiError, json_response};
-use crate::interface::extractor::{AppJson, AppMultipart, AppPath, AppQuery};
+use crate::interface::extractor::{AppJson, AppMultipart, AppPaged, AppPath, AppQuery};
 use crate::interface::principal::Principal;
 
 pub async fn create_version(
@@ -58,24 +58,12 @@ pub async fn create_version(
     ))
 }
 
-#[derive(Debug, Default, Deserialize)]
-pub struct VersionsReadParams {
-    pub page: Option<u64>,
-    pub limit: Option<u64>,
-}
-
 pub async fn read_versions(
     State(state): State<AppState>,
     principal: Principal,
     AppPath(article_id): AppPath<String>,
-    AppQuery(params): AppQuery<VersionsReadParams>,
+    AppPaged((page, limit)): AppPaged,
 ) -> Result<impl IntoResponse, ApiError> {
-    let (page, limit) = crate::logic::pagination::clamp_page_limit(
-        params.page,
-        params.limit,
-        state.config.server.search_page_size,
-        state.config.server.max_search_pages,
-    )?;
     let data =
         crate::logic::version::read_versions(&state, &principal.user_id, &article_id, page, limit)
             .await?;

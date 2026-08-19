@@ -7,14 +7,8 @@ use serde::Deserialize;
 
 use crate::infrastructure::state::AppState;
 use crate::interface::envelope::{ApiError, json_response};
-use crate::interface::extractor::{AppJson, AppPath, AppQuery};
+use crate::interface::extractor::{AppJson, AppPaged, AppPath};
 use crate::interface::principal::Principal;
-
-#[derive(Debug, Default, Deserialize)]
-pub struct TagListParams {
-    pub page: Option<u64>,
-    pub limit: Option<u64>,
-}
 
 pub async fn create_tag(
     State(state): State<AppState>,
@@ -33,14 +27,8 @@ pub async fn create_tag(
 pub async fn read_tags(
     State(state): State<AppState>,
     principal: Principal,
-    AppQuery(params): AppQuery<TagListParams>,
+    AppPaged((page, limit)): AppPaged,
 ) -> Result<impl IntoResponse, ApiError> {
-    let (page, limit) = crate::logic::pagination::clamp_page_limit(
-        params.page,
-        params.limit,
-        state.config.server.search_page_size,
-        state.config.server.max_search_pages,
-    )?;
     let data = crate::logic::tag::read_tags(&state, &principal.user_id, page, limit).await?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }

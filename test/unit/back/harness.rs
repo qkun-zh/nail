@@ -139,5 +139,8 @@ pub mod logic_soft_delete_visibility;
 #[path = "http/tag_apply.rs"]
 pub mod http_tag_apply;
 
+#[path = "http/extractor.rs"]
+pub mod http_extractor;
+
 #[path = "http/probe_003_path_param_key_and_parts.rs"]
 pub mod http_probe_003_path_param_key_and_parts;

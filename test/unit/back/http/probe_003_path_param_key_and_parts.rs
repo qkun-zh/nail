@@ -39,7 +39,11 @@ async fn echo_session_header(
         .get("session-token")
         .and_then(|value| value.to_str().ok())
         .map(str::to_string);
-    Ok(json_response(StatusCode::OK, json!({ "token": token }), "ok"))
+    Ok(json_response(
+        StatusCode::OK,
+        json!({ "token": token }),
+        "ok",
+    ))
 }
 
 #[tokio::test]
