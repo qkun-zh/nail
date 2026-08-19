@@ -1,6 +1,7 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
-use nail_common::response::comment::CommentListPage;
+use nail_common::response::ListPage;
+use nail_common::response::comment::CommentView;
 
 use crate::page::session_gate::who_are_you;
 
@@ -8,7 +9,7 @@ use super::pagination::{COMMENTS_PER_PAGE, LevelPagination};
 use super::render::{CommentViewContext, comment_form, comment_rows};
 
 pub fn comment_list_view(
-    roots: RwSignal<Option<CommentListPage>>,
+    roots: RwSignal<Option<ListPage<CommentView>>>,
     comment_view_context: &CommentViewContext,
     body: RwSignal<String>,
     on_submit_comment: impl Fn(SubmitEvent) + Clone + 'static,
@@ -18,7 +19,7 @@ pub fn comment_list_view(
     };
     let has_next = list.has_next;
     let rows = comment_rows(
-        &list.comments,
+        &list.items,
         &comment_view_context.base_path,
         (comment_view_context.current_page - 1) * COMMENTS_PER_PAGE,
     );

@@ -1,5 +1,6 @@
 use nail_common::request::{CreateCommentRequest, DeleteBody, DeleteMode};
-use nail_common::response::comment::{CommentIdView, CommentListPage, CommentView};
+use nail_common::response::ListPage;
+use nail_common::response::comment::{CommentIdView, CommentView};
 
 use crate::request::error::RequestResult;
 use crate::request::validate::validate_id;
@@ -9,7 +10,7 @@ pub async fn read_comments(
     version_id: &str,
     page: u64,
     limit: u64,
-) -> RequestResult<CommentListPage> {
+) -> RequestResult<ListPage<CommentView>> {
     let version_id = validate_id(version_id, "version_id")?;
     let path = url::build_path_with_query(
         &["version", &version_id, "comment", "read"],
@@ -28,7 +29,7 @@ pub async fn read_comment_children(
     parent_id: &str,
     page: u64,
     limit: u64,
-) -> RequestResult<CommentListPage> {
+) -> RequestResult<ListPage<CommentView>> {
     let parent_id = validate_id(parent_id, "parent_id")?;
     let path = url::build_path_with_query(
         &["comment", &parent_id, "reply", "read"],

@@ -1,5 +1,6 @@
 use nail_common::request::{DeleteBody, DeleteMode};
-use nail_common::response::version::{VersionIdView, VersionListPage, VersionView};
+use nail_common::response::ListPage;
+use nail_common::response::version::{VersionIdView, VersionListItem, VersionView};
 
 use crate::request::error::RequestResult;
 use crate::request::validate::validate_id;
@@ -9,7 +10,7 @@ pub async fn read_versions(
     article_id: &str,
     page: u64,
     limit: u64,
-) -> RequestResult<VersionListPage> {
+) -> RequestResult<ListPage<VersionListItem>> {
     let article_id = validate_id(article_id, "article_id")?;
     let path = url::build_path_with_query(
         &["article", &article_id, "version", "read"],

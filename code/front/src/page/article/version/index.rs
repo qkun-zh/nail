@@ -2,7 +2,8 @@ use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 use leptos_router::components::{A, Outlet};
 use leptos_router::hooks::{query_signal, use_navigate, use_params_map};
-use nail_common::response::version::VersionListPage;
+use nail_common::response::ListPage;
+use nail_common::response::version::VersionListItem;
 
 use crate::infrastructure::limits::use_limits;
 use crate::page::notify::{notify_error, use_notifications};
@@ -12,7 +13,7 @@ use crate::page::validation::validate_uuid;
 #[derive(Clone)]
 enum VersionPage {
     Loading,
-    Loaded(VersionListPage),
+    Loaded(ListPage<VersionListItem>),
     Error(String),
 }
 
@@ -57,7 +58,7 @@ pub fn VersionList() -> impl IntoView {
             let has_next = view.has_next;
             let has_prev = current_page > 1;
             let rows = view
-                .version_list
+                .items
                 .into_iter()
                 .map(|version| {
                     let version_id = version.id.clone();

@@ -158,7 +158,7 @@ pub fn Search() -> impl IntoView {
     let request_seq = StoredValue::new(0u64);
     let last_good_page = StoredValue::new(1u64);
     let search_notifications = notifications.clone();
-    let run_search = move |pairs: Vec<(String, String)>| {
+    let run_search = move |pairs: Vec<(String, String)>, requested_page: u64| {
         let my_seq = request_seq.get_value() + 1;
         request_seq.set_value(my_seq);
         fetching.set(true);
@@ -173,10 +173,10 @@ pub fn Search() -> impl IntoView {
                     if request_seq.get_value() != my_seq {
                         return;
                     }
-                    search_list.set(page.article_list);
+                    search_list.set(page.items);
                     has_next.set(page.has_next);
-                    current_page.set(page.page);
-                    last_good_page.set_value(page.page);
+                    current_page.set(requested_page);
+                    last_good_page.set_value(requested_page);
                 }
                 Err(error) => {
                     if request_seq.get_value() == my_seq {
@@ -223,7 +223,7 @@ pub fn Search() -> impl IntoView {
             if !to.trim().is_empty() {
                 pairs.push(("to".to_string(), to.trim().to_string()));
             }
-            run_search(pairs);
+            run_search(pairs, page);
         }
     };
 

@@ -1,11 +1,13 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
 
-use crate::request::tag::{self, TagListPage};
+use nail_common::response::ListPage;
+
+use crate::request::tag::{self, TagListItem};
 
 #[component]
 pub fn TagList() -> impl IntoView {
-    let tags = RwSignal::new(None::<TagListPage>);
+    let tags = RwSignal::new(None::<ListPage<TagListItem>>);
     let error = RwSignal::new(None::<String>);
 
     Effect::new(move |_| {
@@ -27,7 +29,7 @@ pub fn TagList() -> impl IntoView {
         view! {
             <h1>"Tags"</h1>
             <ul>
-                {page.tag_list.into_iter().map(|tag| view! {
+                {page.items.into_iter().map(|tag| view! {
                     <li>
                         <A href={format!("/tag/{}", tag.id)}>
                             {tag.name}

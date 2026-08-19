@@ -17,7 +17,8 @@ use update::comment_update_view;
 use leptos::prelude::*;
 use leptos_router::hooks::{query_signal, use_navigate, use_params_map, use_query_map};
 use nail_common::request::DeleteMode;
-use nail_common::response::comment::{CommentListPage, CommentView};
+use nail_common::response::ListPage;
+use nail_common::response::comment::CommentView;
 
 use crate::infrastructure::limits::use_limits;
 use crate::page::notify::use_notifications;
@@ -46,9 +47,9 @@ pub fn CommentSection() -> impl IntoView {
     let page = Memo::new(move |_| page_signal.get().unwrap_or(1).max(1));
     let base = move || format!("/article/{}/version/{}", article_id(), version_id_param());
 
-    let roots = RwSignal::new(None::<CommentListPage>);
+    let roots = RwSignal::new(None::<ListPage<CommentView>>);
     let target = RwSignal::new(None::<CommentView>);
-    let children = RwSignal::new(None::<CommentListPage>);
+    let children = RwSignal::new(None::<ListPage<CommentView>>);
     let error = RwSignal::new(None::<String>);
     let loading = RwSignal::new(true);
     let posting = RwSignal::new(false);

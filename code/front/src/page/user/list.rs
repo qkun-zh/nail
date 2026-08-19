@@ -1,11 +1,14 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
 
-use crate::request::user::{self, UserListPage};
+use nail_common::response::ListPage;
+use nail_common::response::user::UserListItem;
+
+use crate::request::user;
 
 #[component]
 pub fn UserList() -> impl IntoView {
-    let users = RwSignal::new(None::<UserListPage>);
+    let users = RwSignal::new(None::<ListPage<UserListItem>>);
     let error = RwSignal::new(None::<String>);
 
     Effect::new(move |_| {
@@ -27,7 +30,7 @@ pub fn UserList() -> impl IntoView {
         view! {
             <h1>"Users"</h1>
             <ul>
-                {page.user_list.into_iter().map(|item| view! {
+                {page.items.into_iter().map(|item| view! {
                     <li>
                         <A href={format!("/user/{}", item.id)}>
                             {item.name}

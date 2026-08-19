@@ -1,12 +1,13 @@
 use leptos::prelude::*;
 use leptos_router::components::A;
-use nail_common::response::role::RoleListPage;
+use nail_common::response::ListPage;
+use nail_common::response::role::RoleListItem;
 
 use crate::request::role;
 
 #[component]
 pub fn RoleList() -> impl IntoView {
-    let roles = RwSignal::new(None::<RoleListPage>);
+    let roles = RwSignal::new(None::<ListPage<RoleListItem>>);
     let error = RwSignal::new(None::<String>);
 
     Effect::new(move |_| {
@@ -28,7 +29,7 @@ pub fn RoleList() -> impl IntoView {
         view! {
             <h1>"Roles"</h1>
             <ul>
-                {page.role_list.into_iter().map(|item| view! {
+                {page.items.into_iter().map(|item| view! {
                     <li>
                         <A href={format!("/role/{}", item.id)}>
                             {item.name}

@@ -3,8 +3,9 @@ use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
 use nail_common::request::DeleteMode;
+use nail_common::response::ListPage;
 use nail_common::response::RuntimeLimits;
-use nail_common::response::comment::{CommentListPage, CommentView};
+use nail_common::response::comment::CommentView;
 
 use crate::page::notify::{Notifications, notify_error, notify_success};
 use crate::page::validation::validate_comment_content;
@@ -15,9 +16,9 @@ use super::url::{CommentLevel, comment_id_from_level, comment_level_from_path};
 #[derive(Clone, Copy)]
 pub struct CommentSignals {
     pub loading: RwSignal<bool>,
-    pub roots: RwSignal<Option<CommentListPage>>,
+    pub roots: RwSignal<Option<ListPage<CommentView>>>,
     pub target: RwSignal<Option<CommentView>>,
-    pub children: RwSignal<Option<CommentListPage>>,
+    pub children: RwSignal<Option<ListPage<CommentView>>>,
     pub error: RwSignal<Option<String>>,
 }
 

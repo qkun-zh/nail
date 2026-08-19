@@ -10,7 +10,7 @@ pub fn TagPicker(selected: RwSignal<Vec<String>>) -> impl IntoView {
     Effect::new(move |_| {
         leptos::task::spawn_local(async move {
             match tag::read_tags(None, None).await {
-                Ok(page) => available_tags.set(page.tag_list),
+                Ok(page) => available_tags.set(page.items),
                 Err(err) => error.set(Some(err.to_string())),
             }
         });

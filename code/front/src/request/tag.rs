@@ -1,12 +1,16 @@
 use nail_common::request::{CreateTagRequest, TagUpdateRequest};
 use nail_common::response::EmptyView;
-pub use nail_common::response::tag::{TagListItem, TagListPage, TagNameView};
+use nail_common::response::ListPage;
+pub use nail_common::response::tag::{TagListItem, TagNameView};
 
 use crate::request::error::RequestResult;
 use crate::request::validate::validate_id;
 use crate::request::{http, url};
 
-pub async fn read_tags(page: Option<u64>, limit: Option<u64>) -> RequestResult<TagListPage> {
+pub async fn read_tags(
+    page: Option<u64>,
+    limit: Option<u64>,
+) -> RequestResult<ListPage<TagListItem>> {
     let mut query: Vec<(&str, &str)> = Vec::new();
     let page_str;
     let limit_str;

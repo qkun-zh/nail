@@ -1,13 +1,14 @@
 use nail_common::request::{
     ChangeList, CreateRoleRequest, DeleteBody, DeleteMode, RoleUpdateRequest,
 };
-use nail_common::response::role::{RoleListPage, RoleNameView, RoleView};
+use nail_common::response::ListPage;
+use nail_common::response::role::{RoleListItem, RoleNameView, RoleView};
 
 use crate::request::error::RequestResult;
 use crate::request::validate::validate_id;
 use crate::request::{http, url};
 
-pub async fn read_roles(page: u64, limit: u64) -> RequestResult<RoleListPage> {
+pub async fn read_roles(page: u64, limit: u64) -> RequestResult<ListPage<RoleListItem>> {
     let path = url::build_path_with_query(
         &["role", "read"],
         &[("page", &page.to_string()), ("limit", &limit.to_string())],

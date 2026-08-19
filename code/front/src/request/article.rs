@@ -1,12 +1,13 @@
 use nail_common::request::{DeleteBody, DeleteMode, UpdateArticleRequest};
+use nail_common::response::ListPage;
 use nail_common::response::article::{ArticleIdView, ArticleView, CreateArticleView};
-use nail_common::response::search::SearchPage;
+use nail_common::response::search::SearchArticleItem;
 
 use crate::request::error::RequestResult;
 use crate::request::validate::validate_id;
 use crate::request::{http, url};
 
-pub async fn search_articles(query: &[(&str, &str)]) -> RequestResult<SearchPage> {
+pub async fn search_articles(query: &[(&str, &str)]) -> RequestResult<ListPage<SearchArticleItem>> {
     let path = url::build_path_with_query(&["article", "read"], query);
     http::get_json(&path, true).await
 }

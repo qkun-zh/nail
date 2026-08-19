@@ -1,6 +1,7 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
-use nail_common::response::comment::{CommentListPage, CommentView};
+use nail_common::response::ListPage;
+use nail_common::response::comment::CommentView;
 
 use crate::page::session_gate::who_are_you;
 
@@ -9,7 +10,7 @@ use super::render::{CommentViewContext, comment_form, comment_rows, context_card
 
 pub fn comment_detail_view(
     target: RwSignal<Option<CommentView>>,
-    children: RwSignal<Option<CommentListPage>>,
+    children: RwSignal<Option<ListPage<CommentView>>>,
     comment_id: &str,
     comment_view_context: &CommentViewContext,
     reply_body: RwSignal<String>,
@@ -42,7 +43,7 @@ pub fn comment_detail_view(
         .as_ref()
         .map(|list| {
             comment_rows(
-                &list.comments,
+                &list.items,
                 &comment_view_context.base_path,
                 (comment_view_context.current_page - 1) * COMMENTS_PER_PAGE,
             )
