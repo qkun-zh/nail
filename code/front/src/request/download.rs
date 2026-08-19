@@ -3,6 +3,7 @@ use wasm_bindgen::JsCast;
 use crate::request::error::RequestResult;
 use crate::request::http;
 use crate::request::session::read_session_token;
+use crate::request::validate::validate_id;
 
 const FALLBACK_FILENAME: &str = "article.pdf";
 
@@ -54,9 +55,16 @@ pub fn filename_from_content_disposition(header: Option<&str>) -> String {
 }
 
 pub async fn mint_download_url(article_id: &str, version_id: &str) -> RequestResult<String> {
+    let article_id = validate_id(article_id, "article_id")?;
+    let version_id = validate_id(version_id, "version_id")?;
     let path = crate::request::url::build_path_with_query(
         &[
-            "article", article_id, "version", version_id, "content", "read",
+            "article",
+            &article_id,
+            "version",
+            &version_id,
+            "content",
+            "read",
         ],
         &[("mode", "download")],
     );

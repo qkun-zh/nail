@@ -9,11 +9,13 @@ pub use nail_common::response::user::UserListPage;
 use nail_common::response::user::{UserNameView, UserView};
 
 use crate::request::error::RequestResult;
+use crate::request::validate::validate_id;
 use crate::request::{http, url};
 
 pub async fn read_user(user_id: &str) -> RequestResult<UserView> {
+    let user_id = validate_id(user_id, "user_id")?;
     let path = url::build_path_with_query(
-        &["user", user_id, "read"],
+        &["user", &user_id, "read"],
         &[("name", "true"), ("email_hash", "true"), ("roles", "true")],
     );
     http::get_json(&path, true).await
@@ -28,7 +30,8 @@ pub async fn read_users(page: u64, limit: u64) -> RequestResult<UserListPage> {
 }
 
 pub async fn update_self_name(user_id: &str, pow: Pow) -> RequestResult<UserNameView> {
-    let path = url::build_path_with_query(&["user", user_id, "update"], &[]);
+    let user_id = validate_id(user_id, "user_id")?;
+    let path = url::build_path_with_query(&["user", &user_id, "update"], &[]);
     let body = UserUpdateRequest {
         pow: Some(pow),
         ..UserUpdateRequest::default()
@@ -42,7 +45,8 @@ pub async fn confirm_email_change(
     old_token: &str,
     new_token: &str,
 ) -> RequestResult<SessionTokenView> {
-    let path = url::build_path_with_query(&["user", user_id, "update"], &[]);
+    let user_id = validate_id(user_id, "user_id")?;
+    let path = url::build_path_with_query(&["user", &user_id, "update"], &[]);
     let body = UserUpdateRequest {
         pow: Some(pow),
         old_email_token: Some(old_token.to_string()),
@@ -85,7 +89,8 @@ pub async fn deregister_self(
     pow: Pow,
     mode: DeleteMode,
 ) -> RequestResult<EmptyView> {
-    let path = url::build_path_with_query(&["user", user_id, "delete"], &[]);
+    let user_id = validate_id(user_id, "user_id")?;
+    let path = url::build_path_with_query(&["user", &user_id, "delete"], &[]);
     let body = UserDeleteRequest {
         mode: Some(mode),
         pow,
@@ -94,7 +99,8 @@ pub async fn deregister_self(
 }
 
 pub async fn undelete_soft_user(user_id: &str) -> RequestResult<EmptyView> {
-    let path = url::build_path_with_query(&["user", user_id, "undelete-soft"], &[]);
+    let user_id = validate_id(user_id, "user_id")?;
+    let path = url::build_path_with_query(&["user", &user_id, "undelete-soft"], &[]);
     http::post_json(&path, &(), true).await
 }
 

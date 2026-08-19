@@ -11,4 +11,5 @@ pub mod session;
 pub mod tag;
 pub mod url;
 pub mod user;
+pub mod validate;
 pub mod version;

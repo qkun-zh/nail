@@ -4,6 +4,7 @@ use nail_common::request::{
 use nail_common::response::role::{RoleListPage, RoleNameView, RoleView};
 
 use crate::request::error::RequestResult;
+use crate::request::validate::validate_id;
 use crate::request::{http, url};
 
 pub async fn read_roles(page: u64, limit: u64) -> RequestResult<RoleListPage> {
@@ -15,7 +16,8 @@ pub async fn read_roles(page: u64, limit: u64) -> RequestResult<RoleListPage> {
 }
 
 pub async fn read_role(role_id: &str) -> RequestResult<RoleView> {
-    let path = url::build_path_with_query(&["role", role_id, "read"], &[]);
+    let role_id = validate_id(role_id, "role_id")?;
+    let path = url::build_path_with_query(&["role", &role_id, "read"], &[]);
     http::get_json(&path, true).await
 }
 
@@ -34,7 +36,8 @@ pub async fn update_role(
     users_add: &[String],
     users_remove: &[String],
 ) -> RequestResult<RoleView> {
-    let path = url::build_path_with_query(&["role", role_id, "update"], &[]);
+    let role_id = validate_id(role_id, "role_id")?;
+    let path = url::build_path_with_query(&["role", &role_id, "update"], &[]);
     let body = RoleUpdateRequest {
         permissions: Some(ChangeList {
             add: permissions_add.to_vec(),
@@ -49,7 +52,8 @@ pub async fn update_role(
 }
 
 pub async fn delete_role(role_id: &str) -> RequestResult<RoleNameView> {
-    let path = url::build_path_with_query(&["role", role_id, "delete"], &[]);
+    let role_id = validate_id(role_id, "role_id")?;
+    let path = url::build_path_with_query(&["role", &role_id, "delete"], &[]);
     http::post_json(
         &path,
         &DeleteBody {
