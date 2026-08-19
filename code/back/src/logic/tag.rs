@@ -11,7 +11,7 @@ use crate::repository::tag::{
     delete_tag as delete_tag_node, read_tag_by_id, read_tag_by_name, read_tags as read_tag_nodes,
     unapply_tag_from_article, update_tag as update_tag_node,
 };
-use nail_common::response::tag::{TagListItem, TagView};
+use nail_common::response::tag::TagListItem;
 
 pub async fn create_tag(
     state: &AppState,
@@ -61,13 +61,13 @@ pub async fn read_tag(
     state: &AppState,
     actor_id: &str,
     tag_id: &str,
-) -> Result<TagView, LogicError> {
+) -> Result<TagListItem, LogicError> {
     authorize_global(state, actor_id, PERMISSION_TAG_READ).await?;
     let tag = read_tag_by_id(&state.graph, tag_id)
         .await?
         .ok_or_else(|| LogicError::not_found("tag not found"))?;
     let article_count = count_tag_articles(&state.graph, &tag.id).await?;
-    Ok(TagView {
+    Ok(TagListItem {
         id: tag.id,
         name: tag.tag_name,
         article_count,
