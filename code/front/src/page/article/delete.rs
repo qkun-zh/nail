@@ -3,25 +3,9 @@ use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
 use nail_common::request::DeleteMode;
 
 use crate::page::author_gate::{denied_view, use_author_gate};
+use crate::page::delete_mode::{ALL_MODES, DeleteModePicker, mode_from_str, mode_to_str};
 use crate::page::notify::{notify_error, notify_success, use_notifications};
 use crate::page::validation::validate_uuid;
-
-fn mode_to_str(mode: DeleteMode) -> &'static str {
-    match mode {
-        DeleteMode::Transfer => "transfer",
-        DeleteMode::Hard => "hard",
-        DeleteMode::Soft => "soft",
-    }
-}
-
-fn mode_from_str(value: &str) -> Option<DeleteMode> {
-    match value {
-        "transfer" => Some(DeleteMode::Transfer),
-        "hard" => Some(DeleteMode::Hard),
-        "soft" => Some(DeleteMode::Soft),
-        _ => None,
-    }
-}
 
 #[component]
 pub fn DeleteArticle() -> impl IntoView {
@@ -35,7 +19,7 @@ pub fn DeleteArticle() -> impl IntoView {
         query
             .get_untracked()
             .get("mode")
-            .and_then(|value| mode_from_str(&value))
+            .and_then(|value| mode_from_str(&value, &ALL_MODES))
             .unwrap_or(DeleteMode::Transfer),
     );
 
@@ -83,29 +67,9 @@ pub fn DeleteArticle() -> impl IntoView {
         if !checked.get() {
             return view! { <p>loading...</p> }.into_any();
         }
-        let is_transfer = move || mode.get() == DeleteMode::Transfer;
-        let is_hard = move || mode.get() == DeleteMode::Hard;
-        let is_soft = move || mode.get() == DeleteMode::Soft;
         view! {
             <div>
-                <div>
-                    <label>
-                        <input type="radio" name="delete_mode" prop:checked=is_transfer on:change=move |_| mode.set(DeleteMode::Transfer)/>
-                        "transfer"
-                    </label>
-                </div>
-                <div>
-                    <label>
-                        <input type="radio" name="delete_mode" prop:checked=is_soft on:change=move |_| mode.set(DeleteMode::Soft)/>
-                        "soft"
-                    </label>
-                </div>
-                <div>
-                    <label>
-                        <input type="radio" name="delete_mode" prop:checked=is_hard on:change=move |_| mode.set(DeleteMode::Hard)/>
-                        "hard"
-                    </label>
-                </div>
+                <DeleteModePicker mode=mode name="delete_mode" allowed=&ALL_MODES/>
                 <div>
                     <button on:click=move |_| on_delete.run(()) disabled=move || working.get()>
                         {move || if working.get() { "deleting..." } else { "delete" }}

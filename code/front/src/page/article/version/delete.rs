@@ -3,15 +3,8 @@ use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
 use nail_common::request::DeleteMode;
 
+use crate::page::delete_mode::{DeleteModePicker, SOFT_AND_HARD, mode_from_str};
 use crate::page::validation::validate_uuid;
-
-fn mode_from_str(value: &str) -> Option<DeleteMode> {
-    match value {
-        "soft" => Some(DeleteMode::Soft),
-        "hard" => Some(DeleteMode::Hard),
-        _ => None,
-    }
-}
 
 #[component]
 pub fn DeleteVersion() -> impl IntoView {
@@ -25,7 +18,7 @@ pub fn DeleteVersion() -> impl IntoView {
         query
             .get_untracked()
             .get("mode")
-            .and_then(|value| mode_from_str(&value))
+            .and_then(|value| mode_from_str(&value, &SOFT_AND_HARD))
             .unwrap_or(DeleteMode::Soft),
     );
 
@@ -65,28 +58,7 @@ pub fn DeleteVersion() -> impl IntoView {
     view! {
         <h1>"Delete Version"</h1>
         {move || error.get().map(|err| view! { <p class="error">{err}</p> })}
-        <div>
-            <label>
-                <input
-                    type="radio"
-                    name="version_delete_mode"
-                    prop:checked=move || mode.get() == DeleteMode::Soft
-                    on:change=move |_| mode.set(DeleteMode::Soft)
-                />
-                "soft"
-            </label>
-        </div>
-        <div>
-            <label>
-                <input
-                    type="radio"
-                    name="version_delete_mode"
-                    prop:checked=move || mode.get() == DeleteMode::Hard
-                    on:change=move |_| mode.set(DeleteMode::Hard)
-                />
-                "hard"
-            </label>
-        </div>
+        <DeleteModePicker mode=mode name="version_delete_mode" allowed=&SOFT_AND_HARD/>
         <button on:click=move |_| on_delete.run(()) disabled=move || working.get()>
             {move || if working.get() { "deleting..." } else { "delete" }}
         </button>
