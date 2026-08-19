@@ -76,22 +76,6 @@ pub(crate) fn find_by_index_sync(
     Ok(result.elements.iter().map(|element| element.id).collect())
 }
 
-pub(crate) fn find_by_index_in_txn(
-    transaction: &agdb::DbAnyTransactionMut,
-    index_key: &str,
-    value: &str,
-) -> Result<Vec<agdb::DbId>, DbError> {
-    let result = transaction.exec(
-        QueryBuilder::select()
-            .values([agdb::DbValue::String(index_key.to_string())])
-            .search()
-            .index(index_key)
-            .value(value)
-            .query(),
-    )?;
-    Ok(result.elements.iter().map(|element| element.id).collect())
-}
-
 pub(crate) fn find_by_index(
     executor: &impl GraphQuery,
     index_key: &str,
