@@ -2,8 +2,8 @@ use agdb::{DbError, DbErrorType, QueryBuilder};
 use semver::Version;
 
 use crate::repository::graph::{
-    DbHandle, find_by_index, incoming_edges, insert_edge, outgoing_edges, read_node, read_rows,
-    resolve_node_id,
+    DbHandle, find_by_index, highest_version_number, incoming_edges, insert_edge, outgoing_edges,
+    read_node, read_rows, resolve_node_id,
 };
 use crate::repository::schema::{
     ArticleRow, EDGE_ARTICLE_HOLD_VERSION, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_VERSION, IdRow,
@@ -84,22 +84,20 @@ pub async fn create_version(
             return Err(CreateVersionError::ContentHashTaken);
         }
         let edges = outgoing_edges(transaction, article, EDGE_ARTICLE_HOLD_VERSION)?;
-        let mut max_existing: Option<Version> = None;
+        let mut stored_rows = Vec::new();
         for edge in &edges {
-            let Some(stored) =
-                read_node::<VersionRow>(transaction, edge.to)?.map(|row| row.version_number)
-            else {
-                continue;
-            };
-            let parsed = Version::parse(&stored).map_err(|_| CreateVersionError::InvalidNumber)?;
-            if max_existing.as_ref().is_none_or(|max| parsed > *max) {
-                max_existing = Some(parsed);
+            if let Some(row) = read_node::<VersionRow>(transaction, edge.to)? {
+                Version::parse(&row.version_number)
+                    .map_err(|_| CreateVersionError::InvalidNumber)?;
+                stored_rows.push(row);
             }
         }
         let new_version =
             Version::parse(&draft.version_number).map_err(|_| CreateVersionError::InvalidNumber)?;
-        if let Some(max) = max_existing
-            && new_version <= max
+        if let Some(max) = highest_version_number(stored_rows)
+            && new_version
+                <= Version::parse(&max.version_number)
+                    .map_err(|_| CreateVersionError::InvalidNumber)?
         {
             return Err(CreateVersionError::NotGreater);
         }

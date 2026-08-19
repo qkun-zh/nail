@@ -6,7 +6,7 @@ use std::sync::Arc;
 use agdb::{DbAny, DbError, DbErrorType, DbType, DbTypeMarker, Query, QueryBuilder};
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use crate::repository::schema::{KEY_TYPE, alias_of};
+use crate::repository::schema::{KEY_TYPE, VersionRow, alias_of};
 
 pub type DbHandle = Arc<RwLock<DbAny>>;
 
@@ -213,6 +213,17 @@ pub(crate) fn edge_count(
     edge_type: &str,
 ) -> Result<u64, DbError> {
     Ok(outgoing_edges(executor, from, edge_type)?.len() as u64)
+}
+
+pub(crate) fn highest_version_number(rows: Vec<VersionRow>) -> Option<VersionRow> {
+    rows.into_iter().max_by(|left, right| {
+        let left_version = semver::Version::parse(&left.version_number);
+        let right_version = semver::Version::parse(&right.version_number);
+        match (left_version, right_version) {
+            (Ok(left), Ok(right)) => left.cmp(&right),
+            _ => left.version_number.cmp(&right.version_number),
+        }
+    })
 }
 
 pub(crate) fn existing_index_keys(database: &DbAny) -> Result<HashSet<String>, DbError> {

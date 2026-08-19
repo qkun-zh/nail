@@ -4,8 +4,8 @@ use agdb::{DbError, QueryBuilder};
 use nail_common::tag::TagRef;
 
 use crate::repository::graph::{
-    DbHandle, find_by_index, incoming_edges, insert_edge, outgoing_edges, read_rows,
-    resolve_node_id,
+    DbHandle, find_by_index, highest_version_number, incoming_edges, insert_edge, outgoing_edges,
+    read_rows, resolve_node_id,
 };
 use crate::repository::schema::{
     ArticleRow, EDGE_ARTICLE_APPLY_TAG, EDGE_ARTICLE_HOLD_VERSION, EDGE_USER_AUTHOR_ARTICLE,
@@ -445,17 +445,7 @@ fn live_latest_version(
             .map(|element| element.id)
             .collect::<Vec<_>>(),
     )?;
-    Ok(rows
-        .into_iter()
-        .max_by(|left, right| {
-            let left_version = semver::Version::parse(&left.version_number);
-            let right_version = semver::Version::parse(&right.version_number);
-            match (left_version, right_version) {
-                (Ok(left), Ok(right)) => left.cmp(&right),
-                _ => left.version_number.cmp(&right.version_number),
-            }
-        })
-        .map(|row| (row.id, row.version_number)))
+    Ok(highest_version_number(rows).map(|row| (row.id, row.version_number)))
 }
 
 pub async fn articles_of_user(

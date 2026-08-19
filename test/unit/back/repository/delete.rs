@@ -763,3 +763,64 @@ async fn comment_page_tiles_around_soft_deleted_comments() {
     live.sort_unstable();
     assert_eq!(seen, live, "pages tile exactly the live comments");
 }
+
+#[tokio::test]
+async fn delete_refresh_keeps_the_semver_latest_version() {
+    let (state, _) = build_state(&test_config(), 0).await.expect("state");
+    let author_id = create_user(&state, "alice@example.com").await;
+    let article_id = uuid::Uuid::now_v7().to_string();
+    let version_1_0_0 = "ffffffff-ffff-4fff-8fff-ffffffffffff".to_string();
+    let version_9_9_9 = "11111111-1111-4111-8111-111111111111".to_string();
+    let version_10_0_0 = "22222222-2222-4222-8222-222222222222".to_string();
+    create_article(
+        &state.graph,
+        &ArticleDraft {
+            article_id: article_id.clone(),
+            author_id,
+            title: "Article".to_string(),
+            summary: "summary".to_string(),
+            tags: vec!["rust".to_string()],
+            first_version: VersionDraft {
+                version_id: version_1_0_0.clone(),
+                version_number: "1.0.0".to_string(),
+                content_hash: pdf_hash(1),
+                note: "note".to_string(),
+            },
+        },
+    )
+    .await
+    .expect("create article");
+    for (version_id, number, hash_seed) in
+        [(&version_9_9_9, "9.9.9", 2), (&version_10_0_0, "10.0.0", 3)]
+    {
+        crate::repository::version::create_version(
+            &state.graph,
+            &article_id,
+            &VersionDraft {
+                version_id: version_id.clone(),
+                version_number: number.to_string(),
+                content_hash: pdf_hash(hash_seed),
+                note: "note".to_string(),
+            },
+        )
+        .await
+        .expect("create version");
+    }
+
+    delete_version(&state.graph, &version_10_0_0)
+        .await
+        .expect("delete 10.0.0");
+
+    let view = crate::repository::article::read_article(&state.graph, &article_id)
+        .await
+        .expect("read article")
+        .expect("article");
+    assert_eq!(
+        view.latest_version, "9.9.9",
+        "semver max survives the delete"
+    );
+    assert_eq!(
+        view.latest_version_id, version_9_9_9,
+        "latest id follows the semver max"
+    );
+}

@@ -1,7 +1,7 @@
 use agdb::{DbError, QueryBuilder};
 
 use crate::repository::graph::{
-    DbHandle, incoming_edges, outgoing_edges, read_node, resolve_node_id,
+    DbHandle, highest_version_number, incoming_edges, outgoing_edges, read_node, resolve_node_id,
 };
 use crate::repository::schema::{
     EDGE_ARTICLE_HOLD_VERSION, EDGE_COMMENT_ATTACH_VERSION, EDGE_COMMENT_REPLY_COMMENT,
@@ -339,14 +339,14 @@ fn refresh_latest_version_in_txn(
     article: agdb::DbId,
 ) -> Result<(), DbError> {
     let version_edges = outgoing_edges(transaction, article, EDGE_ARTICLE_HOLD_VERSION)?;
-    let latest_id = version_edges
-        .iter()
-        .filter_map(|edge| read_node::<VersionRow>(transaction, edge.to).transpose())
-        .collect::<Result<Vec<_>, _>>()?
-        .into_iter()
-        .map(|row| row.id)
-        .max()
-        .unwrap_or_default();
+    let latest_id = highest_version_number(
+        version_edges
+            .iter()
+            .filter_map(|edge| read_node::<VersionRow>(transaction, edge.to).transpose())
+            .collect::<Result<Vec<_>, _>>()?,
+    )
+    .map(|row| row.id)
+    .unwrap_or_default();
     transaction.exec_mut(
         QueryBuilder::insert()
             .nodes()
