@@ -128,7 +128,10 @@ fn assemble_tree(docs: &[SearchDocOutcome]) -> Vec<SearchArticleItem> {
                     });
                 let article = &mut articles[article_pos];
                 for hit in &version.article_hits {
-                    article.article_hits.push(hit_to_response(hit));
+                    let response = hit_to_response(hit);
+                    if !article.article_hits.contains(&response) {
+                        article.article_hits.push(response);
+                    }
                 }
                 let show_version_card =
                     !version.version_hits.is_empty() || version.version_number_hit;
