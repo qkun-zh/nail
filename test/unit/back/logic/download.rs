@@ -160,6 +160,6 @@ async fn consume_download_token_rejects_a_version_mismatch() {
         .expect_err("version mismatch");
     assert!(matches!(
         error,
-        LogicError::NotFound(message) if message == "article version not found"
+        LogicError::NotFound(message) if message == "version content not found"
     ));
 }
