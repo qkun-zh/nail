@@ -96,7 +96,8 @@ impl FromRequestParts<AppState> for AppPaged {
             params.limit,
             state.config.server.search_page_size,
             state.config.server.max_search_pages,
-        )?;
+        )
+        .map_err(ApiError::from_logic)?;
         Ok(Self((page, limit)))
     }
 }

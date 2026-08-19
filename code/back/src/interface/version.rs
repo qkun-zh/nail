@@ -39,7 +39,8 @@ pub async fn create_version(
         &note,
         upload,
     )
-    .await?;
+    .await
+    .map_err(ApiError::from_logic)?;
 
     Ok(json_response(
         StatusCode::CREATED,
@@ -56,7 +57,8 @@ pub async fn read_versions(
 ) -> Result<impl IntoResponse, ApiError> {
     let data =
         crate::logic::version::read_versions(&state, &principal.user_id, &article_id, page, limit)
-            .await?;
+            .await
+            .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
@@ -77,7 +79,8 @@ pub async fn read_version(
         &version_id,
         params.article_id.as_deref(),
     )
-    .await?;
+    .await
+    .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
@@ -98,7 +101,8 @@ pub async fn update_version(
         &version_id,
         &payload.note,
     )
-    .await?;
+    .await
+    .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
@@ -114,7 +118,8 @@ pub async fn delete_version(
         &version_id,
         payload.mode,
     )
-    .await?;
+    .await
+    .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "deleted"))
 }
 
@@ -125,6 +130,7 @@ pub async fn undelete_soft_version(
 ) -> Result<impl IntoResponse, ApiError> {
     let data =
         crate::logic::version::undelete_soft_version(&state, &principal.user_id, &version_id)
-            .await?;
+            .await
+            .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "undeleted"))
 }

@@ -28,7 +28,7 @@ impl FromRequestParts<AppState> for Principal {
             .and_then(|value| value.to_str().ok())
             .map(str::to_string)
             .ok_or_else(|| ApiError::unauthorized("missing session-token header"))?;
-        let user_id = read_session(state, &token)?;
+        let user_id = read_session(state, &token).map_err(ApiError::from_logic)?;
         Ok(Self { user_id, token })
     }
 }

@@ -30,7 +30,8 @@ pub async fn read_content(
             &article_id,
             &version_id,
         )
-        .await?;
+        .await
+        .map_err(ApiError::from_logic)?;
         return Ok(json_response(StatusCode::OK, MintUrl { url }, "ok"));
     }
 
@@ -44,7 +45,8 @@ pub async fn read_content(
         &version_id,
         token,
     )
-    .await?;
+    .await
+    .map_err(ApiError::from_logic)?;
 
     serve_pdf_file(&path).await
 }
@@ -67,17 +69,17 @@ async fn serve_pdf_file(path: &std::path::Path) -> Result<Response, ApiError> {
                 )
                 .body(axum::body::Body::from_stream(stream))
                 .map_err(|error| {
-                    ApiError::from(LogicError::internal(format!(
+                    ApiError::from_logic(LogicError::internal(format!(
                         "failed to build pdf response: {error}"
                     )))
                 })
         }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            Err(ApiError::from(LogicError::not_found("PDF file not found")))
-        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Err(ApiError::from_logic(
+            LogicError::not_found("PDF file not found"),
+        )),
         Err(error) => {
             tracing::error!(path = %path.display(), error = %error, "failed to open pdf file");
-            Err(ApiError::from(LogicError::internal(
+            Err(ApiError::from_logic(LogicError::internal(
                 "failed to open PDF file",
             )))
         }

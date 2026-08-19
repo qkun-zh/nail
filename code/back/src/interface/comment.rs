@@ -21,7 +21,8 @@ pub async fn create_comment(
         &version_id,
         &payload.content,
     )
-    .await?;
+    .await
+    .map_err(ApiError::from_logic)?;
     Ok(json_response(
         StatusCode::CREATED,
         CommentIdView { comment_id },
@@ -41,7 +42,8 @@ pub async fn create_reply(
         &parent_comment_id,
         &payload.content,
     )
-    .await?;
+    .await
+    .map_err(ApiError::from_logic)?;
     Ok(json_response(
         StatusCode::CREATED,
         CommentIdView { comment_id },
@@ -57,7 +59,8 @@ pub async fn read_comments(
 ) -> Result<impl IntoResponse, ApiError> {
     let data =
         crate::logic::comment::read_comments(&state, &principal.user_id, &version_id, page, limit)
-            .await?;
+            .await
+            .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
@@ -67,7 +70,9 @@ pub async fn read_comment(
     AppPath(comment_id): AppPath<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     let data: CommentView =
-        crate::logic::comment::read_comment(&state, &principal.user_id, &comment_id).await?;
+        crate::logic::comment::read_comment(&state, &principal.user_id, &comment_id)
+            .await
+            .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
@@ -84,7 +89,8 @@ pub async fn read_comment_children(
         page,
         limit,
     )
-    .await?;
+    .await
+    .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
@@ -100,7 +106,8 @@ pub async fn update_comment(
         &comment_id,
         &payload.content,
     )
-    .await?;
+    .await
+    .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
@@ -116,7 +123,8 @@ pub async fn delete_comment(
         &comment_id,
         payload.mode,
     )
-    .await?;
+    .await
+    .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "deleted"))
 }
 
@@ -127,6 +135,7 @@ pub async fn undelete_soft_comment(
 ) -> Result<impl IntoResponse, ApiError> {
     let data =
         crate::logic::comment::undelete_soft_comment(&state, &principal.user_id, &comment_id)
-            .await?;
+            .await
+            .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "undeleted"))
 }

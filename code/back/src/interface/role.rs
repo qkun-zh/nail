@@ -14,8 +14,9 @@ pub async fn create_role(
     principal: Principal,
     AppJson(payload): AppJson<CreateRoleRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let (id, name) =
-        crate::logic::role::create_role(&state, &principal.user_id, &payload.name).await?;
+    let (id, name) = crate::logic::role::create_role(&state, &principal.user_id, &payload.name)
+        .await
+        .map_err(ApiError::from_logic)?;
     Ok(json_response(
         StatusCode::CREATED,
         RoleNameView { id, name },
@@ -28,7 +29,9 @@ pub async fn read_roles(
     principal: Principal,
     AppPaged((page, limit)): AppPaged,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data = crate::logic::role::read_roles(&state, &principal.user_id, page, limit).await?;
+    let data = crate::logic::role::read_roles(&state, &principal.user_id, page, limit)
+        .await
+        .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
@@ -37,7 +40,9 @@ pub async fn read_role(
     principal: Principal,
     AppPath(role_id): AppPath<String>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data = crate::logic::role::read_role(&state, &principal.user_id, &role_id).await?;
+    let data = crate::logic::role::read_role(&state, &principal.user_id, &role_id)
+        .await
+        .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
@@ -55,8 +60,9 @@ pub async fn update_role(
         users_add: &users.add,
         users_remove: &users.remove,
     };
-    let view =
-        crate::logic::role::update_role(&state, &principal.user_id, &role_id, update).await?;
+    let view = crate::logic::role::update_role(&state, &principal.user_id, &role_id, update)
+        .await
+        .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, view, "ok"))
 }
 
@@ -71,6 +77,8 @@ pub async fn delete_role(
             "role delete only supports mode \"hard\"",
         ));
     }
-    let view = crate::logic::role::delete_role(&state, &principal.user_id, &role_id).await?;
+    let view = crate::logic::role::delete_role(&state, &principal.user_id, &role_id)
+        .await
+        .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, view, "deleted"))
 }

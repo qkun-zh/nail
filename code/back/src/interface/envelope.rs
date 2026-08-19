@@ -26,10 +26,15 @@ impl ApiError {
             message: message.into(),
         }
     }
-}
 
-impl From<LogicError> for ApiError {
-    fn from(error: LogicError) -> Self {
+    pub fn with_status(status: StatusCode, message: impl Into<String>) -> Self {
+        Self {
+            status,
+            message: message.into(),
+        }
+    }
+
+    pub fn from_logic(error: LogicError) -> Self {
         match &error {
             LogicError::Internal(_) => {
                 tracing::error!(error = %error, "request failed with internal error");

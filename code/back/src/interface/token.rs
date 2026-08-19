@@ -17,6 +17,8 @@ pub async fn create_token(
         .get(SESSION_TOKEN_HEADER)
         .and_then(|value| value.to_str().ok())
         .map(str::to_string);
-    let data = crate::logic::email::create_token(&state, payload, session_token).await?;
+    let data = crate::logic::email::create_token(&state, payload, session_token)
+        .await
+        .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }

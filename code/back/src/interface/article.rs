@@ -15,7 +15,9 @@ pub async fn search_articles(
     principal: Principal,
     AppQuery(params): AppQuery<nail_common::request::ArticleSearchParams>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data = crate::logic::search::search_articles(&state, &principal.user_id, &params).await?;
+    let data = crate::logic::search::search_articles(&state, &principal.user_id, &params)
+        .await
+        .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
@@ -65,7 +67,9 @@ pub async fn create_article(
         upload,
     };
     let (article_id, version_id) =
-        crate::logic::article::create_article(&state, &principal.user_id, input).await?;
+        crate::logic::article::create_article(&state, &principal.user_id, input)
+            .await
+            .map_err(ApiError::from_logic)?;
 
     Ok(json_response(
         StatusCode::CREATED,
@@ -82,7 +86,9 @@ pub async fn read_article(
     principal: Principal,
     AppPath(article_id): AppPath<String>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data = crate::logic::article::read_article(&state, &principal.user_id, &article_id).await?;
+    let data = crate::logic::article::read_article(&state, &principal.user_id, &article_id)
+        .await
+        .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
@@ -100,7 +106,8 @@ pub async fn update_article(
         &payload.summary,
         &payload.tags,
     )
-    .await?;
+    .await
+    .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
@@ -116,7 +123,8 @@ pub async fn delete_article(
         &article_id,
         payload.mode,
     )
-    .await?;
+    .await
+    .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "deleted"))
 }
 
@@ -127,6 +135,7 @@ pub async fn undelete_soft_article(
 ) -> Result<impl IntoResponse, ApiError> {
     let data =
         crate::logic::article::undelete_soft_article(&state, &principal.user_id, &article_id)
-            .await?;
+            .await
+            .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "undeleted"))
 }

@@ -30,7 +30,7 @@ pub(crate) async fn stream_pdf_field(
         .join(format!("{}.pdf", uuid::Uuid::now_v7()));
     let temp = TempPdf::new(temp_path.clone());
     let mut file = tokio::fs::File::create(&temp_path).await.map_err(|error| {
-        ApiError::from(crate::logic::error::LogicError::internal(format!(
+        ApiError::from_logic(crate::logic::error::LogicError::internal(format!(
             "failed to create temp pdf: {error}"
         )))
     })?;
@@ -47,7 +47,7 @@ pub(crate) async fn stream_pdf_field(
             .map_err(|error| ApiError::bad_request(error.to_string()))?;
         hasher.update(&chunk);
         file.write_all(&chunk).await.map_err(|error| {
-            ApiError::from(crate::logic::error::LogicError::internal(format!(
+            ApiError::from_logic(crate::logic::error::LogicError::internal(format!(
                 "failed to write temp pdf: {error}"
             )))
         })?;
@@ -56,7 +56,7 @@ pub(crate) async fn stream_pdf_field(
         .finish()
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
     file.flush().await.map_err(|error| {
-        ApiError::from(crate::logic::error::LogicError::internal(format!(
+        ApiError::from_logic(crate::logic::error::LogicError::internal(format!(
             "failed to flush temp pdf: {error}"
         )))
     })?;
@@ -67,10 +67,7 @@ pub(crate) async fn stream_pdf_field(
 
 pub(crate) fn map_multipart_error(error: &axum::extract::multipart::MultipartError) -> ApiError {
     tracing::debug!(error = %error, "multipart form rejected");
-    ApiError {
-        status: error.status(),
-        message: "invalid multipart form data".to_string(),
-    }
+    ApiError::with_status(error.status(), "invalid multipart form data")
 }
 
 pub(crate) enum MultipartField {

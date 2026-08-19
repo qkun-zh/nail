@@ -17,7 +17,9 @@ pub async fn read_users(
     principal: Principal,
     AppPaged((page, limit)): AppPaged,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data = crate::logic::user::read_users(&state, &principal.user_id, page, limit).await?;
+    let data = crate::logic::user::read_users(&state, &principal.user_id, page, limit)
+        .await
+        .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
@@ -25,8 +27,11 @@ pub async fn create_user(
     State(state): State<AppState>,
     AppJson(payload): AppJson<TokenRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let user_id = crate::logic::user::create_user(&state, &payload.pow).await?;
-    let session_token = crate::logic::session::create_session(&state, &user_id)?;
+    let user_id = crate::logic::user::create_user(&state, &payload.pow)
+        .await
+        .map_err(ApiError::from_logic)?;
+    let session_token =
+        crate::logic::session::create_session(&state, &user_id).map_err(ApiError::from_logic)?;
     Ok(json_response(
         StatusCode::OK,
         SessionTokenView { session_token },
@@ -55,7 +60,8 @@ pub async fn read_user(
         name_requested,
         email_hash_requested,
     )
-    .await?;
+    .await
+    .map_err(ApiError::from_logic)?;
     Ok(json_response::<UserView>(StatusCode::OK, data, "ok"))
 }
 
@@ -65,8 +71,9 @@ pub async fn update_user(
     AppPath(user_id): AppPath<String>,
     AppJson(payload): AppJson<UserUpdateRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data =
-        crate::logic::user::update_user(&state, &principal.user_id, &user_id, payload).await?;
+    let data = crate::logic::user::update_user(&state, &principal.user_id, &user_id, payload)
+        .await
+        .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
 
@@ -76,8 +83,9 @@ pub async fn delete_user(
     AppPath(user_id): AppPath<String>,
     AppJson(payload): AppJson<UserDeleteRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data =
-        crate::logic::user::delete_user(&state, &principal.user_id, &user_id, payload).await?;
+    let data = crate::logic::user::delete_user(&state, &principal.user_id, &user_id, payload)
+        .await
+        .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "deleted"))
 }
 
@@ -86,6 +94,8 @@ pub async fn undelete_soft_user(
     principal: Principal,
     AppPath(user_id): AppPath<String>,
 ) -> Result<impl IntoResponse, ApiError> {
-    crate::logic::user::undelete_soft_user(&state, &principal.user_id, &user_id).await?;
+    crate::logic::user::undelete_soft_user(&state, &principal.user_id, &user_id)
+        .await
+        .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, EmptyView {}, "ok"))
 }
