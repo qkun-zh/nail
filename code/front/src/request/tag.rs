@@ -17,7 +17,7 @@ pub async fn read_tags(page: Option<u64>, limit: Option<u64>) -> RequestResult<T
         limit_str = l.to_string();
         query.push(("limit", &limit_str));
     }
-    let path = url::build_path_with_query(&["tag", "list"], &query);
+    let path = url::build_path_with_query(&["tag", "read"], &query);
     http::get_json(&path, true).await
 }
 
