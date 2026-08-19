@@ -1,7 +1,8 @@
 use agdb::{DbError, DbErrorType, QueryBuilder};
 
 use crate::repository::graph::{
-    DbHandle, find_by_index_sync, read_node_sync, read_rows_sync, resolve_node_id_sync,
+    DbHandle, find_by_index, incoming_edges, insert_edge, outgoing_edges, read_node, read_rows,
+    resolve_node_id,
 };
 use crate::repository::schema::{
     EDGE_ROLE_GRANT_PERMISSION, EDGE_USER_HOLD_ROLE, ENTITY_TYPE_PERMISSION, ENTITY_TYPE_ROLE,
@@ -85,7 +86,7 @@ pub async fn create_role(db: &DbHandle, name: &str) -> Result<String, DbError> {
 
 pub async fn create_permission(db: &DbHandle, name: &str) -> Result<(), DbError> {
     let mut guard = db.write().await;
-    if !find_by_index_sync(&guard, KEY_PERMISSION_NAME, name)?.is_empty() {
+    if !find_by_index(&guard, KEY_PERMISSION_NAME, name)?.is_empty() {
         return Ok(());
     }
     guard.exec_mut(
@@ -110,28 +111,15 @@ pub async fn grant_permission_to_role(
     let mut guard = db.write().await;
     let role_id = resolve_role_id_by_name_sync(&guard, role_name)?
         .ok_or_else(|| not_found(ENTITY_TYPE_ROLE, role_name))?;
-    let permission_id = resolve_node_id_sync(&guard, ENTITY_TYPE_PERMISSION, permission_name)?
+    let permission_id = resolve_node_id(&guard, ENTITY_TYPE_PERMISSION, permission_name)?
         .ok_or_else(|| not_found(ENTITY_TYPE_PERMISSION, permission_name))?;
-    let edges = guard.exec(
-        QueryBuilder::search()
-            .from(role_id)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_ROLE_GRANT_PERMISSION)
-            .query(),
-    )?;
-    if !edges.elements.iter().any(|edge| edge.to == permission_id) {
-        guard.exec_mut(
-            QueryBuilder::insert()
-                .edges()
-                .from(role_id)
-                .to([permission_id])
-                .values([[(KEY_TYPE, EDGE_ROLE_GRANT_PERMISSION).into()]])
-                .query(),
+    let edges = outgoing_edges(&guard, role_id, EDGE_ROLE_GRANT_PERMISSION)?;
+    if !edges.iter().any(|edge| edge.to == permission_id) {
+        insert_edge(
+            &mut guard,
+            EDGE_ROLE_GRANT_PERMISSION,
+            role_id.into(),
+            permission_id.into(),
         )?;
     }
     Ok(())
@@ -139,30 +127,17 @@ pub async fn grant_permission_to_role(
 
 pub async fn hold_role(db: &DbHandle, user_id: &str, role_name: &str) -> Result<(), DbError> {
     let mut guard = db.write().await;
-    let user_db_id = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)?
+    let user_db_id = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)?
         .ok_or_else(|| not_found(ENTITY_TYPE_USER, user_id))?;
     let role_db_id = resolve_role_id_by_name_sync(&guard, role_name)?
         .ok_or_else(|| not_found(ENTITY_TYPE_ROLE, role_name))?;
-    let edges = guard.exec(
-        QueryBuilder::search()
-            .from(user_db_id)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_USER_HOLD_ROLE)
-            .query(),
-    )?;
-    if !edges.elements.iter().any(|edge| edge.to == role_db_id) {
-        guard.exec_mut(
-            QueryBuilder::insert()
-                .edges()
-                .from(user_db_id)
-                .to([role_db_id])
-                .values([[(KEY_TYPE, EDGE_USER_HOLD_ROLE).into()]])
-                .query(),
+    let edges = outgoing_edges(&guard, user_db_id, EDGE_USER_HOLD_ROLE)?;
+    if !edges.iter().any(|edge| edge.to == role_db_id) {
+        insert_edge(
+            &mut guard,
+            EDGE_USER_HOLD_ROLE,
+            user_db_id.into(),
+            role_db_id.into(),
         )?;
     }
     Ok(())
@@ -175,25 +150,14 @@ pub async fn user_holds_role(
     role_name: &str,
 ) -> Result<bool, DbError> {
     let guard = db.read().await;
-    let Some(user_db_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)? else {
+    let Some(user_db_id) = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)? else {
         return Ok(false);
     };
     let Some(role_db_id) = resolve_role_id_by_name_sync(&guard, role_name)? else {
         return Ok(false);
     };
-    let edges = guard.exec(
-        QueryBuilder::search()
-            .from(user_db_id)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_USER_HOLD_ROLE)
-            .query(),
-    )?;
-    Ok(edges.elements.iter().any(|edge| edge.to == role_db_id))
+    let edges = outgoing_edges(&guard, user_db_id, EDGE_USER_HOLD_ROLE)?;
+    Ok(edges.iter().any(|edge| edge.to == role_db_id))
 }
 
 pub async fn users_holding_role(db: &DbHandle, role_name: &str) -> Result<Vec<String>, DbError> {
@@ -201,21 +165,10 @@ pub async fn users_holding_role(db: &DbHandle, role_name: &str) -> Result<Vec<St
     let Some(role_db_id) = resolve_role_id_by_name_sync(&guard, role_name)? else {
         return Ok(Vec::new());
     };
-    let edges = guard.exec(
-        QueryBuilder::search()
-            .to(role_db_id)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_USER_HOLD_ROLE)
-            .query(),
-    )?;
+    let edges = incoming_edges(&guard, role_db_id, EDGE_USER_HOLD_ROLE)?;
     let mut users = Vec::new();
-    for edge in &edges.elements {
-        if let Some(row) = read_node_sync::<IdRow>(&guard, edge.from)? {
+    for edge in &edges {
+        if let Some(row) = read_node::<IdRow>(&guard, edge.from)? {
             users.push(row.id);
         }
     }
@@ -229,44 +182,17 @@ pub async fn user_holds_permission(
     permission_name: &str,
 ) -> Result<bool, DbError> {
     let guard = db.read().await;
-    let Some(user_db_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)? else {
+    let Some(user_db_id) = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)? else {
         return Ok(false);
     };
-    let Some(permission_db_id) =
-        resolve_node_id_sync(&guard, ENTITY_TYPE_PERMISSION, permission_name)?
+    let Some(permission_db_id) = resolve_node_id(&guard, ENTITY_TYPE_PERMISSION, permission_name)?
     else {
         return Ok(false);
     };
-    let held_roles = guard.exec(
-        QueryBuilder::search()
-            .from(user_db_id)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_USER_HOLD_ROLE)
-            .query(),
-    )?;
-    for role_edge in &held_roles.elements {
-        let grants = guard.exec(
-            QueryBuilder::search()
-                .from(role_edge.to)
-                .where_()
-                .distance(agdb::CountComparison::Equal(1))
-                .and()
-                .edge()
-                .and()
-                .key(KEY_TYPE)
-                .value(EDGE_ROLE_GRANT_PERMISSION)
-                .query(),
-        )?;
-        if grants
-            .elements
-            .iter()
-            .any(|grant| grant.to == permission_db_id)
-        {
+    let held_roles = outgoing_edges(&guard, user_db_id, EDGE_USER_HOLD_ROLE)?;
+    for role_edge in &held_roles {
+        let grants = outgoing_edges(&guard, role_edge.to, EDGE_ROLE_GRANT_PERMISSION)?;
+        if grants.iter().any(|grant| grant.to == permission_db_id) {
             return Ok(true);
         }
     }
@@ -282,7 +208,7 @@ pub struct RoleView {
 
 pub async fn read_role_by_id(db: &DbHandle, role_id: &str) -> Result<Option<RoleView>, DbError> {
     let guard = db.read().await;
-    let Some(role_db_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_ROLE, role_id)? else {
+    let Some(role_db_id) = resolve_node_id(&guard, ENTITY_TYPE_ROLE, role_id)? else {
         return Ok(None);
     };
     Ok(Some(read_role_view_sync(&guard, role_db_id)?))
@@ -307,7 +233,7 @@ fn resolve_role_id_by_name_sync(
     guard: &agdb::DbAny,
     role_name: &str,
 ) -> Result<Option<agdb::DbId>, DbError> {
-    Ok(find_by_index_sync(guard, KEY_ROLE_NAME, role_name)?
+    Ok(find_by_index(guard, KEY_ROLE_NAME, role_name)?
         .first()
         .copied())
 }
@@ -338,24 +264,13 @@ pub async fn read_role_members(db: &DbHandle, role_name: &str) -> Result<Vec<Str
 
 pub async fn roles_of_user(db: &DbHandle, user_id: &str) -> Result<Vec<String>, DbError> {
     let guard = db.read().await;
-    let Some(user_db_id) = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)? else {
+    let Some(user_db_id) = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)? else {
         return Ok(Vec::new());
     };
-    let edges = guard.exec(
-        QueryBuilder::search()
-            .from(user_db_id)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_USER_HOLD_ROLE)
-            .query(),
-    )?;
+    let edges = outgoing_edges(&guard, user_db_id, EDGE_USER_HOLD_ROLE)?;
     let mut roles = Vec::new();
-    for edge in &edges.elements {
-        if let Some(row) = read_node_sync::<RoleRow>(&guard, edge.to)? {
+    for edge in &edges {
+        if let Some(row) = read_node::<RoleRow>(&guard, edge.to)? {
             roles.push(row.role_name);
         }
     }
@@ -371,7 +286,7 @@ pub async fn revoke_permission_from_role(
     let mut guard = db.write().await;
     let role_id = resolve_role_id_by_name_sync(&guard, role_name)?
         .ok_or_else(|| not_found(ENTITY_TYPE_ROLE, role_name))?;
-    let permission_id = resolve_node_id_sync(&guard, ENTITY_TYPE_PERMISSION, permission_name)?
+    let permission_id = resolve_node_id(&guard, ENTITY_TYPE_PERMISSION, permission_name)?
         .ok_or_else(|| not_found(ENTITY_TYPE_PERMISSION, permission_name))?;
     remove_outgoing_edge(
         &mut guard,
@@ -384,7 +299,7 @@ pub async fn revoke_permission_from_role(
 
 pub async fn unhold_role(db: &DbHandle, user_id: &str, role_name: &str) -> Result<(), DbError> {
     let mut guard = db.write().await;
-    let user_db_id = resolve_node_id_sync(&guard, ENTITY_TYPE_USER, user_id)?
+    let user_db_id = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)?
         .ok_or_else(|| not_found(ENTITY_TYPE_USER, user_id))?;
     let role_db_id = resolve_role_id_by_name_sync(&guard, role_name)?
         .ok_or_else(|| not_found(ENTITY_TYPE_ROLE, role_name))?;
@@ -401,8 +316,8 @@ pub async fn delete_role(db: &DbHandle, role_name: &str) -> Result<(), DbError> 
 }
 
 fn read_role_view_sync(db: &agdb::DbAny, role_id: agdb::DbId) -> Result<RoleView, DbError> {
-    let row = read_node_sync::<RoleRow>(db, role_id)?
-        .ok_or_else(|| not_found(ENTITY_TYPE_ROLE, "row"))?;
+    let row =
+        read_node::<RoleRow>(db, role_id)?.ok_or_else(|| not_found(ENTITY_TYPE_ROLE, "row"))?;
     let mut role = RoleView {
         id: row.id,
         role_name: row.role_name,
@@ -418,23 +333,12 @@ fn read_edge_rows<T>(db: &agdb::DbAny, from: agdb::DbId, edge_type: &str) -> Res
 where
     T: agdb::DbType<ValueType = T> + agdb::DbTypeMarker,
 {
-    let edges = db.exec(
-        QueryBuilder::search()
-            .from(from)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(edge_type)
-            .query(),
-    )?;
-    let ids: Vec<agdb::DbId> = edges.elements.iter().map(|edge| edge.to).collect();
+    let edges = outgoing_edges(db, from, edge_type)?;
+    let ids: Vec<agdb::DbId> = edges.iter().map(|edge| edge.to).collect();
     if ids.is_empty() {
         return Ok(Vec::new());
     }
-    read_rows_sync::<T>(db, &ids)
+    read_rows::<T>(db, &ids)
 }
 
 fn remove_outgoing_edge(
@@ -443,19 +347,8 @@ fn remove_outgoing_edge(
     to: agdb::DbId,
     edge_type: &str,
 ) -> Result<(), DbError> {
-    let edges = db.exec(
-        QueryBuilder::search()
-            .from(from)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(edge_type)
-            .query(),
-    )?;
-    if let Some(edge) = edges.elements.iter().find(|edge| edge.to == to) {
+    let edges = outgoing_edges(db, from, edge_type)?;
+    if let Some(edge) = edges.iter().find(|edge| edge.to == to) {
         db.exec_mut(QueryBuilder::remove().ids([edge.id]).query())?;
     }
     Ok(())

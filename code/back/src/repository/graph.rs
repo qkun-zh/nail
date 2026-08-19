@@ -112,20 +112,6 @@ where
     result.try_into()
 }
 
-pub(crate) fn read_node_in_txn<T>(
-    transaction: &agdb::DbAnyTransactionMut,
-    id: agdb::DbId,
-) -> Result<Option<T>, DbError>
-where
-    T: DbType<ValueType = T> + DbTypeMarker,
-{
-    Ok(
-        read_rows_in_txn::<T>(transaction, std::slice::from_ref(&id))?
-            .into_iter()
-            .next(),
-    )
-}
-
 pub(crate) fn read_rows_sync<T>(database: &DbAny, ids: &[agdb::DbId]) -> Result<Vec<T>, DbError>
 where
     T: DbType<ValueType = T> + DbTypeMarker,

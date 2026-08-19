@@ -1,8 +1,7 @@
 use agdb::{DbError, QueryBuilder};
 
 use crate::repository::graph::{
-    DbHandle, insert_edge, read_node_in_txn, read_rows_sync, resolve_node_id_in_txn,
-    resolve_node_id_sync,
+    DbHandle, incoming_edges, insert_edge, outgoing_edges, read_node, read_rows, resolve_node_id,
 };
 use crate::repository::schema::{
     CommentRow, EDGE_COMMENT_ATTACH_VERSION, EDGE_COMMENT_REPLY_COMMENT, EDGE_USER_AUTHOR_COMMENT,
@@ -55,17 +54,16 @@ pub async fn create_top_level_comment(
 ) -> Result<(), CreateCommentError> {
     let mut guard = db.write().await;
     guard.transaction_mut(|transaction| {
-        let Some(user) = resolve_node_id_in_txn(transaction, ENTITY_TYPE_USER, user_id)? else {
+        let Some(user) = resolve_node_id(transaction, ENTITY_TYPE_USER, user_id)? else {
             return Err(CreateCommentError::TargetNotFound);
         };
-        let Some(version) = resolve_node_id_in_txn(transaction, ENTITY_TYPE_VERSION, version_id)?
-        else {
+        let Some(version) = resolve_node_id(transaction, ENTITY_TYPE_VERSION, version_id)? else {
             return Err(CreateCommentError::TargetNotFound);
         };
-        if crate::repository::delete::has_soft_deleted_flag_in_txn(transaction, version)? {
+        if crate::repository::delete::has_soft_deleted_flag(transaction, version)? {
             return Err(CreateCommentError::TargetNotFound);
         }
-        if resolve_node_id_in_txn(transaction, ENTITY_TYPE_COMMENT, comment_id)?.is_some() {
+        if resolve_node_id(transaction, ENTITY_TYPE_COMMENT, comment_id)?.is_some() {
             return Err(CreateCommentError::CommentIdExists);
         }
         let comment_alias = alias_of(ENTITY_TYPE_COMMENT, comment_id);
@@ -107,15 +105,14 @@ pub async fn create_reply_comment(
 ) -> Result<(), CreateCommentError> {
     let mut guard = db.write().await;
     guard.transaction_mut(|transaction| {
-        let Some(user) = resolve_node_id_in_txn(transaction, ENTITY_TYPE_USER, user_id)? else {
+        let Some(user) = resolve_node_id(transaction, ENTITY_TYPE_USER, user_id)? else {
             return Err(CreateCommentError::TargetNotFound);
         };
-        let Some(parent) =
-            resolve_node_id_in_txn(transaction, ENTITY_TYPE_COMMENT, parent_comment_id)?
+        let Some(parent) = resolve_node_id(transaction, ENTITY_TYPE_COMMENT, parent_comment_id)?
         else {
             return Err(CreateCommentError::TargetNotFound);
         };
-        if crate::repository::delete::has_soft_deleted_flag_in_txn(transaction, parent)? {
+        if crate::repository::delete::has_soft_deleted_flag(transaction, parent)? {
             return Err(CreateCommentError::TargetNotFound);
         }
         if parent_chain_depth_in_txn(transaction, parent_comment_id, max_tree_depth)?
@@ -123,7 +120,7 @@ pub async fn create_reply_comment(
         {
             return Err(CreateCommentError::CommentTreeTooDeep);
         }
-        if resolve_node_id_in_txn(transaction, ENTITY_TYPE_COMMENT, comment_id)?.is_some() {
+        if resolve_node_id(transaction, ENTITY_TYPE_COMMENT, comment_id)?.is_some() {
             return Err(CreateCommentError::CommentIdExists);
         }
         let comment_alias = alias_of(ENTITY_TYPE_COMMENT, comment_id);
@@ -163,28 +160,15 @@ fn parent_chain_depth_in_txn(
     let mut depth = 0usize;
     let mut current = comment_id.to_string();
     loop {
-        let Some(current_node) =
-            resolve_node_id_in_txn(transaction, ENTITY_TYPE_COMMENT, &current)?
+        let Some(current_node) = resolve_node_id(transaction, ENTITY_TYPE_COMMENT, &current)?
         else {
             return Ok(depth);
         };
-        let edges = transaction.exec(
-            QueryBuilder::search()
-                .from(current_node)
-                .where_()
-                .distance(agdb::CountComparison::Equal(1))
-                .and()
-                .edge()
-                .and()
-                .key(KEY_TYPE)
-                .value(EDGE_COMMENT_REPLY_COMMENT)
-                .query(),
-        )?;
-        let Some(parent_node) = edges.elements.first().map(|edge| edge.to) else {
+        let edges = outgoing_edges(transaction, current_node, EDGE_COMMENT_REPLY_COMMENT)?;
+        let Some(parent_node) = edges.first().map(|edge| edge.to) else {
             return Ok(depth);
         };
-        let Some(parent_id) =
-            read_node_in_txn::<IdRow>(transaction, parent_node)?.map(|row| row.id)
+        let Some(parent_id) = read_node::<IdRow>(transaction, parent_node)?.map(|row| row.id)
         else {
             return Ok(depth);
         };
@@ -198,23 +182,12 @@ fn parent_chain_depth_in_txn(
 
 pub async fn owner_of_comment(db: &DbHandle, comment_id: &str) -> Result<Option<String>, DbError> {
     let guard = db.read().await;
-    let Some(comment) = resolve_node_id_sync(&guard, ENTITY_TYPE_COMMENT, comment_id)? else {
+    let Some(comment) = resolve_node_id(&guard, ENTITY_TYPE_COMMENT, comment_id)? else {
         return Ok(None);
     };
-    let edges = guard.exec(
-        QueryBuilder::search()
-            .to(comment)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_USER_AUTHOR_COMMENT)
-            .query(),
-    )?;
-    Ok(edges.elements.first().and_then(|edge| {
-        read_rows_sync::<IdRow>(&guard, &[edge.from])
+    let edges = incoming_edges(&guard, comment, EDGE_USER_AUTHOR_COMMENT)?;
+    Ok(edges.first().and_then(|edge| {
+        read_rows::<IdRow>(&guard, &[edge.from])
             .ok()
             .and_then(|rows| rows.into_iter().next())
             .map(|row| row.id)
@@ -228,7 +201,7 @@ pub async fn read_comments_page_by_version(
     offset: u64,
 ) -> Result<(Vec<CommentTreeItem>, bool), DbError> {
     let guard = db.read().await;
-    let Some(version) = resolve_node_id_sync(&guard, ENTITY_TYPE_VERSION, version_id)? else {
+    let Some(version) = resolve_node_id(&guard, ENTITY_TYPE_VERSION, version_id)? else {
         return Ok((Vec::new(), false));
     };
     if crate::repository::delete::has_soft_deleted_flag(&guard, version)? {
@@ -255,7 +228,7 @@ pub async fn read_comment_children_page(
     offset: u64,
 ) -> Result<(Vec<CommentTreeItem>, bool), DbError> {
     let guard = db.read().await;
-    let Some(parent) = resolve_node_id_sync(&guard, ENTITY_TYPE_COMMENT, parent_comment_id)? else {
+    let Some(parent) = resolve_node_id(&guard, ENTITY_TYPE_COMMENT, parent_comment_id)? else {
         return Err(DbError::query(
             agdb::DbErrorType::NotFound,
             "parent comment not found",
@@ -307,7 +280,7 @@ fn incoming_comment_ids_page(
     let has_next = comments.elements.len() > limit;
     let mut ids = Vec::with_capacity(comments.elements.len().min(limit));
     for element in comments.elements.iter().take(limit) {
-        if let Some(id) = read_rows_sync::<IdRow>(guard, &[element.id])?
+        if let Some(id) = read_rows::<IdRow>(guard, &[element.id])?
             .into_iter()
             .next()
             .map(|row| row.id)
@@ -319,29 +292,18 @@ fn incoming_comment_ids_page(
 }
 
 fn child_count_sync(guard: &agdb::DbAny, comment: agdb::DbId) -> Result<u64, DbError> {
-    let edges = guard.exec(
-        QueryBuilder::search()
-            .to(comment)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(EDGE_COMMENT_REPLY_COMMENT)
-            .query(),
-    )?;
-    Ok(edges.elements.len() as u64)
+    let edges = incoming_edges(guard, comment, EDGE_COMMENT_REPLY_COMMENT)?;
+    Ok(edges.len() as u64)
 }
 
 fn read_comment_item_any_sync(
     guard: &agdb::DbAny,
     comment_id: &str,
 ) -> Result<Option<CommentTreeItem>, DbError> {
-    let Some(comment) = resolve_node_id_sync(guard, ENTITY_TYPE_COMMENT, comment_id)? else {
+    let Some(comment) = resolve_node_id(guard, ENTITY_TYPE_COMMENT, comment_id)? else {
         return Ok(None);
     };
-    let content = read_rows_sync::<CommentRow>(guard, &[comment])?
+    let content = read_rows::<CommentRow>(guard, &[comment])?
         .into_iter()
         .next()
         .map(|row| row.content)
@@ -362,7 +324,7 @@ fn read_comment_item_sync(
     guard: &agdb::DbAny,
     comment_id: &str,
 ) -> Result<Option<CommentTreeItem>, DbError> {
-    let Some(comment) = resolve_node_id_sync(guard, ENTITY_TYPE_COMMENT, comment_id)? else {
+    let Some(comment) = resolve_node_id(guard, ENTITY_TYPE_COMMENT, comment_id)? else {
         return Ok(None);
     };
     if crate::repository::delete::has_soft_deleted_flag(guard, comment)? {
@@ -389,23 +351,11 @@ fn read_incoming_node_id(
     node: agdb::DbId,
     edge_type: &str,
 ) -> Result<String, DbError> {
-    let edges = guard.exec(
-        QueryBuilder::search()
-            .to(node)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(edge_type)
-            .query(),
-    )?;
+    let edges = incoming_edges(guard, node, edge_type)?;
     Ok(edges
-        .elements
         .first()
         .and_then(|edge| {
-            read_rows_sync::<IdRow>(guard, &[edge.from])
+            read_rows::<IdRow>(guard, &[edge.from])
                 .ok()
                 .and_then(|rows| rows.into_iter().next())
                 .map(|row| row.id)
@@ -418,20 +368,9 @@ fn read_outgoing_node_id(
     node: agdb::DbId,
     edge_type: &str,
 ) -> Result<Option<String>, DbError> {
-    let edges = guard.exec(
-        QueryBuilder::search()
-            .from(node)
-            .where_()
-            .distance(agdb::CountComparison::Equal(1))
-            .and()
-            .edge()
-            .and()
-            .key(KEY_TYPE)
-            .value(edge_type)
-            .query(),
-    )?;
-    Ok(edges.elements.first().and_then(|edge| {
-        read_rows_sync::<IdRow>(guard, &[edge.to])
+    let edges = outgoing_edges(guard, node, edge_type)?;
+    Ok(edges.first().and_then(|edge| {
+        read_rows::<IdRow>(guard, &[edge.to])
             .ok()
             .and_then(|rows| rows.into_iter().next())
             .map(|row| row.id)
@@ -444,7 +383,7 @@ pub async fn update_comment_content(
     content: &str,
 ) -> Result<bool, DbError> {
     let mut guard = db.write().await;
-    let Some(node) = resolve_node_id_sync(&guard, ENTITY_TYPE_COMMENT, comment_id)? else {
+    let Some(node) = resolve_node_id(&guard, ENTITY_TYPE_COMMENT, comment_id)? else {
         return Ok(false);
     };
     if crate::repository::delete::has_soft_deleted_flag(&guard, node)? {
@@ -467,23 +406,12 @@ pub async fn version_of_comment(
     let guard = db.read().await;
     let mut current = comment_id.to_string();
     loop {
-        let Some(comment) = resolve_node_id_sync(&guard, ENTITY_TYPE_COMMENT, &current)? else {
+        let Some(comment) = resolve_node_id(&guard, ENTITY_TYPE_COMMENT, &current)? else {
             return Ok(None);
         };
-        let parent_edges = guard.exec(
-            QueryBuilder::search()
-                .from(comment)
-                .where_()
-                .distance(agdb::CountComparison::Equal(1))
-                .and()
-                .edge()
-                .and()
-                .key(KEY_TYPE)
-                .value(EDGE_COMMENT_REPLY_COMMENT)
-                .query(),
-        )?;
-        if let Some(parent_node) = parent_edges.elements.first().map(|edge| edge.to)
-            && let Some(parent_id) = read_rows_sync::<IdRow>(&guard, &[parent_node])?
+        let parent_edges = outgoing_edges(&guard, comment, EDGE_COMMENT_REPLY_COMMENT)?;
+        if let Some(parent_node) = parent_edges.first().map(|edge| edge.to)
+            && let Some(parent_id) = read_rows::<IdRow>(&guard, &[parent_node])?
                 .into_iter()
                 .next()
                 .map(|row| row.id)
@@ -491,20 +419,9 @@ pub async fn version_of_comment(
             current = parent_id;
             continue;
         }
-        let version_edges = guard.exec(
-            QueryBuilder::search()
-                .from(comment)
-                .where_()
-                .distance(agdb::CountComparison::Equal(1))
-                .and()
-                .edge()
-                .and()
-                .key(KEY_TYPE)
-                .value(EDGE_COMMENT_ATTACH_VERSION)
-                .query(),
-        )?;
-        return Ok(version_edges.elements.first().and_then(|edge| {
-            read_rows_sync::<IdRow>(&guard, &[edge.to])
+        let version_edges = outgoing_edges(&guard, comment, EDGE_COMMENT_ATTACH_VERSION)?;
+        return Ok(version_edges.first().and_then(|edge| {
+            read_rows::<IdRow>(&guard, &[edge.to])
                 .ok()
                 .and_then(|rows| rows.into_iter().next())
                 .map(|row| row.id)

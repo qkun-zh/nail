@@ -92,13 +92,6 @@ pub(crate) fn has_soft_deleted_flag(
     Ok(!result.elements.is_empty())
 }
 
-pub(crate) fn has_soft_deleted_flag_in_txn(
-    transaction: &agdb::DbAnyTransactionMut,
-    id: agdb::DbId,
-) -> Result<bool, DbError> {
-    has_soft_deleted_flag(transaction, id)
-}
-
 pub async fn soft_delete_article(db: &DbHandle, article_id: &str) -> Result<(), DbError> {
     adjust_soft_delete_count(db, ENTITY_TYPE_ARTICLE, article_id, 1).await
 }

@@ -77,7 +77,7 @@ pub async fn create_version(
         let Some(article) = resolve_node_id(transaction, ENTITY_TYPE_ARTICLE, article_id)? else {
             return Err(CreateVersionError::ArticleMissing);
         };
-        if crate::repository::delete::has_soft_deleted_flag_in_txn(transaction, article)? {
+        if crate::repository::delete::has_soft_deleted_flag(transaction, article)? {
             return Err(CreateVersionError::ArticleMissing);
         }
         if !find_by_index(transaction, KEY_CONTENT_HASH, &draft.content_hash)?.is_empty() {
