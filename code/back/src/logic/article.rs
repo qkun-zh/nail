@@ -10,7 +10,8 @@ use crate::logic::authorize::{
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::search::sync_article_best_effort;
 use crate::logic::version::{
-    place_uploaded_pdf, remove_orphaned_pdfs, validate_note, validate_version,
+    place_uploaded_pdf, reject_duplicate_content_hash, remove_orphaned_pdfs, validate_note,
+    validate_version,
 };
 use crate::repository::article::{
     ArticleDraft, ArticleUpdate, CreateArticleError, UpdateArticleError,
@@ -24,7 +25,7 @@ use crate::repository::role::{
 };
 use crate::repository::tag::read_tag_by_name;
 use crate::repository::transfer::{TransferTargetError, transfer_article};
-use crate::repository::version::{VersionDraft, content_hash_owner, read_version};
+use crate::repository::version::VersionDraft;
 
 pub struct ArticleCreateInput<'a> {
     pub title: &'a str,
@@ -252,23 +253,6 @@ pub async fn undelete_soft_article(
     Ok(ArticleIdView {
         article_id: article_id.to_string(),
     })
-}
-
-async fn reject_duplicate_content_hash(state: &AppState, hash: &str) -> Result<(), LogicError> {
-    let Some(owner) = content_hash_owner(&state.graph, hash)
-        .await
-        .map_err(database_error)?
-    else {
-        return Ok(());
-    };
-    let owned_version = read_version(&state.graph, &owner.version_id)
-        .await
-        .map_err(database_error)?
-        .map(|entry| entry.version_number)
-        .unwrap_or_default();
-    Err(LogicError::bad_request(format!(
-        "identical PDF already exists (version {owned_version})"
-    )))
 }
 
 fn validate_title(raw: &str, max_chars: u64) -> Result<String, LogicError> {

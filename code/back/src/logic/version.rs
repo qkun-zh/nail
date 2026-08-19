@@ -71,6 +71,26 @@ pub async fn remove_orphaned_pdfs(state: &AppState, hashes: &[String]) {
     }
 }
 
+pub(crate) async fn reject_duplicate_content_hash(
+    state: &AppState,
+    hash: &str,
+) -> Result<(), LogicError> {
+    let Some(owner) = content_hash_owner(&state.graph, hash)
+        .await
+        .map_err(database_error)?
+    else {
+        return Ok(());
+    };
+    let owned_version = read_version_node(&state.graph, &owner.version_id)
+        .await
+        .map_err(database_error)?
+        .map(|entry| entry.version_number)
+        .unwrap_or_default();
+    Err(LogicError::bad_request(format!(
+        "identical PDF already exists (version {owned_version})"
+    )))
+}
+
 pub async fn create_version(
     state: &AppState,
     actor_id: &str,
@@ -91,19 +111,7 @@ pub async fn create_version(
     let note = validate_note(raw_note, state.config.server.max_version_note_chars)?;
 
     let hash = upload.hash.clone();
-    if let Some(owner) = content_hash_owner(&state.graph, &hash)
-        .await
-        .map_err(database_error)?
-    {
-        let owned_version = read_version_node(&state.graph, &owner.version_id)
-            .await
-            .map_err(database_error)?
-            .map(|entry| entry.version_number)
-            .unwrap_or_default();
-        return Err(LogicError::bad_request(format!(
-            "identical PDF already exists (version {owned_version})"
-        )));
-    }
+    reject_duplicate_content_hash(state, &hash).await?;
 
     let upload = place_uploaded_pdf(state, upload).await?;
     let version_id = Uuid::now_v7().to_string();

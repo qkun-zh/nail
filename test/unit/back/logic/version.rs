@@ -531,6 +531,46 @@ async fn create_version_rejects_a_duplicate_content_hash() {
 }
 
 #[tokio::test]
+async fn reject_duplicate_content_hash_accepts_an_unknown_hash() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let (_, _) = article_fixture(&context, &actor, "Unknown Hash").await;
+    crate::logic::version::reject_duplicate_content_hash(
+        &context.state,
+        &nail_common::hash::pdf(&unique_pdf("unseen")),
+    )
+    .await
+    .expect("unknown hash must pass");
+}
+
+#[tokio::test]
+async fn reject_duplicate_content_hash_reports_the_owning_version() {
+    let context = TestCtx::new().await.expect("test context");
+    let actor = member(&context, "alice@example.com").await;
+    let (article_id, _) = article_fixture(&context, &actor, "Owner Article").await;
+    let pdf = unique_pdf("shared-hash");
+    let hash = nail_common::hash::pdf(&pdf);
+    crate::logic::version::create_version(
+        &context.state,
+        &actor,
+        &article_id,
+        "2.0.0",
+        "note",
+        context.upload(&pdf),
+    )
+    .await
+    .expect("owning version");
+
+    let error = crate::logic::version::reject_duplicate_content_hash(&context.state, &hash)
+        .await
+        .unwrap_err();
+    assert_eq!(
+        error,
+        LogicError::bad_request("identical PDF already exists (version 2.0.0)")
+    );
+}
+
+#[tokio::test]
 async fn undelete_soft_version_rejects_a_version_that_is_not_soft_deleted() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
