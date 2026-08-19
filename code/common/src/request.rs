@@ -41,13 +41,6 @@ pub struct CreateTokenRequest {
     pub new_email_pow: Option<Pow>,
 }
 
-impl CreateTokenRequest {
-    #[must_use]
-    pub fn has_consistent_email_pow_pair(&self) -> bool {
-        self.old_email_pow.is_some() == self.new_email_pow.is_some()
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TokenRequest {
     pub pow: Pow,
@@ -55,21 +48,6 @@ pub struct TokenRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LogoutRequest {
-    pub pow: Pow,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct NameSetRequest {
-    pub pow: Pow,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DeregisterUserRequest {
-    pub pow: Pow,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DeregisterUserConfirmRequest {
     pub pow: Pow,
 }
 

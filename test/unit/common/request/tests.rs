@@ -187,39 +187,6 @@ fn create_token_request_uses_purpose_as_the_wire_field_name() -> anyhow::Result<
 }
 
 #[test]
-fn create_token_request_dual_pair_is_consistent_only_when_both_or_neither() -> anyhow::Result<()> {
-    let both = crate::request::CreateTokenRequest {
-        purpose: TokenPurpose::UpdateUserEmail,
-        pow: None,
-        old_email_pow: Some(sample_pow()?),
-        new_email_pow: Some(sample_pow()?),
-    };
-    assert!(both.has_consistent_email_pow_pair());
-    let neither = crate::request::CreateTokenRequest {
-        purpose: TokenPurpose::CreateUser,
-        pow: Some(sample_pow()?),
-        old_email_pow: None,
-        new_email_pow: None,
-    };
-    assert!(neither.has_consistent_email_pow_pair());
-    let only_old = crate::request::CreateTokenRequest {
-        purpose: TokenPurpose::UpdateUserEmail,
-        pow: None,
-        old_email_pow: Some(sample_pow()?),
-        new_email_pow: None,
-    };
-    assert!(!only_old.has_consistent_email_pow_pair());
-    let only_new = crate::request::CreateTokenRequest {
-        purpose: TokenPurpose::UpdateUserEmail,
-        pow: None,
-        old_email_pow: None,
-        new_email_pow: Some(sample_pow()?),
-    };
-    assert!(!only_new.has_consistent_email_pow_pair());
-    Ok(())
-}
-
-#[test]
 fn single_pow_requests_round_trip() -> anyhow::Result<()> {
     let token_request = crate::request::TokenRequest { pow: sample_pow()? };
     let json = serde_json::to_string(&token_request)?;
@@ -229,18 +196,6 @@ fn single_pow_requests_round_trip() -> anyhow::Result<()> {
     let json = serde_json::to_string(&logout_request)?;
     let decoded: crate::request::LogoutRequest = serde_json::from_str(&json)?;
     assert_eq!(decoded, logout_request);
-    let name_set_request = crate::request::NameSetRequest { pow: sample_pow()? };
-    let json = serde_json::to_string(&name_set_request)?;
-    let decoded: crate::request::NameSetRequest = serde_json::from_str(&json)?;
-    assert_eq!(decoded, name_set_request);
-    let deregister_request = crate::request::DeregisterUserRequest { pow: sample_pow()? };
-    let json = serde_json::to_string(&deregister_request)?;
-    let decoded: crate::request::DeregisterUserRequest = serde_json::from_str(&json)?;
-    assert_eq!(decoded, deregister_request);
-    let deregister_confirm = crate::request::DeregisterUserConfirmRequest { pow: sample_pow()? };
-    let json = serde_json::to_string(&deregister_confirm)?;
-    let decoded: crate::request::DeregisterUserConfirmRequest = serde_json::from_str(&json)?;
-    assert_eq!(decoded, deregister_confirm);
     Ok(())
 }
 
