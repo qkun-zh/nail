@@ -135,4 +135,6 @@ Each sub-agent MUST, in order:
 
 - 2026-08-19: Dirty tree committed (Task I done): `1426da4`,`6cd6d61`,`881b7b4`.
 - 2026-08-19: Master plan created (this file). Scope A1–A4, B1–B6 approved.
-- 2026-08-19: Orchestrator begins Task II (common validators).
+- 2026-08-19: Task II DONE (reviewed, committed): `454e4a2` (shared validate module), `f030c6f` (name/tag), `cb8243c` (text), `71fc173` (exec+handoff docs). Behavior/messages preserved; 116/116 common tests green; fmt/clippy clean; no-ripple check clean in back/front.
+- 2026-08-19: CONCURRENT AGENT active on shared local `main`: committed `5ceb421` (feat(front): validate path ids) + more (branch ahead of origin/main); staged uncommitted frontend changes incl. new `code/front/src/request/validate.rs`, `test/unit/front/request/validate/tests.rs`, edits to `request/{article,comment,download,role,tag,user,version}.rs`. PUSH HELD: pushing local main would publish un-audited concurrent work. Coordination needed before any push.
+- 2026-08-19: Next task (Task III, common named-struct dedup) may touch frontend `request/*` + back consumers — CONFLICT RISK with concurrent agent's request-layer refactor. Re-check before dispatch.
