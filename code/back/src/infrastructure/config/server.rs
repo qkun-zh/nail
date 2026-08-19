@@ -37,6 +37,12 @@ fn default_log_filter() -> String {
 }
 
 impl ServerConfig {
+    pub fn max_request_body_bytes(&self) -> u64 {
+        self.max_pdf_size_bytes
+            .saturating_add(self.max_text_field_bytes.saturating_mul(5))
+            .saturating_add(64 * 1024)
+    }
+
     pub fn validate(&self) -> anyhow::Result<()> {
         if self.listen_addr.is_empty() {
             bail!("config: listen_addr must not be empty");

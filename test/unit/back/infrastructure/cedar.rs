@@ -124,19 +124,23 @@ fn every_action_referenced_by_policy_exists_in_the_schema() {
 #[test]
 fn generated_route_constants_match_their_literal_paths() {
     use crate::interface::router::{
-        ROUTE_ARTICLE_ID_VERSION_VERSION_ID_CONTENT_READ, ROUTE_CHALLENGE_CREATE,
-        ROUTE_COMMENT_ID_DELETE, ROUTE_USER_ID_READ, ROUTE_VERSION_ID_COMMENTS_CREATE,
+        ROUTE_ARTICLE_ID_VERSION_ID_CONTENT_READ, ROUTE_CHALLENGE_CREATE, ROUTE_COMMENT_ID_DELETE,
+        ROUTE_ROLE_ID_DELETE, ROUTE_ROLE_ID_READ, ROUTE_ROLE_ID_UPDATE, ROUTE_USER_ID_READ,
+        ROUTE_VERSION_ID_COMMENTS_CREATE,
     };
     assert_eq!(ROUTE_CHALLENGE_CREATE, "/challenge/create");
     assert_eq!(ROUTE_USER_ID_READ, "/user/{id}/read");
     assert_eq!(
-        ROUTE_ARTICLE_ID_VERSION_VERSION_ID_CONTENT_READ,
+        ROUTE_ARTICLE_ID_VERSION_ID_CONTENT_READ,
         "/article/{id}/version/{version_id}/content/read"
     );
     assert_eq!(
         ROUTE_VERSION_ID_COMMENTS_CREATE,
         "/version/{id}/comments/create"
     );
+    assert_eq!(ROUTE_ROLE_ID_READ, "/role/{id}/read");
+    assert_eq!(ROUTE_ROLE_ID_UPDATE, "/role/{id}/update");
+    assert_eq!(ROUTE_ROLE_ID_DELETE, "/role/{id}/delete");
     assert_eq!(ROUTE_COMMENT_ID_DELETE, "/comment/{id}/delete");
 }
 

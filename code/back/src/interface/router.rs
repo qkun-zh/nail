@@ -25,7 +25,7 @@ pub const ROUTE_ARTICLE_ID_DELETE: &str = "/article/{id}/delete";
 pub const ROUTE_ARTICLE_ID_UNDELETE_SOFT: &str = "/article/{id}/undelete-soft";
 pub const ROUTE_ARTICLE_ID_VERSION_CREATE: &str = "/article/{id}/version/create";
 pub const ROUTE_ARTICLE_ID_VERSION_READ: &str = "/article/{id}/version/read";
-pub const ROUTE_ARTICLE_ID_VERSION_VERSION_ID_CONTENT_READ: &str =
+pub const ROUTE_ARTICLE_ID_VERSION_ID_CONTENT_READ: &str =
     "/article/{id}/version/{version_id}/content/read";
 pub const ROUTE_VERSION_ID_READ: &str = "/version/{id}/read";
 pub const ROUTE_VERSION_ID_UPDATE: &str = "/version/{id}/update";
@@ -41,9 +41,9 @@ pub const ROUTE_COMMENT_ID_DELETE: &str = "/comment/{id}/delete";
 pub const ROUTE_COMMENT_ID_UNDELETE_SOFT: &str = "/comment/{id}/undelete-soft";
 pub const ROUTE_ROLE_CREATE: &str = "/role/create";
 pub const ROUTE_ROLE_READ: &str = "/role/read";
-pub const ROUTE_ROLE_ID_READ: &str = "/role/{role_id}/read";
-pub const ROUTE_ROLE_ID_UPDATE: &str = "/role/{role_id}/update";
-pub const ROUTE_ROLE_ID_DELETE: &str = "/role/{role_id}/delete";
+pub const ROUTE_ROLE_ID_READ: &str = "/role/{id}/read";
+pub const ROUTE_ROLE_ID_UPDATE: &str = "/role/{id}/update";
+pub const ROUTE_ROLE_ID_DELETE: &str = "/role/{id}/delete";
 pub const ROUTE_TAG_CREATE: &str = "/tag/create";
 pub const ROUTE_TAG_READ: &str = "/tag/read";
 pub const ROUTE_TAG_ID_READ: &str = "/tag/{id}/read";
@@ -53,12 +53,7 @@ pub const ROUTE_ARTICLE_ID_TAG_ID_APPLY: &str = "/article/{id}/tag/{tag_id}/appl
 pub const ROUTE_ARTICLE_ID_TAG_ID_UNAPPLY: &str = "/article/{id}/tag/{tag_id}/unapply";
 
 pub fn build_router(state: AppState) -> Router {
-    let body_limit = state
-        .config
-        .server
-        .max_pdf_size_bytes
-        .saturating_add(state.config.server.max_text_field_bytes.saturating_mul(5))
-        .saturating_add(64 * 1024);
+    let body_limit = state.config.server.max_request_body_bytes();
 
     Router::new()
         .route(ROUTE_CHALLENGE_CREATE, post(challenge::create_challenge))
@@ -87,7 +82,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route(ROUTE_ARTICLE_ID_VERSION_READ, get(version::read_versions))
         .route(
-            ROUTE_ARTICLE_ID_VERSION_VERSION_ID_CONTENT_READ,
+            ROUTE_ARTICLE_ID_VERSION_ID_CONTENT_READ,
             get(content::read_content),
         )
         .route(ROUTE_VERSION_ID_READ, get(version::read_version))

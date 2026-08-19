@@ -148,5 +148,5 @@ pub mod http_multipart;
 #[path = "http/envelope.rs"]
 pub mod http_envelope;
 
-#[path = "http/probe_003_path_param_key_and_parts.rs"]
-pub mod http_probe_003_path_param_key_and_parts;
+#[path = "infrastructure/config_server.rs"]
+pub mod infrastructure_config_server;
