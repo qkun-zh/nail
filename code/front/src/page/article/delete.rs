@@ -1,5 +1,4 @@
 use leptos::prelude::*;
-use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
 use nail_common::request::DeleteMode;
 
@@ -43,29 +42,13 @@ pub fn DeleteArticle() -> impl IntoView {
     let article_id = move || params.get().get("article_id");
     let (denied, checked) = use_author_gate(article_id);
 
-    let sync_url = {
-        let navigate = navigate.clone();
-        move || {
-            let Some(id) = params.get().get("article_id") else {
-                return;
-            };
-            navigate(
-                &format!("/article/{id}/delete?mode={}", mode_to_str(mode.get())),
-                NavigateOptions {
-                    replace: true,
-                    resolve: false,
-                    ..Default::default()
-                },
-            );
-        }
-    };
-
-    Effect::new(move |previous: Option<()>| {
+    crate::page::draft::sync_url_on_change(navigate.clone(), move || {
         let _ = mode.get();
-        if previous.is_none() {
-            return;
-        }
-        sync_url();
+        let id = params.get().get("article_id")?;
+        Some(format!(
+            "/article/{id}/delete?mode={}",
+            mode_to_str(mode.get())
+        ))
     });
 
     let delete_notifications = notifications.clone();

@@ -21,6 +21,30 @@ pub fn draft_url(pathname: &str, fields: &[(&str, &str)]) -> String {
     }
 }
 
+pub fn sync_url_on_change<Navigate, Build>(navigate: Navigate, build: Build)
+where
+    Navigate: Fn(&str, NavigateOptions) + Clone + 'static,
+    Build: Fn() -> Option<String> + 'static,
+{
+    Effect::new(move |previous: Option<()>| {
+        let url = build();
+        if previous.is_none() {
+            return;
+        }
+        let Some(url) = url else {
+            return;
+        };
+        navigate(
+            &url,
+            NavigateOptions {
+                replace: true,
+                resolve: false,
+                ..Default::default()
+            },
+        );
+    });
+}
+
 pub fn persist_draft<Navigate>(
     navigate: Navigate,
     pathname: String,
@@ -28,23 +52,13 @@ pub fn persist_draft<Navigate>(
 ) where
     Navigate: Fn(&str, NavigateOptions) + Clone + 'static,
 {
-    Effect::new(move |previous: Option<()>| {
+    sync_url_on_change(navigate, move || {
         let captured = fields();
-        if previous.is_none() {
-            return;
-        }
         let pairs: Vec<(&str, &str)> = captured
             .iter()
             .map(|(key, value)| (*key, value.as_str()))
             .collect();
-        navigate(
-            &draft_url(&pathname, &pairs),
-            NavigateOptions {
-                replace: true,
-                resolve: false,
-                ..Default::default()
-            },
-        );
+        Some(draft_url(&pathname, &pairs))
     });
 }
 

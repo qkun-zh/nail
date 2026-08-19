@@ -1,6 +1,5 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
-use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_query_map};
 use nail_common::response::search::SearchArticleItem;
 
@@ -122,38 +121,6 @@ pub fn Search() -> impl IntoView {
     {
         per_page.set(limit);
     }
-
-    let sync_url = {
-        let navigate = navigate.clone();
-        move || {
-            let mut pairs: Vec<String> = Vec::new();
-            let q = q_filter.get();
-            if !q.trim().is_empty() {
-                pairs.push(format!("q={}", encode_component(q.trim())));
-            }
-            let checked = ranges.get();
-            let subset = checked_range_subset(&checked);
-            pairs.push(format!("ranges={}", encode_component(&subset)));
-            let from = from_time.get();
-            if !from.trim().is_empty() {
-                pairs.push(format!("from={}", encode_component(from.trim())));
-            }
-            let to = to_time.get();
-            if !to.trim().is_empty() {
-                pairs.push(format!("to={}", encode_component(to.trim())));
-            }
-            pairs.push(format!("page={}", current_page.get()));
-            let query_string = pairs.join("&");
-            navigate(
-                &format!("{SEARCH_PATHNAME}?{query_string}"),
-                NavigateOptions {
-                    replace: true,
-                    resolve: false,
-                    ..Default::default()
-                },
-            );
-        }
-    };
 
     let request_seq = StoredValue::new(0u64);
     let last_good_page = StoredValue::new(1u64);
@@ -292,18 +259,26 @@ pub fn Search() -> impl IntoView {
         }
     });
 
-    Effect::new(move |previous: Option<()>| {
-        let _ = (
-            q_filter.get(),
-            ranges.get(),
-            from_time.get(),
-            to_time.get(),
-            current_page.get(),
-        );
-        if previous.is_none() {
-            return;
+    crate::page::draft::sync_url_on_change(navigate.clone(), move || {
+        let mut pairs: Vec<String> = Vec::new();
+        let q = q_filter.get();
+        if !q.trim().is_empty() {
+            pairs.push(format!("q={}", encode_component(q.trim())));
         }
-        sync_url();
+        let checked = ranges.get();
+        let subset = checked_range_subset(&checked);
+        pairs.push(format!("ranges={}", encode_component(&subset)));
+        let from = from_time.get();
+        if !from.trim().is_empty() {
+            pairs.push(format!("from={}", encode_component(from.trim())));
+        }
+        let to = to_time.get();
+        if !to.trim().is_empty() {
+            pairs.push(format!("to={}", encode_component(to.trim())));
+        }
+        pairs.push(format!("page={}", current_page.get()));
+        let query_string = pairs.join("&");
+        Some(format!("{SEARCH_PATHNAME}?{query_string}"))
     });
 
     do_search.clone()(page);

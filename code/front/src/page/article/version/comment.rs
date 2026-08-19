@@ -58,55 +58,7 @@ pub fn CommentSection() -> impl IntoView {
     let reply_body = RwSignal::new(query.get_untracked().get("reply").unwrap_or_default());
     let update_body = RwSignal::new(query.get_untracked().get("update").unwrap_or_default());
 
-    let sync_url = {
-        let navigate = navigate.clone();
-        move || {
-            let base_path = base();
-            let page_value = page.get();
-            let mut pairs: Vec<(String, String)> = Vec::new();
-            let pathname = match mode() {
-                CommentLevel::VersionComments => {
-                    let value = body.get();
-                    if !value.trim().is_empty() {
-                        pairs.push(("body".to_string(), value));
-                    }
-                    format!("{base_path}/comment")
-                }
-                CommentLevel::Comment(comment_id) => {
-                    let value = reply_body.get();
-                    if !value.trim().is_empty() {
-                        pairs.push(("reply".to_string(), value));
-                    }
-                    format!("{base_path}/comment/{comment_id}")
-                }
-                CommentLevel::UpdateComment(comment_id) => {
-                    let value = update_body.get();
-                    if !value.trim().is_empty() {
-                        pairs.push(("update".to_string(), value));
-                    }
-                    format!("{base_path}/comment/{comment_id}/update")
-                }
-                CommentLevel::DeleteComment(_)
-                | CommentLevel::UndeleteComment(_)
-                | CommentLevel::Invalid => return,
-            };
-            pairs.push(("page".to_string(), page_value.to_string()));
-            let refs: Vec<(&str, &str)> = pairs
-                .iter()
-                .map(|(key, value)| (key.as_str(), value.as_str()))
-                .collect();
-            navigate(
-                &crate::page::draft::draft_url(&pathname, &refs),
-                leptos_router::NavigateOptions {
-                    replace: true,
-                    resolve: false,
-                    ..Default::default()
-                },
-            );
-        }
-    };
-
-    Effect::new(move |previous: Option<()>| {
+    crate::page::draft::sync_url_on_change(navigate.clone(), move || {
         let _ = (
             body.get(),
             reply_body.get(),
@@ -114,10 +66,41 @@ pub fn CommentSection() -> impl IntoView {
             comment_path(),
             page.get(),
         );
-        if previous.is_none() {
-            return;
-        }
-        sync_url();
+        let base_path = base();
+        let page_value = page.get();
+        let mut pairs: Vec<(String, String)> = Vec::new();
+        let pathname = match mode() {
+            CommentLevel::VersionComments => {
+                let value = body.get();
+                if !value.trim().is_empty() {
+                    pairs.push(("body".to_string(), value));
+                }
+                format!("{base_path}/comment")
+            }
+            CommentLevel::Comment(comment_id) => {
+                let value = reply_body.get();
+                if !value.trim().is_empty() {
+                    pairs.push(("reply".to_string(), value));
+                }
+                format!("{base_path}/comment/{comment_id}")
+            }
+            CommentLevel::UpdateComment(comment_id) => {
+                let value = update_body.get();
+                if !value.trim().is_empty() {
+                    pairs.push(("update".to_string(), value));
+                }
+                format!("{base_path}/comment/{comment_id}/update")
+            }
+            CommentLevel::DeleteComment(_)
+            | CommentLevel::UndeleteComment(_)
+            | CommentLevel::Invalid => return None,
+        };
+        pairs.push(("page".to_string(), page_value.to_string()));
+        let refs: Vec<(&str, &str)> = pairs
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str()))
+            .collect();
+        Some(crate::page::draft::draft_url(&pathname, &refs))
     });
 
     let load = StoredValue::new(build_load(
