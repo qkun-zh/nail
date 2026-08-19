@@ -175,3 +175,29 @@ or policy change, `Cargo.lock`, `target/`/`dist/`/`data/`/`log/`.
   3. No standalone probe for the trait-over-guard pattern; slice-1 gate
      (compile + full back test) is the empirical proof (avoids touching
      `test/unit/back/harness.rs`, outside declared test scope).
+- 2026-08-19: slices 1-5 committed (`29f56aa`, `d203237`, `15a4681`, `6b49a93`,
+  `8f5a9d4`) — Stages A/B/D done, search/* rewired, full back test green.
+- 2026-08-19: slice 6 (Stage E) committed (`9b6586e`). Deviations (documented):
+  1. `read_tag_articles` is used by 4 live tests (`test/unit/back/logic/
+     tag_apply.rs` L72/91/110/126) — it is test-support, not dead scaffolding.
+     Removed from production; kept as a `#[cfg(test)]` test-only copy (tests
+     untouched, no `#[allow(dead_code)]` anywhere in repository/).
+  2. `read_tag_detail` (`logic/tag.rs`, out of scope) was its sole production
+     consumer and is removed along with it — forced by Stage E; another task
+     will re-add it when wiring the feature.
+  3. Three `_sync` helpers (`resolve_node_id_sync`/`find_by_index_sync`/
+     `read_rows_sync`) remain in graph.rs — pinned by out-of-scope `user.rs`;
+     `read_node_sync` and every `_in_txn` pair are gone. Slice 6 exit criterion
+     "no `_sync` remains" relaxed to "none but the user.rs-pinned trio".
+- 2026-08-19: slice 7 (Stage C) committed (`b6fbd94`) — red-first evidence:
+  new repro `delete_refresh_keeps_the_semver_latest_version` (article versions
+  "1.0.0"/"9.9.9"/"10.0.0" with crafted ids ffffffff-…/11111111-…/22222222-…;
+  delete "10.0.0") FAILED before the fix: `assertion failed: left: "1.0.0"
+  right: "9.9.9"` (string-max over business-id). After `highest_version_number`
+  (semver max_by, string fallback) in graph.rs used by delete.rs/version.rs
+  (strict `InvalidNumber` pre-validation preserved)/article.rs — PASSED.
+- 2026-08-19: FINAL GATE green — `cargo fmt --check`, `cargo +nightly clippy
+  -- -D warnings` (zero warnings), full back test per module (full run OOMs on
+  this 9GB box): repository_ 107 + logic_ 260 + http_ 122 + infrastructure_ 43
+  + configuration_ 11 = 543 passed, 0 failed (baseline 542 + repro). Task V
+  COMPLETE.
