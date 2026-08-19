@@ -4,7 +4,9 @@ use uuid::Uuid;
 
 use crate::infrastructure::pdf::PdfUpload;
 use crate::infrastructure::state::AppState;
-use crate::logic::authorize::{authorize, authorize_or, require_visible_if_soft_deleted};
+use crate::logic::authorize::{
+    EntityRef, authorize_entity_or, authorize_global, require_entity_readable,
+};
 use crate::logic::error::{LogicError, database_error};
 use crate::logic::search::sync_article_best_effort;
 use crate::logic::version::{
@@ -15,10 +17,9 @@ use crate::repository::article::{
     create_article as create_article_node, read_article as read_article_node,
     update_article as update_article_node,
 };
-use crate::repository::authorization::Resource;
 use crate::repository::role::{
     PERMISSION_ARTICLE_CREATE, PERMISSION_ARTICLE_DELETE_HARD, PERMISSION_ARTICLE_DELETE_SOFT,
-    PERMISSION_ARTICLE_DELETE_TRANSFER, PERMISSION_ARTICLE_READ, PERMISSION_ARTICLE_UNDELETE_SOFT,
+    PERMISSION_ARTICLE_DELETE_TRANSFER, PERMISSION_ARTICLE_UNDELETE_SOFT,
     PERMISSION_ARTICLE_UPDATE,
 };
 use crate::repository::tag::read_tag_by_name;
@@ -47,14 +48,7 @@ pub async fn create_article(
         note: raw_note,
         upload,
     } = input;
-    authorize(
-        state,
-        actor_id,
-        PERMISSION_ARTICLE_CREATE,
-        &Resource::Virtual("any".to_string()),
-    )
-    .await?;
-
+    authorize_global(state, actor_id, PERMISSION_ARTICLE_CREATE).await?;
     let title = validate_title(raw_title, state.config.server.max_title_chars)?;
     let summary = validate_summary(raw_summary, state.config.server.max_summary_chars)?;
     let tags = validate_tags(state, raw_tags, state.config.server.max_tags_per_article).await?;
@@ -99,28 +93,11 @@ pub async fn read_article(
     actor_id: &str,
     article_id: &str,
 ) -> Result<ArticleView, LogicError> {
-    authorize_or(
-        state,
-        actor_id,
-        PERMISSION_ARTICLE_READ,
-        &Resource::Article(article_id.to_string()),
-        "article not found",
-    )
-    .await?;
+    require_entity_readable(state, actor_id, EntityRef::Article(article_id)).await?;
     let article = read_article_node(&state.graph, article_id)
         .await
         .map_err(database_error)?
         .ok_or_else(|| LogicError::not_found("article not found"))?;
-    require_visible_if_soft_deleted(
-        state,
-        actor_id,
-        crate::repository::schema::ENTITY_TYPE_ARTICLE,
-        article_id,
-        PERMISSION_ARTICLE_UNDELETE_SOFT,
-        &Resource::Article(article_id.to_string()),
-        "article not found",
-    )
-    .await?;
 
     let created_at = nail_common::time::uuidv7_timestamp_secs(&article.id).unwrap_or(0);
     let view = ArticleView {
@@ -143,12 +120,11 @@ pub async fn update_article(
     raw_summary: &str,
     raw_tags: &str,
 ) -> Result<ArticleIdView, LogicError> {
-    authorize_or(
+    authorize_entity_or(
         state,
         actor_id,
         PERMISSION_ARTICLE_UPDATE,
-        &Resource::Article(article_id.to_string()),
-        "article not found",
+        EntityRef::Article(article_id),
     )
     .await?;
     let title = validate_title(raw_title, state.config.server.max_title_chars)?;
@@ -179,12 +155,11 @@ pub async fn delete_article(
 ) -> Result<ArticleIdView, LogicError> {
     match mode {
         Some(DeleteMode::Transfer) => {
-            authorize_or(
+            authorize_entity_or(
                 state,
                 actor_id,
                 PERMISSION_ARTICLE_DELETE_TRANSFER,
-                &Resource::Article(article_id.to_string()),
-                "article not found",
+                EntityRef::Article(article_id),
             )
             .await?;
             transfer_article(&state.graph, article_id)
@@ -207,12 +182,11 @@ pub async fn delete_article(
             })
         }
         Some(DeleteMode::Hard) => {
-            authorize_or(
+            authorize_entity_or(
                 state,
                 actor_id,
                 PERMISSION_ARTICLE_DELETE_HARD,
-                &Resource::Article(article_id.to_string()),
-                "article not found",
+                EntityRef::Article(article_id),
             )
             .await?;
             let outcome = crate::repository::delete::delete_article(&state.graph, article_id)
@@ -225,12 +199,11 @@ pub async fn delete_article(
             })
         }
         Some(DeleteMode::Soft) => {
-            authorize_or(
+            authorize_entity_or(
                 state,
                 actor_id,
                 PERMISSION_ARTICLE_DELETE_SOFT,
-                &Resource::Article(article_id.to_string()),
-                "article not found",
+                EntityRef::Article(article_id),
             )
             .await?;
             let already_deleted =
@@ -259,12 +232,11 @@ pub async fn undelete_soft_article(
     actor_id: &str,
     article_id: &str,
 ) -> Result<ArticleIdView, LogicError> {
-    authorize_or(
+    authorize_entity_or(
         state,
         actor_id,
         PERMISSION_ARTICLE_UNDELETE_SOFT,
-        &Resource::Article(article_id.to_string()),
-        "article not found",
+        EntityRef::Article(article_id),
     )
     .await?;
     let hidden = crate::repository::delete::is_soft_deleted(&state.graph, "article", article_id)
