@@ -4,13 +4,13 @@
 
 **Owner**: sub-agent (Task X of REFACTOR_PLAN)
 **Exec doc**: `document/exec/J8wn_final-cleanup-gate.md`
-**Status**: IN PROGRESS — slice 1 done (no net change), slice 2 next.
+**Status**: IN PROGRESS — slices 1-2 done (no net change), slice 3 next (delete ice dumps), then final gate.
 
 ### Slices
 
 - 0. Docs: exec doc `J8wn_final-cleanup-gate.md` + this handoff. DONE (`1ff295e`).
-- 1. Front allows: probe-removed js.rs + state.rs allows; nightly clippy FIRED both (cast lints are in pedantic on clippy 1.99 nightly; too_many_arguments 9/7) → both RESTORED per protocol. No net code change; documented in exec change log. DONE (docs commit in progress).
-- 2. Back allows (principal.rs, predicted live) + OffsetTime Q1 = SKIP (approved; false positive — field read at logging.rs:40). PENDING.
+- 1. Front allows: probe-removed js.rs + state.rs allows; nightly clippy FIRED both (cast lints are in pedantic on clippy 1.99 nightly; too_many_arguments 9/7) → both RESTORED per protocol. No net code change. DONE (docs `d04b2dd`).
+- 2. Back allows + OffsetTime: probe-removed both principal.rs allows; nightly FIRED `unused_async_trait_impl`; stable errored `unknown lint` without `unknown_lints` → both RESTORED (both live, one per toolchain). OffsetTime SKIPPED per Q1 (false positive). Bonus stable probes back/front 0 warnings. No net code change. DONE.
 - 3. rustc-ice dumps in code/back — Q2 APPROVED: delete. PENDING.
 - 4. Final gate: full matrix (common 117, back 583 per-module, front 82 + check + trunk; fmt/clippy all). PENDING (gate).
 
@@ -21,9 +21,11 @@
   invariant `UtcOffset::UTC`. ORCHESTRATOR DECISION (Q1): SKIP — field is
   read; the REFACTOR_PLAN "dead field" flag was a false positive. Recorded;
   no code change.
-- 4 `#[allow(...)]`s total in `code/`: principal.rs:27-28 (probe pending),
-  js.rs:1 (LIVE — cast lints are in pedantic on clippy 1.99 nightly; restored),
-  state.rs:215 (LIVE — too_many_arguments 9/7; restored).
+- 4 `#[allow(...)]`s total in `code/`: principal.rs:27-28 (LIVE on both
+  toolchains: nightly fires `unused_async_trait_impl`; stable errors `unknown
+  lint` without `unknown_lints` — probe-verified; restored), js.rs:1 (LIVE —
+  cast lints are in pedantic on clippy 1.99 nightly; restored), state.rs:215
+  (LIVE — too_many_arguments 9/7; restored).
 - Probe protocol verdicts contradict the pre-gate predictions for js.rs
   (predicted dead, actually live): on clippy 1.99 nightly, `-D clippy::pedantic`
   implies `cast_sign_loss`/`cast_possible_truncation`. Empirical result is

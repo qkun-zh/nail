@@ -162,3 +162,12 @@ tracked; deleting is lossless-ish but they are not mine.)
   `-Zcodegen-backend=cranelift` flags (rejected: "option Z is only accepted on
   the nightly compiler"), so the nightly run is the gate; a stable run without
   the mandated flags is not a project gate.
+- 2026-08-20: Slice 2 (back allows + OffsetTime) — probe-removed both
+  principal.rs allows: nightly FIRED `unused_async_trait_impl` ("implied by
+  `-D clippy::pedantic`"); with only the lint allow present, stable clippy
+  errored `unknown lint: clippy::unused_async_trait_impl` — proving BOTH
+  allows are live (lint-allow for nightly, `unknown_lints` for stable).
+  RESTORED per protocol. OffsetTime: SKIPPED per Q1 (false positive, field
+  read at logging.rs:40). Bonus probes: stable clippy (no cranelift flag,
+  LLVM backend) on back (2.49s) and front wasm32 (1m06s) — 0 warnings.
+  No net code change.
