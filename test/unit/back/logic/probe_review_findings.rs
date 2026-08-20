@@ -60,7 +60,8 @@ fn probe_1_read_tags_must_not_panic_on_a_far_page() {
 #[tokio::test]
 async fn probe_2_delete_session_with_noncanonical_token_must_remove_the_session() {
     let context = TestCtx::new().await.expect("ctx");
-    let session_token = create_session(&context.state, "user-123").expect("create");
+    let session_token =
+        create_session(&context.state, &uuid::Uuid::now_v7().to_string()).expect("create");
     let uppercased = session_token.to_uppercase();
     assert_ne!(session_token, uppercased, "case must differ");
 
