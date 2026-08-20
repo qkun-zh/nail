@@ -250,7 +250,7 @@ async fn handle_delete_user_transfer(
         if user_exists {
             return Err(LogicError::bad_request("invalid or expired delete token"));
         }
-        state.cache.session.delete_by_reverse_key(actor_id);
+        let _ = state.cache.session.delete_by_reverse_key(actor_id);
         return Ok(());
     };
     if entry.user_id.as_str() != actor_id {
@@ -263,11 +263,11 @@ async fn handle_delete_user_transfer(
         crate::repository::transfer::transfer_account_assets(&state.database, actor_id).await?;
 
     let email_address_hash = entry.email_address_hash.as_str();
-    state.cache.user_deletion.delete(&token_hash);
-    state.cache.session.delete_by_reverse_key(actor_id);
-    state.cache.email_update.delete(actor_id);
-    state.cache.user_deletion.delete_by_reverse_key(actor_id);
-    state
+    let _ = state.cache.user_deletion.delete(&token_hash);
+    let _ = state.cache.session.delete_by_reverse_key(actor_id);
+    let _ = state.cache.email_update.delete(actor_id);
+    let _ = state.cache.user_deletion.delete_by_reverse_key(actor_id);
+    let _ = state
         .cache
         .user_creation
         .delete_by_reverse_key(email_address_hash);
@@ -298,7 +298,7 @@ async fn handle_delete_user_soft(
         if user_exists {
             return Err(LogicError::bad_request("invalid or expired delete token"));
         }
-        state.cache.session.delete_by_reverse_key(actor_id);
+        let _ = state.cache.session.delete_by_reverse_key(actor_id);
         return Ok(());
     };
     if entry.user_id.as_str() != actor_id {
@@ -312,11 +312,11 @@ async fn handle_delete_user_soft(
         .map_err(|error| LogicError::internal(format!("failed to soft-delete user: {error}")))?;
 
     let email_address_hash = entry.email_address_hash.as_str();
-    state.cache.user_deletion.delete(&token_hash);
-    state.cache.session.delete_by_reverse_key(actor_id);
-    state.cache.email_update.delete(actor_id);
-    state.cache.user_deletion.delete_by_reverse_key(actor_id);
-    state
+    let _ = state.cache.user_deletion.delete(&token_hash);
+    let _ = state.cache.session.delete_by_reverse_key(actor_id);
+    let _ = state.cache.email_update.delete(actor_id);
+    let _ = state.cache.user_deletion.delete_by_reverse_key(actor_id);
+    let _ = state
         .cache
         .user_creation
         .delete_by_reverse_key(email_address_hash);

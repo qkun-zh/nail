@@ -229,16 +229,16 @@ pub async fn update_user_email(
             }
         })?;
 
-    state.cache.email_update.delete_if(user_id, |current| {
+    let _ = state.cache.email_update.delete_if(user_id, |current| {
         current.old_email_token_hash.as_str() == old_token_hash
             && current.new_email_token_hash.as_str() == new_token_hash
     });
-    state.cache.session.delete_by_reverse_key(user_id);
-    state
+    let _ = state.cache.session.delete_by_reverse_key(user_id);
+    let _ = state
         .cache
         .user_creation
         .delete_by_reverse_key(old_email_hash);
-    state.cache.user_deletion.delete_by_reverse_key(user_id);
+    let _ = state.cache.user_deletion.delete_by_reverse_key(user_id);
 
     let new_session_token = create_session(state, user_id)?;
     Ok(new_session_token)

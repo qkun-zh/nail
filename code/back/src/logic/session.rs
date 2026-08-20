@@ -64,7 +64,7 @@ pub async fn read_user_name(state: &AppState, session_token: &str) -> Result<Str
 pub fn delete_session(state: &AppState, session_token: &str) -> Result<(), LogicError> {
     let user_id = read_session(state, session_token)?;
     let key = hash_token(session_token, LogicError::unauthorized("invalid session"))?;
-    state.cache.session.delete(&key);
+    let _ = state.cache.session.delete(&key);
     tracing::info!(user_id = %user_id, "session deleted");
     Ok(())
 }
