@@ -4,7 +4,6 @@ use nail_common::request::{CreateTokenRequest, TokenPurpose};
 use nail_common::response::email::{EmailSubjectView, EmailSubjectsView};
 use uuid::Uuid;
 
-use crate::infrastructure::email::SendEmailError;
 use crate::infrastructure::state::AppState;
 use crate::logic::error::LogicError;
 use crate::logic::pow::verify_issued_pow;
@@ -87,14 +86,13 @@ fn read_session_user(
 
 async fn send_create_user_email(state: &AppState, pow: &Pow) -> Result<String, LogicError> {
     let email = normalize_email(&pow.payload);
-    if !validate_email(&email, &state.config.email.allowed_domains) {
+    if !validate_email(&email, &state.config.email_allowed_domains) {
         return Err(LogicError::bad_request("email domain not allowed"));
     }
     verify_issued_pow(state, pow)?;
 
     let token = Uuid::now_v7().to_string();
-    let email_subject = Uuid::now_v7().to_string();
-    send_confirmation_email(state, &email, &email_subject, &token).await?;
+    let email_id = send_confirmation_email(state, &email, &token).await?;
 
     let email_address_hash = nail_common::hash::email(&email);
     let key = hash_canonical_token(&token)?;
@@ -104,7 +102,7 @@ async fn send_create_user_email(state: &AppState, pow: &Pow) -> Result<String, L
             email_address_hash: email_address_hash.clone(),
         },
     );
-    Ok(email_subject)
+    Ok(email_id)
 }
 
 pub async fn send_update_user_email(
@@ -134,7 +132,7 @@ pub async fn send_update_user_email(
         ));
     }
 
-    let allowed_domains = &state.config.email.allowed_domains;
+    let allowed_domains = &state.config.email_allowed_domains;
     if !validate_email(&old_email, allowed_domains) || !validate_email(&new_email, allowed_domains)
     {
         return Err(LogicError::bad_request("email domain not allowed"));
@@ -153,10 +151,8 @@ pub async fn send_update_user_email(
     let old_token = Uuid::now_v7().to_string();
     let new_token = Uuid::now_v7().to_string();
 
-    let old_email_subject = Uuid::now_v7().to_string();
-    send_confirmation_email(state, &old_email, &old_email_subject, &old_token).await?;
-    let new_email_subject = Uuid::now_v7().to_string();
-    send_confirmation_email(state, &new_email, &new_email_subject, &new_token).await?;
+    let old_email_id = send_confirmation_email(state, &old_email, &old_token).await?;
+    let new_email_id = send_confirmation_email(state, &new_email, &new_token).await?;
 
     let token_hash_from_old_email = hash_canonical_token(&old_token)?;
     let token_hash_from_new_email = hash_canonical_token(&new_token)?;
@@ -169,7 +165,7 @@ pub async fn send_update_user_email(
             token_hash_from_new_email,
         },
     );
-    Ok((old_email_subject, new_email_subject))
+    Ok((old_email_id, new_email_id))
 }
 
 pub async fn update_user_email(
@@ -270,8 +266,7 @@ pub async fn send_delete_user_email(
     }
 
     let token = Uuid::now_v7().to_string();
-    let email_subject = Uuid::now_v7().to_string();
-    send_confirmation_email(state, &email, &email_subject, &token).await?;
+    let email_id = send_confirmation_email(state, &email, &token).await?;
 
     let key = hash_canonical_token(&token)?;
     state.caches.delete_user.insert(
@@ -281,21 +276,20 @@ pub async fn send_delete_user_email(
             email_address_hash: user_entry.email_address_hash,
         },
     );
-    Ok(email_subject)
+    Ok(email_id)
 }
 
 async fn send_confirmation_email(
     state: &AppState,
     email: &str,
-    subject: &str,
     token: &str,
-) -> Result<(), LogicError> {
-    match state.email.send_email(email, subject, token).await {
-        Ok(()) => Ok(()),
-        Err(SendEmailError::RateLimited) => Err(LogicError::bad_request(
+) -> Result<String, LogicError> {
+    match state.email.send(email, token).await {
+        Ok(email_id) => Ok(email_id),
+        Err(emailer::SendEmailError::RateLimited) => Err(LogicError::bad_request(
             "email already sent recently, check your inbox",
         )),
-        Err(SendEmailError::Transport(error)) => {
+        Err(emailer::SendEmailError::Transport(error)) => {
             tracing::warn!(target: "email", error = %error, "failed to send email");
             Err(LogicError::internal("failed to send email"))
         }

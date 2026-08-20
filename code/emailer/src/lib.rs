@@ -6,6 +6,7 @@ pub mod smtp;
 use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
+use std::sync::Arc;
 
 pub use config::EmailerConfig;
 pub use error::SendEmailError;
@@ -19,12 +20,30 @@ pub trait EmailSender: Send + Sync + 'static {
         subject: &'a str,
         body: &'a str,
     ) -> BoxFuture<'a, Result<(), SendEmailError>>;
+
+    fn clone_box(&self) -> Box<dyn EmailSender>;
+}
+
+impl Clone for Box<dyn EmailSender> {
+    fn clone(&self) -> Self {
+        self.clone_box()
+    }
 }
 
 pub struct Emailer {
-    sender: Box<dyn EmailSender>,
-    global: rate_limit::GlobalLimiter,
-    per_recipient: rate_limit::PerRecipientLimiter,
+    sender: Arc<dyn EmailSender>,
+    global: Option<Arc<rate_limit::GlobalLimiter>>,
+    per_recipient: Option<Arc<rate_limit::PerRecipientLimiter>>,
+}
+
+impl Clone for Emailer {
+    fn clone(&self) -> Self {
+        Self {
+            sender: Arc::clone(&self.sender),
+            global: self.global.as_ref().map(Arc::clone),
+            per_recipient: self.per_recipient.as_ref().map(Arc::clone),
+        }
+    }
 }
 
 impl Emailer {
@@ -40,12 +59,12 @@ impl Emailer {
 
     #[must_use]
     pub fn new(config: &EmailerConfig) -> Self {
-        let sender = Box::new(smtp::SmtpClient::new(config.clone()));
+        let sender = Arc::new(smtp::SmtpClient::new(config.clone()));
         Self::build(sender, config)
     }
 
     #[must_use]
-    pub fn with_sender(sender: Box<dyn EmailSender>, config: &EmailerConfig) -> Self {
+    pub fn with_sender(sender: Arc<dyn EmailSender>, config: &EmailerConfig) -> Self {
         Self::build(sender, config)
     }
 
@@ -57,20 +76,24 @@ impl Emailer {
     /// rate limits are exceeded, or [`SendEmailError::Transport`] on
     /// SMTP failure.
     pub async fn send(&self, to_where: &str, send_what: &str) -> Result<String, SendEmailError> {
-        self.global.check()?;
-        let key = to_where.to_string();
-        self.per_recipient.check_key(&key)?;
+        if let Some(ref g) = self.global {
+            g.check()?;
+        }
+        if let Some(ref pr) = self.per_recipient {
+            pr.check_key(&to_where.to_string())?;
+        }
 
         let email_id = uuid::Uuid::now_v7().to_string();
         self.sender.send(to_where, &email_id, send_what).await?;
         Ok(email_id)
     }
 
-    fn build(sender: Box<dyn EmailSender>, config: &EmailerConfig) -> Self {
+    fn build(sender: Arc<dyn EmailSender>, config: &EmailerConfig) -> Self {
         Self {
             sender,
-            global: rate_limit::build_global(config.global_max_per_minute),
-            per_recipient: rate_limit::build_per_recipient(config.per_recipient_cooldown_secs),
+            global: rate_limit::build_global(config.global_max_per_minute).map(Arc::new),
+            per_recipient: rate_limit::build_per_recipient(config.per_recipient_cooldown_secs)
+                .map(Arc::new),
         }
     }
 }

@@ -46,6 +46,12 @@ impl EmailSender for SmtpClient {
             }
         })
     }
+
+    fn clone_box(&self) -> Box<dyn crate::EmailSender> {
+        Box::new(Self {
+            config: self.config.clone(),
+        })
+    }
 }
 
 fn send_blocking(

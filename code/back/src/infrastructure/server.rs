@@ -2,10 +2,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::infrastructure::config::AppConfig;
-use crate::infrastructure::email::RateLimitedSender;
 use crate::infrastructure::state::AppState;
 use crate::interface;
 use crate::repository;
+
+use tower_http::trace::TraceLayer;
 
 pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
     let graph = repository::graph::open(&config.server.db_path)?;
@@ -26,7 +27,7 @@ pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
         config.server.token_cache_capacity,
     );
 
-    let email = RateLimitedSender::smtp(&config.smtp, config.server.email_cooldown_seconds);
+    let email = emailer::Emailer::new(&config.emailer);
 
     let state = AppState {
         graph,
@@ -38,7 +39,7 @@ pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
 
     let listener = tokio::net::TcpListener::bind(&state.config.server.listen_addr).await?;
     tracing::info!(address = %state.config.server.listen_addr, "listening");
-    let router = interface::router::build_router(state.clone());
+    let router = interface::router::build_router(state.clone()).layer(TraceLayer::new_for_http());
 
     axum::serve(
         listener,

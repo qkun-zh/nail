@@ -2,7 +2,6 @@ use std::path::Path;
 
 use crate::infrastructure::config::AppConfig;
 use crate::infrastructure::config::server::ServerConfig;
-use crate::infrastructure::config::smtp::SmtpConfig;
 
 use super::context::test_config;
 
@@ -25,7 +24,6 @@ fn server_config_accepts_a_valid_shape() {
 fn server_config_rejects_empty_paths() {
     assert_invalid_server(|server| server.listen_addr.clear());
     assert_invalid_server(|server| server.db_path.clear());
-    assert_invalid_server(|server| server.log_dir.clear());
 }
 
 #[test]
@@ -42,7 +40,6 @@ fn server_config_rejects_zero_ttls_and_capacity() {
     assert_invalid_server(|server| server.download_token_ttl_seconds = 0);
     assert_invalid_server(|server| server.token_cache_capacity = 0);
     assert_invalid_server(|server| server.email_cooldown_seconds = 0);
-    assert_invalid_server(|server| server.log_prune_interval_secs = 0);
 }
 
 #[test]
@@ -84,8 +81,8 @@ fn server_config_rejects_an_invalid_user_zero_email() {
 }
 
 #[test]
-fn smtp_config_rejects_invalid_shapes() {
-    let valid = test_config().smtp;
+fn emailer_config_rejects_invalid_shapes() {
+    let valid = test_config().emailer;
     let mut empty_host = valid.clone();
     empty_host.host.clear();
     assert!(empty_host.validate().is_err());
@@ -103,8 +100,12 @@ fn smtp_config_rejects_invalid_shapes() {
     bad_wall_clock.wall_clock_timeout_secs = 10;
     assert!(bad_wall_clock.validate().is_err());
 
+    let mut zero_global = valid.clone();
+    zero_global.global_max_per_minute = 0;
+    assert!(zero_global.validate().is_err());
+
     assert!(
-        SmtpConfig {
+        emailer::EmailerConfig {
             host: "localhost".to_string(),
             port: 25,
             username: String::new(),
@@ -114,6 +115,8 @@ fn smtp_config_rejects_invalid_shapes() {
             timeout_secs: 10,
             wall_clock_timeout_secs: 30,
             starttls: false,
+            per_recipient_cooldown_secs: 60,
+            global_max_per_minute: 30,
         }
         .validate()
         .is_ok()
@@ -126,9 +129,12 @@ fn load_from_parses_tomls_and_normalizes_domains() {
     std::fs::create_dir_all(&directory).expect("create dir");
     write_configs(&directory);
 
-    let config = AppConfig::load_from(&directory).expect("load");
+    let config = AppConfig::load_from(&directory).unwrap_or_else(|e| {
+        let content = std::fs::read_to_string(directory.join("server.toml")).unwrap_or_default();
+        panic!("load: {e:#}\nserver.toml content:\n{content}");
+    });
     assert_eq!(config.server.pow_difficulty_iterations, 8192);
-    assert_eq!(config.email.allowed_domains, vec!["qq.com", "example.com"]);
+    assert_eq!(config.email_allowed_domains, vec!["qq.com", "example.com"]);
 
     let _ = std::fs::remove_dir_all(&directory);
 }
@@ -157,12 +163,13 @@ max_text_field_bytes = 1048576
 max_search_query_chars = 512
 search_page_size = 8
 max_search_pages = 1024
-log_dir = "log/back"
-log_retention_days = 7
-log_max_file_count = 10080
-log_prune_interval_secs = 1800
+
+[logging]
+dir = "log/back"
+retention_days = 7
+filter = "warn"
 "#;
-    let smtp = r#"
+    let emailer = r#"
 host = "localhost"
 port = 25
 username = "u"
@@ -174,6 +181,6 @@ from_name = "nail"
 allowed_domains = ["qq.com", "@Example.com"]
 "#;
     std::fs::write(directory.join("server.toml"), server).expect("server.toml");
-    std::fs::write(directory.join("smtp.toml"), smtp).expect("smtp.toml");
+    std::fs::write(directory.join("emailer.toml"), emailer).expect("emailer.toml");
     std::fs::write(directory.join("email.toml"), email).expect("email.toml");
 }

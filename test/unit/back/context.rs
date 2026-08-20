@@ -10,10 +10,8 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 use crate::infrastructure::config::AppConfig;
-use crate::infrastructure::config::email::EmailConfig;
+use crate::infrastructure::config::logging::LoggingConfig;
 use crate::infrastructure::config::server::ServerConfig;
-use crate::infrastructure::config::smtp::SmtpConfig;
-use crate::infrastructure::email::{BoxFuture, EmailSender, RateLimitedSender, SendEmailError};
 use crate::infrastructure::pdf::{PdfUpload, TempPdf};
 use crate::infrastructure::state::AppState;
 use crate::interface;
@@ -25,23 +23,29 @@ pub struct RecordingSender {
     pub sent: Arc<std::sync::Mutex<Vec<(String, String, String)>>>,
 }
 
-impl EmailSender for RecordingSender {
+impl emailer::EmailSender for RecordingSender {
     fn send<'a>(
         &'a self,
         to: &'a str,
         subject: &'a str,
         body: &'a str,
-    ) -> BoxFuture<'a, Result<(), SendEmailError>> {
+    ) -> emailer::BoxFuture<'a, Result<(), emailer::SendEmailError>> {
         let sent = self.sent.clone();
         let to = to.to_string();
         let subject = subject.to_string();
         let body = body.to_string();
         Box::pin(async move {
             let mut messages = sent.lock().map_err(|_| {
-                SendEmailError::Transport(anyhow::anyhow!("recording sender poisoned"))
+                emailer::SendEmailError::Transport("recording sender poisoned".to_string())
             })?;
             messages.push((to, subject, body));
             Ok(())
+        })
+    }
+
+    fn clone_box(&self) -> Box<dyn emailer::EmailSender> {
+        Box::new(Self {
+            sent: Arc::clone(&self.sent),
         })
     }
 }
@@ -244,7 +248,7 @@ impl TestCtx {
 
 pub async fn build_state(
     config: &AppConfig,
-    cooldown_seconds: u64,
+    _cooldown_seconds: u64,
 ) -> anyhow::Result<(AppState, RecordingSender)> {
     let mut config = config.clone();
     config.server.pdf_storage_path = std::env::temp_dir()
@@ -269,7 +273,7 @@ pub async fn build_state(
         config.server.token_cache_capacity,
     );
     let recorder = RecordingSender::default();
-    let email = RateLimitedSender::new(Arc::new(recorder.clone()), cooldown_seconds);
+    let email = emailer::Emailer::with_sender(Arc::new(recorder.clone()), &config.emailer);
     let state = AppState {
         graph,
         search,
@@ -305,13 +309,13 @@ pub fn test_config() -> AppConfig {
             max_search_query_chars: 512,
             search_page_size: 8,
             max_search_pages: 1024,
-            log_dir: "log/back".to_string(),
-            log_retention_days: 7,
-            log_max_file_count: 100,
-            log_prune_interval_secs: 1800,
-            log_filter: "warn".to_string(),
         },
-        smtp: SmtpConfig {
+        logging: LoggingConfig {
+            dir: "log/back".to_string(),
+            retention_days: 7,
+            filter: "warn".to_string(),
+        },
+        emailer: emailer::EmailerConfig {
             host: "localhost".to_string(),
             port: 1,
             username: String::new(),
@@ -321,10 +325,10 @@ pub fn test_config() -> AppConfig {
             timeout_secs: 10,
             wall_clock_timeout_secs: 30,
             starttls: false,
+            per_recipient_cooldown_secs: 0,
+            global_max_per_minute: 30,
         },
-        email: EmailConfig {
-            allowed_domains: vec!["example.com".to_string()],
-        },
+        email_allowed_domains: vec!["example.com".to_string()],
     }
 }
 

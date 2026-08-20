@@ -1,21 +1,20 @@
-pub mod email;
+pub mod logging;
 pub mod server;
-pub mod smtp;
 
 use std::env;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
 
-use email::EmailConfig;
+use logging::LoggingConfig;
 use server::ServerConfig;
-use smtp::SmtpConfig;
 
 #[derive(Clone, Debug)]
 pub struct AppConfig {
     pub server: ServerConfig,
-    pub smtp: SmtpConfig,
-    pub email: EmailConfig,
+    pub logging: LoggingConfig,
+    pub emailer: emailer::EmailerConfig,
+    pub email_allowed_domains: Vec<String>,
 }
 
 impl AppConfig {
@@ -25,29 +24,50 @@ impl AppConfig {
     }
 
     pub fn load_from(directory: &Path) -> Result<Self> {
-        let server: ServerConfig = toml::from_str(&read_config(directory, "server.toml")?)?;
+        let server_content = read_config(directory, "server.toml")?;
+        let server: ServerConfig = toml::from_str(&server_content)?;
         server.validate()?;
-        let smtp: SmtpConfig = toml::from_str(&read_config(directory, "smtp.toml")?)?;
-        smtp.validate()?;
-        let mut email: EmailConfig = toml::from_str(&read_config(directory, "email.toml")?)?;
-        email.allowed_domains = email
-            .allowed_domains
+        let logging_section = extract_section(&server_content, "logging");
+        let logging: LoggingConfig = toml::from_str(&logging_section)?;
+        logging.validate()?;
+        let emailer = emailer::EmailerConfig::load(directory.join("emailer.toml"))?;
+        let mut email_allowed_domains: Vec<String> =
+            toml::from_str::<EmailDomainConfig>(&read_config(directory, "email.toml")?)?
+                .allowed_domains;
+        email_allowed_domains = email_allowed_domains
             .into_iter()
             .map(|domain| domain.trim().trim_start_matches('@').to_lowercase())
             .filter(|domain| !domain.is_empty())
             .collect();
         Ok(Self {
             server,
-            smtp,
-            email,
+            logging,
+            emailer,
+            email_allowed_domains,
         })
     }
+}
+
+#[derive(serde::Deserialize)]
+struct EmailDomainConfig {
+    allowed_domains: Vec<String>,
 }
 
 fn read_config(directory: &Path, name: &str) -> Result<String> {
     let path = directory.join(name);
     std::fs::read_to_string(&path)
         .with_context(|| format!("failed to read config file {}", path.display()))
+}
+
+fn extract_section(content: &str, section: &str) -> String {
+    let header = format!("[{section}]");
+    let Some(start) = content.find(&header) else {
+        return String::new();
+    };
+    let after_header = start + header.len();
+    let rest = &content[after_header..];
+    let end = rest.find("\n[").unwrap_or(rest.len());
+    format!("{}\n{}", &rest[..end], header)
 }
 
 fn config_directory() -> Result<PathBuf> {

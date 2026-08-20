@@ -4,14 +4,8 @@ pub mod context;
 #[path = "configuration/validation.rs"]
 pub mod configuration_validation;
 
-#[path = "infrastructure/email.rs"]
-pub mod infrastructure_email;
-
 #[path = "infrastructure/pdf.rs"]
 pub mod infrastructure_pdf;
-
-#[path = "infrastructure/logging.rs"]
-pub mod infrastructure_logging;
 
 #[path = "infrastructure/cedar.rs"]
 pub mod infrastructure_cedar;

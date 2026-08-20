@@ -20,9 +20,9 @@ pub type PerRecipientLimiter = RateLimiter<
 const MIN_SEND_INTERVAL: Duration = Duration::from_secs(1);
 
 #[must_use]
-pub fn build_global(max_per_minute: u32) -> GlobalLimiter {
-    let n = NonZeroU32::new(max_per_minute).unwrap_or(NonZeroU32::MIN);
-    RateLimiter::direct(Quota::per_minute(n))
+pub fn build_global(max_per_minute: u32) -> Option<GlobalLimiter> {
+    let n = NonZeroU32::new(max_per_minute)?;
+    Some(RateLimiter::direct(Quota::per_minute(n)))
 }
 
 /// # Panics
@@ -30,10 +30,13 @@ pub fn build_global(max_per_minute: u32) -> GlobalLimiter {
 /// Panics only if `Duration::from_secs(1)` is rejected by `Quota::with_period`,
 /// which cannot happen.
 #[must_use]
-pub fn build_per_recipient(cooldown_secs: u64) -> PerRecipientLimiter {
+pub fn build_per_recipient(cooldown_secs: u64) -> Option<PerRecipientLimiter> {
+    if cooldown_secs == 0 {
+        return None;
+    }
     let period = Duration::from_secs(cooldown_secs.max(1));
-    RateLimiter::keyed(
+    Some(RateLimiter::keyed(
         Quota::with_period(period)
             .unwrap_or_else(|| Quota::with_period(MIN_SEND_INTERVAL).unwrap()),
-    )
+    ))
 }

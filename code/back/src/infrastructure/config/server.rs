@@ -24,16 +24,6 @@ pub struct ServerConfig {
     pub max_search_query_chars: u64,
     pub search_page_size: u64,
     pub max_search_pages: u64,
-    pub log_dir: String,
-    pub log_retention_days: u64,
-    pub log_max_file_count: usize,
-    pub log_prune_interval_secs: u64,
-    #[serde(default = "default_log_filter")]
-    pub log_filter: String,
-}
-
-fn default_log_filter() -> String {
-    "warn,nail_back=info,common=info".to_string()
 }
 
 impl ServerConfig {
@@ -47,17 +37,14 @@ impl ServerConfig {
         if self.listen_addr.is_empty() {
             bail!("config: listen_addr must not be empty");
         }
-        if self.db_path.is_empty() || self.log_dir.is_empty() {
-            bail!("config: db_path / log_dir must not be empty");
+        if self.db_path.is_empty() {
+            bail!("config: db_path must not be empty");
         }
         if self.search_index_path.is_empty() || self.pdf_storage_path.is_empty() {
             bail!("config: search_index_path / pdf_storage_path must not be empty");
         }
         if self.max_text_field_bytes > self.max_pdf_size_bytes {
             bail!("config: max_text_field_bytes must not exceed max_pdf_size_bytes");
-        }
-        if self.log_filter.trim().is_empty() {
-            bail!("config: log_filter must not be empty");
         }
         if self.user_zero_email.trim().is_empty() || !self.user_zero_email.contains('@') {
             bail!("config: user_zero_email must be a valid email address");
@@ -75,7 +62,6 @@ impl ServerConfig {
             ),
             ("token_cache_capacity", self.token_cache_capacity),
             ("email_cooldown_seconds", self.email_cooldown_seconds),
-            ("log_prune_interval_secs", self.log_prune_interval_secs),
         ] {
             if value == 0 {
                 bail!("config: {name} must be > 0");
