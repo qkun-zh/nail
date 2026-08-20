@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use axum::Router;
 use axum::body::Body;
@@ -279,15 +278,7 @@ pub async fn build_state(
     )
     .await?;
     crate::infrastructure::pdf::prepare_pdf_storage(&config.server.pdf_storage_path).await?;
-    let cache = cache::Caches::new(
-        Duration::from_secs(config.server.user_creation_ttl_seconds),
-        Duration::from_secs(config.server.session_ttl_seconds),
-        Duration::from_secs(config.server.email_update_ttl_seconds),
-        Duration::from_secs(config.server.user_deletion_ttl_seconds),
-        Duration::from_secs(config.server.challenge_ttl_seconds),
-        Duration::from_secs(config.server.download_ttl_seconds),
-        config.server.cache_capacity,
-    );
+    let cache = cache::Caches::new(&config.cache);
     let recorder = RecordingSender::default();
     let emailer_instance =
         emailer::Emailer::with_sender(Arc::new(recorder.clone()), &config.emailer);
@@ -311,13 +302,6 @@ pub fn test_config() -> AppConfig {
             search_index_path: "memory-search".to_string(),
             pdf_storage_path: "/tmp/nail_test_pdf".to_string(),
             pow_difficulty_iterations: 1,
-            user_creation_ttl_seconds: 8000,
-            session_ttl_seconds: 8000,
-            email_update_ttl_seconds: 8000,
-            user_deletion_ttl_seconds: 8000,
-            challenge_ttl_seconds: 300,
-            download_ttl_seconds: 60,
-            cache_capacity: 100,
             email_cooldown_seconds: 60,
             user_zero_email: "user-zero@example.com".to_string(),
             max_pdf_size_bytes: 32 * 1024 * 1024,
@@ -348,6 +332,15 @@ pub fn test_config() -> AppConfig {
             starttls: false,
             per_recipient_cooldown_secs: 0,
             global_max_per_minute: 30,
+        },
+        cache: cache::CacheConfig {
+            user_creation_ttl_seconds: 8000,
+            session_ttl_seconds: 8000,
+            email_update_ttl_seconds: 8000,
+            user_deletion_ttl_seconds: 8000,
+            challenge_ttl_seconds: 300,
+            download_ttl_seconds: 60,
+            cache_capacity: 100,
         },
         email_allowed_domains: vec!["example.com".to_string()],
     }

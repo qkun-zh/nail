@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use crate::infrastructure::authorizer::Authorizer;
 use crate::infrastructure::config::AppConfig;
 use crate::infrastructure::state::{AppState, Configurator};
@@ -19,15 +17,7 @@ pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
     }
     crate::infrastructure::pdf::prepare_pdf_storage(config.pdf_storage_path()).await?;
 
-    let cache = cache::Caches::new(
-        Duration::from_secs(config.user_creation_ttl_seconds()),
-        Duration::from_secs(config.session_ttl_seconds()),
-        Duration::from_secs(config.email_update_ttl_seconds()),
-        Duration::from_secs(config.user_deletion_ttl_seconds()),
-        Duration::from_secs(config.challenge_ttl_seconds()),
-        Duration::from_secs(config.download_ttl_seconds()),
-        config.cache_capacity(),
-    );
+    let cache = cache::Caches::new(&config.cache);
 
     let email_sender = emailer::Emailer::new(&config.emailer);
 

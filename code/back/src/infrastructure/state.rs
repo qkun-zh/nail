@@ -36,7 +36,7 @@ impl Configurator {
     }
 
     pub fn download_token_ttl_seconds(&self) -> u64 {
-        self.0.server.download_ttl_seconds
+        self.0.cache.download_ttl_seconds
     }
 
     pub fn max_pdf_size_bytes(&self) -> u64 {

@@ -33,14 +33,7 @@ fn server_config_rejects_an_invalid_difficulty() {
 }
 
 #[test]
-fn server_config_rejects_zero_ttls_and_capacity() {
-    assert_invalid_server(|server| server.user_creation_ttl_seconds = 0);
-    assert_invalid_server(|server| server.session_ttl_seconds = 0);
-    assert_invalid_server(|server| server.email_update_ttl_seconds = 0);
-    assert_invalid_server(|server| server.user_deletion_ttl_seconds = 0);
-    assert_invalid_server(|server| server.challenge_ttl_seconds = 0);
-    assert_invalid_server(|server| server.download_ttl_seconds = 0);
-    assert_invalid_server(|server| server.cache_capacity = 0);
+fn server_config_rejects_zero_cooldown() {
     assert_invalid_server(|server| server.email_cooldown_seconds = 0);
 }
 
@@ -137,6 +130,8 @@ fn load_from_parses_tomls_and_normalizes_domains() {
     });
     assert_eq!(config.server.pow_difficulty_iterations, 8192);
     assert_eq!(config.email_allowed_domains, vec!["qq.com", "example.com"]);
+    assert_eq!(config.cache.download_ttl_seconds, 60);
+    assert_eq!(config.cache.cache_capacity, 100_000);
 
     let _ = std::fs::remove_dir_all(&directory);
 }
@@ -148,13 +143,6 @@ db_path = "memory"
 search_index_path = "/tmp/search"
 pdf_storage_path = "/tmp/pdf"
 pow_difficulty_iterations = 8192
-user_creation_ttl_seconds = 8000
-session_ttl_seconds = 8000
-email_update_ttl_seconds = 8000
-user_deletion_ttl_seconds = 8000
-challenge_ttl_seconds = 300
-download_ttl_seconds = 60
-cache_capacity = 100000
 email_cooldown_seconds = 60
 user_zero_email = "admin@example.com"
 max_pdf_size_bytes = 33554432
@@ -184,7 +172,12 @@ from_name = "nail"
     let email = r#"
 allowed_domains = ["qq.com", "@Example.com"]
 "#;
+    let cache = r#"
+download_ttl_seconds = 60
+cache_capacity = 100000
+"#;
     std::fs::write(directory.join("server.toml"), server).expect("server.toml");
     std::fs::write(directory.join("emailer.toml"), emailer).expect("emailer.toml");
     std::fs::write(directory.join("email.toml"), email).expect("email.toml");
+    std::fs::write(directory.join("cache.toml"), cache).expect("cache.toml");
 }

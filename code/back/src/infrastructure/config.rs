@@ -14,6 +14,7 @@ pub struct AppConfig {
     pub server: ServerConfig,
     pub logging: LoggingConfig,
     pub emailer: emailer::EmailerConfig,
+    pub cache: cache::CacheConfig,
     pub email_allowed_domains: Vec<String>,
 }
 
@@ -31,6 +32,7 @@ impl AppConfig {
         let logging: LoggingConfig = toml::from_str(&logging_section)?;
         logging.validate()?;
         let emailer = emailer::EmailerConfig::load(directory.join("emailer.toml"))?;
+        let cache = cache::CacheConfig::load(directory.join("cache.toml"))?;
         let mut email_allowed_domains: Vec<String> =
             toml::from_str::<EmailDomainConfig>(&read_config(directory, "email.toml")?)?
                 .allowed_domains;
@@ -43,6 +45,7 @@ impl AppConfig {
             server,
             logging,
             emailer,
+            cache,
             email_allowed_domains,
         })
     }
@@ -61,34 +64,6 @@ impl AppConfig {
 
     pub fn user_zero_email(&self) -> &str {
         &self.server.user_zero_email
-    }
-
-    pub fn user_creation_ttl_seconds(&self) -> u64 {
-        self.server.user_creation_ttl_seconds
-    }
-
-    pub fn session_ttl_seconds(&self) -> u64 {
-        self.server.session_ttl_seconds
-    }
-
-    pub fn email_update_ttl_seconds(&self) -> u64 {
-        self.server.email_update_ttl_seconds
-    }
-
-    pub fn user_deletion_ttl_seconds(&self) -> u64 {
-        self.server.user_deletion_ttl_seconds
-    }
-
-    pub fn challenge_ttl_seconds(&self) -> u64 {
-        self.server.challenge_ttl_seconds
-    }
-
-    pub fn download_ttl_seconds(&self) -> u64 {
-        self.server.download_ttl_seconds
-    }
-
-    pub fn cache_capacity(&self) -> u64 {
-        self.server.cache_capacity
     }
 }
 

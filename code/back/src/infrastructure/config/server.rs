@@ -7,13 +7,6 @@ pub struct ServerConfig {
     pub search_index_path: String,
     pub pdf_storage_path: String,
     pub pow_difficulty_iterations: u64,
-    pub user_creation_ttl_seconds: u64,
-    pub session_ttl_seconds: u64,
-    pub email_update_ttl_seconds: u64,
-    pub user_deletion_ttl_seconds: u64,
-    pub challenge_ttl_seconds: u64,
-    pub download_ttl_seconds: u64,
-    pub cache_capacity: u64,
     pub email_cooldown_seconds: u64,
     pub user_zero_email: String,
     pub max_pdf_size_bytes: u64,
@@ -54,16 +47,7 @@ impl ServerConfig {
         if !(1..=10_000).contains(&self.pow_difficulty_iterations) {
             bail!("config: pow_difficulty_iterations must be in 1..=10_000");
         }
-        for (name, value) in [
-            ("user_creation_ttl_seconds", self.user_creation_ttl_seconds),
-            ("session_ttl_seconds", self.session_ttl_seconds),
-            ("email_update_ttl_seconds", self.email_update_ttl_seconds),
-            ("user_deletion_ttl_seconds", self.user_deletion_ttl_seconds),
-            ("challenge_ttl_seconds", self.challenge_ttl_seconds),
-            ("download_ttl_seconds", self.download_ttl_seconds),
-            ("cache_capacity", self.cache_capacity),
-            ("email_cooldown_seconds", self.email_cooldown_seconds),
-        ] {
+        for (name, value) in [("email_cooldown_seconds", self.email_cooldown_seconds)] {
             if value == 0 {
                 bail!("config: {name} must be > 0");
             }
