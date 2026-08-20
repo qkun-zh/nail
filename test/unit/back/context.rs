@@ -273,7 +273,8 @@ pub async fn build_state(
         config.server.token_cache_capacity,
     );
     let recorder = RecordingSender::default();
-    let emailer_instance = emailer::Emailer::with_sender(Arc::new(recorder.clone()), &config.emailer);
+    let emailer_instance =
+        emailer::Emailer::with_sender(Arc::new(recorder.clone()), &config.emailer);
     let state = AppState {
         database,
         searcher,

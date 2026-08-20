@@ -50,9 +50,15 @@ async fn create_top_level_comment_writes_nodes_and_edges() {
     let version_id = create_version_fixture(&state, &author_id).await;
     let comment_id = uuid::Uuid::now_v7().to_string();
 
-    create_top_level_comment(&state.database, &comment_id, &author_id, &version_id, "hello")
-        .await
-        .expect("create");
+    create_top_level_comment(
+        &state.database,
+        &comment_id,
+        &author_id,
+        &version_id,
+        "hello",
+    )
+    .await
+    .expect("create");
 
     assert_eq!(
         owner_of_comment(&state.database, &comment_id)
@@ -171,9 +177,16 @@ async fn create_reply_rejects_a_thread_deeper_than_the_cap() {
 
     for _ in 0..MAX_DEPTH {
         let next = uuid::Uuid::now_v7().to_string();
-        create_reply_comment(&state.database, &next, &author_id, &parent, "reply", MAX_DEPTH)
-            .await
-            .expect("reply under cap");
+        create_reply_comment(
+            &state.database,
+            &next,
+            &author_id,
+            &parent,
+            "reply",
+            MAX_DEPTH,
+        )
+        .await
+        .expect("reply under cap");
         parent = next;
     }
 
@@ -224,9 +237,15 @@ async fn update_comment_content_applies_the_new_text_and_reports_missing() {
     let author_id = create_user(&state, "alice@example.com").await;
     let version_id = create_version_fixture(&state, &author_id).await;
     let comment_id = uuid::Uuid::now_v7().to_string();
-    create_top_level_comment(&state.database, &comment_id, &author_id, &version_id, "before")
-        .await
-        .expect("create");
+    create_top_level_comment(
+        &state.database,
+        &comment_id,
+        &author_id,
+        &version_id,
+        "before",
+    )
+    .await
+    .expect("create");
 
     assert!(
         update_comment_content(&state.database, &comment_id, "after")

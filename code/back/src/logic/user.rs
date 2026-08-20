@@ -57,14 +57,18 @@ pub async fn create_user(state: &AppState, pow: &Pow) -> Result<String, LogicErr
         .consume(&key)
         .ok_or_else(|| LogicError::bad_request("invalid or expired token"))?;
 
-    let user_id =
-        match crate::repository::user::create_user(&state.database, &entry.email_address_hash).await {
-            Ok(user_id) => user_id,
-            Err(error) => {
-                state.cache.create_user.insert(&key, entry);
-                return Err(error.into());
-            }
-        };
+    let user_id = match crate::repository::user::create_user(
+        &state.database,
+        &entry.email_address_hash,
+    )
+    .await
+    {
+        Ok(user_id) => user_id,
+        Err(error) => {
+            state.cache.create_user.insert(&key, entry);
+            return Err(error.into());
+        }
+    };
 
     if crate::repository::delete::is_soft_deleted(&state.database, "user", &user_id).await? {
         return Err(LogicError::bad_request("email address is deactivated"));

@@ -136,7 +136,8 @@ pub async fn read_comment_children(
     )
     .await?;
     let total =
-        crate::repository::comment::count_comment_children(&state.database, parent_comment_id).await?;
+        crate::repository::comment::count_comment_children(&state.database, parent_comment_id)
+            .await?;
     let offset = page_offset(page, limit);
     let (items, has_next) =
         read_comment_children_page(&state.database, parent_comment_id, limit, offset)

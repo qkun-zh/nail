@@ -13,8 +13,12 @@ use crate::repository::role::{
 #[tokio::test]
 async fn create_role_is_idempotent() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let first = create_role(&state.database, "editor").await.expect("create");
-    let second = create_role(&state.database, "editor").await.expect("create");
+    let first = create_role(&state.database, "editor")
+        .await
+        .expect("create");
+    let second = create_role(&state.database, "editor")
+        .await
+        .expect("create");
     assert_eq!(first, second);
 }
 
@@ -134,10 +138,11 @@ async fn user_holds_permission_is_false_for_unknown_user_or_permission() {
 async fn users_holding_role_lists_recycler_holders() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let hash = nail_common::hash::email("user-zero@example.com");
-    let user_zero = crate::repository::user::read_user_by_email_address_hash(&state.database, &hash)
-        .await
-        .expect("lookup")
-        .expect("user zero");
+    let user_zero =
+        crate::repository::user::read_user_by_email_address_hash(&state.database, &hash)
+            .await
+            .expect("lookup")
+            .expect("user zero");
     let recyclers = users_holding_role(&state.database, ROLE_RECYCLER)
         .await
         .expect("list");
@@ -170,10 +175,11 @@ async fn member_role_holds_exactly_the_seeded_baseline_permissions() {
 async fn every_schema_action_is_seeded_as_a_permission_and_granted_to_admin() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let hash = nail_common::hash::email("user-zero@example.com");
-    let user_zero = crate::repository::user::read_user_by_email_address_hash(&state.database, &hash)
-        .await
-        .expect("lookup")
-        .expect("user zero");
+    let user_zero =
+        crate::repository::user::read_user_by_email_address_hash(&state.database, &hash)
+            .await
+            .expect("lookup")
+            .expect("user zero");
     let schema: cedar_policy::Schema = crate::infrastructure::cedar::SCHEMA
         .parse()
         .expect("schema");

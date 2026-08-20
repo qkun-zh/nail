@@ -161,7 +161,9 @@ async fn delete_user_removes_the_user_node() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let user_id = create_user(&state, "alice@example.com").await;
 
-    delete_user(&state.database, &user_id).await.expect("delete");
+    delete_user(&state.database, &user_id)
+        .await
+        .expect("delete");
 
     let entry = crate::repository::user::read_user(&state.database, &user_id)
         .await
@@ -172,7 +174,9 @@ async fn delete_user_removes_the_user_node() {
 #[tokio::test]
 async fn delete_user_is_idempotent_for_a_missing_user() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    delete_user(&state.database, "missing").await.expect("delete");
+    delete_user(&state.database, "missing")
+        .await
+        .expect("delete");
 }
 
 #[tokio::test]
@@ -288,7 +292,9 @@ async fn delete_user_removes_a_nested_comment_subtree_and_collects_the_pdf_hash(
     let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
     insert_comment_tree(&state, &version_id, &author_id).await;
 
-    let outcome = delete_user(&state.database, &author_id).await.expect("delete");
+    let outcome = delete_user(&state.database, &author_id)
+        .await
+        .expect("delete");
     assert_eq!(outcome.removed_pdf_hashes, vec![pdf_hash(1)]);
 
     assert_no_comment_subtree_remains(&state).await;
@@ -705,10 +711,14 @@ async fn comment_page_hides_soft_deleted_comments_and_their_replies() {
         .await
         .expect("soft delete top");
 
-    let (page, has_next) =
-        crate::repository::comment::read_comments_page_by_version(&state.database, &version_id, 10, 0)
-            .await
-            .expect("comment page");
+    let (page, has_next) = crate::repository::comment::read_comments_page_by_version(
+        &state.database,
+        &version_id,
+        10,
+        0,
+    )
+    .await
+    .expect("comment page");
     assert!(page.is_empty(), "deleted top-level comment hidden");
     assert!(!has_next);
     let children_error =
@@ -741,16 +751,24 @@ async fn comment_page_tiles_around_soft_deleted_comments() {
         .await
         .expect("soft delete second");
 
-    let (page_one, has_next) =
-        crate::repository::comment::read_comments_page_by_version(&state.database, &version_id, 1, 0)
-            .await
-            .expect("page one");
+    let (page_one, has_next) = crate::repository::comment::read_comments_page_by_version(
+        &state.database,
+        &version_id,
+        1,
+        0,
+    )
+    .await
+    .expect("page one");
     assert_eq!(page_one.len(), 1);
     assert!(has_next, "one of two live comments remains");
-    let (page_two, has_next) =
-        crate::repository::comment::read_comments_page_by_version(&state.database, &version_id, 1, 1)
-            .await
-            .expect("page two");
+    let (page_two, has_next) = crate::repository::comment::read_comments_page_by_version(
+        &state.database,
+        &version_id,
+        1,
+        1,
+    )
+    .await
+    .expect("page two");
     assert_eq!(page_two.len(), 1);
     assert!(!has_next);
     let mut seen: Vec<String> = page_one

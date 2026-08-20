@@ -85,7 +85,10 @@ async fn sync_and_read_round_trips_an_article() {
         .expect("index");
     let article_id = create_article_fixture(&state, &author_id, "A Unique Title").await;
 
-    index.sync(&state.database, &article_id).await.expect("sync");
+    index
+        .sync(&state.database, &article_id)
+        .await
+        .expect("sync");
 
     let outcome = index
         .read(
@@ -117,7 +120,10 @@ async fn sync_all_and_sync_user_skip_soft_deleted_articles() {
     let first = create_fixture_with_hash(&state, &author_id, "Soft Del First", &pdf_hash(4)).await;
     let second =
         create_fixture_with_hash(&state, &author_id, "Soft Del Second", &pdf_hash(5)).await;
-    index.sync(&state.database, &first).await.expect("sync first");
+    index
+        .sync(&state.database, &first)
+        .await
+        .expect("sync first");
     index
         .sync(&state.database, &second)
         .await
@@ -165,7 +171,10 @@ async fn keyword_read_returns_highlighted_hits() {
         .await
         .expect("index");
     let article_id = create_article_fixture(&state, &author_id, "Rust Programming").await;
-    index.sync(&state.database, &article_id).await.expect("sync");
+    index
+        .sync(&state.database, &article_id)
+        .await
+        .expect("sync");
 
     let outcome = index
         .read(
@@ -204,7 +213,10 @@ async fn sync_user_refreshes_the_author_name() {
         .await
         .expect("index");
     let article_id = create_article_fixture(&state, &author_id, "Article").await;
-    index.sync(&state.database, &article_id).await.expect("sync");
+    index
+        .sync(&state.database, &article_id)
+        .await
+        .expect("sync");
 
     crate::repository::user::update_user_name(&state.database, &author_id, "renamed-author")
         .await
@@ -282,7 +294,10 @@ async fn sync_user_refreshes_the_author_name_of_their_comments() {
     )
     .await
     .expect("comment");
-    index.sync(&state.database, &article_id).await.expect("sync");
+    index
+        .sync(&state.database, &article_id)
+        .await
+        .expect("sync");
 
     crate::repository::user::update_user_name(&state.database, &commenter_id, "new-name")
         .await
@@ -337,7 +352,10 @@ async fn sync_removes_documents_for_a_deleted_article() {
         .await
         .expect("index");
     let article_id = create_article_fixture(&state, &author_id, "Article").await;
-    index.sync(&state.database, &article_id).await.expect("sync");
+    index
+        .sync(&state.database, &article_id)
+        .await
+        .expect("sync");
 
     crate::repository::delete::delete_article(&state.database, &article_id)
         .await
@@ -404,7 +422,10 @@ async fn sync_excludes_a_soft_deleted_version_doc_and_its_comments() {
     )
     .await
     .expect("comment");
-    index.sync(&state.database, &article_id).await.expect("sync");
+    index
+        .sync(&state.database, &article_id)
+        .await
+        .expect("sync");
 
     crate::repository::delete::soft_delete_version(&state.database, &version_id)
         .await
@@ -508,7 +529,10 @@ async fn sync_excludes_a_soft_deleted_comment_doc() {
     )
     .await
     .expect("comment");
-    index.sync(&state.database, &article_id).await.expect("sync");
+    index
+        .sync(&state.database, &article_id)
+        .await
+        .expect("sync");
 
     crate::repository::delete::soft_delete_comment(&state.database, &deleted_comment)
         .await
@@ -580,7 +604,10 @@ async fn sync_drops_all_docs_of_a_soft_deleted_article() {
     )
     .await
     .expect("create");
-    index.sync(&state.database, &article_id).await.expect("sync");
+    index
+        .sync(&state.database, &article_id)
+        .await
+        .expect("sync");
 
     crate::repository::delete::soft_delete_article(&state.database, &article_id)
         .await
@@ -623,7 +650,10 @@ async fn sync_all_and_incremental_sync_agree_on_document_count() {
 
     let first = create_fixture_with_hash(&state, &author_id, "First Article", &pdf_hash(2)).await;
     let second = create_fixture_with_hash(&state, &author_id, "Second Article", &pdf_hash(3)).await;
-    index.sync(&state.database, &first).await.expect("sync first");
+    index
+        .sync(&state.database, &first)
+        .await
+        .expect("sync first");
     index
         .sync(&state.database, &second)
         .await

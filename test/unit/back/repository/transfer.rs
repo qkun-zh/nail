@@ -166,11 +166,15 @@ async fn recycler_selection_chooses_the_least_loaded_holder() {
         .expect("transfer");
 
     assert_eq!(
-        owner_of(&state.database, &transferred).await.expect("owner"),
+        owner_of(&state.database, &transferred)
+            .await
+            .expect("owner"),
         Some(free.clone())
     );
     assert_eq!(
-        owner_of(&state.database, &busy_article).await.expect("owner"),
+        owner_of(&state.database, &busy_article)
+            .await
+            .expect("owner"),
         Some(busy)
     );
 }
@@ -202,7 +206,9 @@ async fn recycler_selection_breaks_ties_by_larger_user_id() {
 
     let expected = if first > second { first } else { second };
     assert_eq!(
-        owner_of(&state.database, &transferred).await.expect("owner"),
+        owner_of(&state.database, &transferred)
+            .await
+            .expect("owner"),
         Some(expected)
     );
 }

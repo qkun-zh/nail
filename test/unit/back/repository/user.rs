@@ -125,9 +125,12 @@ async fn update_user_email_rejects_a_taken_new_hash() {
 #[tokio::test]
 async fn update_user_email_rejects_a_mismatched_old_hash() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let user_id = create_user(&state.database, &nail_common::hash::email("alice@example.com"))
-        .await
-        .expect("user");
+    let user_id = create_user(
+        &state.database,
+        &nail_common::hash::email("alice@example.com"),
+    )
+    .await
+    .expect("user");
     assert!(matches!(
         update_user_email(
             &state.database,
