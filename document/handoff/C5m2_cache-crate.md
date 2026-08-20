@@ -2,7 +2,7 @@
 
 **Owner**: QkzP7w
 **Exec doc**: `document/exec/C5m2_cache-crate.md`
-**Status**: COMPLETE — all 3 slices committed, CI green; handoff pending orchestrator final gate review
+**Status**: COMPLETE — all slices committed, CI green run #32427406154; handoff pending orchestrator final gate review
 
 ### Stage A. Cache crate (slice 1) — DONE
 
@@ -18,6 +18,18 @@
 
 - 1. Handoff + exec doc Change log. Status: DONE — docs commit `[skip ci]`.
 
+### Stage D. Own config file (slice 4) — DONE
+
+- User decision: cache owns its config like emailer. `code/cache/src/config.rs`
+  (`CacheConfig`: seven keys, serde defaults, `load` + `validate`),
+  `Caches::new(&CacheConfig)` + `Caches::load(path)`, new tracked
+  `configuration/cache.toml`; back drops the seven server.toml keys and
+  accessors, loads via `cache::CacheConfig::load(directory.join("cache.toml"))`,
+  `Configurator::download_token_ttl_seconds` now reads the cache config.
+  Status: DONE — `d2623ff` (cache side), `57eaee0` (back rewire),
+  `62ebfd5` (workspace lock), `1ff8fc4` (clippy raw-string fix). CI run
+  #32427406154 green.
+
 ### Decisions (user-confirmed)
 
 - Crate `cache`, deps `moka` + `uuid` + `std` (no project crate).
@@ -25,4 +37,5 @@
 - Value types validate at construction (`uuid::Uuid::parse_str` for UUIDv7 ids — **user chose the `uuid` dependency**); table name = value type name = TTL param name.
 - Six tables: `user_creation`(Hash)/`session`(UserId)/`email_update`(OldAndNewEmailAddressAndTokenHashes)/`user_deletion`(UserIdAndEmailAddressHash)/`challenge`(Challenge)/`download`(VersionIdAndUserId).
 - Config: split `token_ttl_seconds` → user_creation/email_update/user_deletion; rename `download_token_ttl_seconds`→`download_ttl_seconds`, `token_cache_capacity`→`cache_capacity`.
+- **Own config file** (user, 2026-08-21): crate reads its own `configuration/cache.toml` via `CacheConfig::load`/`Caches::load`, exactly like emailer; back no longer holds these keys.
 - **H7aU done (2026-08-20)**: unified `hash()` → 128-bit → 32 hex; `EmailAddressHash`/`TokenHash` merged into single `Hash` (32 hex). Field names keep old spellings.

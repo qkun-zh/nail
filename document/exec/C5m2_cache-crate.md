@@ -13,12 +13,14 @@ project crate dependency. Expose `Caches` (six tables: `user_creation`,
 `Cache<E: CacheValue>` (`new`/`insert`/`read`/`delete`/`delete_if`/
 `delete_by_reverse_key`). Keys are opaque `&str`; value types validate at
 construction and cannot represent an invalid value. Table name = value type
-name = TTL parameter name. Configuration splits `token_ttl_seconds` into
-`user_creation_ttl_seconds`/`email_update_ttl_seconds`/`user_deletion_ttl_seconds`,
-renames `download_token_ttl_seconds` → `download_ttl_seconds`, and
-`token_cache_capacity` → `cache_capacity`. The `token_key` hashing helper moves
-to `logic/session.rs`. Behavior is identical to the current cache — a pure
-refactor with no behavior change.
+name = TTL parameter name. The crate owns its configuration file
+(`configuration/cache.toml`) and loads it itself (`CacheConfig` + `Caches::load`),
+like emailer. Configuration keys: `user_creation_ttl_seconds`/
+`session_ttl_seconds`/`email_update_ttl_seconds`/`user_deletion_ttl_seconds`/
+`challenge_ttl_seconds`/`download_ttl_seconds`/`cache_capacity` — moved out of
+`server.toml`. The `token_key` hashing helper moves to `logic/session.rs`.
+Behavior is identical to the current cache — a pure refactor with no behavior
+change.
 
 Acceptance criteria:
 - `code/cache/` is a standalone crate, compiles independently, and is a
@@ -28,8 +30,9 @@ Acceptance criteria:
 - All callers use the new table names (`user_creation`, `user_deletion`) and
   CRUD methods (`delete`, `delete_if`); no `create_user`/`delete_user`/
   `consume`/`consume_if` remain in back.
-- `server.toml` has six TTLs + `cache_capacity`; `back` builds `Caches::new`
-  with them.
+- `server.toml` no longer holds cache keys; `configuration/cache.toml` (owned
+  by the crate) has seven keys; `back` loads it via `cache::CacheConfig::load`
+  and builds `Caches::new(&config.cache)`.
 - Zero-warning gate green; back tests pass; no behavior change; English only;
   no `unwrap`/`expect`/new panics.
 
@@ -262,6 +265,14 @@ impl Caches {
 - 2026-08-20: user decision — UUIDv7 validation via `uuid` crate (new dep);
   `EmailAddressHash`/`TokenHash` merged into single `Hash` (H7aU done, 32 hex);
   docs updated everywhere. Remaining gates: plan adoption + red-phase note.
+- 2026-08-20: slice 1+2 DONE by subagent (commits 2c36b00..fe565df, CI
+  #32390381683 green): crate + back rewire. 
+- 2026-08-21: slice 3 DONE — user decision: crate owns its own config file
+  (`configuration/cache.toml`) and reads it itself like emailer
+  (`CacheConfig::load`/`validate` + `Caches::load`; `Caches::new(&CacheConfig)`).
+  Back drops the seven server.toml keys and accessors; `Configurator` reads
+  `download_token_ttl_seconds` from the cache config. Commits d2623ff, 57eaee0,
+  62ebfd5, 1ff8fc4; CI #32427406154 green. TASK COMPLETE.
 - 2026-08-20: slice 1 DONE — `code/cache/` committed (`2c36b00`, `baf031b`,
   `5e73f02`); CI run #32385777082 green. `code/cache/Cargo.lock` generated
   standalone in `/tmp/cachelockgen` (empty `[workspace]` table; version-4 lock
