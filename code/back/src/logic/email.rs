@@ -289,6 +289,7 @@ async fn send_confirmation_email(
         Err(emailer::SendEmailError::RateLimited) => Err(LogicError::bad_request(
             "email already sent recently, check your inbox",
         )),
+        Err(emailer::SendEmailError::Validation(error)) => Err(LogicError::bad_request(&error)),
         Err(emailer::SendEmailError::Transport(error)) => {
             tracing::warn!(target: "email", error = %error, "failed to send email");
             Err(LogicError::internal("failed to send email"))

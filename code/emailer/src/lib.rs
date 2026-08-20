@@ -76,6 +76,9 @@ impl Emailer {
     /// rate limits are exceeded, or [`SendEmailError::Transport`] on
     /// SMTP failure.
     pub async fn send(&self, to_where: &str, send_what: &str) -> Result<String, SendEmailError> {
+        validate_email(to_where)?;
+        validate_body(send_what)?;
+
         if let Some(ref g) = self.global {
             g.check()?;
         }
@@ -96,4 +99,43 @@ impl Emailer {
                 .map(Arc::new),
         }
     }
+}
+
+const MAX_EMAIL_ADDR_LEN: usize = 320;
+const MAX_BODY_BYTES: usize = 1 << 20;
+
+fn validate_email(email: &str) -> Result<(), SendEmailError> {
+    let trimmed = email.trim();
+    if trimmed.is_empty() {
+        return Err(SendEmailError::Validation(
+            "recipient address must not be empty".into(),
+        ));
+    }
+    if trimmed.len() > MAX_EMAIL_ADDR_LEN {
+        return Err(SendEmailError::Validation(format!(
+            "recipient address too long ({} > {MAX_EMAIL_ADDR_LEN})",
+            trimmed.len(),
+        )));
+    }
+    if !trimmed.contains('@') {
+        return Err(SendEmailError::Validation(
+            "recipient address must contain '@'".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_body(body: &str) -> Result<(), SendEmailError> {
+    if body.is_empty() {
+        return Err(SendEmailError::Validation(
+            "email body must not be empty".into(),
+        ));
+    }
+    if body.len() > MAX_BODY_BYTES {
+        return Err(SendEmailError::Validation(format!(
+            "email body too long ({} > {MAX_BODY_BYTES})",
+            body.len(),
+        )));
+    }
+    Ok(())
 }

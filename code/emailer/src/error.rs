@@ -3,6 +3,7 @@ use std::fmt;
 #[derive(Debug)]
 pub enum SendEmailError {
     RateLimited,
+    Validation(String),
     Transport(String),
 }
 
@@ -10,6 +11,7 @@ impl fmt::Display for SendEmailError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::RateLimited => write!(f, "rate limited"),
+            Self::Validation(msg) => write!(f, "invalid input: {msg}"),
             Self::Transport(msg) => write!(f, "transport error: {msg}"),
         }
     }
