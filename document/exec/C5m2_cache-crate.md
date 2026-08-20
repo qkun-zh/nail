@@ -262,3 +262,25 @@ impl Caches {
 - 2026-08-20: user decision — UUIDv7 validation via `uuid` crate (new dep);
   `EmailAddressHash`/`TokenHash` merged into single `Hash` (H7aU done, 32 hex);
   docs updated everywhere. Remaining gates: plan adoption + red-phase note.
+- 2026-08-20: slice 1 DONE — `code/cache/` committed (`2c36b00`, `baf031b`,
+  `5e73f02`); CI run #32385777082 green. `code/cache/Cargo.lock` generated
+  standalone in `/tmp/cachelockgen` (empty `[workspace]` table; version-4 lock
+  has no `root` key). CI toolchain is 1.97 vs local 1.96: `baf031b` missed
+  `test/unit/cache/tests.rs` (staged only `code/cache`) — fmt/clippy 1.97
+  failures; `5e73f02` wrapped the ChallengeId `assert_eq!` and switched
+  `from_secs(300/60)` → `from_mins(5/1)` (new `clippy::duration_suboptimal_units`).
+- 2026-08-20: slice 2 DONE — back rewire committed (`8d5d025`, then fixes
+  `c8a2852` version_id format string / `1ee18fe` URL built before the move /
+  `6cbbb27` must_use discards / `fe565df` probe test real UUIDv7); CI run
+  #32390381683 green. Three CI iterations failed before green: (1) E0277
+  `cache::VersionId` lacks Display + E0609 `entry.email_address_hash` on
+  `Hash`; (2) E0382 moved `version_id` borrowed in format; (3) unused
+  must_use results of `delete`/`delete_if`/`delete_by_reverse_key` (16 sites,
+  fixed with `let _ =`); (4) `probe_review_findings.rs:63` used "user-123"
+  which `UserId::new` rejects — replaced with `Uuid::now_v7()`.
+- 2026-08-20: slice 3 DONE — leftover grep clean within scope (remaining
+  `download_token_ttl_seconds` matches are the intentional out-of-scope wire
+  contract: `interface/config.rs:20`, `infrastructure/state.rs:38`,
+  `test/unit/back/http/config.rs:20`); handoff + this Change log updated;
+  docs commit `[skip ci]`. Task COMPLETE — exec doc retained per repo practice
+  (workflow §9 deletion deferred until orchestrator closes the task).
