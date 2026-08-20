@@ -3,7 +3,7 @@ use std::time::Duration;
 use uuid::Uuid;
 
 use crate::{
-    Cache, CacheError, CacheValue, Caches, Challenge, ChallengeId, Hash,
+    Cache, CacheConfig, CacheError, CacheValue, Caches, Challenge, ChallengeId, Hash,
     OldAndNewEmailAddressAndTokenHashes, UserId, UserIdAndEmailAddressHash, VersionId,
     VersionIdAndUserId,
 };
@@ -167,15 +167,16 @@ fn reverse_keys_are_wired_to_the_right_fields() {
 
 #[test]
 fn caches_hold_the_six_tables() {
-    let caches = Caches::new(
-        Duration::from_secs(8000),
-        Duration::from_secs(8000),
-        Duration::from_secs(8000),
-        Duration::from_secs(8000),
-        Duration::from_mins(5),
-        Duration::from_mins(1),
-        100,
-    );
+    let config = CacheConfig {
+        user_creation_ttl_seconds: 8000,
+        session_ttl_seconds: 8000,
+        email_update_ttl_seconds: 8000,
+        user_deletion_ttl_seconds: 8000,
+        challenge_ttl_seconds: 300,
+        download_ttl_seconds: 60,
+        cache_capacity: 100,
+    };
+    let caches = Caches::new(&config);
 
     let creation_key = uuid_v7();
     let creation_hash = Hash::new(hash_32()).expect("hash");
@@ -215,4 +216,51 @@ fn caches_hold_the_six_tables() {
     };
     caches.download.insert(&download_key, download.clone());
     assert_eq!(caches.download.read(&download_key), Some(download));
+}
+
+#[test]
+fn config_defaults_apply_to_missing_fields() {
+    let config: CacheConfig = toml::from_str("").expect("empty toml");
+    assert_eq!(config.user_creation_ttl_seconds, 8000);
+    assert_eq!(config.session_ttl_seconds, 8000);
+    assert_eq!(config.email_update_ttl_seconds, 8000);
+    assert_eq!(config.user_deletion_ttl_seconds, 8000);
+    assert_eq!(config.challenge_ttl_seconds, 300);
+    assert_eq!(config.download_ttl_seconds, 60);
+    assert_eq!(config.cache_capacity, 100_000);
+}
+
+#[test]
+fn config_validate_rejects_zero_fields() {
+    for field in [
+        "user_creation_ttl_seconds",
+        "session_ttl_seconds",
+        "email_update_ttl_seconds",
+        "user_deletion_ttl_seconds",
+        "challenge_ttl_seconds",
+        "download_ttl_seconds",
+        "cache_capacity",
+    ] {
+        let config: CacheConfig = toml::from_str(&format!("{field} = 0")).expect("toml");
+        assert!(
+            config.validate().is_err(),
+            "{field} = 0 must fail validation"
+        );
+    }
+}
+
+#[test]
+fn config_load_reads_a_toml_file() {
+    let path = std::env::temp_dir().join(format!("nail_cache_config_{}", uuid_v7()));
+    std::fs::write(&path, "session_ttl_seconds = 42\ncache_capacity = 7\n").expect("write config");
+    let config = CacheConfig::load(&path).expect("load config");
+    assert_eq!(config.session_ttl_seconds, 42);
+    assert_eq!(config.cache_capacity, 7);
+    assert_eq!(config.user_creation_ttl_seconds, 8000);
+    std::fs::remove_file(path).expect("remove config");
+}
+
+#[test]
+fn config_load_rejects_a_missing_file() {
+    assert!(CacheConfig::load("/nonexistent/nail-cache.toml").is_err());
 }

@@ -1,10 +1,12 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use anyhow::Result;
 use moka::notification::RemovalCause;
 use moka::policy::EvictionPolicy;
 use moka::sync::Cache as MokaCache;
 
+use crate::config::CacheConfig;
 use crate::value::{
     CacheValue, Challenge, Hash, OldAndNewEmailAddressAndTokenHashes, UserId,
     UserIdAndEmailAddressHash, VersionIdAndUserId,
@@ -150,24 +152,35 @@ pub struct Caches {
 }
 
 impl Caches {
-    /// Constructs the six tables with the given TTLs and a shared capacity.
+    /// Constructs the six tables from a loaded configuration.
     #[must_use]
-    pub fn new(
-        user_creation_ttl: Duration,
-        session_ttl: Duration,
-        email_update_ttl: Duration,
-        user_deletion_ttl: Duration,
-        challenge_ttl: Duration,
-        download_ttl: Duration,
-        capacity: u64,
-    ) -> Self {
+    pub fn new(config: &CacheConfig) -> Self {
+        let capacity = config.cache_capacity;
         Self {
-            user_creation: Cache::new(user_creation_ttl, capacity),
-            session: Cache::new(session_ttl, capacity),
-            email_update: Cache::new(email_update_ttl, capacity),
-            user_deletion: Cache::new(user_deletion_ttl, capacity),
-            challenge: Cache::new(challenge_ttl, capacity),
-            download: Cache::new(download_ttl, capacity),
+            user_creation: Cache::new(
+                Duration::from_secs(config.user_creation_ttl_seconds),
+                capacity,
+            ),
+            session: Cache::new(Duration::from_secs(config.session_ttl_seconds), capacity),
+            email_update: Cache::new(
+                Duration::from_secs(config.email_update_ttl_seconds),
+                capacity,
+            ),
+            user_deletion: Cache::new(
+                Duration::from_secs(config.user_deletion_ttl_seconds),
+                capacity,
+            ),
+            challenge: Cache::new(Duration::from_secs(config.challenge_ttl_seconds), capacity),
+            download: Cache::new(Duration::from_secs(config.download_ttl_seconds), capacity),
         }
+    }
+
+    /// Loads the cache configuration file and builds the six tables.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the config file cannot be read, parsed, or validated.
+    pub fn load(path: impl AsRef<std::path::Path>) -> Result<Self> {
+        Ok(Self::new(&CacheConfig::load(path)?))
     }
 }

@@ -1,0 +1,7 @@
+user_creation_ttl_seconds = 8000
+session_ttl_seconds = 8000
+email_update_ttl_seconds = 8000
+user_deletion_ttl_seconds = 8000
+challenge_ttl_seconds = 300
+download_ttl_seconds = 60
+cache_capacity = 100000
