@@ -1,5 +1,19 @@
 use ascon_xof128::{AsconXof128, ExtendableOutput, Update, XofReader};
 
+/// Computes a deterministic 128-bit digest of a value, using the value itself
+/// as the salt so the same value always hashes identically.
+///
+/// # Errors
+/// Returns an error if the ascon CXOF cannot be initialized with the value salt.
+pub fn hash(value: &[u8]) -> anyhow::Result<String> {
+    use ascon_xof128::{AsconCxof128, TryCustomizedInit};
+    let mut cxof = AsconCxof128::try_new_customized(value)?;
+    cxof.update(value);
+    let mut output = [0u8; 16];
+    cxof.finalize_xof().read(&mut output);
+    Ok(hex::encode(output))
+}
+
 #[must_use]
 pub fn email(email_address: &str) -> String {
     let mut xof = AsconXof128::default();
@@ -64,3 +78,7 @@ pub fn pdf(data: &[u8]) -> String {
 #[cfg(test)]
 #[path = "../../../test/unit/common/hash/tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../../../test/unit/common/hash/probe_003_salt_equals_value_deterministic.rs"]
+mod probe_003_salt_equals_value_deterministic;
