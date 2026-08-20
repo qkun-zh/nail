@@ -1,4 +1,3 @@
-use crate::pow::Pow;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -23,51 +22,37 @@ pub struct DeleteBody {
     pub mode: Option<DeleteMode>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct DeleteQuery {
     #[serde(default)]
     pub mode: Option<DeleteMode>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct UserDeleteRequest {
-    #[serde(default)]
-    pub mode: Option<DeleteMode>,
-    pub pow: Pow,
-}
-
-#[derive(Debug, Clone, Deserialize)]
 pub struct UserDeleteQuery {
     #[serde(default)]
     pub mode: Option<DeleteMode>,
-    pub pow: String,
+    pub token: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateTokenRequest {
     pub purpose: TokenPurpose,
     #[serde(default)]
-    pub pow: Option<Pow>,
+    pub email: Option<String>,
     #[serde(default)]
-    pub old_email_pow: Option<Pow>,
+    pub old_email: Option<String>,
     #[serde(default)]
-    pub new_email_pow: Option<Pow>,
+    pub new_email: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TokenRequest {
-    pub pow: Pow,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct LogoutRequest {
-    pub pow: Pow,
+    pub token: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct UserUpdateRequest {
-    #[serde(default)]
-    pub pow: Option<Pow>,
     #[serde(default)]
     pub name: Option<String>,
     #[serde(default)]

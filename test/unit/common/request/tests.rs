@@ -83,17 +83,6 @@ fn token_purpose_rejects_unknown_values() {
     }
 }
 
-fn sample_pow() -> anyhow::Result<crate::pow::Pow> {
-    Ok(crate::pow::Pow {
-        challenge: crate::pow::Challenge {
-            id: uuid::Uuid::parse_str("0197c0b0-1234-7000-8000-000000000001")?,
-            difficulty: 1,
-        },
-        solution: "ab".repeat(96),
-        payload: "hello".to_string(),
-    })
-}
-
 #[test]
 fn delete_body_round_trips_with_mode() -> anyhow::Result<()> {
     let body = crate::request::DeleteBody {
@@ -123,24 +112,12 @@ fn delete_body_rejects_invalid_mode_value() {
 }
 
 #[test]
-fn user_delete_request_round_trips_with_mode_and_pow() -> anyhow::Result<()> {
-    let request = crate::request::UserDeleteRequest {
-        mode: Some(DeleteMode::Hard),
-        pow: sample_pow()?,
-    };
-    let json = serde_json::to_string(&request)?;
-    let decoded: crate::request::UserDeleteRequest = serde_json::from_str(&json)?;
-    assert_eq!(decoded, request);
-    Ok(())
-}
-
-#[test]
-fn create_token_request_round_trips_single_pow() -> anyhow::Result<()> {
+fn create_token_request_round_trips_with_email() -> anyhow::Result<()> {
     let request = crate::request::CreateTokenRequest {
         purpose: TokenPurpose::CreateUser,
-        pow: Some(sample_pow()?),
-        old_email_pow: None,
-        new_email_pow: None,
+        email: Some("alice@example.com".to_string()),
+        old_email: None,
+        new_email: None,
     };
     let json = serde_json::to_string(&request)?;
     let decoded: crate::request::CreateTokenRequest = serde_json::from_str(&json)?;
@@ -149,12 +126,12 @@ fn create_token_request_round_trips_single_pow() -> anyhow::Result<()> {
 }
 
 #[test]
-fn create_token_request_round_trips_dual_pow_pair() -> anyhow::Result<()> {
+fn create_token_request_round_trips_email_change_pair() -> anyhow::Result<()> {
     let request = crate::request::CreateTokenRequest {
         purpose: TokenPurpose::UpdateUserEmail,
-        pow: None,
-        old_email_pow: Some(sample_pow()?),
-        new_email_pow: Some(sample_pow()?),
+        email: None,
+        old_email: Some("alice@example.com".to_string()),
+        new_email: Some("alice-new@example.com".to_string()),
     };
     let json = serde_json::to_string(&request)?;
     let decoded: crate::request::CreateTokenRequest = serde_json::from_str(&json)?;
@@ -172,37 +149,60 @@ fn create_token_request_requires_a_purpose() {
 fn create_token_request_uses_purpose_as_the_wire_field_name() -> anyhow::Result<()> {
     let request = crate::request::CreateTokenRequest {
         purpose: TokenPurpose::CreateUser,
-        pow: Some(sample_pow()?),
-        old_email_pow: None,
-        new_email_pow: None,
+        email: Some("alice@example.com".to_string()),
+        old_email: None,
+        new_email: None,
     };
     let value = serde_json::to_value(&request)?;
     assert_eq!(value["purpose"], serde_json::json!("create_user"));
-    assert!(value.get("pow").is_some());
+    assert_eq!(value["email"], serde_json::json!("alice@example.com"));
     assert!(
         value.get("intent").is_none(),
         "the legacy intent field must not appear on the wire"
+    );
+    assert!(
+        value.get("pow").is_none(),
+        "proof-of-work must travel in the x-pow header, not the body"
     );
     Ok(())
 }
 
 #[test]
-fn single_pow_requests_round_trip() -> anyhow::Result<()> {
-    let token_request = crate::request::TokenRequest { pow: sample_pow()? };
-    let json = serde_json::to_string(&token_request)?;
+fn token_request_round_trips_a_token() -> anyhow::Result<()> {
+    let request = crate::request::TokenRequest {
+        token: "token-value".to_string(),
+    };
+    let json = serde_json::to_string(&request)?;
     let decoded: crate::request::TokenRequest = serde_json::from_str(&json)?;
-    assert_eq!(decoded, token_request);
-    let logout_request = crate::request::LogoutRequest { pow: sample_pow()? };
-    let json = serde_json::to_string(&logout_request)?;
-    let decoded: crate::request::LogoutRequest = serde_json::from_str(&json)?;
-    assert_eq!(decoded, logout_request);
+    assert_eq!(decoded, request);
+    Ok(())
+}
+
+#[test]
+fn user_delete_query_round_trips_mode_and_token() -> anyhow::Result<()> {
+    let query = crate::request::UserDeleteQuery {
+        mode: Some(DeleteMode::Transfer),
+        token: "token-value".to_string(),
+    };
+    assert_eq!(
+        serde_json::to_string(&query)?,
+        r#"{"mode":"transfer","token":"token-value"}"#
+    );
+    let decoded: crate::request::UserDeleteQuery =
+        serde_json::from_str(r#"{"mode":"transfer","token":"token-value"}"#)?;
+    assert_eq!(decoded, query);
+    let no_mode: crate::request::UserDeleteQuery =
+        serde_json::from_str(r#"{"token":"token-value"}"#)?;
+    assert_eq!(no_mode.mode, None);
+    let missing_token =
+        serde_json::from_str::<crate::request::UserDeleteQuery>(r#"{"mode":"hard"}"#);
+    assert!(missing_token.is_err(), "a missing token must be rejected");
     Ok(())
 }
 
 #[test]
 fn user_update_request_round_trips_all_branches() -> anyhow::Result<()> {
     let admin_rename = crate::request::UserUpdateRequest {
-        pow: None,
         name: Some("new name".to_string()),
         old_email_token: None,
         new_email_token: None,
@@ -211,7 +211,6 @@ fn user_update_request_round_trips_all_branches() -> anyhow::Result<()> {
     let decoded: crate::request::UserUpdateRequest = serde_json::from_str(&json)?;
     assert_eq!(decoded, admin_rename);
     let email_confirm = crate::request::UserUpdateRequest {
-        pow: Some(sample_pow()?),
         name: None,
         old_email_token: Some("token-a".to_string()),
         new_email_token: Some("token-b".to_string()),

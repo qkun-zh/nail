@@ -2966,7 +2966,7 @@ dependencies = [
  "anyhow",
  "ascon-xof128",
  "hex",
- "pso-vdf",
+ "pow",
  "serde",
  "serde_json",
  "time",
