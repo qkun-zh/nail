@@ -34,10 +34,7 @@ pub fn Authenticate() -> impl IntoView {
         working.set(true);
         let notifications = send_notifications.clone();
         leptos::task::spawn_local(async move {
-            let result = match crate::request::pow::prove_pow(email_value).await {
-                Ok(pow) => crate::request::auth::send_authenticate_email(pow).await,
-                Err(error) => Err(error),
-            };
+            let result = crate::request::auth::send_authenticate_email(email_value).await;
             match result {
                 Ok(view) => notify_success(
                     &notifications,
@@ -63,10 +60,7 @@ pub fn Authenticate() -> impl IntoView {
         working.set(true);
         let notifications = redeem_notifications.clone();
         leptos::task::spawn_local(async move {
-            let result = match crate::request::pow::prove_pow(token_value).await {
-                Ok(pow) => crate::request::auth::redeem_token(pow).await,
-                Err(error) => Err(error),
-            };
+            let result = crate::request::auth::redeem_token(token_value).await;
             match result {
                 Ok(view) => {
                     crate::request::session::store_session_token(&view.session_token);

@@ -2,6 +2,7 @@ use wasm_bindgen::JsCast;
 
 use crate::request::error::RequestResult;
 use crate::request::http;
+use crate::request::pow::prove_pow;
 use crate::request::session::read_session_token;
 use crate::request::validate::validate_id;
 
@@ -55,17 +56,22 @@ pub fn filename_from_content_disposition(header: Option<&str>) -> String {
 }
 
 pub async fn mint_download_url(article_id: &str, version_id: &str) -> RequestResult<String> {
+    let pow = prove_pow().await?;
     let article_id = validate_id(article_id, "article_id")?;
     let version_id = validate_id(version_id, "version_id")?;
     let path = crate::request::url::build_path_with_query(
         &["articles", &article_id, "versions", &version_id, "content"],
         &[("mode", "download")],
     );
-    let mint: nail_common::response::content::MintUrl = http::get_json(&path, true).await?;
+    let mint: nail_common::response::content::MintUrl =
+        http::get_json(&path, true, Some(&pow)).await?;
     Ok(mint.url)
 }
 
 pub async fn download_pdf(minted_url: &str) -> Result<(), String> {
+    let pow = crate::request::pow::prove_pow()
+        .await
+        .map_err(|error| error.to_string())?;
     let window_origin = web_sys::window()
         .and_then(|window| window.location().origin().ok())
         .ok_or_else(|| "no window origin available".to_string())?;
@@ -79,8 +85,11 @@ pub async fn download_pdf(minted_url: &str) -> Result<(), String> {
     let timer =
         gloo_timers::callback::Timeout::new(http::REQUEST_TIMEOUT_MS, move || controller.abort());
 
+    let pow_json =
+        serde_json::to_string(&pow).map_err(|error| format!("failed to serialize pow: {error}"))?;
     let response = gloo_net::http::Request::get(&absolute_url)
         .header("session-token", &token)
+        .header("x-pow", &pow_json)
         .abort_signal(Some(&signal))
         .send()
         .await

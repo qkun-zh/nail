@@ -42,10 +42,7 @@ pub fn Deregister() -> impl IntoView {
         working.set(true);
         let notifications = send_notifications.clone();
         leptos::task::spawn_local(async move {
-            let result = match crate::request::pow::prove_pow(email_value).await {
-                Ok(pow) => crate::request::user::send_deregister_email(pow).await,
-                Err(error) => Err(error),
-            };
+            let result = crate::request::user::send_deregister_email(email_value).await;
             match result {
                 Ok(_) => notify_success(&notifications, "confirmation email sent"),
                 Err(error) => notify_error(&notifications, error.to_string()),
@@ -72,10 +69,8 @@ pub fn Deregister() -> impl IntoView {
         working.set(true);
         let notifications = confirm_notifications.clone();
         leptos::task::spawn_local(async move {
-            let result = match crate::request::pow::prove_pow(token_value).await {
-                Ok(pow) => crate::request::user::deregister_self(&user_id, pow, mode.get()).await,
-                Err(error) => Err(error),
-            };
+            let result =
+                crate::request::user::deregister_self(&user_id, token_value, mode.get()).await;
             match result {
                 Ok(_) => {
                     crate::request::session::clear_session_token();

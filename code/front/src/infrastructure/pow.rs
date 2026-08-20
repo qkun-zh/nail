@@ -1,7 +1,7 @@
-use nail_common::pow::{Pow, ProveInput};
+use nail_common::pow::{Challenge, Pow};
 
-pub fn prove(input: ProveInput) -> Result<Pow, String> {
-    nail_common::pow::prove(input).map_err(|error| format!("proof of work failed: {error}"))
+pub fn prove(challenge: &Challenge) -> Result<Pow, String> {
+    nail_common::pow::prove(challenge).map_err(|error| format!("proof of work failed: {error}"))
 }
 
 #[cfg(test)]

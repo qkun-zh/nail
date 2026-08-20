@@ -59,10 +59,7 @@ pub fn NameUpdate() -> impl IntoView {
         working.set(true);
         let notifications = notifications.clone();
         leptos::task::spawn_local(async move {
-            let result = match crate::request::pow::prove_pow(new_name).await {
-                Ok(pow) => crate::request::user::update_self_name(&user_id, pow).await,
-                Err(error) => Err(error),
-            };
+            let result = crate::request::user::update_self_name(&user_id, new_name).await;
             match result {
                 Ok(_) => {
                     refresh_session();

@@ -1,4 +1,5 @@
 use gloo_net::http::{Request, Response};
+use nail_common::pow::Pow;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -51,6 +52,21 @@ fn session_header() -> RequestResult<Option<String>> {
     }
 }
 
+fn attach_pow(
+    request: gloo_net::http::RequestBuilder,
+    pow: Option<&Pow>,
+) -> RequestResult<gloo_net::http::RequestBuilder> {
+    match pow {
+        Some(pow) => {
+            let json = serde_json::to_string(pow).map_err(|error| {
+                RequestError::network(format!("failed to serialize pow: {error}"))
+            })?;
+            Ok(request.header("x-pow", &json))
+        }
+        None => Ok(request),
+    }
+}
+
 async fn unwrap_json<T: DeserializeOwned>(
     response: Response,
     authenticated: bool,
@@ -75,6 +91,7 @@ async fn unwrap_json<T: DeserializeOwned>(
 pub async fn get_json<T: DeserializeOwned>(
     path_and_query: &str,
     authenticated: bool,
+    pow: Option<&Pow>,
 ) -> RequestResult<T> {
     let (signal, timer) = timeout_signal()?;
     let mut request = Request::get(&build_absolute_url(path_and_query))
@@ -83,6 +100,7 @@ pub async fn get_json<T: DeserializeOwned>(
     if authenticated && let Some(token) = session_header()? {
         request = request.header("session-token", &token);
     }
+    request = attach_pow(request, pow)?;
     let result = request.send().await;
     timer.cancel();
     let response =
@@ -94,6 +112,7 @@ pub async fn post_json<B: Serialize, T: DeserializeOwned>(
     path_and_query: &str,
     body: &B,
     authenticated: bool,
+    pow: Option<&Pow>,
 ) -> RequestResult<T> {
     let (signal, timer) = timeout_signal()?;
     let mut request = Request::post(&build_absolute_url(path_and_query))
@@ -103,6 +122,7 @@ pub async fn post_json<B: Serialize, T: DeserializeOwned>(
     if authenticated && let Some(token) = session_header()? {
         request = request.header("session-token", &token);
     }
+    request = attach_pow(request, pow)?;
     let request = request.json(body).map_err(|error| {
         RequestError::network(format!("failed to serialize request body: {error}"))
     })?;
@@ -117,6 +137,7 @@ pub async fn post_form<T: DeserializeOwned>(
     path_and_query: &str,
     form: web_sys::FormData,
     authenticated: bool,
+    pow: Option<&Pow>,
 ) -> RequestResult<T> {
     let (signal, timer) = timeout_signal()?;
     let mut request = Request::post(&build_absolute_url(path_and_query))
@@ -125,6 +146,7 @@ pub async fn post_form<T: DeserializeOwned>(
     if authenticated && let Some(token) = session_header()? {
         request = request.header("session-token", &token);
     }
+    request = attach_pow(request, pow)?;
     let request = request.body(form).map_err(|error| {
         RequestError::network(format!("failed to build multipart request: {error}"))
     })?;
@@ -139,6 +161,7 @@ pub async fn patch_json<B: Serialize, T: DeserializeOwned>(
     path_and_query: &str,
     body: &B,
     authenticated: bool,
+    pow: Option<&Pow>,
 ) -> RequestResult<T> {
     let (signal, timer) = timeout_signal()?;
     let mut request = Request::patch(&build_absolute_url(path_and_query))
@@ -148,6 +171,7 @@ pub async fn patch_json<B: Serialize, T: DeserializeOwned>(
     if authenticated && let Some(token) = session_header()? {
         request = request.header("session-token", &token);
     }
+    request = attach_pow(request, pow)?;
     let request = request.json(body).map_err(|error| {
         RequestError::network(format!("failed to serialize request body: {error}"))
     })?;
@@ -162,6 +186,7 @@ pub async fn put_json<B: Serialize, T: DeserializeOwned>(
     path_and_query: &str,
     body: &B,
     authenticated: bool,
+    pow: Option<&Pow>,
 ) -> RequestResult<T> {
     let (signal, timer) = timeout_signal()?;
     let mut request = Request::put(&build_absolute_url(path_and_query))
@@ -171,6 +196,7 @@ pub async fn put_json<B: Serialize, T: DeserializeOwned>(
     if authenticated && let Some(token) = session_header()? {
         request = request.header("session-token", &token);
     }
+    request = attach_pow(request, pow)?;
     let request = request.json(body).map_err(|error| {
         RequestError::network(format!("failed to serialize request body: {error}"))
     })?;
@@ -184,6 +210,7 @@ pub async fn put_json<B: Serialize, T: DeserializeOwned>(
 pub async fn delete_json<T: DeserializeOwned>(
     path_and_query: &str,
     authenticated: bool,
+    pow: Option<&Pow>,
 ) -> RequestResult<T> {
     let (signal, timer) = timeout_signal()?;
     let mut request = Request::delete(&build_absolute_url(path_and_query))
@@ -192,6 +219,7 @@ pub async fn delete_json<T: DeserializeOwned>(
     if authenticated && let Some(token) = session_header()? {
         request = request.header("session-token", &token);
     }
+    request = attach_pow(request, pow)?;
     let result = request.send().await;
     timer.cancel();
     let response =

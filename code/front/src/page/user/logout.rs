@@ -15,11 +15,7 @@ pub fn Logout() -> impl IntoView {
         working.set(true);
         let notifications = notifications.clone();
         leptos::task::spawn_local(async move {
-            let nonce = js_sys::Date::now().to_string();
-            let result = match crate::request::pow::prove_pow(nonce).await {
-                Ok(pow) => crate::request::auth::delete_session(pow).await,
-                Err(error) => Err(error),
-            };
+            let result = crate::request::auth::delete_session().await;
             match result {
                 Ok(_) => {
                     crate::request::session::clear_session_token();

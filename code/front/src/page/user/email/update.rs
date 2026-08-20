@@ -58,9 +58,7 @@ pub fn EmailUpdate() -> impl IntoView {
         let notifications = send_notifications.clone();
         leptos::task::spawn_local(async move {
             let result = async {
-                let old_pow = crate::request::pow::prove_pow(old_email_value.clone()).await?;
-                let new_pow = crate::request::pow::prove_pow(new_email_value.clone()).await?;
-                crate::request::user::send_change_email(old_pow, new_pow).await
+                crate::request::user::send_change_email(old_email_value, new_email_value).await
             }
             .await;
             match result {
@@ -91,22 +89,15 @@ pub fn EmailUpdate() -> impl IntoView {
             notify_error(&confirm_notifications, "the two tokens must differ");
             return;
         }
-        let payload = format!("{old_token_value}\n{new_token_value}");
         confirming.set(true);
         let notifications = confirm_notifications.clone();
         leptos::task::spawn_local(async move {
-            let result = match crate::request::pow::prove_pow(payload).await {
-                Ok(pow) => {
-                    crate::request::user::confirm_email_change(
-                        &user_id,
-                        pow,
-                        &old_token_value,
-                        &new_token_value,
-                    )
-                    .await
-                }
-                Err(error) => Err(error),
-            };
+            let result = crate::request::user::confirm_email_change(
+                &user_id,
+                &old_token_value,
+                &new_token_value,
+            )
+            .await;
             match result {
                 Ok(view) => {
                     crate::request::session::store_session_token(&view.session_token);
