@@ -3,8 +3,8 @@
 ## Task I: PoW Header Transport — x-pow middleware + standalone pow crate
 
 **Owner**: K3v9n2
-**Exec doc**: `document/exec/ACD3_pow-header-middleware-crate.md`
-**Status**: Slices 1–4 complete; final gate in progress (back re-test deferred on resource)
+**Exec doc**: (deleted — task complete)
+**Status**: Complete — all slices done, CI green
 
 ### Stages
 
@@ -12,7 +12,7 @@ A. ✅ Slice 1 — standalone `pow` crate (`code/pow/`), stateless, no payload f
 B. ✅ Slice 2 — `nail_common` swaps to pow crate; request types lose PoW (payload → body/query)
 C. ✅ Slice 3 — `x-pow` middleware (`code/back/src/interface/pow_layer.rs`), all routes except `POST /challenges`; handlers/logic de-PoW'd; 581 back tests green
 D. ✅ Slice 4 — frontend auto-proves a challenge and attaches `x-pow` to every request (incl. PDF download); business data moved from PoW payload into body/query
-E. 🔄 Final gate — fmt clean; pow 11, common 105, front 81 tests green; back re-test deferred
+E. ✅ Final gate — CI green (run #32364835515): fmt, clippy, tests (pow/common/back/front), wasm build, audit; workflow switched to stable toolchain + CI-first
 
 ### Decisions made
 
@@ -41,8 +41,10 @@ E. 🔄 Final gate — fmt clean; pow 11, common 105, front 81 tests green; back
 - `1c48167` Slice 2 common swap
 - `1644697` Slice 3 middleware + back de-PoW
 - `0d478b3` Slice 4 frontend x-pow
+- `0466618` CI-first workflow + handoff for pow task
+- `c8eb948` workflow.md references CI-first flow
+- `535cabd` ci-watch bg mode; run.md documents full CI-first workflow
 
 ### Remaining risks / pending
 
-- **Back re-test deferred**: `cargo +nightly test -j 1 -p nail_back` OOM'd WSL twice (rust-analyzer/zed contend memory). Back is untouched since `1644697` where 581 tests were green; needs one clean re-run when machine is quiet to close the final gate.
-- Exec doc to be deleted once gate closes (workflow §9).
+None — task complete, CI green on `main`.
