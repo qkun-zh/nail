@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ONCE=0
+[ "${1:-}" = "--once" ] && ONCE=1
+
 URL=$(git remote get-url origin)
 TOKEN=${URL#https://}
 TOKEN=${TOKEN%%@*}
 REPO=${URL##*@}
 REPO=${REPO#github.com:}
+REPO=${REPO#github.com/}
 REPO=${REPO%.git}
 BRANCH=$(git branch --show-current)
 
@@ -22,7 +26,8 @@ json() {
 while true; do
     JSON=$(run_json)
     if [ "$(printf '%s' "$JSON" | json "len(d['workflow_runs'])")" -eq 0 ]; then
-        echo "no workflow runs for branch $BRANCH yet; retrying in 10s..."
+        echo "no workflow runs for branch $BRANCH yet"
+        [ "$ONCE" -eq 1 ] && exit 1
         sleep 10
         continue
     fi
@@ -46,5 +51,6 @@ for j in d['jobs']:
         print(f\"failed job: {j['name']}\")"
         exit 1
     fi
+    [ "$ONCE" -eq 1 ] && exit 0
     sleep 15
 done
