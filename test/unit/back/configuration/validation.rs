@@ -172,10 +172,7 @@ from_name = "nail"
     let email = r#"
 allowed_domains = ["qq.com", "@Example.com"]
 "#;
-    let cache = r#"
-download_ttl_seconds = 60
-cache_capacity = 100000
-"#;
+    let cache = "download_ttl_seconds = 60\ncache_capacity = 100000\n";
     std::fs::write(directory.join("server.toml"), server).expect("server.toml");
     std::fs::write(directory.join("emailer.toml"), emailer).expect("emailer.toml");
     std::fs::write(directory.join("email.toml"), email).expect("email.toml");
