@@ -50,7 +50,10 @@ fn uuid_newtypes_accept_a_uuid_v7() {
     let id = uuid_v7();
     assert_eq!(UserId::new(id.clone()).expect("user id").as_str(), id);
     assert_eq!(VersionId::new(id.clone()).expect("version id").as_str(), id);
-    assert_eq!(ChallengeId::new(id.clone()).expect("challenge id").as_str(), id);
+    assert_eq!(
+        ChallengeId::new(id.clone()).expect("challenge id").as_str(),
+        id
+    );
 }
 
 #[test]
@@ -169,8 +172,8 @@ fn caches_hold_the_six_tables() {
         Duration::from_secs(8000),
         Duration::from_secs(8000),
         Duration::from_secs(8000),
-        Duration::from_secs(300),
-        Duration::from_secs(60),
+        Duration::from_mins(5),
+        Duration::from_mins(1),
         100,
     );
 
