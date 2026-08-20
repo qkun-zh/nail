@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use crate::infrastructure::authorizer::Authorizer;
 use crate::infrastructure::config::AppConfig;
 use crate::infrastructure::state::{AppState, Configurator};
 use crate::interface;
@@ -28,7 +29,10 @@ pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
 
     let email_sender = emailer::Emailer::new(&config.emailer);
 
+    let authorizer = Authorizer::new(database.clone())?;
+
     let state = AppState {
+        authorizer,
         database,
         searcher,
         cache,

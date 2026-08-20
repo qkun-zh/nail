@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::infrastructure::authorizer::Authorizer;
 use crate::infrastructure::config::AppConfig;
 use crate::repository::cache::TokenCaches;
 use crate::repository::graph::DbHandle;
@@ -7,6 +8,7 @@ use crate::repository::search::SearchIndex;
 
 #[derive(Clone)]
 pub struct AppState {
+    pub authorizer: Authorizer,
     pub database: DbHandle,
     pub searcher: SearchIndex,
     pub cache: TokenCaches,

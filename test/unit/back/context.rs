@@ -9,6 +9,7 @@ use serde_json::Value;
 use tower::ServiceExt;
 use uuid::Uuid;
 
+use crate::infrastructure::authorizer::Authorizer;
 use crate::infrastructure::config::AppConfig;
 use crate::infrastructure::config::logging::LoggingConfig;
 use crate::infrastructure::config::server::ServerConfig;
@@ -275,7 +276,9 @@ pub async fn build_state(
     let recorder = RecordingSender::default();
     let emailer_instance =
         emailer::Emailer::with_sender(Arc::new(recorder.clone()), &config.emailer);
+    let authorizer = Authorizer::new(database.clone())?;
     let state = AppState {
+        authorizer,
         database,
         searcher,
         cache,
