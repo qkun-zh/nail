@@ -13,7 +13,7 @@ async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
     context.seed_tags(TEST_TAGS).await;
     let user_id = crate::repository::user::create_user(
         &context.state.database,
-        &nail_common::hash::email(email),
+        &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");
@@ -34,7 +34,7 @@ async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
 async fn plain_session(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
-        &nail_common::hash::email(email),
+        &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");

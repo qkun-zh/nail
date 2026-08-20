@@ -11,9 +11,12 @@ use crate::repository::version::VersionDraft;
 const MAX_DEPTH: usize = 64;
 
 async fn create_user(state: &crate::infrastructure::state::AppState, email: &str) -> String {
-    crate::repository::user::create_user(&state.database, &nail_common::hash::email(email))
-        .await
-        .expect("user")
+    crate::repository::user::create_user(
+        &state.database,
+        &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
+    )
+    .await
+    .expect("user")
 }
 
 async fn create_version_fixture(

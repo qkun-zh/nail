@@ -8,7 +8,7 @@ use crate::repository::cache::{SessionTokenEntry, token_key};
 async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
-        &nail_common::hash::email(email),
+        &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");
@@ -48,7 +48,11 @@ async fn user_read_self_returns_name_and_optional_email_hash() {
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(
         body["data"]["email_hash"].as_str(),
-        Some(nail_common::hash::email("alice@example.com").as_str())
+        Some(
+            nail_common::hash::hash("alice@example.com".as_bytes())
+                .expect("hash must succeed")
+                .as_str()
+        )
     );
 }
 
@@ -79,7 +83,11 @@ async fn user_read_other_by_admin_returns_profile() {
     assert_eq!(body["data"]["id"].as_str(), Some(target.as_str()));
     assert_eq!(
         body["data"]["email_hash"].as_str(),
-        Some(nail_common::hash::email("alice@example.com").as_str())
+        Some(
+            nail_common::hash::hash("alice@example.com".as_bytes())
+                .expect("hash must succeed")
+                .as_str()
+        )
     );
     let _ = admin;
 }
@@ -257,7 +265,7 @@ async fn email_change_two_step_flow_updates_email_and_rotates_session() {
         .expect("entry");
     assert_eq!(
         entry.email_address_hash,
-        nail_common::hash::email("alice-new@example.com")
+        nail_common::hash::hash("alice-new@example.com".as_bytes()).expect("hash must succeed")
     );
 
     let (status, _) = context.get("/user?id=true", Some(&old_session)).await;

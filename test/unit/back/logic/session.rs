@@ -116,7 +116,8 @@ async fn delete_session_requires_a_valid_session() {
 #[tokio::test]
 async fn read_user_name_returns_the_account_name() {
     let context = TestCtx::new().await.expect("test context");
-    let email_hash = nail_common::hash::email("alice@example.com");
+    let email_hash =
+        nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed");
     let user_id = crate::repository::user::create_user(&context.state.database, &email_hash)
         .await
         .expect("create user");

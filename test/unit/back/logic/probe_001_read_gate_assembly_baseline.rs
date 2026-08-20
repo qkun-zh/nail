@@ -47,7 +47,8 @@ async fn probe_001_read_gate_assembly_baseline() {
         .await
         .expect("state");
 
-    let hash = nail_common::hash::email("user-zero@example.com");
+    let hash =
+        nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed");
     let user_zero =
         crate::repository::user::read_user_by_email_address_hash(&state.database, &hash)
             .await
@@ -55,7 +56,7 @@ async fn probe_001_read_gate_assembly_baseline() {
             .expect("user zero");
     let alice = crate::repository::user::create_user(
         &state.database,
-        &nail_common::hash::email("alice@example.com"),
+        &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");
@@ -65,7 +66,7 @@ async fn probe_001_read_gate_assembly_baseline() {
 
     let author = crate::repository::user::create_user(
         &state.database,
-        &nail_common::hash::email("author@example.com"),
+        &nail_common::hash::hash("author@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("author");

@@ -14,7 +14,7 @@ fn pdf_hash(seed: u8) -> String {
 async fn admin(context: &TestCtx) -> String {
     crate::repository::user::read_user_by_email_address_hash(
         &context.state.database,
-        &nail_common::hash::email("user-zero@example.com"),
+        &nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("lookup user zero")
@@ -24,7 +24,7 @@ async fn admin(context: &TestCtx) -> String {
 async fn member(context: &TestCtx, email: &str) -> String {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
-        &nail_common::hash::email(email),
+        &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");
@@ -129,7 +129,7 @@ async fn probe_4_token_must_survive_a_version_mismatch_attempt() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
         &state.database,
-        &nail_common::hash::email("alice@example.com"),
+        &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");

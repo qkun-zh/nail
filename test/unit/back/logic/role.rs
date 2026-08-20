@@ -7,7 +7,7 @@ use crate::logic::role::{
 async fn admin(context: &TestCtx) -> String {
     crate::repository::user::create_user(
         &context.state.database,
-        &nail_common::hash::email("user-zero@example.com"),
+        &nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user")

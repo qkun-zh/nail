@@ -10,9 +10,12 @@ fn pdf_hash(seed: u8) -> String {
 }
 
 async fn create_user(state: &crate::infrastructure::state::AppState, email: &str) -> String {
-    crate::repository::user::create_user(&state.database, &nail_common::hash::email(email))
-        .await
-        .expect("user")
+    crate::repository::user::create_user(
+        &state.database,
+        &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
+    )
+    .await
+    .expect("user")
 }
 
 #[tokio::test]
@@ -121,7 +124,7 @@ async fn create_article_for(
 async fn user_zero_id(state: &crate::infrastructure::state::AppState) -> String {
     crate::repository::user::read_user_by_email_address_hash(
         &state.database,
-        &nail_common::hash::email("user-zero@example.com"),
+        &nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("lookup user zero")

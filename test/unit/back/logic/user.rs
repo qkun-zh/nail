@@ -8,7 +8,7 @@ use crate::repository::cache::{SessionTokenEntry, token_key};
 async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
-        &nail_common::hash::email(email),
+        &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");
@@ -45,7 +45,11 @@ async fn read_user_self_returns_name_and_optional_email_hash() {
         .expect("read");
     assert_eq!(
         data.email_hash.as_deref(),
-        Some(nail_common::hash::email("alice@example.com").as_str())
+        Some(
+            nail_common::hash::hash("alice@example.com".as_bytes())
+                .expect("hash must succeed")
+                .as_str()
+        )
     );
 }
 
@@ -71,7 +75,11 @@ async fn read_user_other_by_admin_returns_profile() {
     assert_eq!(data.id.as_deref(), Some(target.as_str()));
     assert_eq!(
         data.email_hash.as_deref(),
-        Some(nail_common::hash::email("alice@example.com").as_str())
+        Some(
+            nail_common::hash::hash("alice@example.com".as_bytes())
+                .expect("hash must succeed")
+                .as_str()
+        )
     );
 }
 

@@ -75,7 +75,7 @@ async fn sync_and_read_round_trips_an_article() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
         &state.database,
-        &nail_common::hash::email("alice@example.com"),
+        &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");
@@ -111,7 +111,7 @@ async fn sync_all_and_sync_user_skip_soft_deleted_articles() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
         &state.database,
-        &nail_common::hash::email("alice@example.com"),
+        &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");
@@ -162,7 +162,7 @@ async fn keyword_read_returns_highlighted_hits() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
         &state.database,
-        &nail_common::hash::email("alice@example.com"),
+        &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");
@@ -204,7 +204,7 @@ async fn sync_user_refreshes_the_author_name() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
         &state.database,
-        &nail_common::hash::email("alice@example.com"),
+        &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");
@@ -246,13 +246,13 @@ async fn sync_user_refreshes_the_author_name_of_their_comments() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
         &state.database,
-        &nail_common::hash::email("alice@example.com"),
+        &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");
     let commenter_id = crate::repository::user::create_user(
         &state.database,
-        &nail_common::hash::email("bob@example.com"),
+        &nail_common::hash::hash("bob@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");
@@ -343,7 +343,7 @@ async fn sync_removes_documents_for_a_deleted_article() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
         &state.database,
-        &nail_common::hash::email("alice@example.com"),
+        &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");
@@ -383,7 +383,7 @@ async fn sync_excludes_a_soft_deleted_version_doc_and_its_comments() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
         &state.database,
-        &nail_common::hash::email("alice@example.com"),
+        &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");
@@ -480,7 +480,7 @@ async fn sync_excludes_a_soft_deleted_comment_doc() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
         &state.database,
-        &nail_common::hash::email("alice@example.com"),
+        &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");
@@ -575,7 +575,7 @@ async fn sync_drops_all_docs_of_a_soft_deleted_article() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
         &state.database,
-        &nail_common::hash::email("alice@example.com"),
+        &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");
@@ -642,7 +642,7 @@ async fn sync_all_and_incremental_sync_agree_on_document_count() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
         &state.database,
-        &nail_common::hash::email("alice@example.com"),
+        &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");

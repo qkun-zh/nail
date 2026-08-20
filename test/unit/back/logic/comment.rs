@@ -13,9 +13,12 @@ use crate::repository::role::{ROLE_MEMBER, hold_role};
 use crate::repository::version::VersionDraft;
 
 async fn create_user(state: &AppState, email: &str) -> String {
-    crate::repository::user::create_user(&state.database, &nail_common::hash::email(email))
-        .await
-        .expect("user")
+    crate::repository::user::create_user(
+        &state.database,
+        &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
+    )
+    .await
+    .expect("user")
 }
 
 async fn member(state: &AppState, email: &str) -> String {
@@ -29,7 +32,7 @@ async fn member(state: &AppState, email: &str) -> String {
 async fn admin(state: &AppState) -> String {
     crate::repository::user::read_user_by_email_address_hash(
         &state.database,
-        &nail_common::hash::email("user-zero@example.com"),
+        &nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("lookup user zero")
@@ -431,7 +434,7 @@ async fn undelete_soft_comment_revives_the_comment_as_admin() {
     let author_id = member(&state, "alice@example.com").await;
     let admin_id = crate::repository::user::read_user_by_email_address_hash(
         &state.database,
-        &nail_common::hash::email("user-zero@example.com"),
+        &nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("lookup user zero")
@@ -490,7 +493,7 @@ async fn undelete_soft_comment_rejects_a_comment_that_is_not_soft_deleted() {
     let author_id = member(&state, "alice@example.com").await;
     let admin_id = crate::repository::user::read_user_by_email_address_hash(
         &state.database,
-        &nail_common::hash::email("user-zero@example.com"),
+        &nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("lookup user zero")

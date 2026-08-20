@@ -19,9 +19,12 @@ use crate::repository::schema::{
 use crate::repository::version::VersionDraft;
 
 async fn create_user(context: &TestCtx, email: &str) -> String {
-    crate::repository::user::create_user(&context.state.database, &nail_common::hash::email(email))
-        .await
-        .expect("user")
+    crate::repository::user::create_user(
+        &context.state.database,
+        &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
+    )
+    .await
+    .expect("user")
 }
 
 async fn create_article_fixture(
@@ -565,7 +568,7 @@ async fn require_entity_readable_hides_soft_deleted_article() {
     );
     let admin = crate::repository::user::read_user_by_email_address_hash(
         &context.state.database,
-        &nail_common::hash::email("user-zero@example.com"),
+        &nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("lookup user zero")

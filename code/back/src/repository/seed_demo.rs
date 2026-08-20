@@ -154,9 +154,10 @@ pub async fn seed_sample_articles(
     let mut author_ids = Vec::with_capacity(author_count);
     for author_index in 0..author_count {
         let email = format!("sample-author-{author_index}@example.com");
-        let user_id = crate::repository::user::create_user(db, &nail_common::hash::email(&email))
-            .await
-            .with_context(|| format!("create sample author {author_index}"))?;
+        let user_id =
+            crate::repository::user::create_user(db, &nail_common::hash::hash(email.as_bytes())?)
+                .await
+                .with_context(|| format!("create sample author {author_index}"))?;
         crate::repository::user::update_user_name(
             db,
             &user_id,

@@ -43,7 +43,7 @@ async fn create_permission_and_grant_are_idempotent() {
 #[tokio::test]
 async fn hold_role_and_holds_check_agree() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let hash = nail_common::hash::email("alice@example.com");
+    let hash = nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed");
     let user_id = crate::repository::user::create_user(&state.database, &hash)
         .await
         .expect("user");
@@ -66,7 +66,8 @@ async fn hold_role_and_holds_check_agree() {
 #[tokio::test]
 async fn user_zero_holds_all_required_roles_after_seeding() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let hash = nail_common::hash::email("user-zero@example.com");
+    let hash =
+        nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed");
     let user_id = crate::repository::user::read_user_by_email_address_hash(&state.database, &hash)
         .await
         .expect("lookup")
@@ -83,7 +84,8 @@ async fn user_zero_holds_all_required_roles_after_seeding() {
 #[tokio::test]
 async fn user_holds_permission_is_true_for_a_role_that_grants_it() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let hash = nail_common::hash::email("user-zero@example.com");
+    let hash =
+        nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed");
     let user_id = crate::repository::user::read_user_by_email_address_hash(&state.database, &hash)
         .await
         .expect("lookup")
@@ -100,7 +102,7 @@ async fn user_holds_permission_is_false_for_a_plain_member() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let user_id = crate::repository::user::create_user(
         &state.database,
-        &nail_common::hash::email("alice@example.com"),
+        &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");
@@ -122,7 +124,8 @@ async fn user_holds_permission_is_false_for_unknown_user_or_permission() {
             .await
             .expect("check")
     );
-    let hash = nail_common::hash::email("user-zero@example.com");
+    let hash =
+        nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed");
     let user_id = crate::repository::user::read_user_by_email_address_hash(&state.database, &hash)
         .await
         .expect("lookup")
@@ -137,7 +140,8 @@ async fn user_holds_permission_is_false_for_unknown_user_or_permission() {
 #[tokio::test]
 async fn users_holding_role_lists_recycler_holders() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let hash = nail_common::hash::email("user-zero@example.com");
+    let hash =
+        nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed");
     let user_zero =
         crate::repository::user::read_user_by_email_address_hash(&state.database, &hash)
             .await
@@ -174,7 +178,8 @@ async fn member_role_holds_exactly_the_seeded_baseline_permissions() {
 #[tokio::test]
 async fn every_schema_action_is_seeded_as_a_permission_and_granted_to_admin() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let hash = nail_common::hash::email("user-zero@example.com");
+    let hash =
+        nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed");
     let user_zero =
         crate::repository::user::read_user_by_email_address_hash(&state.database, &hash)
             .await
@@ -225,7 +230,7 @@ async fn user_holds_role_returns_false_for_unknown_user() {
 #[tokio::test]
 async fn user_holds_role_returns_false_for_unknown_role() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let hash = nail_common::hash::email("alice@example.com");
+    let hash = nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed");
     let user_id = crate::repository::user::create_user(&state.database, &hash)
         .await
         .expect("user");

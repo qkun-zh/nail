@@ -7,7 +7,7 @@ const TEST_TAGS: &[&str] = &["rust", "backend", "frontend", "devops"];
 async fn member(context: &TestCtx, email: &str) -> String {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
-        &nail_common::hash::email(email),
+        &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");
@@ -25,7 +25,7 @@ async fn setup_article_test(context: &TestCtx, email: &str) -> String {
 async fn admin(context: &TestCtx) -> String {
     crate::repository::user::read_user_by_email_address_hash(
         &context.state.database,
-        &nail_common::hash::email("user-zero@example.com"),
+        &nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("lookup user zero")
@@ -33,9 +33,12 @@ async fn admin(context: &TestCtx) -> String {
 }
 
 async fn plain(context: &TestCtx, email: &str) -> String {
-    crate::repository::user::create_user(&context.state.database, &nail_common::hash::email(email))
-        .await
-        .expect("user")
+    crate::repository::user::create_user(
+        &context.state.database,
+        &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
+    )
+    .await
+    .expect("user")
 }
 
 #[tokio::test]
@@ -74,7 +77,7 @@ async fn create_article_requires_article_create_permission() {
     let context = TestCtx::new().await.expect("test context");
     let actor = crate::repository::user::create_user(
         &context.state.database,
-        &nail_common::hash::email("alice@example.com"),
+        &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");

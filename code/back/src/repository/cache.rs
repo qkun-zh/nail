@@ -6,7 +6,7 @@ use moka::policy::EvictionPolicy;
 use moka::sync::Cache;
 
 pub fn token_key(token: &str) -> anyhow::Result<String> {
-    nail_common::hash::token(token)
+    nail_common::hash::hash(token.as_bytes())
 }
 
 pub trait CacheEntry: Clone + Send + Sync + 'static {

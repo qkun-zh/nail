@@ -37,7 +37,7 @@ fn validate_email_rejects_disallowed_or_malformed_addresses() {
 async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
-        &nail_common::hash::email(email),
+        &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");
@@ -158,8 +158,10 @@ async fn change_email_sends_two_emails_and_caches_the_token_hashes() {
         .email_update
         .read(&user_id)
         .expect("entry");
-    let old_hash = nail_common::hash::email("alice@example.com");
-    let new_hash = nail_common::hash::email("alice-new@example.com");
+    let old_hash =
+        nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed");
+    let new_hash =
+        nail_common::hash::hash("alice-new@example.com".as_bytes()).expect("hash must succeed");
     assert_eq!(entry.old_email_hash, old_hash);
     assert_eq!(entry.new_email_hash, new_hash);
 }
@@ -211,8 +213,10 @@ async fn update_user_email_updates_email_and_returns_a_new_session() {
     context.state.cache.email_update.insert(
         &user_id,
         crate::repository::cache::EmailUpdateTokenEntry {
-            old_email_hash: nail_common::hash::email("alice@example.com"),
-            new_email_hash: nail_common::hash::email("alice-new@example.com"),
+            old_email_hash: nail_common::hash::hash("alice@example.com".as_bytes())
+                .expect("hash must succeed"),
+            new_email_hash: nail_common::hash::hash("alice-new@example.com".as_bytes())
+                .expect("hash must succeed"),
             token_hash_from_old_email: token_key(&old_token).expect("old hash"),
             token_hash_from_new_email: token_key(&new_token).expect("new hash"),
         },
@@ -229,7 +233,7 @@ async fn update_user_email_updates_email_and_returns_a_new_session() {
         .expect("entry");
     assert_eq!(
         entry.email_address_hash,
-        nail_common::hash::email("alice-new@example.com")
+        nail_common::hash::hash("alice-new@example.com".as_bytes()).expect("hash must succeed")
     );
 }
 
@@ -292,8 +296,10 @@ async fn update_user_email_rejects_same_old_and_new_token() {
     context.state.cache.email_update.insert(
         &user_id,
         crate::repository::cache::EmailUpdateTokenEntry {
-            old_email_hash: nail_common::hash::email("alice@example.com"),
-            new_email_hash: nail_common::hash::email("alice-new@example.com"),
+            old_email_hash: nail_common::hash::hash("alice@example.com".as_bytes())
+                .expect("hash must succeed"),
+            new_email_hash: nail_common::hash::hash("alice-new@example.com".as_bytes())
+                .expect("hash must succeed"),
             token_hash_from_old_email: token_key(&same_token).expect("hash"),
             token_hash_from_new_email: token_key(&other_token).expect("hash"),
         },
@@ -317,8 +323,10 @@ async fn update_user_email_rejects_token_mismatch() {
     context.state.cache.email_update.insert(
         &user_id,
         crate::repository::cache::EmailUpdateTokenEntry {
-            old_email_hash: nail_common::hash::email("alice@example.com"),
-            new_email_hash: nail_common::hash::email("alice-new@example.com"),
+            old_email_hash: nail_common::hash::hash("alice@example.com".as_bytes())
+                .expect("hash must succeed"),
+            new_email_hash: nail_common::hash::hash("alice-new@example.com".as_bytes())
+                .expect("hash must succeed"),
             token_hash_from_old_email: token_key(&old_token).expect("hash"),
             token_hash_from_new_email: token_key(&new_token).expect("hash"),
         },

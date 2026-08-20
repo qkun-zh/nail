@@ -11,7 +11,7 @@ const TEST_TAGS: &[&str] = &["rust", "backend", "frontend", "devops", "web", "go
 async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
-        &nail_common::hash::email(email),
+        &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user");
@@ -530,7 +530,7 @@ async fn delete_article_transfer_repoints_to_the_recycler() {
     assert_eq!(body["message"].as_str(), Some("deleted"));
     let recycler_id = crate::repository::user::read_user_by_email_address_hash(
         &context.state.database,
-        &nail_common::hash::email("user-zero@example.com"),
+        &nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed"),
     )
     .await
     .expect("user zero")

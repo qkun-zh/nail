@@ -91,7 +91,8 @@ async fn send_create_user_email(state: &AppState, raw_email: &str) -> Result<Str
     let token = Uuid::now_v7().to_string();
     let email_id = send_confirmation_email(state, &email, &token).await?;
 
-    let email_address_hash = nail_common::hash::email(&email);
+    let email_address_hash = nail_common::hash::hash(email.as_bytes())
+        .map_err(|error| LogicError::internal(format!("failed to hash email: {error}")))?;
     let key = hash_canonical_token(&token)?;
     state.cache.create_user.insert(
         &key,
@@ -119,7 +120,8 @@ pub async fn send_update_user_email(
     let user_entry = read_user(&state.database, user_id)
         .await?
         .ok_or_else(|| LogicError::unauthorized("user not found"))?;
-    let old_email_hash = nail_common::hash::email(&old_email);
+    let old_email_hash = nail_common::hash::hash(old_email.as_bytes())
+        .map_err(|error| LogicError::internal(format!("failed to hash email: {error}")))?;
     if user_entry.email_address_hash != old_email_hash {
         return Err(LogicError::bad_request(
             "old email does not match your current email",
@@ -132,7 +134,8 @@ pub async fn send_update_user_email(
         return Err(LogicError::bad_request("email domain not allowed"));
     }
 
-    let new_email_hash = nail_common::hash::email(&new_email);
+    let new_email_hash = nail_common::hash::hash(new_email.as_bytes())
+        .map_err(|error| LogicError::internal(format!("failed to hash email: {error}")))?;
     if let Some(existing_user_id) =
         read_user_by_email_address_hash(&state.database, &new_email_hash).await?
         && existing_user_id != user_id
@@ -245,7 +248,9 @@ pub async fn send_delete_user_email(
     let user_entry = read_user(&state.database, user_id)
         .await?
         .ok_or_else(|| LogicError::unauthorized("user not found"))?;
-    if user_entry.email_address_hash != nail_common::hash::email(&email) {
+    let email_hash = nail_common::hash::hash(email.as_bytes())
+        .map_err(|error| LogicError::internal(format!("failed to hash email: {error}")))?;
+    if user_entry.email_address_hash != email_hash {
         return Err(LogicError::bad_request("email does not match your account"));
     }
 

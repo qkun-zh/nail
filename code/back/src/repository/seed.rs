@@ -15,7 +15,7 @@ use crate::repository::user::create_user;
 pub async fn init_graph(db: &DbHandle, user_zero_email: &str) -> anyhow::Result<()> {
     create_indexes(db).await?;
     seed_roles_and_permissions(db).await?;
-    let user_zero_hash = nail_common::hash::email(user_zero_email);
+    let user_zero_hash = nail_common::hash::hash(user_zero_email.as_bytes())?;
     let user_zero_id = create_user(db, &user_zero_hash)
         .await
         .with_context(|| "seed user zero")?;
