@@ -8,7 +8,7 @@ use crate::interface::extractor::AppPaged;
 use crate::interface::principal::read_session_token;
 
 async fn extract(uri: &str, context: &TestCtx) -> Result<(u64, u64), ApiError> {
-    let (mut parts, _) = Request::builder()
+    let (mut parts, ()) = Request::builder()
         .uri(uri)
         .body(())
         .expect("request")
@@ -93,7 +93,7 @@ async fn app_paged_rejects_a_non_numeric_limit() {
 
 #[test]
 fn read_session_token_returns_the_header_value() {
-    let (parts, _) = Request::builder()
+    let (parts, ()) = Request::builder()
         .uri("/token/create")
         .header("session-token", "tok-123")
         .body(())
@@ -104,7 +104,7 @@ fn read_session_token_returns_the_header_value() {
 
 #[test]
 fn read_session_token_returns_none_when_the_header_is_absent() {
-    let (parts, _) = Request::builder()
+    let (parts, ()) = Request::builder()
         .uri("/token/create")
         .body(())
         .expect("request")
@@ -114,7 +114,7 @@ fn read_session_token_returns_none_when_the_header_is_absent() {
 
 #[test]
 fn read_session_token_returns_none_for_a_non_utf8_header() {
-    let (mut parts, _) = Request::builder()
+    let (mut parts, ()) = Request::builder()
         .uri("/token/create")
         .body(())
         .expect("request")

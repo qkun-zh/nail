@@ -771,7 +771,7 @@ async fn delete_refresh_keeps_the_semver_latest_version() {
     let article_id = uuid::Uuid::now_v7().to_string();
     let version_1_0_0 = "ffffffff-ffff-4fff-8fff-ffffffffffff".to_string();
     let version_9_9_9 = "11111111-1111-4111-8111-111111111111".to_string();
-    let version_10_0_0 = "22222222-2222-4222-8222-222222222222".to_string();
+    let version_10 = "22222222-2222-4222-8222-222222222222".to_string();
     create_article(
         &state.graph,
         &ArticleDraft {
@@ -791,7 +791,7 @@ async fn delete_refresh_keeps_the_semver_latest_version() {
     .await
     .expect("create article");
     for (version_id, number, hash_seed) in
-        [(&version_9_9_9, "9.9.9", 2), (&version_10_0_0, "10.0.0", 3)]
+        [(&version_9_9_9, "9.9.9", 2), (&version_10, "10.0.0", 3)]
     {
         crate::repository::version::create_version(
             &state.graph,
@@ -807,7 +807,7 @@ async fn delete_refresh_keeps_the_semver_latest_version() {
         .expect("create version");
     }
 
-    delete_version(&state.graph, &version_10_0_0)
+    delete_version(&state.graph, &version_10)
         .await
         .expect("delete 10.0.0");
 

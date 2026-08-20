@@ -96,7 +96,7 @@ fn paginate_matches_the_legacy_offset_form_has_next() {
                 let offset = page.saturating_sub(1).saturating_mul(limit);
                 let (_, has_next) =
                     crate::logic::pagination::paginate((0..total).collect(), page, limit);
-                let legacy = total as u64 > offset + limit;
+                let legacy = total > offset + limit;
                 assert_eq!(has_next, legacy, "total={total} page={page} limit={limit}");
             }
         }

@@ -3,7 +3,6 @@ use axum::extract::FromRequest;
 use axum::http::Request;
 
 use super::context::{TestCtx, test_config, valid_pdf};
-use crate::infrastructure::pdf::PdfUpload;
 use crate::interface::envelope::ApiError;
 use crate::interface::extractor::AppMultipart;
 use crate::interface::multipart::{MultipartField, collect_fields};
