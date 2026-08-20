@@ -23,9 +23,12 @@ official builds only.
 2. `git push origin main` — pushes all local commits and triggers CI
    (`.github/workflows/ci.yml`): fmt, clippy, tests (pow, common, back,
    front host), wasm build, security audit.
-3. `document/ci-watch.sh` — poll until the run completes; prints
-   success/failure and the failing job names. `document/ci-watch.sh --once`
-   checks once and exits (useful after a manual check).
+3. Watch the run: `document/ci-watch.sh` blocks until the run completes and
+   prints success/failure with the failing job names. Two variants:
+   - `document/ci-watch.sh --once` — check once and exit (quick manual check).
+   - `document/ci-watch.sh bg [timeout]` — launch in the background, logging
+     to `/tmp/ci-watch.log`; poll with `tail -f /tmp/ci-watch.log` whenever
+     convenient (e.g. while working on the next slice).
 
 Push succeeded when `git push` exits 0; afterwards
 `git log origin/main..HEAD` must be empty (local == remote).
