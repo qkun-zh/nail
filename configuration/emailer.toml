@@ -1,0 +1,11 @@
+host = "smtp.qq.com"
+port = 587
+username = ""
+password = ""
+from_email = ""
+from_name = "nail"
+timeout_secs = 10
+wall_clock_timeout_secs = 30
+starttls = true
+per_recipient_cooldown_secs = 60
+global_max_per_minute = 30

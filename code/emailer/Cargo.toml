@@ -1,0 +1,16 @@
+[package]
+name = "emailer"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+anyhow = "1.0.104"
+governor = "0.10"
+lettre = "0.11.23"
+serde = { version = "1.0.229", features = ["derive"] }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "time"] }
+toml = "1.1.4"
+uuid = { version = "1.24.0", features = ["v7"] }
+
+[lints]
+workspace = true
