@@ -79,6 +79,8 @@ impl Emailer {
         validate_email(to_where)?;
         validate_body(send_what)?;
 
+        self.gc();
+
         if let Some(ref g) = self.global {
             g.check()?;
         }
