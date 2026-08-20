@@ -37,7 +37,7 @@ fn decide(
     action: &str,
     resource: &EntityUid,
     mut entities: Vec<Entity>,
-) -> anyhow::Result<bool> {
+) -> bool {
     let policies: PolicySet = POLICY.parse().expect("policy set");
     let action_uid = uid(&format!("Action::\"{action}\""));
     if !entities.iter().any(|entity| entity.uid() == action_uid) {
@@ -52,10 +52,10 @@ fn decide(
         None,
     )
     .expect("request");
-    Ok(CedarAuthorizer::new()
+    CedarAuthorizer::new()
         .is_authorized(&request, &policies, &entities)
         .decision()
-        == Decision::Allow)
+        == Decision::Allow
 }
 
 #[test]
@@ -153,24 +153,18 @@ fn every_action_referenced_by_policy_exists_in_the_schema() {
 #[test]
 fn generated_route_constants_match_their_literal_paths() {
     use crate::interface::router::{
-        ROUTE_ARTICLE_ID_VERSION_ID_CONTENT_READ, ROUTE_CHALLENGE_CREATE, ROUTE_COMMENT_ID_DELETE,
-        ROUTE_ROLE_ID_DELETE, ROUTE_ROLE_ID_READ, ROUTE_ROLE_ID_UPDATE, ROUTE_USER_ID_READ,
-        ROUTE_VERSION_ID_COMMENT_CREATE,
+        ROUTE_ARTICLES_ID_VERSIONS_VID_CONTENT, ROUTE_CHALLENGES, ROUTE_COMMENTS_ID,
+        ROUTE_ROLES_ID, ROUTE_USERS_ID, ROUTE_VERSIONS_ID_COMMENTS,
     };
-    assert_eq!(ROUTE_CHALLENGE_CREATE, "/challenge/create");
-    assert_eq!(ROUTE_USER_ID_READ, "/user/{id}/read");
+    assert_eq!(ROUTE_CHALLENGES, "/challenges");
+    assert_eq!(ROUTE_USERS_ID, "/users/{id}");
     assert_eq!(
-        ROUTE_ARTICLE_ID_VERSION_ID_CONTENT_READ,
-        "/article/{id}/version/{version_id}/content/read"
+        ROUTE_ARTICLES_ID_VERSIONS_VID_CONTENT,
+        "/articles/{id}/versions/{version_id}/content"
     );
-    assert_eq!(
-        ROUTE_VERSION_ID_COMMENT_CREATE,
-        "/version/{id}/comment/create"
-    );
-    assert_eq!(ROUTE_ROLE_ID_READ, "/role/{id}/read");
-    assert_eq!(ROUTE_ROLE_ID_UPDATE, "/role/{id}/update");
-    assert_eq!(ROUTE_ROLE_ID_DELETE, "/role/{id}/delete");
-    assert_eq!(ROUTE_COMMENT_ID_DELETE, "/comment/{id}/delete");
+    assert_eq!(ROUTE_VERSIONS_ID_COMMENTS, "/versions/{id}/comments");
+    assert_eq!(ROUTE_ROLES_ID, "/roles/{id}");
+    assert_eq!(ROUTE_COMMENTS_ID, "/comments/{id}");
 }
 
 #[test]
@@ -183,52 +177,40 @@ fn read_requires_a_role_grant() {
     let member = user_entity("alice", HashSet::from([uid("Role::\"member\"")]));
     let article = article_entity("article-1", "bob");
 
-    assert!(
-        decide(
-            &uid("User::\"alice\""),
-            "Article::Read",
-            &uid("Article::\"article-1\""),
-            vec![member, member_role.clone(), action.clone(), article.clone()],
-        )
-        .expect("member read")
-    );
+    assert!(decide(
+        &uid("User::\"alice\""),
+        "Article::Read",
+        &uid("Article::\"article-1\""),
+        vec![member, member_role.clone(), action.clone(), article.clone()],
+    ));
 
     let grantless = user_entity("carol", HashSet::new());
-    assert!(
-        !decide(
-            &uid("User::\"carol\""),
-            "Article::Read",
-            &uid("Article::\"article-1\""),
-            vec![grantless, member_role, action, article],
-        )
-        .expect("grantless read")
-    );
+    assert!(!decide(
+        &uid("User::\"carol\""),
+        "Article::Read",
+        &uid("Article::\"article-1\""),
+        vec![grantless, member_role, action, article],
+    ));
 }
 
 #[test]
 fn user_self_view_allows_anyone_and_other_users_need_a_grant() {
     let alice = user_entity("alice", HashSet::new());
-    assert!(
-        decide(
-            &uid("User::\"alice\""),
-            "User::Read",
-            &uid("User::\"alice\""),
-            vec![alice],
-        )
-        .expect("self view")
-    );
+    assert!(decide(
+        &uid("User::\"alice\""),
+        "User::Read",
+        &uid("User::\"alice\""),
+        vec![alice],
+    ));
 
     let alice = user_entity("alice", HashSet::new());
     let bob = user_entity("bob", HashSet::new());
-    assert!(
-        !decide(
-            &uid("User::\"alice\""),
-            "User::Read",
-            &uid("User::\"bob\""),
-            vec![alice, bob.clone()],
-        )
-        .expect("other view denied")
-    );
+    assert!(!decide(
+        &uid("User::\"alice\""),
+        "User::Read",
+        &uid("User::\"bob\""),
+        vec![alice, bob.clone()],
+    ));
 
     let admin_role = Entity::new_no_attrs(
         uid("Role::\"admin\""),
@@ -236,15 +218,12 @@ fn user_self_view_allows_anyone_and_other_users_need_a_grant() {
     );
     let action = Entity::new_no_attrs(uid("Action::\"User::Read\""), HashSet::new());
     let admin = user_entity("admin", HashSet::from([uid("Role::\"admin\"")]));
-    assert!(
-        decide(
-            &uid("User::\"admin\""),
-            "User::Read",
-            &uid("User::\"bob\""),
-            vec![admin, admin_role, action, bob],
-        )
-        .expect("granted other view")
-    );
+    assert!(decide(
+        &uid("User::\"admin\""),
+        "User::Read",
+        &uid("User::\"bob\""),
+        vec![admin, admin_role, action, bob],
+    ));
 }
 
 #[test]
@@ -252,26 +231,20 @@ fn owner_bypass_allows_update_but_not_for_a_non_owner() {
     let principal = user_entity("alice", HashSet::new());
     let resource = article_entity("article-1", "alice");
 
-    assert!(
-        decide(
-            &uid("User::\"alice\""),
-            "Article::Update",
-            &uid("Article::\"article-1\""),
-            vec![principal.clone(), resource.clone()],
-        )
-        .expect("owner update")
-    );
+    assert!(decide(
+        &uid("User::\"alice\""),
+        "Article::Update",
+        &uid("Article::\"article-1\""),
+        vec![principal.clone(), resource.clone()],
+    ));
 
     let outsider = user_entity("bob", HashSet::new());
-    assert!(
-        !decide(
-            &uid("User::\"bob\""),
-            "Article::Update",
-            &uid("Article::\"article-1\""),
-            vec![outsider, resource],
-        )
-        .expect("outsider update")
-    );
+    assert!(!decide(
+        &uid("User::\"bob\""),
+        "Article::Update",
+        &uid("Article::\"article-1\""),
+        vec![outsider, resource],
+    ));
 }
 
 #[test]
@@ -284,74 +257,56 @@ fn role_permission_grants_via_principal_in_action() {
     let principal = user_entity("alice", HashSet::from([uid("Role::\"editor\"")]));
 
     let article = article_entity("article-1", "bob");
-    assert!(
-        decide(
-            &uid("User::\"alice\""),
-            "Article::Update",
-            &uid("Article::\"article-1\""),
-            vec![principal.clone(), editor.clone(), action.clone(), article],
-        )
-        .expect("holder update")
-    );
+    assert!(decide(
+        &uid("User::\"alice\""),
+        "Article::Update",
+        &uid("Article::\"article-1\""),
+        vec![principal.clone(), editor.clone(), action.clone(), article],
+    ));
 
     let non_holder = user_entity("bob", HashSet::new());
-    assert!(
-        !decide(
-            &uid("User::\"bob\""),
-            "Article::Update",
-            &uid("Article::\"article-1\""),
-            vec![non_holder, editor, action],
-        )
-        .expect("non-holder update")
-    );
+    assert!(!decide(
+        &uid("User::\"bob\""),
+        "Article::Update",
+        &uid("Article::\"article-1\""),
+        vec![non_holder, editor, action],
+    ));
 }
 
 #[test]
 fn user_self_deregistration_soft_and_transfer() {
     let alice = user_entity("alice", HashSet::new());
-    assert!(
-        decide(
-            &uid("User::\"alice\""),
-            "User::Delete::Soft",
-            &uid("User::\"alice\""),
-            vec![alice.clone()],
-        )
-        .expect("self soft delete")
-    );
-    assert!(
-        decide(
-            &uid("User::\"alice\""),
-            "User::Delete::Transfer",
-            &uid("User::\"alice\""),
-            vec![alice.clone()],
-        )
-        .expect("self transfer")
-    );
+    assert!(decide(
+        &uid("User::\"alice\""),
+        "User::Delete::Soft",
+        &uid("User::\"alice\""),
+        vec![alice.clone()],
+    ));
+    assert!(decide(
+        &uid("User::\"alice\""),
+        "User::Delete::Transfer",
+        &uid("User::\"alice\""),
+        vec![alice.clone()],
+    ));
 
     let bob = user_entity("bob", HashSet::new());
-    assert!(
-        !decide(
-            &uid("User::\"alice\""),
-            "User::Delete::Soft",
-            &uid("User::\"bob\""),
-            vec![alice, bob],
-        )
-        .expect("other user soft delete denied")
-    );
+    assert!(!decide(
+        &uid("User::\"alice\""),
+        "User::Delete::Soft",
+        &uid("User::\"bob\""),
+        vec![alice, bob],
+    ));
 }
 
 #[test]
 fn user_undelete_soft_requires_a_grant() {
     let alice = user_entity("alice", HashSet::new());
-    assert!(
-        !decide(
-            &uid("User::\"alice\""),
-            "User::Undelete::Soft",
-            &uid("User::\"bob\""),
-            vec![alice],
-        )
-        .expect("member undelete denied")
-    );
+    assert!(!decide(
+        &uid("User::\"alice\""),
+        "User::Undelete::Soft",
+        &uid("User::\"bob\""),
+        vec![alice],
+    ));
 
     let admin_role = Entity::new_no_attrs(
         uid("Role::\"admin\""),
@@ -360,29 +315,23 @@ fn user_undelete_soft_requires_a_grant() {
     let action = Entity::new_no_attrs(uid("Action::\"User::Undelete::Soft\""), HashSet::new());
     let admin = user_entity("admin", HashSet::from([uid("Role::\"admin\"")]));
     let bob = user_entity("bob", HashSet::new());
-    assert!(
-        decide(
-            &uid("User::\"admin\""),
-            "User::Undelete::Soft",
-            &uid("User::\"bob\""),
-            vec![admin, admin_role, action, bob],
-        )
-        .expect("admin undelete")
-    );
+    assert!(decide(
+        &uid("User::\"admin\""),
+        "User::Undelete::Soft",
+        &uid("User::\"bob\""),
+        vec![admin, admin_role, action, bob],
+    ));
 }
 
 #[test]
 fn user_create_is_permitted_for_the_anonymous_principal() {
     let anonymous = user_entity("anonymous", HashSet::new());
-    assert!(
-        decide(
-            &uid("User::\"anonymous\""),
-            "User::Create",
-            &uid("Virtual::\"user-create\""),
-            vec![anonymous],
-        )
-        .expect("anonymous registration")
-    );
+    assert!(decide(
+        &uid("User::\"anonymous\""),
+        "User::Create",
+        &uid("Virtual::\"user-create\""),
+        vec![anonymous],
+    ));
 }
 
 #[test]
@@ -398,27 +347,21 @@ fn role_crud_requires_the_admin_console_and_grant_revoke_the_role_resource() {
     );
     let admin = user_entity("admin", HashSet::from([uid("Role::\"admin\"")]));
     let action_entity = Entity::new_no_attrs(uid("Action::\"Role::Create\""), HashSet::new());
-    assert!(
-        decide(
-            &uid("User::\"admin\""),
-            "Role::Create",
-            &uid("Virtual::\"role-console\""),
-            vec![admin.clone(), admin_role.clone(), action_entity],
-        )
-        .expect("admin role create")
-    );
+    assert!(decide(
+        &uid("User::\"admin\""),
+        "Role::Create",
+        &uid("Virtual::\"role-console\""),
+        vec![admin.clone(), admin_role.clone(), action_entity],
+    ));
     for action in ["Role::Read", "Role::Update", "Role::Delete"] {
         let action_entity =
             Entity::new_no_attrs(uid(&format!("Action::\"{action}\"")), HashSet::new());
-        assert!(
-            decide(
-                &uid("User::\"admin\""),
-                action,
-                &uid("Role::\"editor\""),
-                vec![admin.clone(), admin_role.clone(), action_entity],
-            )
-            .expect("admin role crud")
-        );
+        assert!(decide(
+            &uid("User::\"admin\""),
+            action,
+            &uid("Role::\"editor\""),
+            vec![admin.clone(), admin_role.clone(), action_entity],
+        ));
     }
 
     let grant_role = Entity::new_no_attrs(
@@ -431,27 +374,21 @@ fn role_crud_requires_the_admin_console_and_grant_revoke_the_role_resource() {
     for action in ["Role::Grant", "Role::Revoke"] {
         let action_entity =
             Entity::new_no_attrs(uid(&format!("Action::\"{action}\"")), HashSet::new());
-        assert!(
-            decide(
-                &uid("User::\"admin\""),
-                action,
-                &uid("Role::\"editor\""),
-                vec![admin.clone(), grant_role.clone(), action_entity],
-            )
-            .expect("admin role grant/revoke")
-        );
+        assert!(decide(
+            &uid("User::\"admin\""),
+            action,
+            &uid("Role::\"editor\""),
+            vec![admin.clone(), grant_role.clone(), action_entity],
+        ));
     }
 
     let member = user_entity("alice", HashSet::from([uid("Role::\"member\"")]));
-    assert!(
-        !decide(
-            &uid("User::\"alice\""),
-            "Role::Read",
-            &uid("Virtual::\"admin-console\""),
-            vec![member],
-        )
-        .expect("member role read denied")
-    );
+    assert!(!decide(
+        &uid("User::\"alice\""),
+        "Role::Read",
+        &uid("Virtual::\"admin-console\""),
+        vec![member],
+    ));
 }
 
 #[test]
@@ -460,15 +397,12 @@ fn admin_without_a_grant_is_denied() {
     let principal = user_entity("alice", HashSet::from([uid("Role::\"admin\"")]));
     let resource = user_entity("bob", HashSet::new());
 
-    assert!(
-        !decide(
-            &uid("User::\"alice\""),
-            "User::Delete::Hard",
-            &uid("User::\"bob\""),
-            vec![principal, admin, resource],
-        )
-        .expect("admin without grant")
-    );
+    assert!(!decide(
+        &uid("User::\"alice\""),
+        "User::Delete::Hard",
+        &uid("User::\"bob\""),
+        vec![principal, admin, resource],
+    ));
 }
 
 #[test]
@@ -480,13 +414,10 @@ fn admin_holding_a_grant_is_allowed() {
     let principal = user_entity("alice", HashSet::from([uid("Role::\"admin\"")]));
     let resource = user_entity("bob", HashSet::new());
 
-    assert!(
-        decide(
-            &uid("User::\"alice\""),
-            "User::Delete::Hard",
-            &uid("User::\"bob\""),
-            vec![principal, admin, resource],
-        )
-        .expect("admin with grant")
-    );
+    assert!(decide(
+        &uid("User::\"alice\""),
+        "User::Delete::Hard",
+        &uid("User::\"bob\""),
+        vec![principal, admin, resource],
+    ));
 }

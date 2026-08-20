@@ -30,12 +30,12 @@ async fn admin_session(context: &TestCtx) -> (String, String) {
 async fn create_article_and_tag(context: &TestCtx, token: &str) -> (String, String) {
     for name in ["rust", "devops"] {
         let (status, body) = context
-            .post("/tag/create", json!({ "name": name }), Some(token))
+            .post("/tags", json!({ "name": name }), Some(token))
             .await;
         assert_eq!(status, StatusCode::CREATED, "body: {body}");
     }
     let tag_id = {
-        let (_, body) = context.get("/tag/read?page=1&limit=200", Some(token)).await;
+        let (_, body) = context.get("/tags?page=1&limit=200", Some(token)).await;
         assert_eq!(body["data"]["total"].as_u64(), Some(2));
         body["data"]["items"]
             .as_array()
@@ -58,7 +58,7 @@ async fn create_article_and_tag(context: &TestCtx, token: &str) -> (String, Stri
     ];
     let (status, body) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(token),
             &fields,
             "file",
@@ -81,32 +81,27 @@ async fn apply_and_unapply_tag_over_http() {
     let (article_id, tag_id) = create_article_and_tag(&context, &token).await;
 
     let (status, body) = context
-        .post(
-            &format!("/article/{article_id}/tag/{tag_id}/apply"),
+        .put(
+            &format!("/articles/{article_id}/tags/{tag_id}"),
             json!({}),
             Some(&token),
         )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
 
-    let (status, body) = context
-        .get(&format!("/tag/{tag_id}/read"), Some(&token))
-        .await;
+    let (status, body) = context.get(&format!("/tags/{tag_id}"), Some(&token)).await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["data"]["article_count"].as_u64(), Some(1));
 
     let (status, body) = context
-        .post(
-            &format!("/article/{article_id}/tag/{tag_id}/unapply"),
-            json!({}),
+        .delete(
+            &format!("/articles/{article_id}/tags/{tag_id}"),
             Some(&token),
         )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
 
-    let (status, body) = context
-        .get(&format!("/tag/{tag_id}/read"), Some(&token))
-        .await;
+    let (status, body) = context.get(&format!("/tags/{tag_id}"), Some(&token)).await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["data"]["article_count"].as_u64(), Some(0));
 }
@@ -118,8 +113,8 @@ async fn apply_tag_to_a_missing_article_returns_404() {
     let (_, tag_id) = create_article_and_tag(&context, &token).await;
 
     let (status, body) = context
-        .post(
-            &format!("/article/missing/tag/{tag_id}/apply"),
+        .put(
+            &format!("/articles/missing/tags/{tag_id}"),
             json!({}),
             Some(&token),
         )
@@ -135,8 +130,8 @@ async fn apply_tag_to_a_missing_tag_returns_404() {
     let (article_id, _) = create_article_and_tag(&context, &token).await;
 
     let (status, body) = context
-        .post(
-            &format!("/article/{article_id}/tag/missing/apply"),
+        .put(
+            &format!("/articles/{article_id}/tags/missing"),
             json!({}),
             Some(&token),
         )

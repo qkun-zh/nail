@@ -1,7 +1,7 @@
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use nail_common::request::DeleteBody;
+use nail_common::request::DeleteQuery;
 use nail_common::response::version::VersionIdView;
 use serde::Deserialize;
 
@@ -110,16 +110,12 @@ pub async fn delete_version(
     State(state): State<AppState>,
     principal: Principal,
     AppPath(version_id): AppPath<String>,
-    AppJson(payload): AppJson<DeleteBody>,
+    AppQuery(query): AppQuery<DeleteQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data = crate::logic::version::delete_version(
-        &state,
-        &principal.user_id,
-        &version_id,
-        payload.mode,
-    )
-    .await
-    .map_err(ApiError::from_logic)?;
+    let data =
+        crate::logic::version::delete_version(&state, &principal.user_id, &version_id, query.mode)
+            .await
+            .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "deleted"))
 }
 

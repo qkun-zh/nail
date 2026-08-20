@@ -1,13 +1,13 @@
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use nail_common::request::{CreateTagRequest, DeleteBody, DeleteMode, TagUpdateRequest};
+use nail_common::request::{CreateTagRequest, DeleteMode, DeleteQuery, TagUpdateRequest};
 use nail_common::response::NamedRef;
 use serde::Deserialize;
 
 use crate::infrastructure::state::AppState;
 use crate::interface::envelope::{ApiError, json_response};
-use crate::interface::extractor::{AppJson, AppPaged, AppPath};
+use crate::interface::extractor::{AppJson, AppPaged, AppPath, AppQuery};
 use crate::interface::principal::Principal;
 
 pub async fn create_tag(
@@ -66,9 +66,9 @@ pub async fn delete_tag(
     State(state): State<AppState>,
     principal: Principal,
     AppPath(tag_id): AppPath<String>,
-    AppJson(payload): AppJson<DeleteBody>,
+    AppQuery(query): AppQuery<DeleteQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
-    if payload.mode != Some(DeleteMode::Hard) {
+    if query.mode != Some(DeleteMode::Hard) {
         return Err(ApiError::bad_request(
             "tag delete only supports mode \"hard\"",
         ));
@@ -88,7 +88,7 @@ pub async fn apply_tag(
     principal: Principal,
     AppPath(params): AppPath<TagArticleParams>,
 ) -> Result<impl IntoResponse, ApiError> {
-    crate::logic::tag::apply_tag(&state, &principal.user_id, &params.id, &params.tag_id)
+    crate::logic::tag::apply_tag(&state, &principal.user_id, &params.id, &params.tid)
         .await
         .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, serde_json::json!({}), "ok"))
@@ -99,7 +99,7 @@ pub async fn unapply_tag(
     principal: Principal,
     AppPath(params): AppPath<TagArticleParams>,
 ) -> Result<impl IntoResponse, ApiError> {
-    crate::logic::tag::unapply_tag(&state, &principal.user_id, &params.id, &params.tag_id)
+    crate::logic::tag::unapply_tag(&state, &principal.user_id, &params.id, &params.tid)
         .await
         .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, serde_json::json!({}), "ok"))
@@ -108,5 +108,5 @@ pub async fn unapply_tag(
 #[derive(Debug, Deserialize)]
 pub struct TagArticleParams {
     pub id: String,
-    pub tag_id: String,
+    pub tid: String,
 }

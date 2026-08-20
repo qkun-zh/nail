@@ -1,12 +1,12 @@
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use nail_common::request::{CreateRoleRequest, DeleteBody, DeleteMode, RoleUpdateRequest};
+use nail_common::request::{CreateRoleRequest, DeleteMode, DeleteQuery, RoleUpdateRequest};
 use nail_common::response::NamedRef;
 
 use crate::infrastructure::state::AppState;
 use crate::interface::envelope::{ApiError, json_response};
-use crate::interface::extractor::{AppJson, AppPaged, AppPath};
+use crate::interface::extractor::{AppJson, AppPaged, AppPath, AppQuery};
 use crate::interface::principal::Principal;
 
 pub async fn create_role(
@@ -70,9 +70,9 @@ pub async fn delete_role(
     State(state): State<AppState>,
     principal: Principal,
     AppPath(role_id): AppPath<String>,
-    AppJson(payload): AppJson<DeleteBody>,
+    AppQuery(query): AppQuery<DeleteQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
-    if payload.mode != Some(DeleteMode::Hard) {
+    if query.mode != Some(DeleteMode::Hard) {
         return Err(ApiError::bad_request(
             "role delete only supports mode \"hard\"",
         ));

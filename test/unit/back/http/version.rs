@@ -85,7 +85,7 @@ async fn create_version_over_http() {
     let fields: Vec<(&str, &str)> = vec![("version", "1.1.0"), ("note", "next")];
     let (status, body) = context
         .post_multipart(
-            &format!("/article/{article_id}/version/create"),
+            &format!("/articles/{article_id}/versions"),
             Some(&token),
             &fields,
             "file",
@@ -111,7 +111,7 @@ async fn create_version_ignores_unknown_multipart_fields() {
     ];
     let (status, body) = context
         .post_multipart(
-            &format!("/article/{article_id}/version/create"),
+            &format!("/articles/{article_id}/versions"),
             Some(&token),
             &fields,
             "file",
@@ -132,7 +132,7 @@ async fn create_version_requires_a_session() {
     let fields: Vec<(&str, &str)> = vec![("version", "1.1.0")];
     let (status, body) = context
         .post_multipart(
-            &format!("/article/{article_id}/version/create"),
+            &format!("/articles/{article_id}/versions"),
             None,
             &fields,
             "file",
@@ -151,7 +151,7 @@ async fn read_versions_over_http() {
 
     let (status, body) = context
         .get(
-            &format!("/article/{article_id}/version/read?page=1&limit=8"),
+            &format!("/articles/{article_id}/versions?page=1&limit=8"),
             Some(&token),
         )
         .await;
@@ -169,7 +169,7 @@ async fn read_versions_rejects_a_page_beyond_max_search_pages() {
 
     let (status, body) = context
         .get(
-            &format!("/article/{article_id}/version/read?page=1025"),
+            &format!("/articles/{article_id}/versions?page=1025"),
             Some(&token),
         )
         .await;
@@ -188,10 +188,7 @@ async fn read_versions_requires_a_read_grant() {
 
     let (_, outsider) = plain_session(&context, "bob@example.com").await;
     let (status, body) = context
-        .get(
-            &format!("/article/{article_id}/version/read"),
-            Some(&outsider),
-        )
+        .get(&format!("/articles/{article_id}/versions"), Some(&outsider))
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
 }
@@ -204,7 +201,7 @@ async fn read_version_requires_a_read_grant() {
 
     let (_, outsider) = plain_session(&context, "bob@example.com").await;
     let (status, body) = context
-        .get(&format!("/version/{version_id}/read"), Some(&outsider))
+        .get(&format!("/versions/{version_id}"), Some(&outsider))
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
 }
@@ -218,7 +215,7 @@ async fn read_version_cross_check_over_http() {
 
     let (status, body) = context
         .get(
-            &format!("/version/{version_id}/read?article_id={article_id}"),
+            &format!("/versions/{version_id}?article_id={article_id}"),
             Some(&token),
         )
         .await;
@@ -227,7 +224,7 @@ async fn read_version_cross_check_over_http() {
 
     let (status, _) = context
         .get(
-            &format!("/version/{version_id}/read?article_id={other_article}"),
+            &format!("/versions/{version_id}?article_id={other_article}"),
             Some(&token),
         )
         .await;
@@ -241,8 +238,8 @@ async fn update_version_note_over_http() {
     let (_, version_id) = article_fixture(&context, &user_id).await;
 
     let (status, body) = context
-        .post(
-            &format!("/version/{version_id}/update"),
+        .patch(
+            &format!("/versions/{version_id}"),
             json!({ "note": "updated note" }),
             Some(&token),
         )
@@ -261,9 +258,8 @@ async fn delete_version_rejects_transfer_mode() {
     let (_, version_id) = article_fixture(&context, &user_id).await;
 
     let (status, body) = context
-        .post(
-            &format!("/version/{version_id}/delete"),
-            json!({ "mode": "transfer" }),
+        .delete(
+            &format!("/versions/{version_id}?mode=transfer"),
             Some(&token),
         )
         .await;
@@ -282,9 +278,8 @@ async fn delete_version_hard_over_http() {
     let (_, version_id) = article_fixture(&context, &user_id).await;
 
     let (status, body) = context
-        .post(
-            &format!("/version/{version_id}/delete"),
-            json!({ "mode": "hard" }),
+        .delete(
+            &format!("/versions/{version_id}?mode=hard"),
             Some(&admin_token),
         )
         .await;
@@ -299,11 +294,7 @@ async fn delete_version_hard_is_forbidden_for_a_member_owner() {
     let (_, version_id) = article_fixture(&context, &user_id).await;
 
     let (status, body) = context
-        .post(
-            &format!("/version/{version_id}/delete"),
-            json!({ "mode": "hard" }),
-            Some(&token),
-        )
+        .delete(&format!("/versions/{version_id}?mode=hard"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("you are denied"));
@@ -317,9 +308,8 @@ async fn undelete_soft_version_revives_the_version_over_http() {
     let (_, version_id) = article_fixture(&context, &user_id).await;
 
     let (status, body) = context
-        .post(
-            &format!("/version/{version_id}/delete"),
-            json!({ "mode": "soft" }),
+        .delete(
+            &format!("/versions/{version_id}?mode=soft"),
             Some(&admin_token),
         )
         .await;
@@ -327,7 +317,7 @@ async fn undelete_soft_version_revives_the_version_over_http() {
 
     let (status, body) = context
         .post(
-            &format!("/version/{version_id}/undelete-soft"),
+            &format!("/versions/{version_id}/restore"),
             json!({}),
             Some(&admin_token),
         )
@@ -336,7 +326,7 @@ async fn undelete_soft_version_revives_the_version_over_http() {
     assert_eq!(body["message"].as_str(), Some("undeleted"));
 
     let (status, body) = context
-        .get(&format!("/version/{version_id}/read"), Some(&admin_token))
+        .get(&format!("/versions/{version_id}"), Some(&admin_token))
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
 }
@@ -349,9 +339,8 @@ async fn undelete_soft_version_is_forbidden_for_a_member_owner() {
     let (_, version_id) = article_fixture(&context, &user_id).await;
 
     let (status, _) = context
-        .post(
-            &format!("/version/{version_id}/delete"),
-            json!({ "mode": "soft" }),
+        .delete(
+            &format!("/versions/{version_id}?mode=soft"),
             Some(&admin_token),
         )
         .await;
@@ -359,7 +348,7 @@ async fn undelete_soft_version_is_forbidden_for_a_member_owner() {
 
     let (status, body) = context
         .post(
-            &format!("/version/{version_id}/undelete-soft"),
+            &format!("/versions/{version_id}/restore"),
             json!({}),
             Some(&token),
         )
@@ -376,7 +365,7 @@ async fn create_version_rejects_an_older_version() {
     let fields: Vec<(&str, &str)> = vec![("version", "0.9.0"), ("note", "older")];
     let (status, body) = context
         .post_multipart(
-            &format!("/article/{article_id}/version/create"),
+            &format!("/articles/{article_id}/versions"),
             Some(&token),
             &fields,
             "file",
@@ -400,7 +389,7 @@ async fn create_version_rejects_a_duplicate_content_hash() {
     let fields: Vec<(&str, &str)> = vec![("version", "1.1.0"), ("note", "duplicate")];
     let (status, body) = context
         .post_multipart(
-            &format!("/article/{article_id}/version/create"),
+            &format!("/articles/{article_id}/versions"),
             Some(&token),
             &fields,
             "file",
@@ -421,7 +410,7 @@ async fn read_version_reports_a_missing_version() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = member_session(&context, "alice@example.com").await;
     let (status, body) = context
-        .get(&format!("/version/{}/read", Uuid::now_v7()), Some(&token))
+        .get(&format!("/versions/{}", Uuid::now_v7()), Some(&token))
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("version not found"));
@@ -434,8 +423,8 @@ async fn update_version_is_forbidden_for_a_non_owner() {
     let (_, stranger_token) = member_session(&context, "bob@example.com").await;
     let (_, version_id) = article_fixture(&context, &user_id).await;
     let (status, body) = context
-        .post(
-            &format!("/version/{version_id}/update"),
+        .patch(
+            &format!("/versions/{version_id}"),
             json!({ "note": "hijacked" }),
             Some(&stranger_token),
         )
@@ -451,9 +440,8 @@ async fn delete_version_is_forbidden_for_a_non_owner() {
     let (_, stranger_token) = member_session(&context, "bob@example.com").await;
     let (_, version_id) = article_fixture(&context, &user_id).await;
     let (status, body) = context
-        .post(
-            &format!("/version/{version_id}/delete"),
-            json!({ "mode": "hard" }),
+        .delete(
+            &format!("/versions/{version_id}?mode=hard"),
             Some(&stranger_token),
         )
         .await;
@@ -466,9 +454,8 @@ async fn delete_version_reports_a_missing_version() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = member_session(&context, "alice@example.com").await;
     let (status, body) = context
-        .post(
-            &format!("/version/{}/delete", Uuid::now_v7()),
-            json!({ "mode": "hard" }),
+        .delete(
+            &format!("/versions/{}?mode=hard", Uuid::now_v7()),
             Some(&token),
         )
         .await;

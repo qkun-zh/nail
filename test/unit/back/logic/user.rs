@@ -1,5 +1,5 @@
 use crate::logic::user::{UserDeleteView, UserUpdateView};
-use nail_common::request::{UserDeleteRequest, UserUpdateRequest};
+use nail_common::request::{UserDeleteQuery, UserUpdateRequest};
 
 use super::context::TestCtx;
 use crate::logic::error::LogicError;
@@ -182,9 +182,9 @@ async fn delete_user_rejects_a_missing_mode() {
         &context.state,
         &user_id,
         &user_id,
-        UserDeleteRequest {
+        UserDeleteQuery {
             mode: None,
-            pow: context.issued_pow("ignored"),
+            pow: serde_json::to_string(&context.issued_pow("ignored")).unwrap(),
         },
     )
     .await
@@ -206,9 +206,9 @@ async fn delete_user_hard_by_admin_removes_the_user() {
         &context.state,
         &admin,
         &target,
-        UserDeleteRequest {
+        UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Hard),
-            pow: context.issued_pow("ignored"),
+            pow: serde_json::to_string(&context.issued_pow("ignored")).unwrap(),
         },
     )
     .await
@@ -253,9 +253,9 @@ async fn delete_user_transfer_after_email_confirmation() {
         &context.state,
         &user_id,
         &user_id,
-        UserDeleteRequest {
+        UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Transfer),
-            pow: confirm_pow,
+            pow: serde_json::to_string(&confirm_pow).unwrap(),
         },
     )
     .await
@@ -317,9 +317,9 @@ async fn delete_user_soft_after_email_confirmation() {
         &context.state,
         &user_id,
         &user_id,
-        UserDeleteRequest {
+        UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Soft),
-            pow: confirm_pow,
+            pow: serde_json::to_string(&confirm_pow).unwrap(),
         },
     )
     .await
@@ -360,9 +360,9 @@ async fn undelete_soft_user_by_admin_revives_the_user() {
         &context.state,
         &user_id,
         &user_id,
-        UserDeleteRequest {
+        UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Soft),
-            pow: confirm_pow,
+            pow: serde_json::to_string(&confirm_pow).unwrap(),
         },
     )
     .await
@@ -411,9 +411,9 @@ async fn undelete_soft_user_is_forbidden_for_a_member() {
         &context.state,
         &user_id,
         &user_id,
-        UserDeleteRequest {
+        UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Soft),
-            pow: confirm_pow,
+            pow: serde_json::to_string(&confirm_pow).unwrap(),
         },
     )
     .await
@@ -453,9 +453,9 @@ async fn delete_user_transfer_rejects_a_token_for_a_different_account() {
         &context.state,
         &bob_id,
         &bob_id,
-        UserDeleteRequest {
+        UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Transfer),
-            pow: confirm_pow,
+            pow: serde_json::to_string(&confirm_pow).unwrap(),
         },
     )
     .await
@@ -522,9 +522,9 @@ async fn delete_user_transfer_rejects_an_expired_token_for_an_existing_account()
         &context.state,
         &user_id,
         &user_id,
-        UserDeleteRequest {
+        UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Transfer),
-            pow: confirm_pow,
+            pow: serde_json::to_string(&confirm_pow).unwrap(),
         },
     )
     .await
@@ -560,9 +560,9 @@ async fn create_user_rejects_a_soft_deleted_account() {
         &context.state,
         &user_id,
         &user_id,
-        UserDeleteRequest {
+        UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Soft),
-            pow: confirm_pow,
+            pow: serde_json::to_string(&confirm_pow).unwrap(),
         },
     )
     .await
@@ -625,9 +625,9 @@ async fn read_user_hides_a_soft_deleted_account_from_members() {
         &context.state,
         &user_id,
         &user_id,
-        UserDeleteRequest {
+        UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Soft),
-            pow: confirm_pow,
+            pow: serde_json::to_string(&confirm_pow).unwrap(),
         },
     )
     .await

@@ -1,5 +1,5 @@
 use nail_common::pow::Pow;
-use nail_common::request::{DeleteMode, UserDeleteRequest, UserUpdateRequest};
+use nail_common::request::{DeleteMode, UserDeleteQuery, UserUpdateRequest};
 use nail_common::response::EmptyView;
 use nail_common::response::session::SessionTokenView;
 use nail_common::response::user::{UserIdView, UserListItem, UserNameView, UserView};
@@ -192,15 +192,17 @@ pub async fn delete_user(
     state: &AppState,
     actor_id: &str,
     target_id: &str,
-    request: UserDeleteRequest,
+    query: UserDeleteQuery,
 ) -> Result<UserDeleteView, LogicError> {
-    match request.mode {
+    let pow: Pow =
+        serde_json::from_str(&query.pow).map_err(|_| LogicError::bad_request("invalid pow"))?;
+    match query.mode {
         Some(DeleteMode::Transfer) => {
-            handle_delete_user_transfer(state, actor_id, &request.pow).await?;
+            handle_delete_user_transfer(state, actor_id, &pow).await?;
             Ok(UserDeleteView::Empty(EmptyView {}))
         }
         Some(DeleteMode::Soft) => {
-            handle_delete_user_soft(state, actor_id, &request.pow).await?;
+            handle_delete_user_soft(state, actor_id, &pow).await?;
             Ok(UserDeleteView::Empty(EmptyView {}))
         }
         Some(DeleteMode::Hard) => {

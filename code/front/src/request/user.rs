@@ -1,7 +1,5 @@
 use nail_common::pow::Pow;
-use nail_common::request::{
-    CreateTokenRequest, DeleteMode, TokenPurpose, UserDeleteRequest, UserUpdateRequest,
-};
+use nail_common::request::{CreateTokenRequest, DeleteMode, TokenPurpose, UserUpdateRequest};
 use nail_common::response::EmptyView;
 use nail_common::response::ListPage;
 use nail_common::response::email::{EmailSubjectView, EmailSubjectsView};
@@ -15,7 +13,7 @@ use crate::request::{http, url};
 pub async fn read_user(user_id: &str) -> RequestResult<UserView> {
     let user_id = validate_id(user_id, "user_id")?;
     let path = url::build_path_with_query(
-        &["user", &user_id, "read"],
+        &["users", &user_id],
         &[("name", "true"), ("email_hash", "true"), ("roles", "true")],
     );
     http::get_json(&path, true).await
@@ -23,7 +21,7 @@ pub async fn read_user(user_id: &str) -> RequestResult<UserView> {
 
 pub async fn read_users(page: u64, limit: u64) -> RequestResult<ListPage<UserListItem>> {
     let path = url::build_path_with_query(
-        &["user", "read"],
+        &["users"],
         &[("page", &page.to_string()), ("limit", &limit.to_string())],
     );
     http::get_json(&path, true).await
@@ -31,12 +29,12 @@ pub async fn read_users(page: u64, limit: u64) -> RequestResult<ListPage<UserLis
 
 pub async fn update_self_name(user_id: &str, pow: Pow) -> RequestResult<UserNameView> {
     let user_id = validate_id(user_id, "user_id")?;
-    let path = url::build_path_with_query(&["user", &user_id, "update"], &[]);
+    let path = url::build_path_with_query(&["users", &user_id], &[]);
     let body = UserUpdateRequest {
         pow: Some(pow),
         ..UserUpdateRequest::default()
     };
-    http::post_json(&path, &body, true).await
+    http::patch_json(&path, &body, true).await
 }
 
 pub async fn confirm_email_change(
@@ -46,19 +44,19 @@ pub async fn confirm_email_change(
     new_token: &str,
 ) -> RequestResult<SessionTokenView> {
     let user_id = validate_id(user_id, "user_id")?;
-    let path = url::build_path_with_query(&["user", &user_id, "update"], &[]);
+    let path = url::build_path_with_query(&["users", &user_id], &[]);
     let body = UserUpdateRequest {
         pow: Some(pow),
         old_email_token: Some(old_token.to_string()),
         new_email_token: Some(new_token.to_string()),
         ..UserUpdateRequest::default()
     };
-    http::post_json(&path, &body, true).await
+    http::patch_json(&path, &body, true).await
 }
 
 pub async fn send_change_email(old_pow: Pow, new_pow: Pow) -> RequestResult<EmailSubjectsView> {
     let body = update_user_email_token_request(old_pow, new_pow);
-    http::post_json("/token/create", &body, true).await
+    http::post_json("/tokens", &body, true).await
 }
 
 fn update_user_email_token_request(old_pow: Pow, new_pow: Pow) -> CreateTokenRequest {
@@ -72,7 +70,7 @@ fn update_user_email_token_request(old_pow: Pow, new_pow: Pow) -> CreateTokenReq
 
 pub async fn send_deregister_email(pow: Pow) -> RequestResult<EmailSubjectView> {
     let body = delete_user_token_request(pow);
-    http::post_json("/token/create", &body, true).await
+    http::post_json("/tokens", &body, true).await
 }
 
 fn delete_user_token_request(pow: Pow) -> CreateTokenRequest {
@@ -90,17 +88,18 @@ pub async fn deregister_self(
     mode: DeleteMode,
 ) -> RequestResult<EmptyView> {
     let user_id = validate_id(user_id, "user_id")?;
-    let path = url::build_path_with_query(&["user", &user_id, "delete"], &[]);
-    let body = UserDeleteRequest {
-        mode: Some(mode),
-        pow,
-    };
-    http::post_json(&path, &body, true).await
+    let mode_str = serde_json::to_string(&mode).unwrap_or_default();
+    let pow_str = serde_json::to_string(&pow).unwrap_or_default();
+    let path = url::build_path_with_query(
+        &["users", &user_id],
+        &[("mode", &mode_str), ("pow", &pow_str)],
+    );
+    http::delete_json(&path, true).await
 }
 
 pub async fn undelete_soft_user(user_id: &str) -> RequestResult<EmptyView> {
     let user_id = validate_id(user_id, "user_id")?;
-    let path = url::build_path_with_query(&["user", &user_id, "undelete-soft"], &[]);
+    let path = url::build_path_with_query(&["users", &user_id, "restore"], &[]);
     http::post_json(&path, &(), true).await
 }
 

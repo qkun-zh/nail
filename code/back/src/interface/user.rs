@@ -1,7 +1,7 @@
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use nail_common::request::{TokenRequest, UserDeleteRequest, UserUpdateRequest};
+use nail_common::request::{TokenRequest, UserDeleteQuery, UserUpdateRequest};
 use nail_common::response::EmptyView;
 use nail_common::response::session::SessionTokenView;
 use nail_common::response::user::UserView;
@@ -81,9 +81,9 @@ pub async fn delete_user(
     State(state): State<AppState>,
     principal: Principal,
     AppPath(user_id): AppPath<String>,
-    AppJson(payload): AppJson<UserDeleteRequest>,
+    AppQuery(query): AppQuery<UserDeleteQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data = crate::logic::user::delete_user(&state, &principal.user_id, &user_id, payload)
+    let data = crate::logic::user::delete_user(&state, &principal.user_id, &user_id, query)
         .await
         .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "deleted"))

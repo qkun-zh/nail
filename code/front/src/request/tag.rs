@@ -1,4 +1,4 @@
-use nail_common::request::{CreateTagRequest, TagUpdateRequest};
+use nail_common::request::{CreateTagRequest, DeleteMode, TagUpdateRequest};
 use nail_common::response::EmptyView;
 use nail_common::response::ListPage;
 pub use nail_common::response::NamedRef;
@@ -23,18 +23,18 @@ pub async fn read_tags(
         limit_str = l.to_string();
         query.push(("limit", &limit_str));
     }
-    let path = url::build_path_with_query(&["tag", "read"], &query);
+    let path = url::build_path_with_query(&["tags"], &query);
     http::get_json(&path, true).await
 }
 
 pub async fn read_tag(tag_id: &str) -> RequestResult<NamedRef> {
     let tag_id = validate_id(tag_id, "tag_id")?;
-    let path = url::build_path_with_query(&["tag", &tag_id, "read"], &[]);
+    let path = url::build_path_with_query(&["tags", &tag_id], &[]);
     http::get_json(&path, true).await
 }
 
 pub async fn create_tag(name: &str) -> RequestResult<NamedRef> {
-    let path = url::build_path_with_query(&["tag", "create"], &[]);
+    let path = url::build_path_with_query(&["tags"], &[]);
     let body = CreateTagRequest {
         name: name.to_string(),
     };
@@ -43,30 +43,35 @@ pub async fn create_tag(name: &str) -> RequestResult<NamedRef> {
 
 pub async fn update_tag(tag_id: &str, name: &str) -> RequestResult<NamedRef> {
     let tag_id = validate_id(tag_id, "tag_id")?;
-    let path = url::build_path_with_query(&["tag", &tag_id, "update"], &[]);
+    let path = url::build_path_with_query(&["tags", &tag_id], &[]);
     let body = TagUpdateRequest {
         name: Some(name.to_string()),
     };
-    http::post_json(&path, &body, true).await
+    http::patch_json(&path, &body, true).await
 }
 
 pub async fn delete_tag(tag_id: &str) -> RequestResult<()> {
     let tag_id = validate_id(tag_id, "tag_id")?;
-    let path = url::build_path_with_query(&["tag", &tag_id, "delete"], &[]);
-    http::post_json(&path, &(), true).await
+    let path = url::build_path_with_query(
+        &["tags", &tag_id],
+        &[(
+            "mode",
+            &serde_json::to_string(&DeleteMode::Hard).unwrap_or_default(),
+        )],
+    );
+    http::delete_json(&path, true).await
 }
 
 pub async fn apply_tag(article_id: &str, tag_id: &str) -> RequestResult<EmptyView> {
     let article_id = validate_id(article_id, "article_id")?;
     let tag_id = validate_id(tag_id, "tag_id")?;
-    let path = url::build_path_with_query(&["article", &article_id, "tag", &tag_id, "apply"], &[]);
-    http::post_json(&path, &(), true).await
+    let path = url::build_path_with_query(&["articles", &article_id, "tags", &tag_id], &[]);
+    http::put_json(&path, &(), true).await
 }
 
 pub async fn unapply_tag(article_id: &str, tag_id: &str) -> RequestResult<EmptyView> {
     let article_id = validate_id(article_id, "article_id")?;
     let tag_id = validate_id(tag_id, "tag_id")?;
-    let path =
-        url::build_path_with_query(&["article", &article_id, "tag", &tag_id, "unapply"], &[]);
-    http::post_json(&path, &(), true).await
+    let path = url::build_path_with_query(&["articles", &article_id, "tags", &tag_id], &[]);
+    http::delete_json(&path, true).await
 }

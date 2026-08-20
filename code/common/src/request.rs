@@ -23,11 +23,24 @@ pub struct DeleteBody {
     pub mode: Option<DeleteMode>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+pub struct DeleteQuery {
+    #[serde(default)]
+    pub mode: Option<DeleteMode>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UserDeleteRequest {
     #[serde(default)]
     pub mode: Option<DeleteMode>,
     pub pow: Pow,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct UserDeleteQuery {
+    #[serde(default)]
+    pub mode: Option<DeleteMode>,
+    pub pow: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

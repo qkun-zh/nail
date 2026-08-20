@@ -1,4 +1,4 @@
-use nail_common::request::UserDeleteRequest;
+use nail_common::request::UserDeleteQuery;
 
 use super::context::{TestCtx, unique_pdf, valid_pdf};
 use crate::logic::error::LogicError;
@@ -595,9 +595,9 @@ async fn hard_delete_user_removes_content_and_search_docs() {
         &context.state,
         &admin_id,
         &owner,
-        UserDeleteRequest {
+        UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Hard),
-            pow: context.issued_pow("alice@example.com"),
+            pow: serde_json::to_string(&context.issued_pow("alice@example.com")).unwrap(),
         },
     )
     .await

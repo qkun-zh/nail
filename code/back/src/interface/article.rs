@@ -1,7 +1,7 @@
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use nail_common::request::{DeleteBody, UpdateArticleRequest};
+use nail_common::request::{DeleteQuery, UpdateArticleRequest};
 use nail_common::response::article::CreateArticleView;
 
 use crate::infrastructure::state::AppState;
@@ -115,16 +115,12 @@ pub async fn delete_article(
     State(state): State<AppState>,
     principal: Principal,
     AppPath(article_id): AppPath<String>,
-    AppJson(payload): AppJson<DeleteBody>,
+    AppQuery(query): AppQuery<DeleteQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data = crate::logic::article::delete_article(
-        &state,
-        &principal.user_id,
-        &article_id,
-        payload.mode,
-    )
-    .await
-    .map_err(ApiError::from_logic)?;
+    let data =
+        crate::logic::article::delete_article(&state, &principal.user_id, &article_id, query.mode)
+            .await
+            .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "deleted"))
 }
 

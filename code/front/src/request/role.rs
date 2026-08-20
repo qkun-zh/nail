@@ -1,6 +1,4 @@
-use nail_common::request::{
-    ChangeList, CreateRoleRequest, DeleteBody, DeleteMode, RoleUpdateRequest,
-};
+use nail_common::request::{ChangeList, CreateRoleRequest, DeleteMode, RoleUpdateRequest};
 use nail_common::response::ListPage;
 use nail_common::response::NamedRef;
 use nail_common::response::role::{RoleListItem, RoleView};
@@ -11,7 +9,7 @@ use crate::request::{http, url};
 
 pub async fn read_roles(page: u64, limit: u64) -> RequestResult<ListPage<RoleListItem>> {
     let path = url::build_path_with_query(
-        &["role", "read"],
+        &["roles"],
         &[("page", &page.to_string()), ("limit", &limit.to_string())],
     );
     http::get_json(&path, true).await
@@ -19,12 +17,12 @@ pub async fn read_roles(page: u64, limit: u64) -> RequestResult<ListPage<RoleLis
 
 pub async fn read_role(role_id: &str) -> RequestResult<RoleView> {
     let role_id = validate_id(role_id, "role_id")?;
-    let path = url::build_path_with_query(&["role", &role_id, "read"], &[]);
+    let path = url::build_path_with_query(&["roles", &role_id], &[]);
     http::get_json(&path, true).await
 }
 
 pub async fn create_role(name: &str) -> RequestResult<NamedRef> {
-    let path = url::build_path_with_query(&["role", "create"], &[]);
+    let path = url::build_path_with_query(&["roles"], &[]);
     let body = CreateRoleRequest {
         name: name.to_string(),
     };
@@ -39,7 +37,7 @@ pub async fn update_role(
     users_remove: &[String],
 ) -> RequestResult<RoleView> {
     let role_id = validate_id(role_id, "role_id")?;
-    let path = url::build_path_with_query(&["role", &role_id, "update"], &[]);
+    let path = url::build_path_with_query(&["roles", &role_id], &[]);
     let body = RoleUpdateRequest {
         permissions: Some(ChangeList {
             add: permissions_add.to_vec(),
@@ -50,18 +48,17 @@ pub async fn update_role(
             remove: users_remove.to_vec(),
         }),
     };
-    http::post_json(&path, &body, true).await
+    http::patch_json(&path, &body, true).await
 }
 
 pub async fn delete_role(role_id: &str) -> RequestResult<NamedRef> {
     let role_id = validate_id(role_id, "role_id")?;
-    let path = url::build_path_with_query(&["role", &role_id, "delete"], &[]);
-    http::post_json(
-        &path,
-        &DeleteBody {
-            mode: Some(DeleteMode::Hard),
-        },
-        true,
-    )
-    .await
+    let path = url::build_path_with_query(
+        &["roles", &role_id],
+        &[(
+            "mode",
+            &serde_json::to_string(&DeleteMode::Hard).unwrap_or_default(),
+        )],
+    );
+    http::delete_json(&path, true).await
 }

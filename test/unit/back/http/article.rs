@@ -53,7 +53,7 @@ async fn create_article_fixture(context: &TestCtx, token: &str, title: &str) -> 
     let fields = article_fields(title, "rust");
     let (status, body) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(token),
             &fields,
             "file",
@@ -82,7 +82,7 @@ async fn create_article_over_http() {
     ];
     let (status, body) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(&token),
             &fields,
             "file",
@@ -101,14 +101,7 @@ async fn create_article_requires_a_session() {
     let context = TestCtx::new().await.expect("test context");
     let fields: Vec<(&str, &str)> = vec![("title", "Title")];
     let (status, body) = context
-        .post_multipart(
-            "/article/create",
-            None,
-            &fields,
-            "file",
-            "a.pdf",
-            &valid_pdf(),
-        )
+        .post_multipart("/articles", None, &fields, "file", "a.pdf", &valid_pdf())
         .await;
     assert_eq!(status, StatusCode::UNAUTHORIZED, "body: {body}");
     assert_eq!(
@@ -131,7 +124,7 @@ async fn create_article_requires_permission() {
     ];
     let (status, body) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(&token),
             &fields,
             "file",
@@ -157,7 +150,7 @@ async fn create_article_rejects_an_empty_title() {
     ];
     let (status, body) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(&token),
             &fields,
             "file",
@@ -183,7 +176,7 @@ async fn read_article_over_http() {
     ];
     let (_, create_body) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(&token),
             &fields,
             "file",
@@ -196,7 +189,7 @@ async fn read_article_over_http() {
         .expect("article id");
 
     let (status, body) = context
-        .get(&format!("/article/{article_id}/read"), Some(&token))
+        .get(&format!("/articles/{article_id}"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["data"]["title"].as_str(), Some("Titled"));
@@ -206,7 +199,7 @@ async fn read_article_over_http() {
 #[tokio::test]
 async fn article_requires_a_session_for_reads() {
     let context = TestCtx::new().await.expect("test context");
-    let (status, body) = context.get("/article/read", None).await;
+    let (status, body) = context.get("/articles", None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED, "body: {body}");
 }
 
@@ -216,7 +209,7 @@ async fn read_article_requires_a_read_grant() {
     let (_, token) = member_session(&context, "alice@example.com").await;
     let (status, create_body) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(&token),
             &article_fields("Gated Read", "rust"),
             "file",
@@ -231,7 +224,7 @@ async fn read_article_requires_a_read_grant() {
 
     let (_, outsider) = session_for(&context, "bob@example.com").await;
     let (status, body) = context
-        .get(&format!("/article/{article_id}/read"), Some(&outsider))
+        .get(&format!("/articles/{article_id}"), Some(&outsider))
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
 }
@@ -240,7 +233,7 @@ async fn read_article_requires_a_read_grant() {
 async fn search_articles_requires_a_read_grant() {
     let context = TestCtx::new().await.expect("test context");
     let (_, outsider) = session_for(&context, "bob@example.com").await;
-    let (status, body) = context.get("/article/read?q=rust", Some(&outsider)).await;
+    let (status, body) = context.get("/articles?q=rust", Some(&outsider)).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
 }
 
@@ -258,7 +251,7 @@ async fn delete_article_rejects_missing_mode() {
     ];
     let (_, create_body) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(&token),
             &fields,
             "file",
@@ -271,11 +264,7 @@ async fn delete_article_rejects_missing_mode() {
         .expect("article id");
 
     let (status, body) = context
-        .post(
-            &format!("/article/{article_id}/delete"),
-            json!({}),
-            Some(&token),
-        )
+        .delete(&format!("/articles/{article_id}"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
 }
@@ -287,7 +276,7 @@ async fn create_article_rejects_a_duplicate_title() {
     let fields = article_fields("Twin Title", "rust");
     let (status, _) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(&token),
             &fields,
             "file",
@@ -298,7 +287,7 @@ async fn create_article_rejects_a_duplicate_title() {
     assert_eq!(status, StatusCode::CREATED);
     let (status, body) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(&token),
             &fields,
             "file",
@@ -317,7 +306,7 @@ async fn create_article_rejects_a_duplicate_content_hash() {
     let first = article_fields("First Upload", "rust");
     let (status, _) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(&token),
             &first,
             "file",
@@ -329,7 +318,7 @@ async fn create_article_rejects_a_duplicate_content_hash() {
     let second = article_fields("Second Upload", "rust");
     let (status, body) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(&token),
             &second,
             "file",
@@ -352,7 +341,7 @@ async fn create_article_accepts_plain_tags_and_rejects_invalid_characters() {
     let fields = article_fields("Plain Tags", "rust web");
     let (status, body) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(&token),
             &fields,
             "file",
@@ -365,7 +354,7 @@ async fn create_article_accepts_plain_tags_and_rejects_invalid_characters() {
     let fields = article_fields("Bad Tags", "rust#web");
     let (status, body) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(&token),
             &fields,
             "file",
@@ -388,7 +377,7 @@ async fn create_article_rejects_an_empty_note() {
     fields[4] = ("note", "");
     let (status, body) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(&token),
             &fields,
             "file",
@@ -407,7 +396,7 @@ async fn create_article_rejects_a_non_pdf_file() {
     let fields = article_fields("Not A Pdf", "rust");
     let (status, body) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(&token),
             &fields,
             "file",
@@ -431,7 +420,7 @@ async fn create_article_reports_an_oversized_text_field() {
     let fields = article_fields("My Article", "rust");
     let (status, body) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(&token),
             &fields,
             "file",
@@ -453,7 +442,7 @@ async fn create_article_reports_body_too_large() {
     let fields = article_fields("Huge Body", "rust");
     let (status, body) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(&token),
             &fields,
             "file",
@@ -473,7 +462,7 @@ async fn read_article_reports_a_missing_article() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = member_session(&context, "alice@example.com").await;
     let (status, body) = context
-        .get(&format!("/article/{}/read", Uuid::now_v7()), Some(&token))
+        .get(&format!("/articles/{}", Uuid::now_v7()), Some(&token))
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("article not found"));
@@ -486,8 +475,8 @@ async fn update_article_is_forbidden_for_a_non_owner() {
     let (_, stranger_token) = member_session(&context, "bob@example.com").await;
     let article_id = create_article_fixture(&context, &owner_token, "Private Article").await;
     let (status, body) = context
-        .post(
-            &format!("/article/{article_id}/update"),
+        .patch(
+            &format!("/articles/{article_id}"),
             json!({ "title": "Stolen", "summary": "summary", "tags": "rust" }),
             Some(&stranger_token),
         )
@@ -502,8 +491,8 @@ async fn update_article_reconciles_tags() {
     let (_, token) = member_session(&context, "alice@example.com").await;
     let article_id = create_article_fixture(&context, &token, "Retagged").await;
     let (status, body) = context
-        .post(
-            &format!("/article/{article_id}/update"),
+        .patch(
+            &format!("/articles/{article_id}"),
             json!({ "title": "Retagged", "summary": "summary", "tags": "go cpp" }),
             Some(&token),
         )
@@ -514,7 +503,7 @@ async fn update_article_reconciles_tags() {
         Some(article_id.as_str())
     );
     let (status, body) = context
-        .get(&format!("/article/{article_id}/read"), Some(&token))
+        .get(&format!("/articles/{article_id}"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     let tags: Vec<&str> = body["data"]["tags"]
@@ -532,9 +521,8 @@ async fn delete_article_transfer_repoints_to_the_recycler() {
     let (_, token) = member_session(&context, "alice@example.com").await;
     let article_id = create_article_fixture(&context, &token, "Transferable").await;
     let (status, body) = context
-        .post(
-            &format!("/article/{article_id}/delete"),
-            json!({ "mode": "transfer" }),
+        .delete(
+            &format!("/articles/{article_id}?mode=transfer"),
             Some(&token),
         )
         .await;
@@ -548,7 +536,7 @@ async fn delete_article_transfer_repoints_to_the_recycler() {
     .expect("user zero")
     .expect("recycler");
     let (status, body) = context
-        .get(&format!("/article/{article_id}/read"), Some(&token))
+        .get(&format!("/articles/{article_id}"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(
@@ -563,16 +551,12 @@ async fn delete_article_soft_hides_the_article_over_http() {
     let (_, token) = member_session(&context, "alice@example.com").await;
     let article_id = create_article_fixture(&context, &token, "Soft Deletable").await;
     let (status, body) = context
-        .post(
-            &format!("/article/{article_id}/delete"),
-            json!({ "mode": "soft" }),
-            Some(&token),
-        )
+        .delete(&format!("/articles/{article_id}?mode=soft"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("deleted"));
     let (status, body) = context
-        .get(&format!("/article/{article_id}/read"), Some(&token))
+        .get(&format!("/articles/{article_id}"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("article not found"));
@@ -594,16 +578,15 @@ async fn delete_article_hard_cascades() {
     let (_, admin_token) = admin_session(&context).await;
     let article_id = create_article_fixture(&context, &owner_token, "Hard Deletable").await;
     let (status, body) = context
-        .post(
-            &format!("/article/{article_id}/delete"),
-            json!({ "mode": "hard" }),
+        .delete(
+            &format!("/articles/{article_id}?mode=hard"),
             Some(&admin_token),
         )
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("deleted"));
     let (status, body) = context
-        .get(&format!("/article/{article_id}/read"), Some(&admin_token))
+        .get(&format!("/articles/{article_id}"), Some(&admin_token))
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("article not found"));
@@ -615,9 +598,8 @@ async fn delete_article_hard_is_forbidden_for_a_member_owner() {
     let (_, owner_token) = member_session(&context, "alice@example.com").await;
     let article_id = create_article_fixture(&context, &owner_token, "Hard Denied").await;
     let (status, body) = context
-        .post(
-            &format!("/article/{article_id}/delete"),
-            json!({ "mode": "hard" }),
+        .delete(
+            &format!("/articles/{article_id}?mode=hard"),
             Some(&owner_token),
         )
         .await;
@@ -632,9 +614,8 @@ async fn undelete_soft_article_revives_the_article_over_http() {
     let (_, admin_token) = admin_session(&context).await;
     let article_id = create_article_fixture(&context, &owner_token, "Restorable").await;
     let (status, body) = context
-        .post(
-            &format!("/article/{article_id}/delete"),
-            json!({ "mode": "soft" }),
+        .delete(
+            &format!("/articles/{article_id}?mode=soft"),
             Some(&owner_token),
         )
         .await;
@@ -642,7 +623,7 @@ async fn undelete_soft_article_revives_the_article_over_http() {
 
     let (status, body) = context
         .post(
-            &format!("/article/{article_id}/undelete-soft"),
+            &format!("/articles/{article_id}/restore"),
             json!({}),
             Some(&admin_token),
         )
@@ -651,7 +632,7 @@ async fn undelete_soft_article_revives_the_article_over_http() {
     assert_eq!(body["message"].as_str(), Some("undeleted"));
 
     let (status, body) = context
-        .get(&format!("/article/{article_id}/read"), Some(&owner_token))
+        .get(&format!("/articles/{article_id}"), Some(&owner_token))
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
 }
@@ -662,9 +643,8 @@ async fn undelete_soft_article_is_forbidden_for_a_member_owner() {
     let (_, owner_token) = member_session(&context, "alice@example.com").await;
     let article_id = create_article_fixture(&context, &owner_token, "Restore Denied").await;
     let (status, _) = context
-        .post(
-            &format!("/article/{article_id}/delete"),
-            json!({ "mode": "soft" }),
+        .delete(
+            &format!("/articles/{article_id}?mode=soft"),
             Some(&owner_token),
         )
         .await;
@@ -672,7 +652,7 @@ async fn undelete_soft_article_is_forbidden_for_a_member_owner() {
 
     let (status, body) = context
         .post(
-            &format!("/article/{article_id}/undelete-soft"),
+            &format!("/articles/{article_id}/restore"),
             json!({}),
             Some(&owner_token),
         )
@@ -686,7 +666,7 @@ async fn search_rejects_an_unknown_range() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = member_session(&context, "alice@example.com").await;
     let (status, body) = context
-        .get("/article/read?ranges=title,frobnicate", Some(&token))
+        .get("/articles?ranges=title,frobnicate", Some(&token))
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     assert_eq!(
@@ -700,7 +680,7 @@ async fn search_rejects_from_greater_than_to() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = member_session(&context, "alice@example.com").await;
     let (status, body) = context
-        .get("/article/read?from=2024-01-16&to=2024-01-15", Some(&token))
+        .get("/articles?from=2024-01-16&to=2024-01-15", Some(&token))
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     assert_eq!(
@@ -715,7 +695,7 @@ async fn search_rejects_an_overlong_query() {
     let (_, token) = member_session(&context, "alice@example.com").await;
     let long_query = "a".repeat(513);
     let (status, body) = context
-        .get(&format!("/article/read?q={long_query}"), Some(&token))
+        .get(&format!("/articles?q={long_query}"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     assert_eq!(
@@ -728,7 +708,7 @@ async fn search_rejects_an_overlong_query() {
 async fn search_rejects_a_page_beyond_max_search_pages() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = member_session(&context, "alice@example.com").await;
-    let (status, body) = context.get("/article/read?page=1025", Some(&token)).await;
+    let (status, body) = context.get("/articles?page=1025", Some(&token)).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     assert_eq!(
         body["message"].as_str(),
@@ -743,7 +723,7 @@ async fn search_returns_hits_for_a_keyword() {
     create_article_fixture(&context, &token, "Needle In A Haystack").await;
     let (status, body) = context
         .get(
-            "/article/read?q=needle&ranges=title,summary,author_name,comment,note,tag,version_number",
+            "/articles?q=needle&ranges=title,summary,author_name,comment,note,tag,version_number",
             Some(&token),
         )
         .await;
@@ -766,7 +746,7 @@ async fn create_article_ignores_unknown_multipart_fields() {
     fields.push(("unexpected_field", "ignored value"));
     let (status, body) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(&token),
             &fields,
             "file",

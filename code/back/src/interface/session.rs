@@ -1,20 +1,25 @@
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use nail_common::request::LogoutRequest;
+use nail_common::pow::Pow;
 use nail_common::response::EmptyView;
 use nail_common::response::session::SessionView;
 use serde::Deserialize;
 
 use crate::infrastructure::state::AppState;
 use crate::interface::envelope::{ApiError, json_response};
-use crate::interface::extractor::{AppJson, AppQuery};
+use crate::interface::extractor::AppQuery;
 use crate::interface::principal::Principal;
 
 #[derive(Debug, Default, Deserialize)]
 pub struct SessionReadParams {
     pub id: Option<bool>,
     pub name: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LogoutQuery {
+    pub pow: String,
 }
 
 pub async fn read_session(
@@ -39,9 +44,11 @@ pub async fn read_session(
 pub async fn delete_session(
     State(state): State<AppState>,
     principal: Principal,
-    AppJson(payload): AppJson<LogoutRequest>,
+    AppQuery(query): AppQuery<LogoutQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
-    crate::logic::session::delete_session(&state, &payload.pow, &principal.token)
+    let pow: Pow =
+        serde_json::from_str(&query.pow).map_err(|_| ApiError::bad_request("invalid pow"))?;
+    crate::logic::session::delete_session(&state, &pow, &principal.token)
         .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, EmptyView {}, "deleted"))
 }

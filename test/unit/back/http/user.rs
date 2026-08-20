@@ -1,9 +1,29 @@
 use axum::http::StatusCode;
+use nail_common::pow::Pow;
 use serde_json::json;
 use uuid::Uuid;
 
 use super::context::TestCtx;
 use crate::repository::cache::{SessionTokenEntry, token_key};
+
+fn pow_to_query(pow: &Pow) -> String {
+    let json = serde_json::to_string(pow).expect("pow json");
+    format!("pow={}", encode(&json))
+}
+
+fn encode(s: &str) -> String {
+    use std::fmt::Write;
+    let mut output = String::with_capacity(s.len() * 3);
+    for byte in s.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
+            output.push(byte as char);
+        } else {
+            output.push('%');
+            write!(output, "{byte:02X}").expect("write hex");
+        }
+    }
+    output
+}
 
 async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
@@ -33,7 +53,7 @@ async fn user_read_self_returns_name_and_optional_email_hash() {
     let (user_id, token) = session_for(&context, "alice@example.com").await;
 
     let (status, body) = context
-        .get(&format!("/user/{user_id}/read"), Some(&token))
+        .get(&format!("/users/{user_id}"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(
@@ -43,10 +63,7 @@ async fn user_read_self_returns_name_and_optional_email_hash() {
     assert!(body["data"].get("email_hash").is_none());
 
     let (status, body) = context
-        .get(
-            &format!("/user/{user_id}/read?email_hash=true"),
-            Some(&token),
-        )
+        .get(&format!("/users/{user_id}?email_hash=true"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(
@@ -61,9 +78,7 @@ async fn user_read_other_by_member_is_forbidden() {
     let (_, token) = session_for(&context, "alice@example.com").await;
     let (target, _) = session_for(&context, "bob@example.com").await;
 
-    let (status, body) = context
-        .get(&format!("/user/{target}/read"), Some(&token))
-        .await;
+    let (status, body) = context.get(&format!("/users/{target}"), Some(&token)).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("you are denied"));
 }
@@ -76,7 +91,7 @@ async fn user_read_other_by_admin_returns_profile() {
 
     let (status, body) = context
         .get(
-            &format!("/user/{target}/read?email_hash=true"),
+            &format!("/users/{target}?email_hash=true"),
             Some(&admin_token),
         )
         .await;
@@ -98,7 +113,7 @@ async fn user_read_self_after_hard_delete_is_not_found() {
         .expect("hard delete");
 
     let (status, body) = context
-        .get(&format!("/user/{user_id}/read"), Some(&token))
+        .get(&format!("/users/{user_id}"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("user not found"));
@@ -111,8 +126,8 @@ async fn user_update_self_rename_via_pow() {
     let pow = context.issued_pow("alice-renamed");
 
     let (status, body) = context
-        .post(
-            &format!("/user/{user_id}/update"),
+        .patch(
+            &format!("/users/{user_id}"),
             json!({ "pow": pow }),
             Some(&token),
         )
@@ -128,8 +143,8 @@ async fn user_update_admin_rename() {
     let (target, _) = session_for(&context, "alice@example.com").await;
 
     let (status, body) = context
-        .post(
-            &format!("/user/{target}/update"),
+        .patch(
+            &format!("/users/{target}"),
             json!({ "name": "alice-by-admin" }),
             Some(&admin_token),
         )
@@ -146,9 +161,8 @@ async fn user_delete_hard_by_admin() {
 
     let pow = context.issued_pow("ignored");
     let (status, body) = context
-        .post(
-            &format!("/user/{target}/delete"),
-            json!({ "mode": "hard", "pow": pow }),
+        .delete(
+            &format!("/users/{target}?mode=hard&{}", pow_to_query(&pow)),
             Some(&admin_token),
         )
         .await;
@@ -163,9 +177,8 @@ async fn user_delete_rejects_a_missing_mode() {
     let (user_id, token) = session_for(&context, "alice@example.com").await;
     let pow = context.issued_pow("ignored");
     let (status, body) = context
-        .post(
-            &format!("/user/{user_id}/delete"),
-            json!({ "pow": pow }),
+        .delete(
+            &format!("/users/{user_id}?{}", pow_to_query(&pow)),
             Some(&token),
         )
         .await;
@@ -184,7 +197,7 @@ async fn user_delete_transfer_after_email_confirmation() {
     let pow = context.issued_pow("alice@example.com");
     let (status, body) = context
         .post(
-            "/token/create",
+            "/tokens",
             json!({ "purpose": "delete_user", "pow": pow }),
             Some(&token),
         )
@@ -197,9 +210,11 @@ async fn user_delete_transfer_after_email_confirmation() {
 
     let confirm_pow = context.issued_pow(confirmation_token);
     let (status, body) = context
-        .post(
-            &format!("/user/{user_id}/delete"),
-            json!({ "mode": "transfer", "pow": confirm_pow }),
+        .delete(
+            &format!(
+                "/users/{user_id}?mode=transfer&{}",
+                pow_to_query(&confirm_pow)
+            ),
             Some(&token),
         )
         .await;
@@ -221,7 +236,7 @@ async fn email_change_two_step_flow_updates_email_and_rotates_session() {
 
     let (status, body) = context
         .post(
-            "/token/create",
+            "/tokens",
             json!({
                 "purpose": "update_user_email",
                 "old_email_pow": context.issued_pow("alice@example.com"),
@@ -254,8 +269,8 @@ async fn email_change_two_step_flow_updates_email_and_rotates_session() {
 
     let payload = format!("{old_token}\n{new_token}");
     let (status, body) = context
-        .post(
-            &format!("/user/{user_id}/update"),
+        .patch(
+            &format!("/users/{user_id}"),
             json!({
                 "pow": context.issued_pow(&payload),
                 "old_email_token": old_token,
@@ -281,9 +296,7 @@ async fn email_change_two_step_flow_updates_email_and_rotates_session() {
         nail_common::hash::email("alice-new@example.com")
     );
 
-    let (status, _) = context
-        .get("/session/read?id=true", Some(&old_session))
-        .await;
+    let (status, _) = context.get("/user?id=true", Some(&old_session)).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
@@ -294,7 +307,7 @@ async fn email_change_rejects_same_old_and_new_email() {
 
     let (status, body) = context
         .post(
-            "/token/create",
+            "/tokens",
             json!({
                 "purpose": "update_user_email",
                 "old_email_pow": context.issued_pow("alice@example.com"),
@@ -318,7 +331,7 @@ async fn email_change_rejects_a_taken_new_email() {
 
     let (status, body) = context
         .post(
-            "/token/create",
+            "/tokens",
             json!({
                 "purpose": "update_user_email",
                 "old_email_pow": context.issued_pow("alice@example.com"),
@@ -341,7 +354,7 @@ async fn email_change_rejects_a_pow_payload_mismatch() {
 
     let (status, _) = context
         .post(
-            "/token/create",
+            "/tokens",
             json!({
                 "purpose": "update_user_email",
                 "old_email_pow": context.issued_pow("alice@example.com"),
@@ -357,8 +370,8 @@ async fn email_change_rejects_a_pow_payload_mismatch() {
     let new_token = messages[1].2.clone();
 
     let (status, body) = context
-        .post(
-            &format!("/user/{user_id}/update"),
+        .patch(
+            &format!("/users/{user_id}"),
             json!({
                 "pow": context.issued_pow("does-not-match"),
                 "old_email_token": old_token,

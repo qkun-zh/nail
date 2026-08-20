@@ -58,14 +58,7 @@ pub async fn mint_download_url(article_id: &str, version_id: &str) -> RequestRes
     let article_id = validate_id(article_id, "article_id")?;
     let version_id = validate_id(version_id, "version_id")?;
     let path = crate::request::url::build_path_with_query(
-        &[
-            "article",
-            &article_id,
-            "version",
-            &version_id,
-            "content",
-            "read",
-        ],
+        &["articles", &article_id, "versions", &version_id, "content"],
         &[("mode", "download")],
     );
     let mint: nail_common::response::content::MintUrl = http::get_json(&path, true).await?;

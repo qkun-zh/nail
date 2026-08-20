@@ -1,5 +1,5 @@
 use nail_common::pow::Pow;
-use nail_common::request::{CreateTokenRequest, LogoutRequest, TokenPurpose, TokenRequest};
+use nail_common::request::{CreateTokenRequest, TokenPurpose, TokenRequest};
 use nail_common::response::EmptyView;
 use nail_common::response::email::EmailSubjectView;
 use nail_common::response::session::{SessionTokenView, SessionView};
@@ -9,7 +9,7 @@ use crate::request::{http, url};
 
 pub async fn send_authenticate_email(pow: Pow) -> RequestResult<EmailSubjectView> {
     let body = create_user_token_request(pow);
-    http::post_json("/token/create", &body, false).await
+    http::post_json("/tokens", &body, false).await
 }
 
 fn create_user_token_request(pow: Pow) -> CreateTokenRequest {
@@ -22,7 +22,7 @@ fn create_user_token_request(pow: Pow) -> CreateTokenRequest {
 }
 
 pub async fn redeem_token(pow: Pow) -> RequestResult<SessionTokenView> {
-    http::post_json("/user/create", &TokenRequest { pow }, false).await
+    http::post_json("/users", &TokenRequest { pow }, false).await
 }
 
 pub async fn read_session(id: bool, name: bool) -> RequestResult<SessionView> {
@@ -33,12 +33,14 @@ pub async fn read_session(id: bool, name: bool) -> RequestResult<SessionView> {
     if name {
         query.push(("name", "true"));
     }
-    let path = url::build_path_with_query(&["session", "read"], &query);
+    let path = url::build_path_with_query(&["user"], &query);
     http::get_json(&path, true).await
 }
 
 pub async fn delete_session(pow: Pow) -> RequestResult<EmptyView> {
-    http::post_json("/session/delete", &LogoutRequest { pow }, true).await
+    let pow_str = serde_json::to_string(&pow).unwrap_or_default();
+    let path = url::build_path_with_query(&["session"], &[("pow", &pow_str)]);
+    http::delete_json(&path, true).await
 }
 
 #[cfg(test)]

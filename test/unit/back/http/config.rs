@@ -6,7 +6,7 @@ use super::context::TestCtx;
 async fn read_config_over_http_serves_the_runtime_limits_without_a_session() {
     let context = TestCtx::new().await.expect("test context");
 
-    let (status, body) = context.get("/config/read", None).await;
+    let (status, body) = context.get("/config", None).await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
 
     let data = &body["data"];

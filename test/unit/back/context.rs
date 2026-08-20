@@ -151,6 +151,18 @@ impl TestCtx {
         self.json("POST", uri, Some(body), token).await
     }
 
+    pub async fn patch(&self, uri: &str, body: Value, token: Option<&str>) -> (StatusCode, Value) {
+        self.json("PATCH", uri, Some(body), token).await
+    }
+
+    pub async fn put(&self, uri: &str, body: Value, token: Option<&str>) -> (StatusCode, Value) {
+        self.json("PUT", uri, Some(body), token).await
+    }
+
+    pub async fn delete(&self, uri: &str, token: Option<&str>) -> (StatusCode, Value) {
+        self.json("DELETE", uri, None, token).await
+    }
+
     pub async fn get_bytes(
         &self,
         uri: &str,

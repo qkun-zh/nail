@@ -43,9 +43,7 @@ async fn create_editor_role(context: &TestCtx) -> String {
 }
 
 async fn role_id_by_name(context: &TestCtx, token: &str, name: &str) -> String {
-    let (_, body) = context
-        .get("/role/read?page=1&limit=200", Some(token))
-        .await;
+    let (_, body) = context.get("/roles?page=1&limit=200", Some(token)).await;
     body["data"]["items"]
         .as_array()
         .expect("role list")
@@ -64,7 +62,7 @@ async fn create_role_over_http() {
     let (_, token) = admin_session(&context).await;
 
     let (status, body) = context
-        .post("/role/create", json!({ "name": "editor" }), Some(&token))
+        .post("/roles", json!({ "name": "editor" }), Some(&token))
         .await;
     assert_eq!(status, StatusCode::CREATED, "body: {body}");
     assert_eq!(body["data"]["name"].as_str(), Some("editor"));
@@ -78,10 +76,10 @@ async fn create_duplicate_role_returns_400() {
     let (_, token) = admin_session(&context).await;
 
     let _ = context
-        .post("/role/create", json!({ "name": "editor" }), Some(&token))
+        .post("/roles", json!({ "name": "editor" }), Some(&token))
         .await;
     let (status, body) = context
-        .post("/role/create", json!({ "name": "editor" }), Some(&token))
+        .post("/roles", json!({ "name": "editor" }), Some(&token))
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("role already exists"));
@@ -93,7 +91,7 @@ async fn role_manage_requires_admin() {
     let (_, token) = member_session(&context, "alice@example.com").await;
 
     let (status, body) = context
-        .post("/role/create", json!({ "name": "editor" }), Some(&token))
+        .post("/roles", json!({ "name": "editor" }), Some(&token))
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("you are denied"));
@@ -109,9 +107,7 @@ async fn read_roles_reports_real_member_counts() {
         .await
         .expect("hold editor");
 
-    let (status, body) = context
-        .get("/role/read?page=1&limit=200", Some(&token))
-        .await;
+    let (status, body) = context.get("/roles?page=1&limit=200", Some(&token)).await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     let roles = body["data"]["items"].as_array().expect("role list");
     let editor = roles
@@ -128,7 +124,7 @@ async fn read_roles_rejects_a_page_beyond_max_search_pages() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = admin_session(&context).await;
 
-    let (status, body) = context.get("/role/read?page=1025", Some(&token)).await;
+    let (status, body) = context.get("/roles?page=1025", Some(&token)).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     assert_eq!(
         body["message"].as_str(),
@@ -143,7 +139,7 @@ async fn read_role_returns_members_and_permissions() {
     let admin_id = role_id_by_name(&context, &token, "admin").await;
 
     let (status, body) = context
-        .get(&format!("/role/{admin_id}/read"), Some(&token))
+        .get(&format!("/roles/{admin_id}"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["data"]["name"].as_str(), Some("admin"));
@@ -159,8 +155,8 @@ async fn update_role_over_http() {
     let editor_id = create_editor_role(&context).await;
 
     let (status, body) = context
-        .post(
-            &format!("/role/{editor_id}/update"),
+        .patch(
+            &format!("/roles/{editor_id}"),
             json!({ "permissions": { "add": ["Article::Update"] } }),
             Some(&token),
         )
@@ -170,7 +166,7 @@ async fn update_role_over_http() {
     assert_eq!(body["data"]["id"].as_str(), Some(editor_id.as_str()));
 
     let (_, detail) = context
-        .get(&format!("/role/{editor_id}/read"), Some(&token))
+        .get(&format!("/roles/{editor_id}"), Some(&token))
         .await;
     let permissions = detail["data"]["permissions"]
         .as_array()
@@ -189,11 +185,7 @@ async fn delete_required_role_returns_400() {
     let member_id = role_id_by_name(&context, &token, "member").await;
 
     let (status, body) = context
-        .post(
-            &format!("/role/{member_id}/delete"),
-            json!({ "mode": "hard" }),
-            Some(&token),
-        )
+        .delete(&format!("/roles/{member_id}?mode=hard"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     assert_eq!(
@@ -209,11 +201,7 @@ async fn delete_role_requires_hard_mode() {
     let editor_id = create_editor_role(&context).await;
 
     let (status, body) = context
-        .post(
-            &format!("/role/{editor_id}/delete"),
-            json!({ "mode": "transfer" }),
-            Some(&token),
-        )
+        .delete(&format!("/roles/{editor_id}?mode=transfer"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     assert_eq!(
@@ -229,11 +217,7 @@ async fn delete_role_over_http() {
     let editor_id = create_editor_role(&context).await;
 
     let (status, body) = context
-        .post(
-            &format!("/role/{editor_id}/delete"),
-            json!({ "mode": "hard" }),
-            Some(&token),
-        )
+        .delete(&format!("/roles/{editor_id}?mode=hard"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["data"]["name"].as_str(), Some("editor"));
@@ -241,7 +225,7 @@ async fn delete_role_over_http() {
     assert_eq!(body["message"].as_str(), Some("deleted"));
 
     let (status, _) = context
-        .get(&format!("/role/{editor_id}/read"), Some(&token))
+        .get(&format!("/roles/{editor_id}"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
@@ -253,8 +237,8 @@ async fn update_required_role_rejects_destructive_changes() {
     let member_id = role_id_by_name(&context, &token, "member").await;
 
     let (status, body) = context
-        .post(
-            &format!("/role/{member_id}/update"),
+        .patch(
+            &format!("/roles/{member_id}"),
             json!({ "permissions": { "remove": ["Article::Create"] } }),
             Some(&token),
         )
@@ -273,8 +257,8 @@ async fn revoke_from_the_admin_role_is_forbidden() {
     let admin_id = role_id_by_name(&context, &token, "admin").await;
 
     let (status, body) = context
-        .post(
-            &format!("/role/{admin_id}/update"),
+        .patch(
+            &format!("/roles/{admin_id}"),
             json!({ "permissions": { "remove": ["Article::Update"] } }),
             Some(&token),
         )
@@ -297,8 +281,8 @@ async fn revoke_a_permission_from_a_custom_role_succeeds() {
     .expect("grant");
 
     let (status, body) = context
-        .post(
-            &format!("/role/{editor_id}/update"),
+        .patch(
+            &format!("/roles/{editor_id}"),
             json!({ "permissions": { "remove": ["Article::Update"] } }),
             Some(&token),
         )
@@ -306,7 +290,7 @@ async fn revoke_a_permission_from_a_custom_role_succeeds() {
     assert_eq!(status, StatusCode::OK, "body: {body}");
 
     let (_, detail) = context
-        .get(&format!("/role/{editor_id}/read"), Some(&token))
+        .get(&format!("/roles/{editor_id}"), Some(&token))
         .await;
     let permissions = detail["data"]["permissions"]
         .as_array()
@@ -326,8 +310,8 @@ async fn update_role_holds_and_unholds_users() {
     let (plain_user, _) = session_for(&context, "alice@example.com").await;
 
     let (status, body) = context
-        .post(
-            &format!("/role/{editor_id}/update"),
+        .patch(
+            &format!("/roles/{editor_id}"),
             json!({ "users": { "add": [plain_user.clone()] } }),
             Some(&token),
         )
@@ -335,7 +319,7 @@ async fn update_role_holds_and_unholds_users() {
     assert_eq!(status, StatusCode::OK, "body: {body}");
 
     let (_, detail) = context
-        .get(&format!("/role/{editor_id}/read"), Some(&token))
+        .get(&format!("/roles/{editor_id}"), Some(&token))
         .await;
     let members = detail["data"]["members"].as_array().expect("members");
     assert!(
@@ -345,8 +329,8 @@ async fn update_role_holds_and_unholds_users() {
     );
 
     let (status, body) = context
-        .post(
-            &format!("/role/{editor_id}/update"),
+        .patch(
+            &format!("/roles/{editor_id}"),
             json!({ "users": { "remove": [plain_user.clone()] } }),
             Some(&token),
         )
@@ -354,7 +338,7 @@ async fn update_role_holds_and_unholds_users() {
     assert_eq!(status, StatusCode::OK, "body: {body}");
 
     let (_, detail) = context
-        .get(&format!("/role/{editor_id}/read"), Some(&token))
+        .get(&format!("/roles/{editor_id}"), Some(&token))
         .await;
     let members = detail["data"]["members"].as_array().expect("members");
     assert!(
@@ -369,7 +353,7 @@ async fn read_role_reports_a_missing_role() {
     let context = TestCtx::new().await.expect("test context");
     let (_, token) = admin_session(&context).await;
 
-    let (status, body) = context.get("/role/nosuchrole/read", Some(&token)).await;
+    let (status, body) = context.get("/roles/nosuchrole", Some(&token)).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("role not found"));
 }

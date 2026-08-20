@@ -1,12 +1,12 @@
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use nail_common::request::{CreateCommentRequest, DeleteBody};
+use nail_common::request::{CreateCommentRequest, DeleteQuery};
 use nail_common::response::comment::{CommentIdView, CommentView};
 
 use crate::infrastructure::state::AppState;
 use crate::interface::envelope::{ApiError, json_response};
-use crate::interface::extractor::{AppJson, AppPaged, AppPath};
+use crate::interface::extractor::{AppJson, AppPaged, AppPath, AppQuery};
 use crate::interface::principal::Principal;
 
 pub async fn create_comment(
@@ -116,16 +116,12 @@ pub async fn delete_comment(
     State(state): State<AppState>,
     principal: Principal,
     AppPath(comment_id): AppPath<String>,
-    AppJson(payload): AppJson<DeleteBody>,
+    AppQuery(query): AppQuery<DeleteQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let data = crate::logic::comment::delete_comment(
-        &state,
-        &principal.user_id,
-        &comment_id,
-        payload.mode,
-    )
-    .await
-    .map_err(ApiError::from_logic)?;
+    let data =
+        crate::logic::comment::delete_comment(&state, &principal.user_id, &comment_id, query.mode)
+            .await
+            .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "deleted"))
 }
 

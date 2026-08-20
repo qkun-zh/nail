@@ -59,7 +59,7 @@ async fn create_article_over_http(context: &TestCtx, token: &str) -> (String, St
     ];
     let (status, body) = context
         .post_multipart(
-            "/article/create",
+            "/articles",
             Some(token),
             &fields,
             "file",
@@ -115,7 +115,7 @@ async fn read_content_mints_a_json_url() {
 
     let (status, body) = context
         .get(
-            &format!("/article/{article_id}/version/{version_id}/content/read?mode=download"),
+            &format!("/articles/{article_id}/versions/{version_id}/content?mode=download"),
             Some(&token),
         )
         .await;
@@ -136,7 +136,7 @@ async fn read_content_consumes_a_minted_token_once() {
 
     let (_, mint_body) = context
         .get(
-            &format!("/article/{article_id}/version/{version_id}/content/read?mode=download"),
+            &format!("/articles/{article_id}/versions/{version_id}/content?mode=download"),
             Some(&token),
         )
         .await;
@@ -144,9 +144,7 @@ async fn read_content_consumes_a_minted_token_once() {
 
     let (status, _, bytes) = context
         .get_bytes(
-            &format!(
-                "/article/{article_id}/version/{version_id}/content/read?token={download_token}"
-            ),
+            &format!("/articles/{article_id}/versions/{version_id}/content?token={download_token}"),
             Some(&token),
         )
         .await;
@@ -155,9 +153,7 @@ async fn read_content_consumes_a_minted_token_once() {
 
     let (status, body) = context
         .get(
-            &format!(
-                "/article/{article_id}/version/{version_id}/content/read?token={download_token}"
-            ),
+            &format!("/articles/{article_id}/versions/{version_id}/content?token={download_token}"),
             Some(&token),
         )
         .await;
@@ -177,7 +173,7 @@ async fn read_content_rejects_a_token_bound_to_another_account() {
 
     let (_, mint_body) = context
         .get(
-            &format!("/article/{article_id}/version/{version_id}/content/read?mode=download"),
+            &format!("/articles/{article_id}/versions/{version_id}/content?mode=download"),
             Some(&token),
         )
         .await;
@@ -185,9 +181,7 @@ async fn read_content_rejects_a_token_bound_to_another_account() {
 
     let (status, body) = context
         .get(
-            &format!(
-                "/article/{article_id}/version/{version_id}/content/read?token={download_token}"
-            ),
+            &format!("/articles/{article_id}/versions/{version_id}/content?token={download_token}"),
             Some(&other_token),
         )
         .await;
@@ -206,7 +200,7 @@ async fn read_content_requires_a_session() {
 
     let (status, _, _) = context
         .get_bytes(
-            &format!("/article/{article_id}/version/{version_id}/content/read"),
+            &format!("/articles/{article_id}/versions/{version_id}/content"),
             None,
         )
         .await;
@@ -222,7 +216,7 @@ async fn read_content_requires_a_read_grant() {
     let (_, outsider) = plain_session(&context, "bob@example.com").await;
     let (status, body) = context
         .get(
-            &format!("/article/{article_id}/version/{version_id}/content/read?mode=download"),
+            &format!("/articles/{article_id}/versions/{version_id}/content?mode=download"),
             Some(&outsider),
         )
         .await;
@@ -237,7 +231,7 @@ async fn read_content_requires_a_token() {
 
     let (status, body) = context
         .get(
-            &format!("/article/{article_id}/version/{version_id}/content/read"),
+            &format!("/articles/{article_id}/versions/{version_id}/content"),
             Some(&token),
         )
         .await;
@@ -253,7 +247,7 @@ async fn read_content_reports_a_missing_pdf_file() {
 
     let (_, mint_body) = context
         .get(
-            &format!("/article/{article_id}/version/{version_id}/content/read?mode=download"),
+            &format!("/articles/{article_id}/versions/{version_id}/content?mode=download"),
             Some(&token),
         )
         .await;
@@ -261,9 +255,7 @@ async fn read_content_reports_a_missing_pdf_file() {
 
     let (status, body) = context
         .get(
-            &format!(
-                "/article/{article_id}/version/{version_id}/content/read?token={download_token}"
-            ),
+            &format!("/articles/{article_id}/versions/{version_id}/content?token={download_token}"),
             Some(&token),
         )
         .await;
@@ -280,7 +272,7 @@ async fn read_content_reports_a_missing_version() {
     let (status, body) = context
         .get(
             &format!(
-                "/article/{article_id}/version/{}/content/read?mode=download",
+                "/articles/{article_id}/versions/{}/content?mode=download",
                 Uuid::now_v7()
             ),
             Some(&token),
