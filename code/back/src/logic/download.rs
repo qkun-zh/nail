@@ -51,6 +51,10 @@ pub async fn mint_download_token(
         .map_err(|error| LogicError::internal(format!("invalid version id: {error}")))?;
     let user_id = UserId::new(actor_id.to_string())
         .map_err(|error| LogicError::internal(format!("invalid user id: {error}")))?;
+    let download_url = format!(
+        "/api/article/{article_id}/version/{}/content/read?token={token}",
+        version_id.as_str()
+    );
     state.cache.download.insert(
         &key,
         VersionIdAndUserId {
@@ -58,10 +62,7 @@ pub async fn mint_download_token(
             user_id,
         },
     );
-    Ok(format!(
-        "/api/article/{article_id}/version/{}/content/read?token={token}",
-        version_id.as_str()
-    ))
+    Ok(download_url)
 }
 
 pub async fn consume_download_token(
