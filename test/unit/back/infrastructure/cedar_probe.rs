@@ -16,7 +16,7 @@ use std::str::FromStr;
 
 use cedar_policy::{Authorizer, Decision, Entities, Entity, EntityUid, PolicySet, Request};
 
-use crate::infrastructure::cedar::{SCHEMA, action_uid, decide};
+use crate::infrastructure::cedar::{SCHEMA, action_uid};
 
 fn uid(text: &str) -> EntityUid {
     text.parse::<EntityUid>().expect("entity uid")
@@ -97,6 +97,7 @@ fn create_non_holder_is_denied_on_the_virtual_desk() {
 
 #[test]
 fn scope_free_policy_allows_create_on_the_virtual_desk() {
+    let policy = "permit(principal, action, resource) when { principal in action };";
     let member = Entity::new_no_attrs(
         uid("Role::\"member\""),
         HashSet::from([uid("Action::\"Article::Create\"")]),
@@ -105,15 +106,16 @@ fn scope_free_policy_allows_create_on_the_virtual_desk() {
         uid("User::\"alice\""),
         HashSet::from([uid("Role::\"member\"")]),
     );
-    let allowed = decide(
-        &uid("User::\"alice\""),
-        "Article::Create",
-        &uid("Virtual::\"article-create\""),
+    let decision = evaluate(
+        policy,
+        uid("User::\"alice\""),
+        uid("Action::\"Article::Create\""),
+        uid("Virtual::\"article-create\""),
         vec![principal, member],
-    )
-    .expect("decide");
-    assert!(
-        allowed,
+    );
+    assert_eq!(
+        decision,
+        Decision::Allow,
         "policy 3 must be `principal in action` so a member holding Article::Create \
          can create on the Virtual desk (A1)"
     );

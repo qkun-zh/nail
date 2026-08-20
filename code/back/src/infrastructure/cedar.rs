@@ -1,15 +1,8 @@
-use std::sync::OnceLock;
-
 use anyhow::Context;
-use cedar_policy::{
-    Authorizer, Decision, Entities, Entity, EntityUid, PolicySet, Request, ValidationMode,
-    Validator,
-};
+use cedar_policy::EntityUid;
 
 pub const SCHEMA: &str = include_str!("cedar/schema.cedar");
 pub const POLICY: &str = include_str!("cedar/policy.cedar");
-
-static POLICY_SET: OnceLock<Result<PolicySet, String>> = OnceLock::new();
 
 pub fn schema_actions() -> anyhow::Result<Vec<String>> {
     let schema: cedar_policy::Schema = SCHEMA
@@ -24,68 +17,8 @@ pub fn schema_actions() -> anyhow::Result<Vec<String>> {
     Ok(names)
 }
 
-fn policies() -> anyhow::Result<&'static PolicySet> {
-    let result = POLICY_SET.get_or_init(|| {
-        let policy_set = match POLICY.parse::<PolicySet>() {
-            Ok(set) => set,
-            Err(error) => return Err(error.to_string()),
-        };
-        let schema = match SCHEMA.parse::<cedar_policy::Schema>() {
-            Ok(schema) => schema,
-            Err(error) => return Err(error.to_string()),
-        };
-        let validation = Validator::new(schema).validate(&policy_set, ValidationMode::Strict);
-        if !validation.validation_passed() {
-            let messages: Vec<String> = validation
-                .validation_errors()
-                .map(std::string::ToString::to_string)
-                .collect();
-            return Err(format!(
-                "policy does not validate against schema: {messages:?}"
-            ));
-        }
-        Ok(policy_set)
-    });
-    result
-        .as_ref()
-        .map_err(|error| anyhow::anyhow!("invalid authorization policy: {error}"))
-}
-
 pub fn action_uid(action: &str) -> anyhow::Result<EntityUid> {
     format!("Action::\"{action}\"")
         .parse::<EntityUid>()
         .with_context(|| format!("invalid action uid for {action:?}"))
-}
-
-pub fn decide(
-    principal: &EntityUid,
-    action: &str,
-    resource: &EntityUid,
-    mut entities: Vec<Entity>,
-) -> anyhow::Result<bool> {
-    let policies = policies()?;
-    let action_uid = action_uid(action)?;
-    if !entities
-        .iter()
-        .any(|entity| entity.uid() == action_uid.clone())
-    {
-        entities.push(Entity::new_no_attrs(
-            action_uid.clone(),
-            std::collections::HashSet::default(),
-        ));
-    }
-    let entities = Entities::from_entities(entities, None)
-        .map_err(|error| anyhow::anyhow!("invalid authorization entities: {error}"))?;
-    let request = Request::new(
-        principal.clone(),
-        action_uid,
-        resource.clone(),
-        cedar_policy::Context::empty(),
-        None,
-    )
-    .map_err(|error| anyhow::anyhow!("invalid authorization request: {error}"))?;
-    Ok(Authorizer::new()
-        .is_authorized(&request, policies, &entities)
-        .decision()
-        == Decision::Allow)
 }

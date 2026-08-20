@@ -1,9 +1,12 @@
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
-use cedar_policy::{Entity, EntityUid, RestrictedExpression};
+use cedar_policy::{
+    Authorizer as CedarAuthorizer, Decision, Entities, Entity, EntityUid, PolicySet, Request,
+    RestrictedExpression,
+};
 
-use crate::infrastructure::cedar::{POLICY, SCHEMA, decide};
+use crate::infrastructure::cedar::{POLICY, SCHEMA};
 
 fn uid(text: &str) -> EntityUid {
     text.parse::<EntityUid>().expect("entity uid")
@@ -27,6 +30,32 @@ fn article_entity(id: &str, owner: &str) -> Entity {
         HashSet::new(),
     )
     .expect("article entity")
+}
+
+fn decide(
+    principal: &EntityUid,
+    action: &str,
+    resource: &EntityUid,
+    mut entities: Vec<Entity>,
+) -> anyhow::Result<bool> {
+    let policies: PolicySet = POLICY.parse().expect("policy set");
+    let action_uid = uid(&format!("Action::\"{action}\""));
+    if !entities.iter().any(|entity| entity.uid() == action_uid) {
+        entities.push(Entity::new_no_attrs(action_uid.clone(), HashSet::new()));
+    }
+    let entities = Entities::from_entities(entities, None).expect("entities");
+    let request = Request::new(
+        principal.clone(),
+        action_uid,
+        resource.clone(),
+        cedar_policy::Context::empty(),
+        None,
+    )
+    .expect("request");
+    Ok(CedarAuthorizer::new()
+        .is_authorized(&request, &policies, &entities)
+        .decision()
+        == Decision::Allow)
 }
 
 #[test]
