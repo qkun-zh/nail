@@ -28,14 +28,6 @@ impl Configurator {
         &self.0.server.listen_addr
     }
 
-    pub fn db_path(&self) -> &str {
-        &self.0.server.db_path
-    }
-
-    pub fn search_index_path(&self) -> &str {
-        &self.0.server.search_index_path
-    }
-
     pub fn pdf_storage_path(&self) -> &str {
         &self.0.server.pdf_storage_path
     }
@@ -44,32 +36,8 @@ impl Configurator {
         self.0.server.pow_difficulty_iterations
     }
 
-    pub fn token_ttl_seconds(&self) -> u64 {
-        self.0.server.token_ttl_seconds
-    }
-
-    pub fn session_ttl_seconds(&self) -> u64 {
-        self.0.server.session_ttl_seconds
-    }
-
-    pub fn challenge_ttl_seconds(&self) -> u64 {
-        self.0.server.challenge_ttl_seconds
-    }
-
     pub fn download_token_ttl_seconds(&self) -> u64 {
         self.0.server.download_token_ttl_seconds
-    }
-
-    pub fn token_cache_capacity(&self) -> u64 {
-        self.0.server.token_cache_capacity
-    }
-
-    pub fn email_cooldown_seconds(&self) -> u64 {
-        self.0.server.email_cooldown_seconds
-    }
-
-    pub fn user_zero_email(&self) -> &str {
-        &self.0.server.user_zero_email
     }
 
     pub fn max_pdf_size_bytes(&self) -> u64 {

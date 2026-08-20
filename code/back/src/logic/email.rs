@@ -1,12 +1,10 @@
 use email_address::{EmailAddress, Options};
-use nail_common::pow::Pow;
 use nail_common::request::{CreateTokenRequest, TokenPurpose};
 use nail_common::response::email::{EmailSubjectView, EmailSubjectsView};
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
 use crate::logic::error::LogicError;
-use crate::logic::pow::verify_issued_pow;
 use crate::logic::session::{create_session, hash_canonical_token, normalize_token, read_session};
 use crate::repository::cache::{CreateUserTokenEntry, DeleteUserTokenEntry, EmailUpdateTokenEntry};
 use crate::repository::user::{
@@ -43,22 +41,22 @@ pub async fn create_token(
 ) -> Result<CreateTokenView, LogicError> {
     match request.purpose {
         TokenPurpose::CreateUser => {
-            let pow = request
-                .pow
-                .ok_or_else(|| LogicError::bad_request("pow is required"))?;
-            let email_subject = send_create_user_email(state, &pow).await?;
+            let email = request
+                .email
+                .ok_or_else(|| LogicError::bad_request("email is required"))?;
+            let email_subject = send_create_user_email(state, &email).await?;
             Ok(CreateTokenView::Subject(EmailSubjectView { email_subject }))
         }
         TokenPurpose::UpdateUserEmail => {
             let user_id = read_session_user(state, session_token)?;
-            let old_email_pow = request
-                .old_email_pow
-                .ok_or_else(|| LogicError::bad_request("old_email_pow is required"))?;
-            let new_email_pow = request
-                .new_email_pow
-                .ok_or_else(|| LogicError::bad_request("new_email_pow is required"))?;
+            let old_email = request
+                .old_email
+                .ok_or_else(|| LogicError::bad_request("old_email is required"))?;
+            let new_email = request
+                .new_email
+                .ok_or_else(|| LogicError::bad_request("new_email is required"))?;
             let (old_email_subject, new_email_subject) =
-                send_update_user_email(state, &user_id, &old_email_pow, &new_email_pow).await?;
+                send_update_user_email(state, &user_id, &old_email, &new_email).await?;
             Ok(CreateTokenView::Subjects(EmailSubjectsView {
                 old_email_subject,
                 new_email_subject,
@@ -66,10 +64,10 @@ pub async fn create_token(
         }
         TokenPurpose::DeleteUser => {
             let user_id = read_session_user(state, session_token)?;
-            let pow = request
-                .pow
-                .ok_or_else(|| LogicError::bad_request("pow is required"))?;
-            let email_subject = send_delete_user_email(state, &user_id, &pow).await?;
+            let email = request
+                .email
+                .ok_or_else(|| LogicError::bad_request("email is required"))?;
+            let email_subject = send_delete_user_email(state, &user_id, &email).await?;
             Ok(CreateTokenView::Subject(EmailSubjectView { email_subject }))
         }
     }
@@ -84,12 +82,11 @@ fn read_session_user(
     read_session(state, &token)
 }
 
-async fn send_create_user_email(state: &AppState, pow: &Pow) -> Result<String, LogicError> {
-    let email = normalize_email(&pow.payload);
+async fn send_create_user_email(state: &AppState, raw_email: &str) -> Result<String, LogicError> {
+    let email = normalize_email(raw_email);
     if !validate_email(&email, state.configurator.email_allowed_domains()) {
         return Err(LogicError::bad_request("email domain not allowed"));
     }
-    verify_issued_pow(state, pow)?;
 
     let token = Uuid::now_v7().to_string();
     let email_id = send_confirmation_email(state, &email, &token).await?;
@@ -108,14 +105,11 @@ async fn send_create_user_email(state: &AppState, pow: &Pow) -> Result<String, L
 pub async fn send_update_user_email(
     state: &AppState,
     user_id: &str,
-    old_email_pow: &Pow,
-    new_email_pow: &Pow,
+    raw_old_email: &str,
+    raw_new_email: &str,
 ) -> Result<(String, String), LogicError> {
-    verify_issued_pow(state, old_email_pow)?;
-    verify_issued_pow(state, new_email_pow)?;
-
-    let old_email = normalize_email(&old_email_pow.payload);
-    let new_email = normalize_email(&new_email_pow.payload);
+    let old_email = normalize_email(raw_old_email);
+    let new_email = normalize_email(raw_new_email);
     if old_email == new_email {
         return Err(LogicError::bad_request(
             "new email must be different from old email",
@@ -171,12 +165,9 @@ pub async fn send_update_user_email(
 pub async fn update_user_email(
     state: &AppState,
     user_id: &str,
-    pow: &Pow,
     raw_old_email_token: &str,
     raw_new_email_token: &str,
 ) -> Result<String, LogicError> {
-    verify_issued_pow(state, pow)?;
-
     let raw_old = raw_old_email_token.trim();
     let raw_new = raw_new_email_token.trim();
     let old_email_token = normalize_token(raw_old)
@@ -184,11 +175,6 @@ pub async fn update_user_email(
     let new_email_token = normalize_token(raw_new)
         .ok_or_else(|| LogicError::bad_request("invalid new email token"))?;
 
-    let expected_canonical = format!("{old_email_token}\n{new_email_token}");
-    let expected_raw = format!("{raw_old}\n{raw_new}");
-    if pow.payload != expected_canonical && pow.payload != expected_raw {
-        return Err(LogicError::bad_request("PoW payload does not match token"));
-    }
     if old_email_token == new_email_token {
         return Err(LogicError::bad_request(
             "old token and new token must be different",
@@ -253,11 +239,9 @@ pub async fn update_user_email(
 pub async fn send_delete_user_email(
     state: &AppState,
     user_id: &str,
-    pow: &Pow,
+    raw_email: &str,
 ) -> Result<String, LogicError> {
-    verify_issued_pow(state, pow)?;
-
-    let email = normalize_email(&pow.payload);
+    let email = normalize_email(raw_email);
     let user_entry = read_user(&state.database, user_id)
         .await?
         .ok_or_else(|| LogicError::unauthorized("user not found"))?;

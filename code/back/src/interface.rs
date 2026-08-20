@@ -6,6 +6,7 @@ pub mod content;
 pub mod envelope;
 pub mod extractor;
 pub mod multipart;
+pub mod pow_layer;
 pub mod principal;
 pub mod role;
 pub mod router;

@@ -32,7 +32,8 @@ pub struct DeleteQuery {
 pub struct UserDeleteQuery {
     #[serde(default)]
     pub mode: Option<DeleteMode>,
-    pub token: String,
+    #[serde(default)]
+    pub token: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,7 +1,6 @@
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use nail_common::pow::Pow;
 use nail_common::response::EmptyView;
 use nail_common::response::session::SessionView;
 use serde::Deserialize;
@@ -15,11 +14,6 @@ use crate::interface::principal::Principal;
 pub struct SessionReadParams {
     pub id: Option<bool>,
     pub name: Option<bool>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct LogoutQuery {
-    pub pow: String,
 }
 
 pub async fn read_session(
@@ -44,11 +38,8 @@ pub async fn read_session(
 pub async fn delete_session(
     State(state): State<AppState>,
     principal: Principal,
-    AppQuery(query): AppQuery<LogoutQuery>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let pow: Pow =
-        serde_json::from_str(&query.pow).map_err(|_| ApiError::bad_request("invalid pow"))?;
-    crate::logic::session::delete_session(&state, &pow, &principal.token)
+    crate::logic::session::delete_session(&state, &principal.token)
         .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, EmptyView {}, "deleted"))
 }

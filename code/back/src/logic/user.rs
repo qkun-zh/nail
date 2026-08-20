@@ -1,4 +1,3 @@
-use nail_common::pow::Pow;
 use nail_common::request::{DeleteMode, UserDeleteQuery, UserUpdateRequest};
 use nail_common::response::EmptyView;
 use nail_common::response::session::SessionTokenView;
@@ -11,7 +10,6 @@ use crate::logic::authorize::{
 };
 use crate::logic::error::LogicError;
 use crate::logic::pagination::paginate;
-use crate::logic::pow::verify_issued_pow;
 use crate::logic::search::{sync_all_best_effort, sync_article_best_effort, sync_user_best_effort};
 use crate::logic::session::hash_token;
 use crate::repository::authorization::Resource;
@@ -38,16 +36,15 @@ pub enum UserDeleteView {
     UserId(UserIdView),
 }
 
-pub async fn create_user(state: &AppState, pow: &Pow) -> Result<String, LogicError> {
+pub async fn create_user(state: &AppState, raw_token: &str) -> Result<String, LogicError> {
     authorize_anonymous(
         state,
         PERMISSION_USER_CREATE,
         &Resource::Virtual("any".to_string()),
     )
     .await?;
-    verify_issued_pow(state, pow)?;
     let key = hash_token(
-        &pow.payload,
+        raw_token,
         LogicError::bad_request("invalid or expired token"),
     )?;
 
@@ -148,9 +145,6 @@ pub async fn update_user(
 ) -> Result<UserUpdateView, LogicError> {
     match (request.old_email_token, request.new_email_token) {
         (Some(old_token), Some(new_token)) => {
-            let pow = request.pow.ok_or_else(|| {
-                LogicError::bad_request("pow is required to confirm the email update")
-            })?;
             authorize_entity(
                 state,
                 actor_id,
@@ -158,10 +152,9 @@ pub async fn update_user(
                 EntityRef::User(actor_id),
             )
             .await?;
-            let new_session_token = crate::logic::email::update_user_email(
-                state, actor_id, &pow, &old_token, &new_token,
-            )
-            .await?;
+            let new_session_token =
+                crate::logic::email::update_user_email(state, actor_id, &old_token, &new_token)
+                    .await?;
             return Ok(UserUpdateView::SessionToken(SessionTokenView {
                 session_token: new_session_token,
             }));
@@ -180,12 +173,9 @@ pub async fn update_user(
         return Ok(UserUpdateView::Name(UserNameView { name }));
     }
 
-    let pow = request
-        .pow
-        .ok_or_else(|| LogicError::bad_request("pow is required"))?;
-    let name = handle_update_name(state, actor_id, &pow).await?;
-    sync_user_best_effort(state, actor_id).await;
-    Ok(UserUpdateView::Name(UserNameView { name }))
+    Err(LogicError::bad_request(
+        "name, old_email_token or new_email_token is required",
+    ))
 }
 
 pub async fn delete_user(
@@ -194,15 +184,19 @@ pub async fn delete_user(
     target_id: &str,
     query: UserDeleteQuery,
 ) -> Result<UserDeleteView, LogicError> {
-    let pow: Pow =
-        serde_json::from_str(&query.pow).map_err(|_| LogicError::bad_request("invalid pow"))?;
     match query.mode {
         Some(DeleteMode::Transfer) => {
-            handle_delete_user_transfer(state, actor_id, &pow).await?;
+            let token = query
+                .token
+                .ok_or_else(|| LogicError::bad_request("token is required"))?;
+            handle_delete_user_transfer(state, actor_id, &token).await?;
             Ok(UserDeleteView::Empty(EmptyView {}))
         }
         Some(DeleteMode::Soft) => {
-            handle_delete_user_soft(state, actor_id, &pow).await?;
+            let token = query
+                .token
+                .ok_or_else(|| LogicError::bad_request("token is required"))?;
+            handle_delete_user_soft(state, actor_id, &token).await?;
             Ok(UserDeleteView::Empty(EmptyView {}))
         }
         Some(DeleteMode::Hard) => {
@@ -215,25 +209,6 @@ pub async fn delete_user(
             "missing or unsupported delete mode (expected \"transfer\", \"soft\" or \"hard\")",
         )),
     }
-}
-
-async fn handle_update_name(
-    state: &AppState,
-    actor_id: &str,
-    pow: &Pow,
-) -> Result<String, LogicError> {
-    authorize_entity(
-        state,
-        actor_id,
-        PERMISSION_USER_UPDATE,
-        EntityRef::User(actor_id),
-    )
-    .await?;
-    verify_issued_pow(state, pow)?;
-    let name = nail_common::name::validate_name(&pow.payload)
-        .map_err(|error| LogicError::bad_request(error.to_string()))?;
-    update_user_name(&state.database, actor_id, &name).await?;
-    Ok(name)
 }
 
 async fn handle_admin_update_name(
@@ -263,7 +238,7 @@ async fn handle_admin_update_name(
 async fn handle_delete_user_transfer(
     state: &AppState,
     actor_id: &str,
-    pow: &Pow,
+    raw_token: &str,
 ) -> Result<(), LogicError> {
     authorize_entity(
         state,
@@ -272,11 +247,7 @@ async fn handle_delete_user_transfer(
         EntityRef::User(actor_id),
     )
     .await?;
-    verify_issued_pow(state, pow)?;
-    let token_hash = hash_token(
-        &pow.payload,
-        LogicError::bad_request("invalid delete token"),
-    )?;
+    let token_hash = hash_token(raw_token, LogicError::bad_request("invalid delete token"))?;
 
     let Some(entry) = state.cache.delete_user.read(&token_hash) else {
         let user_exists = read_user_node(&state.database, actor_id).await?.is_some();
@@ -315,7 +286,7 @@ async fn handle_delete_user_transfer(
 async fn handle_delete_user_soft(
     state: &AppState,
     actor_id: &str,
-    pow: &Pow,
+    raw_token: &str,
 ) -> Result<(), LogicError> {
     authorize_entity(
         state,
@@ -324,11 +295,7 @@ async fn handle_delete_user_soft(
         EntityRef::User(actor_id),
     )
     .await?;
-    verify_issued_pow(state, pow)?;
-    let token_hash = hash_token(
-        &pow.payload,
-        LogicError::bad_request("invalid delete token"),
-    )?;
+    let token_hash = hash_token(raw_token, LogicError::bad_request("invalid delete token"))?;
 
     let Some(entry) = state.cache.delete_user.read(&token_hash) else {
         let user_exists = read_user_node(&state.database, actor_id).await?.is_some();

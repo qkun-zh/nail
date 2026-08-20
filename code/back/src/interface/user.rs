@@ -27,7 +27,7 @@ pub async fn create_user(
     State(state): State<AppState>,
     AppJson(payload): AppJson<TokenRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let user_id = crate::logic::user::create_user(&state, &payload.pow)
+    let user_id = crate::logic::user::create_user(&state, &payload.token)
         .await
         .map_err(ApiError::from_logic)?;
     let session_token =

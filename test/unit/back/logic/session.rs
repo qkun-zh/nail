@@ -102,17 +102,14 @@ async fn delete_session_removes_the_session_token() {
         },
     );
 
-    let pow = context.issued_pow("delete-session-nonce");
-    crate::logic::session::delete_session(&context.state, &pow, &token).expect("delete");
+    crate::logic::session::delete_session(&context.state, &token).expect("delete");
     assert!(context.state.cache.session.read(&key).is_none());
 }
 
 #[tokio::test]
 async fn delete_session_requires_a_valid_session() {
     let context = TestCtx::new().await.expect("test context");
-    let pow = context.issued_pow("delete-session-nonce");
-    let error =
-        crate::logic::session::delete_session(&context.state, &pow, "not-a-uuid").unwrap_err();
+    let error = crate::logic::session::delete_session(&context.state, "not-a-uuid").unwrap_err();
     assert_eq!(error, LogicError::unauthorized("invalid session"));
 }
 

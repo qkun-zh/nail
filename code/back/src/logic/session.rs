@@ -1,10 +1,8 @@
-use nail_common::pow::Pow;
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{EntityRef, authorize_entity};
 use crate::logic::error::LogicError;
-use crate::logic::pow::verify_issued_pow;
 use crate::repository::cache::SessionTokenEntry;
 
 pub fn normalize_token(raw: &str) -> Option<String> {
@@ -62,9 +60,8 @@ pub async fn read_user_name(state: &AppState, session_token: &str) -> Result<Str
     Ok(entry.name)
 }
 
-pub fn delete_session(state: &AppState, pow: &Pow, session_token: &str) -> Result<(), LogicError> {
+pub fn delete_session(state: &AppState, session_token: &str) -> Result<(), LogicError> {
     let user_id = read_session(state, session_token)?;
-    verify_issued_pow(state, pow)?;
     let key = hash_token(session_token, LogicError::unauthorized("invalid session"))?;
     state.cache.session.delete(&key);
     tracing::info!(user_id = %user_id, "session deleted");

@@ -88,6 +88,9 @@ pub mod logic_delete_verify;
 #[path = "http/session.rs"]
 pub mod http_session;
 
+#[path = "http/pow_layer.rs"]
+pub mod http_pow_layer;
+
 #[path = "http/config.rs"]
 pub mod http_config;
 

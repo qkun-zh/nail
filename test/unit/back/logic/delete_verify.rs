@@ -597,7 +597,7 @@ async fn hard_delete_user_removes_content_and_search_docs() {
         &owner,
         UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Hard),
-            pow: serde_json::to_string(&context.issued_pow("alice@example.com")).unwrap(),
+            token: Some(uuid::Uuid::now_v7().to_string()),
         },
     )
     .await

@@ -182,7 +182,7 @@ fn token_request_round_trips_a_token() -> anyhow::Result<()> {
 fn user_delete_query_round_trips_mode_and_token() -> anyhow::Result<()> {
     let query = crate::request::UserDeleteQuery {
         mode: Some(DeleteMode::Transfer),
-        token: "token-value".to_string(),
+        token: Some("token-value".to_string()),
     };
     assert_eq!(
         serde_json::to_string(&query)?,
@@ -194,9 +194,8 @@ fn user_delete_query_round_trips_mode_and_token() -> anyhow::Result<()> {
     let no_mode: crate::request::UserDeleteQuery =
         serde_json::from_str(r#"{"token":"token-value"}"#)?;
     assert_eq!(no_mode.mode, None);
-    let missing_token =
-        serde_json::from_str::<crate::request::UserDeleteQuery>(r#"{"mode":"hard"}"#);
-    assert!(missing_token.is_err(), "a missing token must be rejected");
+    let no_token: crate::request::UserDeleteQuery = serde_json::from_str(r#"{"mode":"hard"}"#)?;
+    assert_eq!(no_token.token, None);
     Ok(())
 }
 

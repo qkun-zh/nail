@@ -1,4 +1,4 @@
-use anyhow::Context;
+#[cfg(test)]
 use cedar_policy::EntityUid;
 
 pub const SCHEMA: &str = include_str!("cedar/schema.cedar");
@@ -17,8 +17,9 @@ pub fn schema_actions() -> anyhow::Result<Vec<String>> {
     Ok(names)
 }
 
+#[cfg(test)]
 pub fn action_uid(action: &str) -> anyhow::Result<EntityUid> {
     format!("Action::\"{action}\"")
         .parse::<EntityUid>()
-        .with_context(|| format!("invalid action uid for {action:?}"))
+        .map_err(|error| anyhow::anyhow!("invalid action uid for {action:?}: {error}"))
 }

@@ -64,8 +64,7 @@ async fn probe_2_delete_session_with_noncanonical_token_must_remove_the_session(
     let uppercased = session_token.to_uppercase();
     assert_ne!(session_token, uppercased, "case must differ");
 
-    let pow = context.issued_pow("probe-2-delete-nonce");
-    crate::logic::session::delete_session(&context.state, &pow, &uppercased).expect("delete");
+    crate::logic::session::delete_session(&context.state, &uppercased).expect("delete");
 
     assert!(
         read_session(&context.state, &session_token).is_err(),

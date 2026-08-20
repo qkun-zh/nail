@@ -1,58 +1,18 @@
 use axum::http::StatusCode;
-use nail_common::pow::{Challenge, Pow, ProveInput, prove};
 use serde_json::json;
 use uuid::Uuid;
 
 use super::context::TestCtx;
 use crate::repository::cache::{SessionTokenEntry, token_key};
 
-fn pow_to_query(pow: &Pow) -> String {
-    let json = serde_json::to_string(pow).expect("pow json");
-    format!("pow={}", encode(&json))
-}
-
-fn encode(s: &str) -> String {
-    use std::fmt::Write;
-    let mut output = String::with_capacity(s.len() * 3);
-    for byte in s.bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
-            output.push(byte as char);
-        } else {
-            output.push('%');
-            write!(output, "{byte:02X}").expect("write hex");
-        }
-    }
-    output
-}
-
-async fn create_challenge_and_prove(context: &TestCtx, payload: &str) -> Pow {
-    let (status, body) = context.post("/challenges", json!({}), None).await;
-    assert_eq!(status, StatusCode::OK, "challenge body: {body}");
-    let id = body["data"]["id"]
-        .as_str()
-        .expect("challenge id")
-        .to_string();
-    let difficulty = body["data"]["difficulty"].as_u64().expect("difficulty");
-    let challenge = Challenge {
-        id: Uuid::parse_str(&id).expect("uuid challenge id"),
-        difficulty,
-    };
-    prove(ProveInput {
-        challenge,
-        payload: payload.to_string(),
-    })
-    .expect("proof generation must succeed")
-}
-
 #[tokio::test]
 async fn session_lifecycle_over_http() {
     let context = TestCtx::new().await.expect("test context");
 
-    let pow = create_challenge_and_prove(&context, "alice@example.com").await;
     let (status, body) = context
         .post(
             "/tokens",
-            json!({ "purpose": "create_user", "pow": pow }),
+            json!({ "purpose": "create_user", "email": "alice@example.com" }),
             None,
         )
         .await;
@@ -65,9 +25,8 @@ async fn session_lifecycle_over_http() {
     assert_eq!(to, "alice@example.com");
     assert_eq!(message_subject, email_subject);
 
-    let token_pow = create_challenge_and_prove(&context, token).await;
     let (status, body) = context
-        .post("/users", json!({ "pow": token_pow }), None)
+        .post("/users", json!({ "token": token }), None)
         .await;
     assert_eq!(status, StatusCode::OK, "create body: {body}");
     let session_token = body["data"]["session_token"]
@@ -86,13 +45,7 @@ async fn session_lifecycle_over_http() {
     let (status, _) = context.get("/user?id=true", Some("not-a-uuid")).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 
-    let delete_session_pow = create_challenge_and_prove(&context, "delete-session-nonce").await;
-    let (status, body) = context
-        .delete(
-            &format!("/session?{}", pow_to_query(&delete_session_pow)),
-            Some(&session_token),
-        )
-        .await;
+    let (status, body) = context.delete("/session", Some(&session_token)).await;
     assert_eq!(status, StatusCode::OK, "delete-session body: {body}");
     assert_eq!(body["message"].as_str(), Some("deleted"));
 
@@ -106,9 +59,12 @@ async fn token_create_with_missing_or_invalid_purpose_is_rejected() {
     let (status, _) = context.post("/tokens", json!({}), None).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
-    let pow = create_challenge_and_prove(&context, "alice@example.com").await;
     let (status, _) = context
-        .post("/tokens", json!({ "purpose": "bogus", "pow": pow }), None)
+        .post(
+            "/tokens",
+            json!({ "purpose": "bogus", "email": "alice@example.com" }),
+            None,
+        )
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
@@ -116,11 +72,10 @@ async fn token_create_with_missing_or_invalid_purpose_is_rejected() {
 #[tokio::test]
 async fn token_create_rejects_a_disallowed_domain() {
     let context = TestCtx::new().await.expect("test context");
-    let pow = create_challenge_and_prove(&context, "alice@other.org").await;
     let (status, body) = context
         .post(
             "/tokens",
-            json!({ "purpose": "create_user", "pow": pow }),
+            json!({ "purpose": "create_user", "email": "alice@other.org" }),
             None,
         )
         .await;
@@ -143,22 +98,25 @@ async fn session_read_requires_a_session() {
 #[tokio::test]
 async fn user_create_rejects_an_unknown_token() {
     let context = TestCtx::new().await.expect("test context");
-    let token_pow = create_challenge_and_prove(&context, &Uuid::now_v7().to_string()).await;
     let (status, body) = context
-        .post("/users", json!({ "pow": token_pow }), None)
+        .post(
+            "/users",
+            json!({ "token": Uuid::now_v7().to_string() }),
+            None,
+        )
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("invalid or expired token"));
 }
 
 #[tokio::test]
-async fn token_create_authenticate_requires_a_pow() {
+async fn token_create_requires_an_email() {
     let context = TestCtx::new().await.expect("test context");
     let (status, body) = context
         .post("/tokens", json!({ "purpose": "create_user" }), None)
         .await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
-    assert_eq!(body["message"].as_str(), Some("pow is required"));
+    assert_eq!(body["message"].as_str(), Some("email is required"));
 }
 
 fn insert_session(context: &TestCtx) -> String {
@@ -174,14 +132,13 @@ fn insert_session(context: &TestCtx) -> String {
 }
 
 #[tokio::test]
-async fn session_delete_with_malformed_pow_returns_envelope() {
+async fn session_delete_returns_envelope() {
     let context = TestCtx::new().await.expect("test context");
     let token = insert_session(&context);
 
     let (status, body) = context.delete("/session", Some(&token)).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
-    assert_eq!(body["code"].as_u64(), Some(400));
-    assert!(body["data"].is_null());
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["code"].as_u64(), Some(200));
 }
 
 #[tokio::test]

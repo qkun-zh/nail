@@ -98,5 +98,9 @@ pub fn build_router(state: AppState) -> Router {
         .layer(DefaultBodyLimit::max(
             usize::try_from(body_limit).unwrap_or(usize::MAX),
         ))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            super::pow_layer::require_pow,
+        ))
         .with_state(state)
 }

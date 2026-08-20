@@ -76,17 +76,15 @@ async fn read_user_other_by_admin_returns_profile() {
 }
 
 #[tokio::test]
-async fn update_user_self_rename_via_pow() {
+async fn update_user_self_rename_via_name() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, _) = session_for(&context, "alice@example.com").await;
-    let pow = context.issued_pow("alice-renamed");
     let data = crate::logic::user::update_user(
         &context.state,
         &user_id,
         &user_id,
         UserUpdateRequest {
-            pow: Some(pow),
-            name: None,
+            name: Some("alice-renamed".to_string()),
             old_email_token: None,
             new_email_token: None,
         },
@@ -109,7 +107,6 @@ async fn update_user_admin_rename() {
         &admin,
         &target,
         UserUpdateRequest {
-            pow: None,
             name: Some("alice-by-admin".to_string()),
             old_email_token: None,
             new_email_token: None,
@@ -138,7 +135,6 @@ async fn update_user_admin_rename_to_a_taken_name_is_a_bad_request() {
         &admin,
         &target,
         UserUpdateRequest {
-            pow: None,
             name: Some("taken-name".to_string()),
             old_email_token: None,
             new_email_token: None,
@@ -157,14 +153,12 @@ async fn update_user_rejects_a_taken_name() {
     crate::repository::user::update_user_name(&context.state.database, &other, "alice-renamed")
         .await
         .expect("rename other");
-    let pow = context.issued_pow("alice-renamed");
     let error = crate::logic::user::update_user(
         &context.state,
         &user_id,
         &user_id,
         UserUpdateRequest {
-            pow: Some(pow),
-            name: None,
+            name: Some("alice-renamed".to_string()),
             old_email_token: None,
             new_email_token: None,
         },
@@ -184,7 +178,7 @@ async fn delete_user_rejects_a_missing_mode() {
         &user_id,
         UserDeleteQuery {
             mode: None,
-            pow: serde_json::to_string(&context.issued_pow("ignored")).unwrap(),
+            token: Some(uuid::Uuid::now_v7().to_string()),
         },
     )
     .await
@@ -208,7 +202,7 @@ async fn delete_user_hard_by_admin_removes_the_user() {
         &target,
         UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Hard),
-            pow: serde_json::to_string(&context.issued_pow("ignored")).unwrap(),
+            token: Some(uuid::Uuid::now_v7().to_string()),
         },
     )
     .await
@@ -230,14 +224,14 @@ async fn delete_user_transfer_after_email_confirmation() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = session_for(&context, "alice@example.com").await;
 
-    let pow = context.issued_pow("alice@example.com");
+    let email = "alice@example.com";
     let _ = crate::logic::email::create_token(
         &context.state,
         nail_common::request::CreateTokenRequest {
             purpose: nail_common::request::TokenPurpose::DeleteUser,
-            pow: Some(pow),
-            old_email_pow: None,
-            new_email_pow: None,
+            email: Some(email.to_string()),
+            old_email: None,
+            new_email: None,
         },
         Some(token),
     )
@@ -248,14 +242,14 @@ async fn delete_user_transfer_after_email_confirmation() {
     assert_eq!(messages.len(), 1);
     let confirmation_token = messages[0].2.clone();
 
-    let confirm_pow = context.issued_pow(&confirmation_token);
+    let delete_token = confirmation_token.clone();
     let data = crate::logic::user::delete_user(
         &context.state,
         &user_id,
         &user_id,
         UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Transfer),
-            pow: serde_json::to_string(&confirm_pow).unwrap(),
+            token: Some(delete_token),
         },
     )
     .await
@@ -278,7 +272,6 @@ async fn update_user_admin_rename_of_missing_user_is_not_found() {
         &admin,
         "no-such-user",
         UserUpdateRequest {
-            pow: None,
             name: Some("renamed".to_string()),
             old_email_token: None,
             new_email_token: None,
@@ -294,14 +287,14 @@ async fn delete_user_soft_after_email_confirmation() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = session_for(&context, "alice@example.com").await;
 
-    let pow = context.issued_pow("alice@example.com");
+    let email = "alice@example.com";
     let _ = crate::logic::email::create_token(
         &context.state,
         nail_common::request::CreateTokenRequest {
             purpose: nail_common::request::TokenPurpose::DeleteUser,
-            pow: Some(pow),
-            old_email_pow: None,
-            new_email_pow: None,
+            email: Some(email.to_string()),
+            old_email: None,
+            new_email: None,
         },
         Some(token),
     )
@@ -312,14 +305,14 @@ async fn delete_user_soft_after_email_confirmation() {
     assert_eq!(messages.len(), 1);
     let confirmation_token = messages[0].2.clone();
 
-    let confirm_pow = context.issued_pow(&confirmation_token);
+    let delete_token = confirmation_token.clone();
     let data = crate::logic::user::delete_user(
         &context.state,
         &user_id,
         &user_id,
         UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Soft),
-            pow: serde_json::to_string(&confirm_pow).unwrap(),
+            token: Some(delete_token),
         },
     )
     .await
@@ -338,14 +331,14 @@ async fn undelete_soft_user_by_admin_revives_the_user() {
     let (admin, _) = admin_session(&context).await;
     let (user_id, token) = session_for(&context, "alice@example.com").await;
 
-    let pow = context.issued_pow("alice@example.com");
+    let email = "alice@example.com";
     let _ = crate::logic::email::create_token(
         &context.state,
         nail_common::request::CreateTokenRequest {
             purpose: nail_common::request::TokenPurpose::DeleteUser,
-            pow: Some(pow),
-            old_email_pow: None,
-            new_email_pow: None,
+            email: Some(email.to_string()),
+            old_email: None,
+            new_email: None,
         },
         Some(token),
     )
@@ -355,14 +348,14 @@ async fn undelete_soft_user_by_admin_revives_the_user() {
     let messages = context.emails();
     let confirmation_token = messages[0].2.clone();
 
-    let confirm_pow = context.issued_pow(&confirmation_token);
+    let delete_token = confirmation_token.clone();
     crate::logic::user::delete_user(
         &context.state,
         &user_id,
         &user_id,
         UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Soft),
-            pow: serde_json::to_string(&confirm_pow).unwrap(),
+            token: Some(delete_token),
         },
     )
     .await
@@ -389,14 +382,14 @@ async fn undelete_soft_user_is_forbidden_for_a_member() {
     let (member, _) = session_for(&context, "bob@example.com").await;
     let (user_id, token) = session_for(&context, "alice@example.com").await;
 
-    let pow = context.issued_pow("alice@example.com");
+    let email = "alice@example.com";
     let _ = crate::logic::email::create_token(
         &context.state,
         nail_common::request::CreateTokenRequest {
             purpose: nail_common::request::TokenPurpose::DeleteUser,
-            pow: Some(pow),
-            old_email_pow: None,
-            new_email_pow: None,
+            email: Some(email.to_string()),
+            old_email: None,
+            new_email: None,
         },
         Some(token),
     )
@@ -406,14 +399,14 @@ async fn undelete_soft_user_is_forbidden_for_a_member() {
     let messages = context.emails();
     let confirmation_token = messages[0].2.clone();
 
-    let confirm_pow = context.issued_pow(&confirmation_token);
+    let delete_token = confirmation_token.clone();
     crate::logic::user::delete_user(
         &context.state,
         &user_id,
         &user_id,
         UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Soft),
-            pow: serde_json::to_string(&confirm_pow).unwrap(),
+            token: Some(delete_token),
         },
     )
     .await
@@ -431,14 +424,14 @@ async fn delete_user_transfer_rejects_a_token_for_a_different_account() {
     let (alice_id, alice_token) = session_for(&context, "alice@example.com").await;
     let (bob_id, _) = session_for(&context, "bob@example.com").await;
 
-    let pow = context.issued_pow("alice@example.com");
+    let email = "alice@example.com";
     let _ = crate::logic::email::create_token(
         &context.state,
         nail_common::request::CreateTokenRequest {
             purpose: nail_common::request::TokenPurpose::DeleteUser,
-            pow: Some(pow),
-            old_email_pow: None,
-            new_email_pow: None,
+            email: Some(email.to_string()),
+            old_email: None,
+            new_email: None,
         },
         Some(alice_token),
     )
@@ -448,14 +441,14 @@ async fn delete_user_transfer_rejects_a_token_for_a_different_account() {
     let messages = context.emails();
     let confirmation_token = messages[0].2.clone();
 
-    let confirm_pow = context.issued_pow(&confirmation_token);
+    let delete_token = confirmation_token.clone();
     let error = crate::logic::user::delete_user(
         &context.state,
         &bob_id,
         &bob_id,
         UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Transfer),
-            pow: serde_json::to_string(&confirm_pow).unwrap(),
+            token: Some(delete_token),
         },
     )
     .await
@@ -468,29 +461,6 @@ async fn delete_user_transfer_rejects_a_token_for_a_different_account() {
 }
 
 #[tokio::test]
-async fn update_user_requires_a_pow_when_email_tokens_are_provided() {
-    let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = session_for(&context, "alice@example.com").await;
-    let error = crate::logic::user::update_user(
-        &context.state,
-        &user_id,
-        &user_id,
-        UserUpdateRequest {
-            pow: None,
-            name: None,
-            old_email_token: Some(uuid::Uuid::now_v7().to_string()),
-            new_email_token: Some(uuid::Uuid::now_v7().to_string()),
-        },
-    )
-    .await
-    .unwrap_err();
-    assert_eq!(
-        error,
-        LogicError::bad_request("pow is required to confirm the email update")
-    );
-}
-
-#[tokio::test]
 async fn update_user_requires_both_email_tokens() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, _) = session_for(&context, "alice@example.com").await;
@@ -499,7 +469,6 @@ async fn update_user_requires_both_email_tokens() {
         &user_id,
         &user_id,
         UserUpdateRequest {
-            pow: Some(context.issued_pow("ignored")),
             name: None,
             old_email_token: Some(uuid::Uuid::now_v7().to_string()),
             new_email_token: None,
@@ -517,14 +486,14 @@ async fn update_user_requires_both_email_tokens() {
 async fn delete_user_transfer_rejects_an_expired_token_for_an_existing_account() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, _) = session_for(&context, "alice@example.com").await;
-    let confirm_pow = context.issued_pow(&uuid::Uuid::now_v7().to_string());
+    let delete_token = uuid::Uuid::now_v7().to_string();
     let error = crate::logic::user::delete_user(
         &context.state,
         &user_id,
         &user_id,
         UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Transfer),
-            pow: serde_json::to_string(&confirm_pow).unwrap(),
+            token: Some(delete_token),
         },
     )
     .await
@@ -540,14 +509,14 @@ async fn create_user_rejects_a_soft_deleted_account() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = session_for(&context, "alice@example.com").await;
 
-    let pow = context.issued_pow("alice@example.com");
+    let email = "alice@example.com";
     let _ = crate::logic::email::create_token(
         &context.state,
         nail_common::request::CreateTokenRequest {
             purpose: nail_common::request::TokenPurpose::DeleteUser,
-            pow: Some(pow),
-            old_email_pow: None,
-            new_email_pow: None,
+            email: Some(email.to_string()),
+            old_email: None,
+            new_email: None,
         },
         Some(token),
     )
@@ -555,27 +524,26 @@ async fn create_user_rejects_a_soft_deleted_account() {
     .expect("deregister email");
     let messages = context.emails();
     let confirmation_token = messages[0].2.clone();
-    let confirm_pow = context.issued_pow(&confirmation_token);
+    let delete_token = confirmation_token.clone();
     crate::logic::user::delete_user(
         &context.state,
         &user_id,
         &user_id,
         UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Soft),
-            pow: serde_json::to_string(&confirm_pow).unwrap(),
+            token: Some(delete_token),
         },
     )
     .await
     .expect("soft delete");
 
-    let register_pow = context.issued_pow("alice@example.com");
     let _ = crate::logic::email::create_token(
         &context.state,
         nail_common::request::CreateTokenRequest {
             purpose: nail_common::request::TokenPurpose::CreateUser,
-            pow: Some(register_pow),
-            old_email_pow: None,
-            new_email_pow: None,
+            email: Some("alice@example.com".to_string()),
+            old_email: None,
+            new_email: None,
         },
         None,
     )
@@ -583,9 +551,8 @@ async fn create_user_rejects_a_soft_deleted_account() {
     .expect("create token");
     let messages = context.emails();
     let register_token = messages[1].2.clone();
-    let register_pow = context.issued_pow(&register_token);
 
-    let error = crate::logic::user::create_user(&context.state, &register_pow)
+    let error = crate::logic::user::create_user(&context.state, &register_token)
         .await
         .unwrap_err();
     assert_eq!(
@@ -605,14 +572,14 @@ async fn read_user_hides_a_soft_deleted_account_from_members() {
     let (admin, _) = admin_session(&context).await;
     let (user_id, token) = session_for(&context, "alice@example.com").await;
 
-    let pow = context.issued_pow("alice@example.com");
+    let email = "alice@example.com";
     let _ = crate::logic::email::create_token(
         &context.state,
         nail_common::request::CreateTokenRequest {
             purpose: nail_common::request::TokenPurpose::DeleteUser,
-            pow: Some(pow),
-            old_email_pow: None,
-            new_email_pow: None,
+            email: Some(email.to_string()),
+            old_email: None,
+            new_email: None,
         },
         Some(token),
     )
@@ -620,14 +587,14 @@ async fn read_user_hides_a_soft_deleted_account_from_members() {
     .expect("deregister email");
     let messages = context.emails();
     let confirmation_token = messages[0].2.clone();
-    let confirm_pow = context.issued_pow(&confirmation_token);
+    let delete_token = confirmation_token.clone();
     crate::logic::user::delete_user(
         &context.state,
         &user_id,
         &user_id,
         UserDeleteQuery {
             mode: Some(nail_common::request::DeleteMode::Soft),
-            pow: serde_json::to_string(&confirm_pow).unwrap(),
+            token: Some(delete_token),
         },
     )
     .await

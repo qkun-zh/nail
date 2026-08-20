@@ -4,14 +4,14 @@ use crate::logic::error::LogicError;
 #[tokio::test]
 async fn accepts_an_issued_and_valid_proof() {
     let context = TestCtx::new().await.expect("test context");
-    let pow = context.issued_pow("payload");
+    let pow = context.issued_pow();
     assert!(crate::logic::pow::verify_issued_pow(&context.state, &pow).is_ok());
 }
 
 #[tokio::test]
 async fn rejects_a_proof_whose_challenge_was_never_issued() {
     let context = TestCtx::new().await.expect("test context");
-    let pow = context.client_pow("payload");
+    let pow = context.client_pow();
     let error = crate::logic::pow::verify_issued_pow(&context.state, &pow).unwrap_err();
     assert_eq!(
         error,
@@ -22,7 +22,7 @@ async fn rejects_a_proof_whose_challenge_was_never_issued() {
 #[tokio::test]
 async fn rejects_an_already_consumed_challenge() {
     let context = TestCtx::new().await.expect("test context");
-    let pow = context.issued_pow("payload");
+    let pow = context.issued_pow();
     assert!(crate::logic::pow::verify_issued_pow(&context.state, &pow).is_ok());
     let error = crate::logic::pow::verify_issued_pow(&context.state, &pow).unwrap_err();
     assert_eq!(
@@ -34,7 +34,7 @@ async fn rejects_an_already_consumed_challenge() {
 #[tokio::test]
 async fn rejects_a_tampered_solution() {
     let context = TestCtx::new().await.expect("test context");
-    let mut pow = context.issued_pow("payload");
+    let mut pow = context.issued_pow();
     pow.solution = format!(
         "{}{}",
         if pow.solution.starts_with('0') {
@@ -51,7 +51,7 @@ async fn rejects_a_tampered_solution() {
 #[tokio::test]
 async fn rejects_a_proof_with_a_different_difficulty() {
     let context = TestCtx::new().await.expect("test context");
-    let mut pow = context.issued_pow("payload");
+    let mut pow = context.issued_pow();
     pow.challenge.difficulty += 1;
     let error = crate::logic::pow::verify_issued_pow(&context.state, &pow).unwrap_err();
     assert_eq!(error, LogicError::bad_request("PoW verification failed"));

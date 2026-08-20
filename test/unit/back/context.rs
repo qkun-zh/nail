@@ -4,7 +4,7 @@ use std::time::Duration;
 use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use nail_common::pow::{Challenge, Pow, ProveInput, prove};
+use nail_common::pow::{Challenge, Pow, prove};
 use serde_json::Value;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -87,18 +87,15 @@ impl TestCtx {
         self.state.configurator.pow_difficulty_iterations()
     }
 
-    pub fn client_pow(&self, payload: &str) -> Pow {
-        prove(ProveInput {
-            challenge: Challenge {
-                id: Uuid::now_v7(),
-                difficulty: self.difficulty(),
-            },
-            payload: payload.to_string(),
+    pub fn client_pow(&self) -> Pow {
+        prove(&Challenge {
+            id: Uuid::now_v7(),
+            difficulty: self.difficulty(),
         })
         .expect("proof generation must succeed")
     }
 
-    pub fn issued_pow(&self, payload: &str) -> Pow {
+    pub fn issued_pow(&self) -> Pow {
         let challenge = Challenge {
             id: Uuid::now_v7(),
             difficulty: self.difficulty(),
@@ -107,11 +104,12 @@ impl TestCtx {
             .cache
             .challenge
             .insert(&challenge.id.to_string(), ChallengeEntry);
-        prove(ProveInput {
-            challenge,
-            payload: payload.to_string(),
-        })
-        .expect("proof generation must succeed")
+        prove(&challenge).expect("proof generation must succeed")
+    }
+
+    fn attach_pow(&self, builder: axum::http::request::Builder) -> axum::http::request::Builder {
+        let pow = self.issued_pow();
+        builder.header("x-pow", serde_json::to_string(&pow).expect("serialize pow"))
     }
 
     pub fn upload(&self, bytes: &[u8]) -> PdfUpload {
@@ -172,6 +170,7 @@ impl TestCtx {
         if let Some(token) = token {
             builder = builder.header("session-token", token);
         }
+        builder = self.attach_pow(builder);
         let request = builder.body(Body::empty()).expect("build request");
         let response = self.app.clone().oneshot(request).await.expect("oneshot");
         let status = response.status();
@@ -193,6 +192,7 @@ impl TestCtx {
         if let Some(token) = token {
             builder = builder.header("session-token", token);
         }
+        builder = self.attach_pow(builder);
         let body =
             body.map(|value| Body::from(serde_json::to_vec(&value).expect("serialize json")));
         let request = builder
@@ -234,6 +234,7 @@ impl TestCtx {
         if let Some(token) = token {
             builder = builder.header("session-token", token);
         }
+        builder = self.attach_pow(builder);
         let request = builder
             .header(
                 "content-type",
