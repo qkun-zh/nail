@@ -1,0 +1,11 @@
+[package]
+name = "cache"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+moka = { version = "0.12.16", features = ["sync"] }
+uuid = { version = "1.24.0", features = ["v7"] }
+
+[lints]
+workspace = true

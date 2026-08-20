@@ -20,6 +20,9 @@ jobs:
       - name: Format pow
         working-directory: code/pow
         run: cargo fmt --check
+      - name: Format cache
+        working-directory: code/cache
+        run: cargo fmt --check
       - name: Format common
         working-directory: code/common
         run: cargo fmt --check
@@ -42,6 +45,9 @@ jobs:
       - name: Clippy pow
         working-directory: code/pow
         run: cargo clippy --all-targets -- -D warnings
+      - name: Clippy cache
+        working-directory: code/cache
+        run: cargo clippy --all-targets -- -D warnings
       - name: Clippy common
         working-directory: code/common
         run: cargo clippy --all-targets -- -D warnings
@@ -61,6 +67,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Test pow
         working-directory: code/pow
+        run: cargo test --all-targets
+      - name: Test cache
+        working-directory: code/cache
         run: cargo test --all-targets
       - name: Test common
         working-directory: code/common
@@ -96,6 +105,9 @@ jobs:
         run: cargo install cargo-audit --locked
       - name: Audit common
         working-directory: code/common
+        run: cargo audit
+      - name: Audit cache
+        working-directory: code/cache
         run: cargo audit
       - name: Audit back
         working-directory: code/back
