@@ -64,15 +64,15 @@ impl CacheValue for Hash {
     }
 }
 
-/// A UUIDv7 user identifier.
+/// A `UUIDv7` user identifier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UserId(String);
 
 impl UserId {
-    /// Validates that `value` is a UUIDv7.
+    /// Validates that `value` is a `UUIDv7`.
     ///
     /// # Errors
-    /// Returns `CacheError::InvalidId` when `value` is not a UUIDv7.
+    /// Returns `CacheError::InvalidId` when `value` is not a `UUIDv7`.
     pub fn new(value: String) -> Result<Self, CacheError> {
         validate_uuid_v7(&value)?;
         Ok(Self(value))
@@ -90,15 +90,15 @@ impl CacheValue for UserId {
     }
 }
 
-/// A UUIDv7 version identifier.
+/// A `UUIDv7` version identifier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VersionId(String);
 
 impl VersionId {
-    /// Validates that `value` is a UUIDv7.
+    /// Validates that `value` is a `UUIDv7`.
     ///
     /// # Errors
-    /// Returns `CacheError::InvalidId` when `value` is not a UUIDv7.
+    /// Returns `CacheError::InvalidId` when `value` is not a `UUIDv7`.
     pub fn new(value: String) -> Result<Self, CacheError> {
         validate_uuid_v7(&value)?;
         Ok(Self(value))
@@ -112,15 +112,15 @@ impl VersionId {
 
 impl CacheValue for VersionId {}
 
-/// A UUIDv7 challenge identifier.
+/// A `UUIDv7` challenge identifier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChallengeId(String);
 
 impl ChallengeId {
-    /// Validates that `value` is a UUIDv7.
+    /// Validates that `value` is a `UUIDv7`.
     ///
     /// # Errors
-    /// Returns `CacheError::InvalidId` when `value` is not a UUIDv7.
+    /// Returns `CacheError::InvalidId` when `value` is not a `UUIDv7`.
     pub fn new(value: String) -> Result<Self, CacheError> {
         validate_uuid_v7(&value)?;
         Ok(Self(value))

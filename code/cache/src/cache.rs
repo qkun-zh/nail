@@ -19,6 +19,7 @@ pub struct Cache<E: CacheValue> {
 impl<E: CacheValue> Cache<E> {
     /// Constructs a cache that expires entries after `ttl` and holds at most
     /// `capacity` entries.
+    #[must_use]
     pub fn new(ttl: Duration, capacity: u64) -> Self {
         let reverse_index = build_reverse_cache(capacity);
         let entries = MokaCache::builder()
@@ -150,6 +151,7 @@ pub struct Caches {
 
 impl Caches {
     /// Constructs the six tables with the given TTLs and a shared capacity.
+    #[must_use]
     pub fn new(
         user_creation_ttl: Duration,
         session_ttl: Duration,
