@@ -50,19 +50,19 @@ pub async fn create_user(state: &AppState, raw_token: &str) -> Result<String, Lo
 
     let entry = state
         .cache
-        .create_user
-        .consume(&key)
+        .user_creation
+        .delete(&key)
         .ok_or_else(|| LogicError::bad_request("invalid or expired token"))?;
 
     let user_id = match crate::repository::user::create_user(
         &state.database,
-        &entry.email_address_hash,
+        entry.email_address_hash.as_str(),
     )
     .await
     {
         Ok(user_id) => user_id,
         Err(error) => {
-            state.cache.create_user.insert(&key, entry);
+            state.cache.user_creation.insert(&key, entry);
             return Err(error.into());
         }
     };
@@ -249,7 +249,7 @@ async fn handle_delete_user_transfer(
     .await?;
     let token_hash = hash_token(raw_token, LogicError::bad_request("invalid delete token"))?;
 
-    let Some(entry) = state.cache.delete_user.read(&token_hash) else {
+    let Some(entry) = state.cache.user_deletion.read(&token_hash) else {
         let user_exists = read_user_node(&state.database, actor_id).await?.is_some();
         if user_exists {
             return Err(LogicError::bad_request("invalid or expired delete token"));
@@ -257,7 +257,7 @@ async fn handle_delete_user_transfer(
         state.cache.session.delete_by_reverse_key(actor_id);
         return Ok(());
     };
-    if entry.user_id != actor_id {
+    if entry.user_id.as_str() != actor_id {
         return Err(LogicError::bad_request(
             "delete token does not match your account",
         ));
@@ -266,15 +266,15 @@ async fn handle_delete_user_transfer(
     let outcome =
         crate::repository::transfer::transfer_account_assets(&state.database, actor_id).await?;
 
-    let email_address_hash = entry.email_address_hash;
-    state.cache.delete_user.consume(&token_hash);
+    let email_address_hash = entry.email_address_hash.as_str();
+    state.cache.user_deletion.delete(&token_hash);
     state.cache.session.delete_by_reverse_key(actor_id);
     state.cache.email_update.delete(actor_id);
-    state.cache.delete_user.delete_by_reverse_key(actor_id);
+    state.cache.user_deletion.delete_by_reverse_key(actor_id);
     state
         .cache
-        .create_user
-        .delete_by_reverse_key(&email_address_hash);
+        .user_creation
+        .delete_by_reverse_key(email_address_hash);
 
     for article_id in &outcome.transferred_article_ids {
         sync_article_best_effort(state, article_id).await;
@@ -297,7 +297,7 @@ async fn handle_delete_user_soft(
     .await?;
     let token_hash = hash_token(raw_token, LogicError::bad_request("invalid delete token"))?;
 
-    let Some(entry) = state.cache.delete_user.read(&token_hash) else {
+    let Some(entry) = state.cache.user_deletion.read(&token_hash) else {
         let user_exists = read_user_node(&state.database, actor_id).await?.is_some();
         if user_exists {
             return Err(LogicError::bad_request("invalid or expired delete token"));
@@ -305,7 +305,7 @@ async fn handle_delete_user_soft(
         state.cache.session.delete_by_reverse_key(actor_id);
         return Ok(());
     };
-    if entry.user_id != actor_id {
+    if entry.user_id.as_str() != actor_id {
         return Err(LogicError::bad_request(
             "delete token does not match your account",
         ));
@@ -315,15 +315,15 @@ async fn handle_delete_user_soft(
         .await
         .map_err(|error| LogicError::internal(format!("failed to soft-delete user: {error}")))?;
 
-    let email_address_hash = entry.email_address_hash;
-    state.cache.delete_user.consume(&token_hash);
+    let email_address_hash = entry.email_address_hash.as_str();
+    state.cache.user_deletion.delete(&token_hash);
     state.cache.session.delete_by_reverse_key(actor_id);
     state.cache.email_update.delete(actor_id);
-    state.cache.delete_user.delete_by_reverse_key(actor_id);
+    state.cache.user_deletion.delete_by_reverse_key(actor_id);
     state
         .cache
-        .create_user
-        .delete_by_reverse_key(&email_address_hash);
+        .user_creation
+        .delete_by_reverse_key(email_address_hash);
 
     sync_all_best_effort(state).await;
     tracing::info!(user_id = %actor_id, "user soft-deleted");

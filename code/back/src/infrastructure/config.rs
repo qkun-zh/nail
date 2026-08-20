@@ -63,24 +63,32 @@ impl AppConfig {
         &self.server.user_zero_email
     }
 
-    pub fn token_ttl_seconds(&self) -> u64 {
-        self.server.token_ttl_seconds
+    pub fn user_creation_ttl_seconds(&self) -> u64 {
+        self.server.user_creation_ttl_seconds
     }
 
     pub fn session_ttl_seconds(&self) -> u64 {
         self.server.session_ttl_seconds
     }
 
+    pub fn email_update_ttl_seconds(&self) -> u64 {
+        self.server.email_update_ttl_seconds
+    }
+
+    pub fn user_deletion_ttl_seconds(&self) -> u64 {
+        self.server.user_deletion_ttl_seconds
+    }
+
     pub fn challenge_ttl_seconds(&self) -> u64 {
         self.server.challenge_ttl_seconds
     }
 
-    pub fn download_token_ttl_seconds(&self) -> u64 {
-        self.server.download_token_ttl_seconds
+    pub fn download_ttl_seconds(&self) -> u64 {
+        self.server.download_ttl_seconds
     }
 
-    pub fn token_cache_capacity(&self) -> u64 {
-        self.server.token_cache_capacity
+    pub fn cache_capacity(&self) -> u64 {
+        self.server.cache_capacity
     }
 }
 

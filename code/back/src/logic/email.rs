@@ -1,3 +1,4 @@
+use cache::{Hash, OldAndNewEmailAddressAndTokenHashes, UserId, UserIdAndEmailAddressHash};
 use email_address::{EmailAddress, Options};
 use nail_common::request::{CreateTokenRequest, TokenPurpose};
 use nail_common::response::email::{EmailSubjectView, EmailSubjectsView};
@@ -6,7 +7,6 @@ use uuid::Uuid;
 use crate::infrastructure::state::AppState;
 use crate::logic::error::LogicError;
 use crate::logic::session::{create_session, hash_canonical_token, normalize_token, read_session};
-use crate::repository::cache::{CreateUserTokenEntry, DeleteUserTokenEntry, EmailUpdateTokenEntry};
 use crate::repository::user::{
     UserWriteError, read_user, read_user_by_email_address_hash,
     update_user_email as write_user_email,
@@ -94,11 +94,10 @@ async fn send_create_user_email(state: &AppState, raw_email: &str) -> Result<Str
     let email_address_hash = nail_common::hash::hash(email.as_bytes())
         .map_err(|error| LogicError::internal(format!("failed to hash email: {error}")))?;
     let key = hash_canonical_token(&token)?;
-    state.cache.create_user.insert(
+    state.cache.user_creation.insert(
         &key,
-        CreateUserTokenEntry {
-            email_address_hash: email_address_hash.clone(),
-        },
+        Hash::new(email_address_hash.clone())
+            .map_err(|error| LogicError::internal(format!("invalid email hash: {error}")))?,
     );
     Ok(email_id)
 }
@@ -155,11 +154,17 @@ pub async fn send_update_user_email(
     let token_hash_from_new_email = hash_canonical_token(&new_token)?;
     state.cache.email_update.insert(
         user_id,
-        EmailUpdateTokenEntry {
-            old_email_hash: old_email_hash.clone(),
-            new_email_hash: new_email_hash.clone(),
-            token_hash_from_old_email,
-            token_hash_from_new_email,
+        OldAndNewEmailAddressAndTokenHashes {
+            old_email_address_hash: Hash::new(old_email_hash.clone())
+                .map_err(|error| LogicError::internal(format!("invalid email hash: {error}")))?,
+            new_email_address_hash: Hash::new(new_email_hash.clone())
+                .map_err(|error| LogicError::internal(format!("invalid email hash: {error}")))?,
+            old_email_token_hash: Hash::new(token_hash_from_old_email).map_err(|error| {
+                LogicError::internal(format!("invalid email token hash: {error}"))
+            })?,
+            new_email_token_hash: Hash::new(token_hash_from_new_email).map_err(|error| {
+                LogicError::internal(format!("invalid email token hash: {error}"))
+            })?,
         },
     );
     Ok((old_email_id, new_email_id))
@@ -192,16 +197,16 @@ pub async fn update_user_email(
 
     let old_token_hash = hash_canonical_token(&old_email_token)?;
     let new_token_hash = hash_canonical_token(&new_email_token)?;
-    if entry.token_hash_from_old_email != old_token_hash
-        || entry.token_hash_from_new_email != new_token_hash
+    if entry.old_email_token_hash.as_str() != old_token_hash
+        || entry.new_email_token_hash.as_str() != new_token_hash
     {
         return Err(LogicError::bad_request("token mismatch"));
     }
 
-    let old_email_hash = entry.old_email_hash;
-    let new_email_hash = entry.new_email_hash;
+    let old_email_hash = entry.old_email_address_hash.as_str();
+    let new_email_hash = entry.new_email_address_hash.as_str();
     if let Some(existing_user_id) =
-        read_user_by_email_address_hash(&state.database, &new_email_hash).await?
+        read_user_by_email_address_hash(&state.database, new_email_hash).await?
         && existing_user_id != user_id
     {
         return Err(LogicError::bad_request(
@@ -209,7 +214,7 @@ pub async fn update_user_email(
         ));
     }
 
-    write_user_email(&state.database, user_id, &old_email_hash, &new_email_hash)
+    write_user_email(&state.database, user_id, old_email_hash, new_email_hash)
         .await
         .map_err(|error| match error {
             UserWriteError::AlreadyTaken => {
@@ -224,16 +229,16 @@ pub async fn update_user_email(
             }
         })?;
 
-    state.cache.email_update.consume_if(user_id, |current| {
-        current.token_hash_from_old_email == old_token_hash
-            && current.token_hash_from_new_email == new_token_hash
+    state.cache.email_update.delete_if(user_id, |current| {
+        current.old_email_token_hash.as_str() == old_token_hash
+            && current.new_email_token_hash.as_str() == new_token_hash
     });
     state.cache.session.delete_by_reverse_key(user_id);
     state
         .cache
-        .create_user
-        .delete_by_reverse_key(&old_email_hash);
-    state.cache.delete_user.delete_by_reverse_key(user_id);
+        .user_creation
+        .delete_by_reverse_key(old_email_hash);
+    state.cache.user_deletion.delete_by_reverse_key(user_id);
 
     let new_session_token = create_session(state, user_id)?;
     Ok(new_session_token)
@@ -258,11 +263,13 @@ pub async fn send_delete_user_email(
     let email_id = send_confirmation_email(state, &email, &token).await?;
 
     let key = hash_canonical_token(&token)?;
-    state.cache.delete_user.insert(
+    state.cache.user_deletion.insert(
         &key,
-        DeleteUserTokenEntry {
-            user_id: user_id.to_string(),
-            email_address_hash: user_entry.email_address_hash,
+        UserIdAndEmailAddressHash {
+            user_id: UserId::new(user_id.to_string())
+                .map_err(|error| LogicError::internal(format!("invalid user id: {error}")))?,
+            email_address_hash: Hash::new(user_entry.email_address_hash)
+                .map_err(|error| LogicError::internal(format!("invalid email hash: {error}")))?,
         },
     );
     Ok(email_id)

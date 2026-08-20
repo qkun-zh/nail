@@ -1,9 +1,10 @@
 use crate::logic::user::{UserDeleteView, UserUpdateView};
+use cache::UserId;
 use nail_common::request::{UserDeleteQuery, UserUpdateRequest};
 
 use super::context::TestCtx;
 use crate::logic::error::LogicError;
-use crate::repository::cache::{SessionTokenEntry, token_key};
+use crate::logic::session::cache_key;
 
 async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
@@ -13,13 +14,12 @@ async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     .await
     .expect("user");
     let token = uuid::Uuid::now_v7().to_string();
-    let key = token_key(&token).expect("token key");
-    context.state.cache.session.insert(
-        &key,
-        SessionTokenEntry {
-            user_id: user_id.clone(),
-        },
-    );
+    let key = cache_key(&token).expect("cache key");
+    context
+        .state
+        .cache
+        .session
+        .insert(&key, UserId::new(user_id.clone()).expect("user id"));
     (user_id, token)
 }
 

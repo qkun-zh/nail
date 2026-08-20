@@ -13,7 +13,7 @@ async fn create_challenge_returns_the_configured_difficulty_and_stores_the_chall
             .state
             .cache
             .challenge
-            .consume(&challenge.id.to_string())
+            .delete(&challenge.id.to_string())
             .is_some()
     );
 }
@@ -30,7 +30,7 @@ async fn create_challenge_is_single_use() {
             .state
             .cache
             .challenge
-            .consume(&challenge.id.to_string())
+            .delete(&challenge.id.to_string())
             .is_some()
     );
     assert!(
@@ -38,7 +38,7 @@ async fn create_challenge_is_single_use() {
             .state
             .cache
             .challenge
-            .consume(&challenge.id.to_string())
+            .delete(&challenge.id.to_string())
             .is_none()
     );
 }

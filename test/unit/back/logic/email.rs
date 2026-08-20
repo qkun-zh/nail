@@ -1,3 +1,4 @@
+use cache::{Hash, OldAndNewEmailAddressAndTokenHashes, UserId};
 use nail_common::request::{CreateTokenRequest, TokenPurpose};
 
 use super::context::TestCtx;
@@ -6,7 +7,7 @@ use crate::logic::email::{
     update_user_email, validate_email,
 };
 use crate::logic::error::LogicError;
-use crate::repository::cache::{SessionTokenEntry, token_key};
+use crate::logic::session::cache_key;
 
 #[test]
 fn normalize_email_trims_and_lowercases() {
@@ -42,13 +43,12 @@ async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     .await
     .expect("user");
     let token = uuid::Uuid::now_v7().to_string();
-    let key = token_key(&token).expect("token key");
-    context.state.cache.session.insert(
-        &key,
-        SessionTokenEntry {
-            user_id: user_id.clone(),
-        },
-    );
+    let key = cache_key(&token).expect("cache key");
+    context
+        .state
+        .cache
+        .session
+        .insert(&key, UserId::new(user_id.clone()).expect("user id"));
     (user_id, token)
 }
 
@@ -75,8 +75,8 @@ async fn create_user_token_sends_and_caches_a_token() {
     let (to, message_subject, body) = &messages[0];
     assert_eq!(to, "alice@example.com");
     assert_eq!(message_subject, &subject);
-    let token_key = token_key(body).expect("token key");
-    assert!(context.state.cache.create_user.read(&token_key).is_some());
+    let key = cache_key(body).expect("cache key");
+    assert!(context.state.cache.user_creation.read(&key).is_some());
 }
 
 #[tokio::test]
@@ -162,8 +162,8 @@ async fn change_email_sends_two_emails_and_caches_the_token_hashes() {
         nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed");
     let new_hash =
         nail_common::hash::hash("alice-new@example.com".as_bytes()).expect("hash must succeed");
-    assert_eq!(entry.old_email_hash, old_hash);
-    assert_eq!(entry.new_email_hash, new_hash);
+    assert_eq!(entry.old_email_address_hash.as_str(), old_hash);
+    assert_eq!(entry.new_email_address_hash.as_str(), new_hash);
 }
 
 #[tokio::test]
@@ -212,13 +212,20 @@ async fn update_user_email_updates_email_and_returns_a_new_session() {
     let new_token = uuid::Uuid::now_v7().to_string();
     context.state.cache.email_update.insert(
         &user_id,
-        crate::repository::cache::EmailUpdateTokenEntry {
-            old_email_hash: nail_common::hash::hash("alice@example.com".as_bytes())
-                .expect("hash must succeed"),
-            new_email_hash: nail_common::hash::hash("alice-new@example.com".as_bytes())
-                .expect("hash must succeed"),
-            token_hash_from_old_email: token_key(&old_token).expect("old hash"),
-            token_hash_from_new_email: token_key(&new_token).expect("new hash"),
+        OldAndNewEmailAddressAndTokenHashes {
+            old_email_address_hash: Hash::new(
+                nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
+            )
+            .expect("hash"),
+            new_email_address_hash: Hash::new(
+                nail_common::hash::hash("alice-new@example.com".as_bytes())
+                    .expect("hash must succeed"),
+            )
+            .expect("hash"),
+            old_email_token_hash: Hash::new(cache_key(&old_token).expect("old hash"))
+                .expect("hash"),
+            new_email_token_hash: Hash::new(cache_key(&new_token).expect("new hash"))
+                .expect("hash"),
         },
     );
 
@@ -295,13 +302,18 @@ async fn update_user_email_rejects_same_old_and_new_token() {
     let other_token = uuid::Uuid::now_v7().to_string();
     context.state.cache.email_update.insert(
         &user_id,
-        crate::repository::cache::EmailUpdateTokenEntry {
-            old_email_hash: nail_common::hash::hash("alice@example.com".as_bytes())
-                .expect("hash must succeed"),
-            new_email_hash: nail_common::hash::hash("alice-new@example.com".as_bytes())
-                .expect("hash must succeed"),
-            token_hash_from_old_email: token_key(&same_token).expect("hash"),
-            token_hash_from_new_email: token_key(&other_token).expect("hash"),
+        OldAndNewEmailAddressAndTokenHashes {
+            old_email_address_hash: Hash::new(
+                nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
+            )
+            .expect("hash"),
+            new_email_address_hash: Hash::new(
+                nail_common::hash::hash("alice-new@example.com".as_bytes())
+                    .expect("hash must succeed"),
+            )
+            .expect("hash"),
+            old_email_token_hash: Hash::new(cache_key(&same_token).expect("hash")).expect("hash"),
+            new_email_token_hash: Hash::new(cache_key(&other_token).expect("hash")).expect("hash"),
         },
     );
     let error = update_user_email(&context.state, &user_id, &same_token, &same_token)
@@ -322,13 +334,18 @@ async fn update_user_email_rejects_token_mismatch() {
     let wrong_token = uuid::Uuid::now_v7().to_string();
     context.state.cache.email_update.insert(
         &user_id,
-        crate::repository::cache::EmailUpdateTokenEntry {
-            old_email_hash: nail_common::hash::hash("alice@example.com".as_bytes())
-                .expect("hash must succeed"),
-            new_email_hash: nail_common::hash::hash("alice-new@example.com".as_bytes())
-                .expect("hash must succeed"),
-            token_hash_from_old_email: token_key(&old_token).expect("hash"),
-            token_hash_from_new_email: token_key(&new_token).expect("hash"),
+        OldAndNewEmailAddressAndTokenHashes {
+            old_email_address_hash: Hash::new(
+                nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
+            )
+            .expect("hash"),
+            new_email_address_hash: Hash::new(
+                nail_common::hash::hash("alice-new@example.com".as_bytes())
+                    .expect("hash must succeed"),
+            )
+            .expect("hash"),
+            old_email_token_hash: Hash::new(cache_key(&old_token).expect("hash")).expect("hash"),
+            new_email_token_hash: Hash::new(cache_key(&new_token).expect("hash")).expect("hash"),
         },
     );
     let error = update_user_email(&context.state, &user_id, &old_token, &wrong_token)

@@ -2,8 +2,10 @@ use axum::http::StatusCode;
 use serde_json::json;
 use uuid::Uuid;
 
+use cache::UserId;
+
 use super::context::TestCtx;
-use crate::repository::cache::{SessionTokenEntry, token_key};
+use crate::logic::session::cache_key;
 
 #[tokio::test]
 async fn session_lifecycle_over_http() {
@@ -121,12 +123,10 @@ async fn token_create_requires_an_email() {
 
 fn insert_session(context: &TestCtx) -> String {
     let token = Uuid::now_v7().to_string();
-    let key = token_key(&token).expect("token key");
+    let key = cache_key(&token).expect("cache key");
     context.state.cache.session.insert(
         &key,
-        SessionTokenEntry {
-            user_id: Uuid::now_v7().to_string(),
-        },
+        UserId::new(Uuid::now_v7().to_string()).expect("user id"),
     );
     token
 }

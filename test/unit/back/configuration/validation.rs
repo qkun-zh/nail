@@ -34,11 +34,13 @@ fn server_config_rejects_an_invalid_difficulty() {
 
 #[test]
 fn server_config_rejects_zero_ttls_and_capacity() {
-    assert_invalid_server(|server| server.token_ttl_seconds = 0);
+    assert_invalid_server(|server| server.user_creation_ttl_seconds = 0);
     assert_invalid_server(|server| server.session_ttl_seconds = 0);
+    assert_invalid_server(|server| server.email_update_ttl_seconds = 0);
+    assert_invalid_server(|server| server.user_deletion_ttl_seconds = 0);
     assert_invalid_server(|server| server.challenge_ttl_seconds = 0);
-    assert_invalid_server(|server| server.download_token_ttl_seconds = 0);
-    assert_invalid_server(|server| server.token_cache_capacity = 0);
+    assert_invalid_server(|server| server.download_ttl_seconds = 0);
+    assert_invalid_server(|server| server.cache_capacity = 0);
     assert_invalid_server(|server| server.email_cooldown_seconds = 0);
 }
 
@@ -146,11 +148,13 @@ db_path = "memory"
 search_index_path = "/tmp/search"
 pdf_storage_path = "/tmp/pdf"
 pow_difficulty_iterations = 8192
-token_ttl_seconds = 8000
+user_creation_ttl_seconds = 8000
 session_ttl_seconds = 8000
+email_update_ttl_seconds = 8000
+user_deletion_ttl_seconds = 8000
 challenge_ttl_seconds = 300
-download_token_ttl_seconds = 60
-token_cache_capacity = 100000
+download_ttl_seconds = 60
+cache_capacity = 100000
 email_cooldown_seconds = 60
 user_zero_email = "admin@example.com"
 max_pdf_size_bytes = 33554432

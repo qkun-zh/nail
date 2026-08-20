@@ -16,9 +16,6 @@ pub mod infrastructure_cedar_probe;
 #[path = "infrastructure/probe_002_orthogonal_action_resource.rs"]
 pub mod infrastructure_probe_002;
 
-#[path = "repository/cache.rs"]
-pub mod repository_cache;
-
 #[path = "repository/user.rs"]
 pub mod repository_user;
 

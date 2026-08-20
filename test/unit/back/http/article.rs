@@ -2,8 +2,10 @@ use axum::http::StatusCode;
 use serde_json::json;
 use uuid::Uuid;
 
+use cache::UserId;
+
 use super::context::{TestCtx, test_config, unique_pdf, valid_pdf};
-use crate::repository::cache::{SessionTokenEntry, token_key};
+use crate::logic::session::cache_key;
 use crate::repository::role::{ROLE_MEMBER, hold_role};
 
 const TEST_TAGS: &[&str] = &["rust", "backend", "frontend", "devops", "web", "go", "cpp"];
@@ -16,13 +18,12 @@ async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     .await
     .expect("user");
     let token = Uuid::now_v7().to_string();
-    let key = token_key(&token).expect("token key");
-    context.state.cache.session.insert(
-        &key,
-        SessionTokenEntry {
-            user_id: user_id.clone(),
-        },
-    );
+    let key = cache_key(&token).expect("cache key");
+    context
+        .state
+        .cache
+        .session
+        .insert(&key, UserId::new(user_id.clone()).expect("user id"));
     (user_id, token)
 }
 

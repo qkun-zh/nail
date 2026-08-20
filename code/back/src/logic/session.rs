@@ -1,9 +1,9 @@
+use cache::UserId;
 use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{EntityRef, authorize_entity};
 use crate::logic::error::LogicError;
-use crate::repository::cache::SessionTokenEntry;
 
 pub fn normalize_token(raw: &str) -> Option<String> {
     let cleaned: String = raw
@@ -13,9 +13,13 @@ pub fn normalize_token(raw: &str) -> Option<String> {
     Uuid::parse_str(&cleaned).ok().map(|uuid| uuid.to_string())
 }
 
-pub fn hash_canonical_token(token: &str) -> Result<String, LogicError> {
-    crate::repository::cache::token_key(token)
+pub fn cache_key(token: &str) -> Result<String, LogicError> {
+    nail_common::hash::hash(token.as_bytes())
         .map_err(|error| LogicError::internal(format!("failed to hash token: {error}")))
+}
+
+pub fn hash_canonical_token(token: &str) -> Result<String, LogicError> {
+    cache_key(token)
 }
 
 pub fn hash_token(raw: &str, invalid: LogicError) -> Result<String, LogicError> {
@@ -29,19 +33,16 @@ pub fn read_session(state: &AppState, raw_token: &str) -> Result<String, LogicEr
         .cache
         .session
         .read(&key)
-        .map(|entry| entry.user_id)
+        .map(|entry| entry.as_str().to_string())
         .ok_or_else(|| LogicError::unauthorized("invalid session"))
 }
 
 pub fn create_session(state: &AppState, user_id: &str) -> Result<String, LogicError> {
     let session_token = Uuid::now_v7().to_string();
-    let session_key = hash_canonical_token(&session_token)?;
-    state.cache.session.insert(
-        &session_key,
-        SessionTokenEntry {
-            user_id: user_id.to_string(),
-        },
-    );
+    let session_key = cache_key(&session_token)?;
+    let user_id = UserId::new(user_id.to_string())
+        .map_err(|error| LogicError::internal(format!("invalid user id: {error}")))?;
+    state.cache.session.insert(&session_key, user_id);
     Ok(session_token)
 }
 

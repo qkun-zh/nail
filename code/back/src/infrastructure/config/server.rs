@@ -7,11 +7,13 @@ pub struct ServerConfig {
     pub search_index_path: String,
     pub pdf_storage_path: String,
     pub pow_difficulty_iterations: u64,
-    pub token_ttl_seconds: u64,
+    pub user_creation_ttl_seconds: u64,
     pub session_ttl_seconds: u64,
+    pub email_update_ttl_seconds: u64,
+    pub user_deletion_ttl_seconds: u64,
     pub challenge_ttl_seconds: u64,
-    pub download_token_ttl_seconds: u64,
-    pub token_cache_capacity: u64,
+    pub download_ttl_seconds: u64,
+    pub cache_capacity: u64,
     pub email_cooldown_seconds: u64,
     pub user_zero_email: String,
     pub max_pdf_size_bytes: u64,
@@ -53,14 +55,13 @@ impl ServerConfig {
             bail!("config: pow_difficulty_iterations must be in 1..=10_000");
         }
         for (name, value) in [
-            ("token_ttl_seconds", self.token_ttl_seconds),
+            ("user_creation_ttl_seconds", self.user_creation_ttl_seconds),
             ("session_ttl_seconds", self.session_ttl_seconds),
+            ("email_update_ttl_seconds", self.email_update_ttl_seconds),
+            ("user_deletion_ttl_seconds", self.user_deletion_ttl_seconds),
             ("challenge_ttl_seconds", self.challenge_ttl_seconds),
-            (
-                "download_token_ttl_seconds",
-                self.download_token_ttl_seconds,
-            ),
-            ("token_cache_capacity", self.token_cache_capacity),
+            ("download_ttl_seconds", self.download_ttl_seconds),
+            ("cache_capacity", self.cache_capacity),
             ("email_cooldown_seconds", self.email_cooldown_seconds),
         ] {
             if value == 0 {

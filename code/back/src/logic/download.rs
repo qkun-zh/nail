@@ -1,11 +1,12 @@
 use std::path::PathBuf;
 
+use cache::{UserId, VersionId, VersionIdAndUserId};
+
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{EntityRef, authorize_entity_or, require_entity_visible};
 use crate::logic::error::LogicError;
-use crate::logic::session::{hash_canonical_token, hash_token};
+use crate::logic::session::{cache_key, hash_token};
 use crate::logic::version::pdf_final_path;
-use crate::repository::cache::DownloadTokenEntry;
 use crate::repository::role::PERMISSION_VERSION_READ;
 use crate::repository::version::{parent_article_of, read_version};
 
@@ -45,12 +46,16 @@ pub async fn mint_download_token(
     resolve_version_pdf_path(state, actor_id, article_id, version_id).await?;
 
     let token = uuid::Uuid::now_v7().to_string();
-    let key = hash_canonical_token(&token)?;
+    let key = cache_key(&token)?;
+    let version_id = VersionId::new(version_id.to_string())
+        .map_err(|error| LogicError::internal(format!("invalid version id: {error}")))?;
+    let user_id = UserId::new(actor_id.to_string())
+        .map_err(|error| LogicError::internal(format!("invalid user id: {error}")))?;
     state.cache.download.insert(
         &key,
-        DownloadTokenEntry {
-            version_id: version_id.to_string(),
-            user_id: actor_id.to_string(),
+        VersionIdAndUserId {
+            version_id,
+            user_id,
         },
     );
     Ok(format!(
@@ -74,18 +79,18 @@ pub async fn consume_download_token(
         .download
         .read(&key)
         .ok_or_else(|| LogicError::bad_request("invalid or expired download token"))?;
-    if entry.user_id != actor_id {
+    if entry.user_id.as_str() != actor_id {
         return Err(LogicError::bad_request(
             "download token is bound to another account",
         ));
     }
-    if entry.version_id != version_id {
+    if entry.version_id.as_str() != version_id {
         return Err(LogicError::not_found("version not found"));
     }
     let consumed = state
         .cache
         .download
-        .consume_if(&key, |entry| entry.user_id == actor_id);
+        .delete_if(&key, |entry| entry.user_id.as_str() == actor_id);
     let Some(_consumed) = consumed else {
         return Err(LogicError::bad_request("invalid or expired download token"));
     };

@@ -1,7 +1,8 @@
+use cache::UserId;
+
 use super::context::TestCtx;
 use crate::logic::error::LogicError;
-use crate::logic::session::{create_session, normalize_token, read_session};
-use crate::repository::cache::{SessionTokenEntry, token_key};
+use crate::logic::session::{cache_key, create_session, normalize_token, read_session};
 
 #[test]
 fn normalize_token_strips_whitespace_and_requires_a_uuid() {
@@ -15,10 +16,10 @@ fn normalize_token_strips_whitespace_and_requires_a_uuid() {
 }
 
 #[test]
-fn hash_canonical_token_matches_the_repository_token_key() {
+fn hash_canonical_token_matches_cache_key() {
     let token = uuid::Uuid::now_v7().to_string();
     let via_logic = crate::logic::session::hash_canonical_token(&token).expect("hash");
-    assert_eq!(via_logic, token_key(&token).expect("token key"));
+    assert_eq!(via_logic, cache_key(&token).expect("cache key"));
 }
 
 #[test]
@@ -29,7 +30,7 @@ fn hash_token_normalizes_then_hashes() {
         LogicError::bad_request("invalid"),
     )
     .expect("hash");
-    assert_eq!(key, token_key(&token).expect("token key"));
+    assert_eq!(key, cache_key(&token).expect("cache key"));
 }
 
 #[test]
@@ -53,17 +54,17 @@ fn hash_token_rejects_an_empty_payload_with_the_given_error() {
 #[tokio::test]
 async fn read_session_returns_the_user_id_for_a_known_token() {
     let context = TestCtx::new().await.expect("test context");
+    let user_id = uuid::Uuid::now_v7().to_string();
     let token = uuid::Uuid::now_v7().to_string();
-    let key = token_key(&token).expect("token key");
-    context.state.cache.session.insert(
-        &key,
-        SessionTokenEntry {
-            user_id: "user-123".to_string(),
-        },
-    );
+    let key = cache_key(&token).expect("cache key");
+    context
+        .state
+        .cache
+        .session
+        .insert(&key, UserId::new(user_id.clone()).expect("user id"));
     assert_eq!(
         read_session(&context.state, &token).expect("session"),
-        "user-123"
+        user_id
     );
 }
 
@@ -84,22 +85,21 @@ async fn read_session_rejects_garbage_and_unknown_tokens() {
 #[tokio::test]
 async fn create_session_stores_a_token_for_the_user() {
     let context = TestCtx::new().await.expect("test context");
-    let session_token = create_session(&context.state, "user-123").expect("create");
-    let key = token_key(&session_token).expect("token key");
+    let user_id = uuid::Uuid::now_v7().to_string();
+    let session_token = create_session(&context.state, &user_id).expect("create");
+    let key = cache_key(&session_token).expect("cache key");
     let entry = context.state.cache.session.read(&key).expect("entry");
-    assert_eq!(entry.user_id, "user-123");
+    assert_eq!(entry.as_str(), user_id);
 }
 
 #[tokio::test]
 async fn delete_session_removes_the_session_token() {
     let context = TestCtx::new().await.expect("test context");
     let token = uuid::Uuid::now_v7().to_string();
-    let key = token_key(&token).expect("token key");
+    let key = cache_key(&token).expect("cache key");
     context.state.cache.session.insert(
         &key,
-        SessionTokenEntry {
-            user_id: "user-123".to_string(),
-        },
+        UserId::new(uuid::Uuid::now_v7().to_string()).expect("user id"),
     );
 
     crate::logic::session::delete_session(&context.state, &token).expect("delete");
@@ -122,13 +122,12 @@ async fn read_user_name_returns_the_account_name() {
         .await
         .expect("create user");
     let token = uuid::Uuid::now_v7().to_string();
-    let key = token_key(&token).expect("token key");
-    context.state.cache.session.insert(
-        &key,
-        SessionTokenEntry {
-            user_id: user_id.clone(),
-        },
-    );
+    let key = cache_key(&token).expect("cache key");
+    context
+        .state
+        .cache
+        .session
+        .insert(&key, UserId::new(user_id.clone()).expect("user id"));
 
     let name = crate::logic::session::read_user_name(&context.state, &token)
         .await

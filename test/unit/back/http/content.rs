@@ -1,9 +1,11 @@
 use axum::http::StatusCode;
 use uuid::Uuid;
 
+use cache::UserId;
+
 use super::context::{TestCtx, valid_pdf};
+use crate::logic::session::cache_key;
 use crate::repository::article::{ArticleDraft, create_article};
-use crate::repository::cache::{SessionTokenEntry, token_key};
 use crate::repository::role::{ROLE_MEMBER, hold_role};
 use crate::repository::version::VersionDraft;
 
@@ -21,13 +23,12 @@ async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
         .await
         .expect("member role");
     let token = Uuid::now_v7().to_string();
-    let key = token_key(&token).expect("token key");
-    context.state.cache.session.insert(
-        &key,
-        SessionTokenEntry {
-            user_id: user_id.clone(),
-        },
-    );
+    let key = cache_key(&token).expect("cache key");
+    context
+        .state
+        .cache
+        .session
+        .insert(&key, UserId::new(user_id.clone()).expect("user id"));
     (user_id, token)
 }
 
@@ -39,13 +40,12 @@ async fn plain_session(context: &TestCtx, email: &str) -> (String, String) {
     .await
     .expect("user");
     let token = Uuid::now_v7().to_string();
-    let key = token_key(&token).expect("token key");
-    context.state.cache.session.insert(
-        &key,
-        SessionTokenEntry {
-            user_id: user_id.clone(),
-        },
-    );
+    let key = cache_key(&token).expect("cache key");
+    context
+        .state
+        .cache
+        .session
+        .insert(&key, UserId::new(user_id.clone()).expect("user id"));
     (user_id, token)
 }
 

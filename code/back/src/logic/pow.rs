@@ -5,7 +5,7 @@ use crate::logic::error::LogicError;
 
 pub fn verify_issued_pow(state: &AppState, pow: &Pow) -> Result<(), LogicError> {
     let challenge_id = pow.challenge.id.to_string();
-    if state.cache.challenge.consume(&challenge_id).is_none() {
+    if state.cache.challenge.delete(&challenge_id).is_none() {
         tracing::warn!(
             challenge_id = %challenge_id,
             "challenge not issued, expired, or already used"

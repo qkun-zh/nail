@@ -1,6 +1,5 @@
 pub mod article;
 pub mod authorization;
-pub mod cache;
 pub mod comment;
 pub mod delete;
 pub mod graph;

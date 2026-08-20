@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use crate::infrastructure::authorizer::Authorizer;
 use crate::infrastructure::config::AppConfig;
-use crate::repository::cache::TokenCaches;
 use crate::repository::graph::DbHandle;
 use crate::repository::search::SearchIndex;
 
@@ -11,7 +10,7 @@ pub struct AppState {
     pub authorizer: Authorizer,
     pub database: DbHandle,
     pub searcher: SearchIndex,
-    pub cache: TokenCaches,
+    pub cache: cache::Caches,
     pub configurator: Configurator,
     pub emailer: emailer::Emailer,
 }
@@ -37,7 +36,7 @@ impl Configurator {
     }
 
     pub fn download_token_ttl_seconds(&self) -> u64 {
-        self.0.server.download_token_ttl_seconds
+        self.0.server.download_ttl_seconds
     }
 
     pub fn max_pdf_size_bytes(&self) -> u64 {
