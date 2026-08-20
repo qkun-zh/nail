@@ -134,7 +134,7 @@ fn delete_user_cache_supports_reverse_deletion_by_user() {
 #[test]
 fn token_key_is_the_ascon_hash_of_the_token() {
     let key = token_key("token").expect("token key");
-    assert_eq!(key.len(), 64);
+    assert_eq!(key.len(), 32);
     assert_ne!(key, "token");
     assert_eq!(key, token_key("token").expect("token key"));
 }
