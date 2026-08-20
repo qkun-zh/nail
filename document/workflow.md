@@ -14,9 +14,9 @@ execute(R):
   5  exec_doc(R, plan)       # single source of truth — §Exec doc
   6  research(plan)          # source + probe double evidence — §Evidence
   7  gate adoption           # evidence consistent + user approves — §Gate
-  8  for slice in plan: red → green → gate → commit
+  8  for slice in plan: red → green → gate → commit → push → CI green
   9  handoff                 # record state, report
- 10  final gate              # full build + all tests + clippy + fmt; never red
+ 10  final gate              # CI green: tests + clippy + fmt; never red
 ```
 
 ---
@@ -124,16 +124,22 @@ Per slice:
 ```
 red:   write test → cargo test → must fail
 green: implement → cargo test → must pass
-gate:  cargo fmt --check && cargo clippy -D warnings && cargo test → all pass
-commit: one commit per slice, clean tree; amend/push/force need explicit approval
+gate:  fmt --check && clippy -D warnings → clean
+commit: one commit per slice, clean tree
+push:  git push origin main → CI runs all tests (see document/run.md)
+       confirm with document/ci-watch.sh; failing CI job = failed gate
 ```
+
+The test gate is the CI run, not the local machine — see `document/run.md`
+(Testing (CI-first)) for commands and the push/CI-check procedure. Local
+`cargo test` is a smoke pass only.
 
 Gate fails → debug, fix, re-gate. Never skip gate.
 
-**Resource contention** — before any `cargo` build/test (here, §9, or probe
-tests), check machine load (`uptime` / `ps -eo pcpu` / `mpstat`). Heavily
-loaded → back off, poll periodically. Never build on busy machine; shared tree
-means unreliable results or disrupted runs.
+**Resource contention** — prefer CI over local builds; before any local
+`cargo` build/test (here, §9, or probe tests), check machine load (`uptime` /
+`ps -eo pcpu` / `mpstat`). Heavily loaded → back off, poll periodically. Never
+build on busy machine; shared tree means unreliable results or disrupted runs.
 
 ## §9 Handoff
 
@@ -154,8 +160,10 @@ Report to user.
 
 ## §10 Final gate
 
-Full build + all tests + clippy (0 warnings) + fmt. Must reproduce green.
-Never report red. Gate fails → back to §8.
+Full build + all tests + clippy (0 warnings) + fmt, as gated by CI: push
+`main` and confirm `document/ci-watch.sh` reports success (see
+`document/run.md`). Must reproduce green. Never report red. Gate fails → back
+to §8.
 
 ---
 

@@ -15,20 +15,20 @@ official builds only.
 3. Proxy — `PROXY -c CFG`
    Background: `setsid nohup PROXY -c CFG > /home/qkun/nail/log/proxy/run.log 2>&1 < /dev/null &`
 
-## Test
+## Testing (CI-first)
 
-**CI-first**: commit, then `git push` to `main`; `.github/workflows/ci.yml`
-runs fmt, clippy, tests (pow, common, back, front), wasm build and audit on
-GitHub runners. CI is the gate — do not rely on local tests.
+**The gate is GitHub Actions, not the local machine.** Per commit:
 
-Check the run result after pushing:
+1. `git commit` (one commit per slice — see workflow §8)
+2. `git push origin main` — pushes all local commits and triggers CI
+   (`.github/workflows/ci.yml`): fmt, clippy, tests (pow, common, back,
+   front host), wasm build, security audit.
+3. `document/ci-watch.sh` — poll until the run completes; prints
+   success/failure and the failing job names. `document/ci-watch.sh --once`
+   checks once and exits (useful after a manual check).
 
-```
-document/ci-watch.sh
-```
-
-Polls the latest workflow run for the current branch until it completes, then
-prints success/failure and the failing job names.
+Push succeeded when `git push` exits 0; afterwards
+`git log origin/main..HEAD` must be empty (local == remote).
 
 Local tests remain available for a quick smoke pass, one crate per invocation
 (parallel crate builds exhaust RAM):
@@ -38,6 +38,11 @@ Local tests remain available for a quick smoke pass, one crate per invocation
   Frontend: `-p nail_front` (host tests); pow: `cargo test -j 1 -p pow --all-targets`
 
 Mandatory `-j 1`; do not omit it; do not combine crates in one command.
+
+**Resource contention**: prefer CI over local builds. Before any local
+`cargo` build/test, check machine load (`uptime` / `ps -eo pcpu`). Heavily
+loaded → back off, poll periodically. Never build on a busy machine; a shared
+tree means unreliable results or disrupted runs.
 
 ## Health checks
 
