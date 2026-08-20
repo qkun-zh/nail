@@ -6,12 +6,12 @@ use crate::repository::version::VersionDraft;
 
 async fn member(context: &TestCtx, email: &str) -> String {
     let user_id = crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email(email),
     )
     .await
     .expect("user");
-    hold_role(&context.state.graph, &user_id, ROLE_MEMBER)
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
         .await
         .expect("member role");
     user_id
@@ -19,7 +19,7 @@ async fn member(context: &TestCtx, email: &str) -> String {
 
 async fn admin(context: &TestCtx) -> String {
     crate::repository::user::read_user_by_email_address_hash(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email("user-zero@example.com"),
     )
     .await
@@ -28,7 +28,7 @@ async fn admin(context: &TestCtx) -> String {
 }
 
 async fn plain(context: &TestCtx, email: &str) -> String {
-    crate::repository::user::create_user(&context.state.graph, &nail_common::hash::email(email))
+    crate::repository::user::create_user(&context.state.database, &nail_common::hash::email(email))
         .await
         .expect("user")
 }
@@ -37,7 +37,7 @@ async fn article_fixture(context: &TestCtx, author_id: &str, title: &str) -> (St
     let article_id = uuid::Uuid::now_v7().to_string();
     let version_id = uuid::Uuid::now_v7().to_string();
     create_article(
-        &context.state.graph,
+        &context.state.database,
         &ArticleDraft {
             article_id: article_id.clone(),
             author_id: author_id.to_string(),
@@ -112,7 +112,7 @@ async fn create_version_writes_a_new_version() {
     .await
     .expect("create version");
 
-    let entry = crate::repository::version::read_version(&context.state.graph, &version_id)
+    let entry = crate::repository::version::read_version(&context.state.database, &version_id)
         .await
         .expect("read")
         .expect("entry");
@@ -179,7 +179,7 @@ async fn delete_version_hard_removes_the_version_as_admin() {
     .expect("delete");
     assert_eq!(data.version_id, version_id);
     assert!(
-        crate::repository::version::read_version(&context.state.graph, &version_id)
+        crate::repository::version::read_version(&context.state.database, &version_id)
             .await
             .expect("read")
             .is_none()
@@ -255,7 +255,7 @@ async fn delete_version_soft_hides_the_version_as_admin() {
         "soft-deleted version visible to the admin via Undelete::Soft"
     );
     let (versions, _) =
-        crate::repository::version::versions_of(&context.state.graph, &article_id, 10, 0)
+        crate::repository::version::versions_of(&context.state.database, &article_id, 10, 0)
             .await
             .expect("versions");
     assert_eq!(
@@ -278,7 +278,7 @@ async fn delete_version_soft_hides_only_the_target_version() {
             content_hash: nail_common::hash::pdf(&unique_pdf("second")),
             note: "note".to_string(),
         };
-        crate::repository::version::create_version(&context.state.graph, &article_id, &draft)
+        crate::repository::version::create_version(&context.state.database, &article_id, &draft)
             .await
             .expect("second version");
         draft.version_id
@@ -294,13 +294,13 @@ async fn delete_version_soft_hides_only_the_target_version() {
     .expect("soft delete first");
 
     assert!(
-        crate::repository::version::read_version(&context.state.graph, &second_id)
+        crate::repository::version::read_version(&context.state.database, &second_id)
             .await
             .expect("read")
             .is_some(),
         "sibling version stays live"
     );
-    let latest = crate::repository::article::read_article(&context.state.graph, &article_id)
+    let latest = crate::repository::article::read_article(&context.state.database, &article_id)
         .await
         .expect("read")
         .expect("article")
@@ -352,7 +352,7 @@ async fn delete_version_soft_is_forbidden_for_a_stranger_member() {
     .expect_err("stranger cannot soft delete a version");
     assert!(matches!(error, LogicError::Forbidden(_)));
     assert!(
-        crate::repository::version::read_version(&context.state.graph, &version_id)
+        crate::repository::version::read_version(&context.state.database, &version_id)
             .await
             .expect("read")
             .is_some(),
@@ -447,7 +447,7 @@ async fn undelete_soft_version_revives_the_version_as_admin() {
     assert_eq!(data.version_id, version_id);
 
     assert!(
-        crate::repository::version::read_version(&context.state.graph, &version_id)
+        crate::repository::version::read_version(&context.state.database, &version_id)
             .await
             .expect("read")
             .is_some(),

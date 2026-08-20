@@ -24,7 +24,7 @@ async fn app_paged_defaults_to_page_one_and_the_search_page_size() {
     let (page, limit) = extract("/read", &context).await.expect("extract");
     assert_eq!(
         (page, limit),
-        (1, context.state.config.server.search_page_size)
+        (1, context.state.configurator.search_page_size())
     );
 }
 
@@ -57,7 +57,7 @@ async fn app_paged_clamps_page_zero_to_one() {
     let (page, limit) = extract("/read?page=0", &context).await.expect("extract");
     assert_eq!(
         (page, limit),
-        (1, context.state.config.server.search_page_size)
+        (1, context.state.configurator.search_page_size())
     );
 }
 

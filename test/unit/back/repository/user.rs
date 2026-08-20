@@ -9,15 +9,15 @@ use crate::repository::user::{
 async fn create_user_is_idempotent_on_email_hash() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let hash = nail_common::hash::email("alice@example.com");
-    let first = create_user(&state.graph, &hash).await.expect("first");
-    let second = create_user(&state.graph, &hash).await.expect("second");
+    let first = create_user(&state.database, &hash).await.expect("first");
+    let second = create_user(&state.database, &hash).await.expect("second");
     assert_eq!(first, second);
 }
 
 #[tokio::test]
 async fn read_user_by_email_address_hash_returns_none_for_unknown() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let result = read_user_by_email_address_hash(&state.graph, "missing")
+    let result = read_user_by_email_address_hash(&state.database, "missing")
         .await
         .expect("lookup");
     assert_eq!(result, None);
@@ -27,8 +27,8 @@ async fn read_user_by_email_address_hash_returns_none_for_unknown() {
 async fn read_user_returns_the_email_hash_and_default_name() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let hash = nail_common::hash::email("alice@example.com");
-    let user_id = create_user(&state.graph, &hash).await.expect("user");
-    let entry = read_user(&state.graph, &user_id)
+    let user_id = create_user(&state.database, &hash).await.expect("user");
+    let entry = read_user(&state.database, &user_id)
         .await
         .expect("read")
         .expect("entry");
@@ -39,7 +39,7 @@ async fn read_user_returns_the_email_hash_and_default_name() {
 #[tokio::test]
 async fn read_user_returns_none_for_an_unknown_id() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let entry = read_user(&state.graph, "missing").await.expect("read");
+    let entry = read_user(&state.database, "missing").await.expect("read");
     assert_eq!(entry, None);
 }
 
@@ -47,11 +47,11 @@ async fn read_user_returns_none_for_an_unknown_id() {
 async fn update_user_name_applies_the_new_name() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let hash = nail_common::hash::email("alice@example.com");
-    let user_id = create_user(&state.graph, &hash).await.expect("user");
-    update_user_name(&state.graph, &user_id, "alice")
+    let user_id = create_user(&state.database, &hash).await.expect("user");
+    update_user_name(&state.database, &user_id, "alice")
         .await
         .expect("update");
-    let entry = read_user(&state.graph, &user_id)
+    let entry = read_user(&state.database, &user_id)
         .await
         .expect("read")
         .expect("entry");
@@ -61,17 +61,17 @@ async fn update_user_name_applies_the_new_name() {
 #[tokio::test]
 async fn update_user_name_rejects_a_taken_name() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let first = create_user(&state.graph, &nail_common::hash::email("a@example.com"))
+    let first = create_user(&state.database, &nail_common::hash::email("a@example.com"))
         .await
         .expect("first");
-    let second = create_user(&state.graph, &nail_common::hash::email("b@example.com"))
+    let second = create_user(&state.database, &nail_common::hash::email("b@example.com"))
         .await
         .expect("second");
-    update_user_name(&state.graph, &first, "alice")
+    update_user_name(&state.database, &first, "alice")
         .await
         .expect("first update");
     assert!(matches!(
-        update_user_name(&state.graph, &second, "alice").await,
+        update_user_name(&state.database, &second, "alice").await,
         Err(UserWriteError::AlreadyTaken)
     ));
 }
@@ -80,7 +80,7 @@ async fn update_user_name_rejects_a_taken_name() {
 async fn update_user_name_reports_a_missing_user() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     assert!(matches!(
-        update_user_name(&state.graph, "missing", "alice").await,
+        update_user_name(&state.database, "missing", "alice").await,
         Err(UserWriteError::UserMissing)
     ));
 }
@@ -90,11 +90,11 @@ async fn update_user_email_applies_the_new_hash() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let old_hash = nail_common::hash::email("alice@example.com");
     let new_hash = nail_common::hash::email("alice-new@example.com");
-    let user_id = create_user(&state.graph, &old_hash).await.expect("user");
-    update_user_email(&state.graph, &user_id, &old_hash, &new_hash)
+    let user_id = create_user(&state.database, &old_hash).await.expect("user");
+    update_user_email(&state.database, &user_id, &old_hash, &new_hash)
         .await
         .expect("update");
-    let entry = read_user(&state.graph, &user_id)
+    let entry = read_user(&state.database, &user_id)
         .await
         .expect("read")
         .expect("entry");
@@ -104,15 +104,15 @@ async fn update_user_email_applies_the_new_hash() {
 #[tokio::test]
 async fn update_user_email_rejects_a_taken_new_hash() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let first = create_user(&state.graph, &nail_common::hash::email("a@example.com"))
+    let first = create_user(&state.database, &nail_common::hash::email("a@example.com"))
         .await
         .expect("first");
-    create_user(&state.graph, &nail_common::hash::email("b@example.com"))
+    create_user(&state.database, &nail_common::hash::email("b@example.com"))
         .await
         .expect("second");
     assert!(matches!(
         update_user_email(
-            &state.graph,
+            &state.database,
             &first,
             &nail_common::hash::email("a@example.com"),
             &nail_common::hash::email("b@example.com")
@@ -125,12 +125,12 @@ async fn update_user_email_rejects_a_taken_new_hash() {
 #[tokio::test]
 async fn update_user_email_rejects_a_mismatched_old_hash() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let user_id = create_user(&state.graph, &nail_common::hash::email("alice@example.com"))
+    let user_id = create_user(&state.database, &nail_common::hash::email("alice@example.com"))
         .await
         .expect("user");
     assert!(matches!(
         update_user_email(
-            &state.graph,
+            &state.database,
             &user_id,
             &nail_common::hash::email("someone-else@example.com"),
             &nail_common::hash::email("alice-new@example.com")

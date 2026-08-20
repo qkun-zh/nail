@@ -13,7 +13,7 @@ fn pdf_hash(seed: u8) -> String {
 
 async fn admin(context: &TestCtx) -> String {
     crate::repository::user::read_user_by_email_address_hash(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email("user-zero@example.com"),
     )
     .await
@@ -23,12 +23,12 @@ async fn admin(context: &TestCtx) -> String {
 
 async fn member(context: &TestCtx, email: &str) -> String {
     let user_id = crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email(email),
     )
     .await
     .expect("user");
-    crate::repository::role::hold_role(&context.state.graph, &user_id, ROLE_MEMBER)
+    crate::repository::role::hold_role(&context.state.database, &user_id, ROLE_MEMBER)
         .await
         .expect("member role");
     user_id
@@ -111,8 +111,8 @@ async fn probe_3_a_comment_heavy_article_exceeds_the_32_doc_per_article_assumpti
 
     let doc_count = context
         .state
-        .search
-        .sync_all(&context.state.graph)
+        .searcher
+        .sync_all(&context.state.database)
         .await
         .expect("rebuild search index");
     assert!(
@@ -129,7 +129,7 @@ async fn probe_3_a_comment_heavy_article_exceeds_the_32_doc_per_article_assumpti
 async fn probe_4_token_must_survive_a_version_mismatch_attempt() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
-        &state.graph,
+        &state.database,
         &nail_common::hash::email("alice@example.com"),
     )
     .await
@@ -154,10 +154,10 @@ async fn probe_4_token_must_survive_a_version_mismatch_attempt() {
     };
     let (article_id, version_id, draft) = make_article(1);
     let (other_article, other_version, other_draft) = make_article(2);
-    crate::repository::article::create_article(&state.graph, &draft)
+    crate::repository::article::create_article(&state.database, &draft)
         .await
         .expect("article a");
-    crate::repository::article::create_article(&state.graph, &other_draft)
+    crate::repository::article::create_article(&state.database, &other_draft)
         .await
         .expect("article b");
 

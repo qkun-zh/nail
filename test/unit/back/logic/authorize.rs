@@ -19,7 +19,7 @@ use crate::repository::schema::{
 use crate::repository::version::VersionDraft;
 
 async fn create_user(context: &TestCtx, email: &str) -> String {
-    crate::repository::user::create_user(&context.state.graph, &nail_common::hash::email(email))
+    crate::repository::user::create_user(&context.state.database, &nail_common::hash::email(email))
         .await
         .expect("user")
 }
@@ -32,7 +32,7 @@ async fn create_article_fixture(
     let article_id = uuid::Uuid::now_v7().to_string();
     let version_id = uuid::Uuid::now_v7().to_string();
     create_article(
-        &context.state.graph,
+        &context.state.database,
         &ArticleDraft {
             article_id: article_id.clone(),
             author_id: author_id.to_string(),
@@ -58,7 +58,7 @@ async fn user_read_grants_admin_and_denies_member() {
     let admin = create_user(&context, "user-zero@example.com").await;
     let member = create_user(&context, "alice@example.com").await;
     let target = create_user(&context, "bob@example.com").await;
-    crate::repository::role::hold_role(&context.state.graph, &member, "member")
+    crate::repository::role::hold_role(&context.state.database, &member, "member")
         .await
         .expect("member role");
 
@@ -89,7 +89,7 @@ async fn user_read_grants_admin_and_denies_member() {
 async fn owner_can_update_own_article_without_permission() {
     let context = TestCtx::new().await.expect("test context");
     let owner = create_user(&context, "alice@example.com").await;
-    crate::repository::role::hold_role(&context.state.graph, &owner, "member")
+    crate::repository::role::hold_role(&context.state.database, &owner, "member")
         .await
         .expect("member");
     let (article_id, _) = create_article_fixture(&context, &owner, "Mine").await;
@@ -111,7 +111,7 @@ async fn non_owner_without_permission_is_forbidden() {
     let context = TestCtx::new().await.expect("test context");
     let owner = create_user(&context, "alice@example.com").await;
     let other = create_user(&context, "bob@example.com").await;
-    crate::repository::role::hold_role(&context.state.graph, &other, "member")
+    crate::repository::role::hold_role(&context.state.database, &other, "member")
         .await
         .expect("member");
     let (article_id, _) = create_article_fixture(&context, &owner, "Mine").await;
@@ -151,7 +151,7 @@ async fn missing_article_is_not_found() {
 async fn authorize_article_create_on_the_virtual_desk_grants_a_member() {
     let context = TestCtx::new().await.expect("test context");
     let member = create_user(&context, "alice@example.com").await;
-    crate::repository::role::hold_role(&context.state.graph, &member, "member")
+    crate::repository::role::hold_role(&context.state.database, &member, "member")
         .await
         .expect("member");
 
@@ -191,7 +191,7 @@ async fn virtual_desk_assembly_covers_the_create_and_admin_uids() {
     let actor = create_user(&context, "alice@example.com").await;
     for name in ["article-create", "comment-create", "role-console"] {
         let assembly = crate::repository::authorization::assemble(
-            &context.state.graph,
+            &context.state.database,
             &actor,
             Resource::Virtual(name.to_string()),
         )
@@ -211,7 +211,7 @@ async fn comment_author_can_update_own_comment_but_article_owner_cannot() {
     let (_, version_id) = create_article_fixture(&context, &article_owner, "Mine").await;
     let comment_id = uuid::Uuid::now_v7().to_string();
     crate::repository::comment::create_top_level_comment(
-        &context.state.graph,
+        &context.state.database,
         &comment_id,
         &comment_author,
         &version_id,
@@ -247,17 +247,17 @@ async fn role_grant_authorizes_any_article() {
     let context = TestCtx::new().await.expect("test context");
     let editor = create_user(&context, "alice@example.com").await;
     let owner = create_user(&context, "bob@example.com").await;
-    crate::repository::role::create_role(&context.state.graph, "editor")
+    crate::repository::role::create_role(&context.state.database, "editor")
         .await
         .expect("role");
     crate::repository::role::grant_permission_to_role(
-        &context.state.graph,
+        &context.state.database,
         "editor",
         PERMISSION_ARTICLE_UPDATE,
     )
     .await
     .expect("grant");
-    crate::repository::role::hold_role(&context.state.graph, &editor, "editor")
+    crate::repository::role::hold_role(&context.state.database, &editor, "editor")
         .await
         .expect("hold editor");
     let (article_id, _) = create_article_fixture(&context, &owner, "Global").await;
@@ -278,7 +278,7 @@ async fn role_grant_authorizes_any_article() {
 async fn role_read_on_a_non_role_resource_is_denied() {
     let context = TestCtx::new().await.expect("test context");
     let member = create_user(&context, "alice@example.com").await;
-    crate::repository::role::hold_role(&context.state.graph, &member, "member")
+    crate::repository::role::hold_role(&context.state.database, &member, "member")
         .await
         .expect("member");
 
@@ -301,7 +301,7 @@ async fn role_resource_assembly_covers_role_uids() {
     let actor = create_user(&context, "alice@example.com").await;
     for name in ["admin", "member", "recycler"] {
         let assembly = crate::repository::authorization::assemble(
-            &context.state.graph,
+            &context.state.database,
             &actor,
             Resource::Role(name.to_string()),
         )
@@ -317,7 +317,7 @@ async fn version_owner_is_the_article_owner() {
     let context = TestCtx::new().await.expect("test context");
     let owner = create_user(&context, "alice@example.com").await;
     let other = create_user(&context, "bob@example.com").await;
-    crate::repository::role::hold_role(&context.state.graph, &other, "member")
+    crate::repository::role::hold_role(&context.state.database, &other, "member")
         .await
         .expect("member");
     let (_, version_id) = create_article_fixture(&context, &owner, "Versioned").await;
@@ -350,7 +350,7 @@ async fn member_can_read_articles_and_versions_via_role_grant() {
     let context = TestCtx::new().await.expect("test context");
     let owner = create_user(&context, "alice@example.com").await;
     let member = create_user(&context, "bob@example.com").await;
-    crate::repository::role::hold_role(&context.state.graph, &member, "member")
+    crate::repository::role::hold_role(&context.state.database, &member, "member")
         .await
         .expect("member");
     let (article_id, version_id) = create_article_fixture(&context, &owner, "Open").await;
@@ -470,7 +470,7 @@ async fn authorize_global_grants_member_and_denies_outsider() {
     let context = TestCtx::new().await.expect("test context");
     let member = create_user(&context, "alice@example.com").await;
     let outsider = create_user(&context, "bob@example.com").await;
-    crate::repository::role::hold_role(&context.state.graph, &member, "member")
+    crate::repository::role::hold_role(&context.state.database, &member, "member")
         .await
         .expect("member");
 
@@ -492,10 +492,10 @@ async fn authorize_entity_matches_plain_authorize() {
     let context = TestCtx::new().await.expect("test context");
     let owner = create_user(&context, "alice@example.com").await;
     let other = create_user(&context, "bob@example.com").await;
-    crate::repository::role::hold_role(&context.state.graph, &owner, "member")
+    crate::repository::role::hold_role(&context.state.database, &owner, "member")
         .await
         .expect("member");
-    crate::repository::role::hold_role(&context.state.graph, &other, "member")
+    crate::repository::role::hold_role(&context.state.database, &other, "member")
         .await
         .expect("member");
     let (article_id, _) = create_article_fixture(&context, &owner, "Mine").await;
@@ -544,7 +544,7 @@ async fn authorize_entity_or_reports_canonical_message() {
 async fn require_entity_readable_hides_soft_deleted_article() {
     let context = TestCtx::new().await.expect("test context");
     let owner = create_user(&context, "alice@example.com").await;
-    crate::repository::role::hold_role(&context.state.graph, &owner, "member")
+    crate::repository::role::hold_role(&context.state.database, &owner, "member")
         .await
         .expect("member");
     let (article_id, _) = create_article_fixture(&context, &owner, "Hidden").await;
@@ -554,7 +554,7 @@ async fn require_entity_readable_hides_soft_deleted_article() {
             .await
             .is_ok()
     );
-    crate::repository::delete::soft_delete_article(&context.state.graph, &article_id)
+    crate::repository::delete::soft_delete_article(&context.state.database, &article_id)
         .await
         .expect("soft delete");
     assert_eq!(
@@ -564,7 +564,7 @@ async fn require_entity_readable_hides_soft_deleted_article() {
         LogicError::not_found("article not found")
     );
     let admin = crate::repository::user::read_user_by_email_address_hash(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email("user-zero@example.com"),
     )
     .await

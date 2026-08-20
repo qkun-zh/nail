@@ -32,9 +32,9 @@ pub async fn create_comment(
 ) -> Result<String, LogicError> {
     authorize_global(state, actor_id, PERMISSION_COMMENT_CREATE).await?;
     let content =
-        validate_comment_content(raw_content, state.config.server.max_comment_body_chars)?;
+        validate_comment_content(raw_content, state.configurator.max_comment_body_chars())?;
     let comment_id = Uuid::now_v7().to_string();
-    create_top_level_comment(&state.graph, &comment_id, actor_id, version_id, &content).await?;
+    create_top_level_comment(&state.database, &comment_id, actor_id, version_id, &content).await?;
     sync_article_best_effort_for_version(state, version_id).await;
     Ok(comment_id)
 }
@@ -47,10 +47,10 @@ pub async fn create_reply(
 ) -> Result<String, LogicError> {
     authorize_global(state, actor_id, PERMISSION_COMMENT_CREATE).await?;
     let content =
-        validate_comment_content(raw_content, state.config.server.max_comment_body_chars)?;
+        validate_comment_content(raw_content, state.configurator.max_comment_body_chars())?;
     let comment_id = Uuid::now_v7().to_string();
     create_reply_comment(
-        &state.graph,
+        &state.database,
         &comment_id,
         actor_id,
         parent_comment_id,
@@ -82,16 +82,16 @@ pub async fn read_comments(
         EntityRef::Version(version_id),
     )
     .await?;
-    if read_version(&state.graph, version_id).await?.is_none() {
+    if read_version(&state.database, version_id).await?.is_none() {
         return Err(LogicError::not_found("version not found"));
     }
     require_entity_visible(state, actor_id, EntityRef::Version(version_id)).await?;
 
     let total =
-        crate::repository::comment::count_comments_by_version(&state.graph, version_id).await?;
+        crate::repository::comment::count_comments_by_version(&state.database, version_id).await?;
     let offset = page_offset(page, limit);
     let (items, has_next) =
-        read_comments_page_by_version(&state.graph, version_id, limit, offset).await?;
+        read_comments_page_by_version(&state.database, version_id, limit, offset).await?;
 
     let items = build_comment_views(state, items).await?;
 
@@ -114,7 +114,7 @@ pub async fn read_comment(
         EntityRef::Comment(comment_id),
     )
     .await?;
-    let item = read_comment_item(&state.graph, comment_id)
+    let item = read_comment_item(&state.database, comment_id)
         .await?
         .ok_or_else(|| LogicError::not_found("comment not found"))?;
     require_entity_visible(state, actor_id, EntityRef::Comment(comment_id)).await?;
@@ -136,10 +136,10 @@ pub async fn read_comment_children(
     )
     .await?;
     let total =
-        crate::repository::comment::count_comment_children(&state.graph, parent_comment_id).await?;
+        crate::repository::comment::count_comment_children(&state.database, parent_comment_id).await?;
     let offset = page_offset(page, limit);
     let (items, has_next) =
-        read_comment_children_page(&state.graph, parent_comment_id, limit, offset)
+        read_comment_children_page(&state.database, parent_comment_id, limit, offset)
             .await
             .map_err(|error| {
                 if crate::repository::graph::is_not_found(&error) {
@@ -167,7 +167,7 @@ async fn build_comment_views(
             user_ids.push(item.author_id.clone());
         }
     }
-    let user_names = crate::repository::user::read_user_names(&state.graph, &user_ids).await?;
+    let user_names = crate::repository::user::read_user_names(&state.database, &user_ids).await?;
 
     items
         .into_iter()
@@ -198,7 +198,7 @@ async fn to_comment_view(
     item: CommentTreeItem,
 ) -> Result<CommentView, LogicError> {
     let user_names = crate::repository::user::read_user_names(
-        &state.graph,
+        &state.database,
         std::slice::from_ref(&item.author_id),
     )
     .await?;
@@ -219,8 +219,8 @@ pub async fn update_comment(
     )
     .await?;
     let content =
-        validate_comment_content(raw_content, state.config.server.max_comment_body_chars)?;
-    let found = update_comment_content(&state.graph, comment_id, &content).await?;
+        validate_comment_content(raw_content, state.configurator.max_comment_body_chars())?;
+    let found = update_comment_content(&state.database, comment_id, &content).await?;
     if !found {
         return Err(LogicError::not_found("comment not found"));
     }
@@ -245,7 +245,7 @@ pub async fn delete_comment(
                 EntityRef::Comment(comment_id),
             )
             .await?;
-            transfer_comment(&state.graph, comment_id)
+            transfer_comment(&state.database, comment_id)
                 .await
                 .map_err(|error| match error {
                     TransferTargetError::TargetMissing => {
@@ -265,7 +265,7 @@ pub async fn delete_comment(
                 EntityRef::Comment(comment_id),
             )
             .await?;
-            crate::repository::delete::delete_comment(&state.graph, comment_id).await?;
+            crate::repository::delete::delete_comment(&state.database, comment_id).await?;
         }
         Some(DeleteMode::Soft) => {
             authorize_entity_or(
@@ -276,12 +276,12 @@ pub async fn delete_comment(
             )
             .await?;
             let already_deleted =
-                crate::repository::delete::is_soft_deleted(&state.graph, "comment", comment_id)
+                crate::repository::delete::is_soft_deleted(&state.database, "comment", comment_id)
                     .await?;
             if already_deleted {
                 return Err(LogicError::bad_request("already soft-deleted"));
             }
-            crate::repository::delete::soft_delete_comment(&state.graph, comment_id).await?;
+            crate::repository::delete::soft_delete_comment(&state.database, comment_id).await?;
         }
         None => {
             return Err(LogicError::bad_request(
@@ -308,11 +308,11 @@ pub async fn undelete_soft_comment(
     )
     .await?;
     let hidden =
-        crate::repository::delete::is_soft_deleted(&state.graph, "comment", comment_id).await?;
+        crate::repository::delete::is_soft_deleted(&state.database, "comment", comment_id).await?;
     if !hidden {
         return Err(LogicError::bad_request("not soft-deleted"));
     }
-    crate::repository::delete::clear_soft_deleted_flag(&state.graph, comment_id).await?;
+    crate::repository::delete::clear_soft_deleted_flag(&state.database, comment_id).await?;
     sync_article_best_effort_for_comment(state, comment_id).await;
     Ok(CommentIdView {
         comment_id: comment_id.to_string(),
@@ -329,7 +329,7 @@ fn validate_comment_content(raw: &str, max_chars: u64) -> Result<String, LogicEr
 }
 
 async fn sync_article_best_effort_for_comment(state: &AppState, comment_id: &str) {
-    let Some(version_id) = version_of_comment(&state.graph, comment_id)
+    let Some(version_id) = version_of_comment(&state.database, comment_id)
         .await
         .ok()
         .flatten()
@@ -340,7 +340,7 @@ async fn sync_article_best_effort_for_comment(state: &AppState, comment_id: &str
 }
 
 async fn sync_article_best_effort_for_version(state: &AppState, version_id: &str) {
-    let Some(article_id) = parent_article_of(&state.graph, version_id)
+    let Some(article_id) = parent_article_of(&state.database, version_id)
         .await
         .ok()
         .flatten()

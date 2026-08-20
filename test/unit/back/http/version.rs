@@ -10,17 +10,17 @@ use crate::repository::version::VersionDraft;
 
 async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email(email),
     )
     .await
     .expect("user");
-    hold_role(&context.state.graph, &user_id, ROLE_MEMBER)
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
         .await
         .expect("member role");
     let token = Uuid::now_v7().to_string();
     let key = token_key(&token).expect("token key");
-    context.state.caches.session.insert(
+    context.state.cache.session.insert(
         &key,
         SessionTokenEntry {
             user_id: user_id.clone(),
@@ -35,14 +35,14 @@ async fn admin_session(context: &TestCtx) -> (String, String) {
 
 async fn plain_session(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email(email),
     )
     .await
     .expect("user");
     let token = Uuid::now_v7().to_string();
     let key = token_key(&token).expect("token key");
-    context.state.caches.session.insert(
+    context.state.cache.session.insert(
         &key,
         SessionTokenEntry {
             user_id: user_id.clone(),
@@ -56,7 +56,7 @@ async fn article_fixture(context: &TestCtx, author_id: &str) -> (String, String)
     let version_id = Uuid::now_v7().to_string();
     let title = format!("Versioned {article_id}");
     create_article(
-        &context.state.graph,
+        &context.state.database,
         &ArticleDraft {
             article_id: article_id.clone(),
             author_id: author_id.to_string(),

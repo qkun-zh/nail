@@ -6,12 +6,12 @@ const TEST_TAGS: &[&str] = &["rust", "backend", "frontend", "devops"];
 
 async fn member(context: &TestCtx, email: &str) -> String {
     let user_id = crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email(email),
     )
     .await
     .expect("user");
-    hold_role(&context.state.graph, &user_id, ROLE_MEMBER)
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
         .await
         .expect("member role");
     user_id
@@ -24,7 +24,7 @@ async fn setup_article_test(context: &TestCtx, email: &str) -> String {
 
 async fn admin(context: &TestCtx) -> String {
     crate::repository::user::read_user_by_email_address_hash(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email("user-zero@example.com"),
     )
     .await
@@ -33,7 +33,7 @@ async fn admin(context: &TestCtx) -> String {
 }
 
 async fn plain(context: &TestCtx, email: &str) -> String {
-    crate::repository::user::create_user(&context.state.graph, &nail_common::hash::email(email))
+    crate::repository::user::create_user(&context.state.database, &nail_common::hash::email(email))
         .await
         .expect("user")
 }
@@ -62,7 +62,7 @@ async fn create_article_writes_the_article_and_version() {
     assert!(!article_id.is_empty());
     assert!(!version_id.is_empty());
     assert!(
-        crate::repository::article::read_article(&context.state.graph, &article_id)
+        crate::repository::article::read_article(&context.state.database, &article_id)
             .await
             .expect("read")
             .is_some()
@@ -73,7 +73,7 @@ async fn create_article_writes_the_article_and_version() {
 async fn create_article_requires_article_create_permission() {
     let context = TestCtx::new().await.expect("test context");
     let actor = crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email("alice@example.com"),
     )
     .await
@@ -289,7 +289,7 @@ async fn delete_article_soft_hides_the_article_and_its_versions() {
         .expect_err("deleted article");
     assert_eq!(error, LogicError::not_found("article not found"));
     let (versions, _) =
-        crate::repository::version::versions_of(&context.state.graph, &article_id, 10, 0)
+        crate::repository::version::versions_of(&context.state.database, &article_id, 10, 0)
             .await
             .expect("versions");
     assert_eq!(
@@ -329,7 +329,7 @@ async fn delete_article_soft_is_forbidden_for_a_stranger() {
     .expect_err("stranger cannot soft delete");
     assert!(matches!(error, LogicError::Forbidden(_)));
     assert!(
-        crate::repository::article::read_article(&context.state.graph, &article_id)
+        crate::repository::article::read_article(&context.state.database, &article_id)
             .await
             .expect("read")
             .is_some(),
@@ -468,7 +468,7 @@ async fn undelete_soft_article_revives_the_article_and_its_versions() {
         .await
         .expect("article visible again");
     let (versions, _) =
-        crate::repository::version::versions_of(&context.state.graph, &article_id, 10, 0)
+        crate::repository::version::versions_of(&context.state.database, &article_id, 10, 0)
             .await
             .expect("versions");
     assert_eq!(

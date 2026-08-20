@@ -38,7 +38,7 @@ pub async fn place_uploaded_pdf(
     state: &AppState,
     upload: PdfUpload,
 ) -> Result<PdfUpload, LogicError> {
-    let final_path = pdf_final_path(&state.config.server.pdf_storage_path, &upload.hash)
+    let final_path = pdf_final_path(state.configurator.pdf_storage_path(), &upload.hash)
         .ok_or_else(|| LogicError::internal("invalid content hash"))?;
     if let Some(parent) = final_path.parent() {
         tokio::fs::create_dir_all(parent).await.map_err(|error| {
@@ -53,7 +53,7 @@ pub async fn place_uploaded_pdf(
 
 pub async fn remove_orphaned_pdfs(state: &AppState, hashes: &[String]) {
     for hash in hashes {
-        let Some(path) = pdf_final_path(&state.config.server.pdf_storage_path, hash) else {
+        let Some(path) = pdf_final_path(state.configurator.pdf_storage_path(), hash) else {
             continue;
         };
         if let Err(error) = tokio::fs::remove_file(&path).await
@@ -72,10 +72,10 @@ pub(crate) async fn reject_duplicate_content_hash(
     state: &AppState,
     hash: &str,
 ) -> Result<(), LogicError> {
-    let Some(owner) = content_hash_owner(&state.graph, hash).await? else {
+    let Some(owner) = content_hash_owner(&state.database, hash).await? else {
         return Ok(());
     };
-    let owned_version = read_version_node(&state.graph, &owner.version_id)
+    let owned_version = read_version_node(&state.database, &owner.version_id)
         .await?
         .map(|entry| entry.version_number)
         .unwrap_or_default();
@@ -101,7 +101,7 @@ pub async fn create_version(
     .await?;
 
     let version_number = validate_version(raw_version)?;
-    let note = validate_note(raw_note, state.config.server.max_version_note_chars)?;
+    let note = validate_note(raw_note, state.configurator.max_version_note_chars())?;
 
     let hash = upload.hash.clone();
     reject_duplicate_content_hash(state, &hash).await?;
@@ -115,7 +115,7 @@ pub async fn create_version(
         note,
     };
 
-    match create_version_node(&state.graph, article_id, &draft).await {
+    match create_version_node(&state.database, article_id, &draft).await {
         Ok(()) => {
             upload.keep_final();
             sync_article_best_effort(state, article_id).await;
@@ -141,7 +141,7 @@ pub async fn read_version(
         EntityRef::Version(version_id),
     )
     .await?;
-    let parent_article = parent_article_of(&state.graph, version_id)
+    let parent_article = parent_article_of(&state.database, version_id)
         .await?
         .ok_or_else(|| LogicError::not_found("version not found"))?;
     if let Some(expected_article) = article_id
@@ -150,7 +150,7 @@ pub async fn read_version(
         return Err(LogicError::not_found("version not found"));
     }
 
-    let entry = read_version_node(&state.graph, version_id)
+    let entry = read_version_node(&state.database, version_id)
         .await?
         .ok_or_else(|| LogicError::not_found("version not found"))?;
     require_entity_visible(state, actor_id, EntityRef::Version(version_id)).await?;
@@ -179,9 +179,9 @@ pub async fn read_versions(
         EntityRef::Article(article_id),
     )
     .await?;
-    let total = crate::repository::version::count_versions_of(&state.graph, article_id).await?;
+    let total = crate::repository::version::count_versions_of(&state.database, article_id).await?;
     let offset = page_offset(page, limit);
-    let (items, has_next) = versions_of(&state.graph, article_id, limit, offset).await?;
+    let (items, has_next) = versions_of(&state.database, article_id, limit, offset).await?;
     let items: Vec<VersionListItem> = items
         .into_iter()
         .map(|item| VersionListItem {
@@ -209,8 +209,8 @@ pub async fn update_version(
         EntityRef::Version(version_id),
     )
     .await?;
-    let note = validate_note(raw_note, state.config.server.max_version_note_chars)?;
-    update_version_node(&state.graph, version_id, &note).await?;
+    let note = validate_note(raw_note, state.configurator.max_version_note_chars())?;
+    update_version_node(&state.database, version_id, &note).await?;
     Ok(VersionIdView {
         version_id: version_id.to_string(),
     })
@@ -231,14 +231,14 @@ pub async fn delete_version(
                 EntityRef::Version(version_id),
             )
             .await?;
-            let parent_article = parent_article_of(&state.graph, version_id).await?;
+            let parent_article = parent_article_of(&state.database, version_id).await?;
             let already_deleted =
-                crate::repository::delete::is_soft_deleted(&state.graph, "version", version_id)
+                crate::repository::delete::is_soft_deleted(&state.database, "version", version_id)
                     .await?;
             if already_deleted {
                 return Err(LogicError::bad_request("already soft-deleted"));
             }
-            soft_delete_version(&state.graph, version_id).await?;
+            soft_delete_version(&state.database, version_id).await?;
             if let Some(parent_article) = parent_article {
                 sync_article_best_effort(state, &parent_article).await;
             }
@@ -254,8 +254,8 @@ pub async fn delete_version(
                 EntityRef::Version(version_id),
             )
             .await?;
-            let parent_article = parent_article_of(&state.graph, version_id).await?;
-            let outcome = delete_version_node(&state.graph, version_id).await?;
+            let parent_article = parent_article_of(&state.database, version_id).await?;
+            let outcome = delete_version_node(&state.database, version_id).await?;
             remove_orphaned_pdfs(state, &outcome.removed_pdf_hashes).await;
             if let Some(parent_article) = parent_article {
                 sync_article_best_effort(state, &parent_article).await;
@@ -283,12 +283,12 @@ pub async fn undelete_soft_version(
     )
     .await?;
     let hidden =
-        crate::repository::delete::is_soft_deleted(&state.graph, "version", version_id).await?;
+        crate::repository::delete::is_soft_deleted(&state.database, "version", version_id).await?;
     if !hidden {
         return Err(LogicError::bad_request("not soft-deleted"));
     }
-    clear_soft_deleted_flag(&state.graph, version_id).await?;
-    if let Some(parent_article) = parent_article_of(&state.graph, version_id).await? {
+    clear_soft_deleted_flag(&state.database, version_id).await?;
+    if let Some(parent_article) = parent_article_of(&state.database, version_id).await? {
         sync_article_best_effort(state, &parent_article).await;
     }
     Ok(VersionIdView {

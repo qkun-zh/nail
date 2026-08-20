@@ -46,6 +46,42 @@ impl AppConfig {
             email_allowed_domains,
         })
     }
+
+    pub fn db_path(&self) -> &str {
+        &self.server.db_path
+    }
+
+    pub fn search_index_path(&self) -> &str {
+        &self.server.search_index_path
+    }
+
+    pub fn pdf_storage_path(&self) -> &str {
+        &self.server.pdf_storage_path
+    }
+
+    pub fn user_zero_email(&self) -> &str {
+        &self.server.user_zero_email
+    }
+
+    pub fn token_ttl_seconds(&self) -> u64 {
+        self.server.token_ttl_seconds
+    }
+
+    pub fn session_ttl_seconds(&self) -> u64 {
+        self.server.session_ttl_seconds
+    }
+
+    pub fn challenge_ttl_seconds(&self) -> u64 {
+        self.server.challenge_ttl_seconds
+    }
+
+    pub fn download_token_ttl_seconds(&self) -> u64 {
+        self.server.download_token_ttl_seconds
+    }
+
+    pub fn token_cache_capacity(&self) -> u64 {
+        self.server.token_cache_capacity
+    }
 }
 
 #[derive(serde::Deserialize)]

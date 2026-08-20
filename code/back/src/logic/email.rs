@@ -86,7 +86,7 @@ fn read_session_user(
 
 async fn send_create_user_email(state: &AppState, pow: &Pow) -> Result<String, LogicError> {
     let email = normalize_email(&pow.payload);
-    if !validate_email(&email, &state.config.email_allowed_domains) {
+    if !validate_email(&email, state.configurator.email_allowed_domains()) {
         return Err(LogicError::bad_request("email domain not allowed"));
     }
     verify_issued_pow(state, pow)?;
@@ -96,7 +96,7 @@ async fn send_create_user_email(state: &AppState, pow: &Pow) -> Result<String, L
 
     let email_address_hash = nail_common::hash::email(&email);
     let key = hash_canonical_token(&token)?;
-    state.caches.create_user.insert(
+    state.cache.create_user.insert(
         &key,
         CreateUserTokenEntry {
             email_address_hash: email_address_hash.clone(),
@@ -122,7 +122,7 @@ pub async fn send_update_user_email(
         ));
     }
 
-    let user_entry = read_user(&state.graph, user_id)
+    let user_entry = read_user(&state.database, user_id)
         .await?
         .ok_or_else(|| LogicError::unauthorized("user not found"))?;
     let old_email_hash = nail_common::hash::email(&old_email);
@@ -132,7 +132,7 @@ pub async fn send_update_user_email(
         ));
     }
 
-    let allowed_domains = &state.config.email_allowed_domains;
+    let allowed_domains = state.configurator.email_allowed_domains();
     if !validate_email(&old_email, allowed_domains) || !validate_email(&new_email, allowed_domains)
     {
         return Err(LogicError::bad_request("email domain not allowed"));
@@ -140,7 +140,7 @@ pub async fn send_update_user_email(
 
     let new_email_hash = nail_common::hash::email(&new_email);
     if let Some(existing_user_id) =
-        read_user_by_email_address_hash(&state.graph, &new_email_hash).await?
+        read_user_by_email_address_hash(&state.database, &new_email_hash).await?
         && existing_user_id != user_id
     {
         return Err(LogicError::bad_request(
@@ -156,7 +156,7 @@ pub async fn send_update_user_email(
 
     let token_hash_from_old_email = hash_canonical_token(&old_token)?;
     let token_hash_from_new_email = hash_canonical_token(&new_token)?;
-    state.caches.email_update.insert(
+    state.cache.email_update.insert(
         user_id,
         EmailUpdateTokenEntry {
             old_email_hash: old_email_hash.clone(),
@@ -196,7 +196,7 @@ pub async fn update_user_email(
     }
 
     let entry = state
-        .caches
+        .cache
         .email_update
         .read(user_id)
         .ok_or_else(|| LogicError::bad_request("invalid or expired email update request"))?;
@@ -212,7 +212,7 @@ pub async fn update_user_email(
     let old_email_hash = entry.old_email_hash;
     let new_email_hash = entry.new_email_hash;
     if let Some(existing_user_id) =
-        read_user_by_email_address_hash(&state.graph, &new_email_hash).await?
+        read_user_by_email_address_hash(&state.database, &new_email_hash).await?
         && existing_user_id != user_id
     {
         return Err(LogicError::bad_request(
@@ -220,7 +220,7 @@ pub async fn update_user_email(
         ));
     }
 
-    write_user_email(&state.graph, user_id, &old_email_hash, &new_email_hash)
+    write_user_email(&state.database, user_id, &old_email_hash, &new_email_hash)
         .await
         .map_err(|error| match error {
             UserWriteError::AlreadyTaken => {
@@ -235,16 +235,16 @@ pub async fn update_user_email(
             }
         })?;
 
-    state.caches.email_update.consume_if(user_id, |current| {
+    state.cache.email_update.consume_if(user_id, |current| {
         current.token_hash_from_old_email == old_token_hash
             && current.token_hash_from_new_email == new_token_hash
     });
-    state.caches.session.delete_by_reverse_key(user_id);
+    state.cache.session.delete_by_reverse_key(user_id);
     state
-        .caches
+        .cache
         .create_user
         .delete_by_reverse_key(&old_email_hash);
-    state.caches.delete_user.delete_by_reverse_key(user_id);
+    state.cache.delete_user.delete_by_reverse_key(user_id);
 
     let new_session_token = create_session(state, user_id)?;
     Ok(new_session_token)
@@ -258,7 +258,7 @@ pub async fn send_delete_user_email(
     verify_issued_pow(state, pow)?;
 
     let email = normalize_email(&pow.payload);
-    let user_entry = read_user(&state.graph, user_id)
+    let user_entry = read_user(&state.database, user_id)
         .await?
         .ok_or_else(|| LogicError::unauthorized("user not found"))?;
     if user_entry.email_address_hash != nail_common::hash::email(&email) {
@@ -269,7 +269,7 @@ pub async fn send_delete_user_email(
     let email_id = send_confirmation_email(state, &email, &token).await?;
 
     let key = hash_canonical_token(&token)?;
-    state.caches.delete_user.insert(
+    state.cache.delete_user.insert(
         &key,
         DeleteUserTokenEntry {
             user_id: user_id.to_string(),
@@ -284,7 +284,7 @@ async fn send_confirmation_email(
     email: &str,
     token: &str,
 ) -> Result<String, LogicError> {
-    match state.email.send(email, token).await {
+    match state.emailer.send(email, token).await {
         Ok(email_id) => Ok(email_id),
         Err(emailer::SendEmailError::RateLimited) => Err(LogicError::bad_request(
             "email already sent recently, check your inbox",

@@ -20,7 +20,7 @@ fn draft(number: &str, hash: &str) -> VersionDraft {
 }
 
 async fn create_user(state: &crate::infrastructure::state::AppState, email: &str) -> String {
-    crate::repository::user::create_user(&state.graph, &nail_common::hash::email(email))
+    crate::repository::user::create_user(&state.database, &nail_common::hash::email(email))
         .await
         .expect("user")
 }
@@ -34,7 +34,7 @@ async fn create_article_fixture(
     let article_id = uuid::Uuid::now_v7().to_string();
     let version_id = uuid::Uuid::now_v7().to_string();
     create_article(
-        &state.graph,
+        &state.database,
         &ArticleDraft {
             article_id: article_id.clone(),
             author_id: author_id.to_string(),
@@ -60,12 +60,12 @@ async fn create_version_requires_a_strictly_greater_semver() {
     let author_id = create_user(&state, "alice@example.com").await;
     let (article_id, _) = create_article_fixture(&state, &author_id, "Article", &pdf_hash(1)).await;
 
-    let error = create_version(&state.graph, &article_id, &draft("1.0.0", &pdf_hash(2)))
+    let error = create_version(&state.database, &article_id, &draft("1.0.0", &pdf_hash(2)))
         .await
         .expect_err("not greater");
     assert!(matches!(error, CreateVersionError::NotGreater));
 
-    create_version(&state.graph, &article_id, &draft("1.1.0", &pdf_hash(2)))
+    create_version(&state.database, &article_id, &draft("1.1.0", &pdf_hash(2)))
         .await
         .expect("greater version");
 }
@@ -76,7 +76,7 @@ async fn create_version_rejects_a_duplicate_content_hash() {
     let author_id = create_user(&state, "alice@example.com").await;
     let (article_id, _) = create_article_fixture(&state, &author_id, "Article", &pdf_hash(1)).await;
 
-    let error = create_version(&state.graph, &article_id, &draft("2.0.0", &pdf_hash(1)))
+    let error = create_version(&state.database, &article_id, &draft("2.0.0", &pdf_hash(1)))
         .await
         .expect_err("duplicate content hash");
     assert!(matches!(error, CreateVersionError::ContentHashTaken));
@@ -89,7 +89,7 @@ async fn create_version_rejects_an_invalid_number() {
     let (article_id, _) = create_article_fixture(&state, &author_id, "Article", &pdf_hash(1)).await;
 
     let error = create_version(
-        &state.graph,
+        &state.database,
         &article_id,
         &draft("not-semver", &pdf_hash(2)),
     )
@@ -106,7 +106,7 @@ async fn create_version_updates_latest_version_id() {
     let newer = uuid::Uuid::now_v7().to_string();
 
     create_version(
-        &state.graph,
+        &state.database,
         &article_id,
         &VersionDraft {
             version_id: newer.clone(),
@@ -118,7 +118,7 @@ async fn create_version_updates_latest_version_id() {
     .await
     .expect("create version");
 
-    let (items, has_next) = versions_of(&state.graph, &article_id, 10, 0)
+    let (items, has_next) = versions_of(&state.database, &article_id, 10, 0)
         .await
         .expect("versions");
     assert_eq!(items.len(), 2);
@@ -132,11 +132,11 @@ async fn versions_of_is_paginated_in_default_order_and_reports_has_next() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = create_user(&state, "alice@example.com").await;
     let (article_id, _) = create_article_fixture(&state, &author_id, "Article", &pdf_hash(1)).await;
-    create_version(&state.graph, &article_id, &draft("2.0.0", &pdf_hash(2)))
+    create_version(&state.database, &article_id, &draft("2.0.0", &pdf_hash(2)))
         .await
         .expect("v2");
 
-    let (page, has_next) = versions_of(&state.graph, &article_id, 1, 0)
+    let (page, has_next) = versions_of(&state.database, &article_id, 1, 0)
         .await
         .expect("versions");
     assert_eq!(page.len(), 1);
@@ -149,10 +149,10 @@ async fn update_version_changes_the_note() {
     let author_id = create_user(&state, "alice@example.com").await;
     let (_, version_id) = create_article_fixture(&state, &author_id, "Article", &pdf_hash(1)).await;
 
-    update_version(&state.graph, &version_id, "updated note")
+    update_version(&state.database, &version_id, "updated note")
         .await
         .expect("update");
-    let entry = read_version(&state.graph, &version_id)
+    let entry = read_version(&state.database, &version_id)
         .await
         .expect("read")
         .expect("version");
@@ -165,7 +165,7 @@ async fn content_hash_owner_returns_the_version_and_article_title() {
     let author_id = create_user(&state, "alice@example.com").await;
     let (_, version_id) = create_article_fixture(&state, &author_id, "Titled", &pdf_hash(9)).await;
 
-    let found = content_hash_owner(&state.graph, &pdf_hash(9))
+    let found = content_hash_owner(&state.database, &pdf_hash(9))
         .await
         .expect("find")
         .expect("found");
@@ -181,13 +181,13 @@ async fn parent_article_of_returns_the_parent() {
         create_article_fixture(&state, &author_id, "Titled", &pdf_hash(9)).await;
 
     assert_eq!(
-        parent_article_of(&state.graph, &version_id)
+        parent_article_of(&state.database, &version_id)
             .await
             .expect("parent"),
         Some(article_id)
     );
     assert_eq!(
-        parent_article_of(&state.graph, "missing")
+        parent_article_of(&state.database, "missing")
             .await
             .expect("parent"),
         None

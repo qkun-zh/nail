@@ -19,7 +19,7 @@ pub async fn search_articles(
     params: &ArticleSearchParams,
 ) -> Result<nail_common::response::ListPage<SearchArticleItem>, LogicError> {
     authorize_global(state, actor_id, PERMISSION_ARTICLE_READ).await?;
-    let max_query_chars = state.config.server.max_search_query_chars;
+    let max_query_chars = state.configurator.max_search_query_chars();
 
     let query = match params.q.as_deref() {
         Some(raw) => {
@@ -51,15 +51,15 @@ pub async fn search_articles(
     let (page, limit) = crate::logic::pagination::clamp_page_limit(
         params.page,
         params.limit,
-        state.config.server.search_page_size,
-        state.config.server.max_search_pages,
+        state.configurator.search_page_size(),
+        state.configurator.max_search_pages(),
     )?;
     let offset = page_offset(page, limit);
 
     let outcome = state
-        .search
+        .searcher
         .read(
-            &state.graph,
+            &state.database,
             SearchRequest {
                 query,
                 ranges,
@@ -276,7 +276,7 @@ fn parse_iso8601_bound(value: Option<&str>, name: &str) -> Result<Option<u64>, L
 }
 
 pub(crate) async fn sync_article_best_effort(state: &AppState, article_id: &str) {
-    if let Err(error) = state.search.sync(&state.graph, article_id).await {
+    if let Err(error) = state.searcher.sync(&state.database, article_id).await {
         tracing::warn!(
             article_id = %article_id,
             error = %error,
@@ -286,7 +286,7 @@ pub(crate) async fn sync_article_best_effort(state: &AppState, article_id: &str)
 }
 
 pub(crate) async fn sync_user_best_effort(state: &AppState, user_id: &str) {
-    if let Err(error) = state.search.sync_user(&state.graph, user_id).await {
+    if let Err(error) = state.searcher.sync_user(&state.database, user_id).await {
         tracing::warn!(
             user_id = %user_id,
             error = %error,
@@ -296,7 +296,7 @@ pub(crate) async fn sync_user_best_effort(state: &AppState, user_id: &str) {
 }
 
 pub(crate) async fn sync_all_best_effort(state: &AppState) {
-    if let Err(error) = state.search.sync_all(&state.graph).await {
+    if let Err(error) = state.searcher.sync_all(&state.database).await {
         tracing::warn!(error = %error, "failed to rebuild search index");
     }
 }

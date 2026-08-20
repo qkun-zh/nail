@@ -40,10 +40,10 @@ pub async fn create_role(
 ) -> Result<(String, String), LogicError> {
     authorize_global(state, actor_id, PERMISSION_ROLE_CREATE).await?;
     let name = validate_role_name(raw_name)?;
-    if read_role_node(&state.graph, &name).await?.is_some() {
+    if read_role_node(&state.database, &name).await?.is_some() {
         return Err(LogicError::bad_request("role already exists"));
     }
-    let role_id = create_role_node(&state.graph, &name)
+    let role_id = create_role_node(&state.database, &name)
         .await
         .map_err(|error| LogicError::internal(format!("failed to create role: {error}")))?;
     Ok((role_id, name))
@@ -56,13 +56,13 @@ pub async fn read_roles(
     limit: u64,
 ) -> Result<nail_common::response::ListPage<RoleListItem>, LogicError> {
     authorize_global(state, actor_id, PERMISSION_ROLE_READ).await?;
-    let roles = read_role_nodes(&state.graph).await?;
+    let roles = read_role_nodes(&state.database).await?;
     let total = roles.len() as u64;
     let (page_roles, has_next) = paginate(roles, page, limit);
 
     let mut items = Vec::with_capacity(page_roles.len());
     for role in &page_roles {
-        let member_count = read_role_members(&state.graph, &role.role_name)
+        let member_count = read_role_members(&state.database, &role.role_name)
             .await?
             .len() as u64;
         items.push(RoleListItem {
@@ -84,7 +84,7 @@ pub async fn read_role(
     actor_id: &str,
     role_id: &str,
 ) -> Result<RoleView, LogicError> {
-    let role = read_role_node_by_id(&state.graph, role_id)
+    let role = read_role_node_by_id(&state.database, role_id)
         .await?
         .ok_or_else(|| LogicError::not_found("role not found"))?;
     authorize_entity_or(
@@ -94,7 +94,7 @@ pub async fn read_role(
         EntityRef::Role(role.role_name.as_str()),
     )
     .await?;
-    let members = read_role_members(&state.graph, &role.role_name).await?;
+    let members = read_role_members(&state.database, &role.role_name).await?;
     Ok(RoleView {
         id: role.id,
         name: role.role_name,
@@ -115,7 +115,7 @@ pub async fn update_role(
         users_add,
         users_remove,
     } = update;
-    let role = read_role_node_by_id(&state.graph, role_id)
+    let role = read_role_node_by_id(&state.database, role_id)
         .await?
         .ok_or_else(|| LogicError::not_found("role not found"))?;
     let name = role.role_name;
@@ -157,28 +157,28 @@ pub async fn update_role(
         }
     }
     for permission in permissions_add {
-        grant_permission_to_role(&state.graph, &name, permission)
+        grant_permission_to_role(&state.database, &name, permission)
             .await
             .map_err(|error| {
                 LogicError::internal(format!("failed to grant {permission}: {error}"))
             })?;
     }
     for permission in permissions_remove {
-        revoke_permission_from_role(&state.graph, &name, permission)
+        revoke_permission_from_role(&state.database, &name, permission)
             .await
             .map_err(|error| {
                 LogicError::internal(format!("failed to revoke {permission}: {error}"))
             })?;
     }
     for user in users_add {
-        hold_role(&state.graph, user, &name)
+        hold_role(&state.database, user, &name)
             .await
             .map_err(|error| {
                 LogicError::internal(format!("failed to hold role for {user}: {error}"))
             })?;
     }
     for user in users_remove {
-        unhold_role(&state.graph, user, &name)
+        unhold_role(&state.database, user, &name)
             .await
             .map_err(|error| {
                 LogicError::internal(format!("failed to unhold role for {user}: {error}"))
@@ -195,7 +195,7 @@ pub async fn delete_role(
     actor_id: &str,
     role_id: &str,
 ) -> Result<NamedRef, LogicError> {
-    let role = read_role_node_by_id(&state.graph, role_id)
+    let role = read_role_node_by_id(&state.database, role_id)
         .await?
         .ok_or_else(|| LogicError::not_found("role not found"))?;
     let name = role.role_name;
@@ -211,7 +211,7 @@ pub async fn delete_role(
             "role {name} is a required role and cannot be deleted"
         )));
     }
-    delete_role_node(&state.graph, &name)
+    delete_role_node(&state.database, &name)
         .await
         .map_err(|error| LogicError::internal(format!("failed to delete role: {error}")))?;
     Ok(NamedRef {

@@ -55,7 +55,7 @@ async fn read_session_returns_the_user_id_for_a_known_token() {
     let context = TestCtx::new().await.expect("test context");
     let token = uuid::Uuid::now_v7().to_string();
     let key = token_key(&token).expect("token key");
-    context.state.caches.session.insert(
+    context.state.cache.session.insert(
         &key,
         SessionTokenEntry {
             user_id: "user-123".to_string(),
@@ -86,7 +86,7 @@ async fn create_session_stores_a_token_for_the_user() {
     let context = TestCtx::new().await.expect("test context");
     let session_token = create_session(&context.state, "user-123").expect("create");
     let key = token_key(&session_token).expect("token key");
-    let entry = context.state.caches.session.read(&key).expect("entry");
+    let entry = context.state.cache.session.read(&key).expect("entry");
     assert_eq!(entry.user_id, "user-123");
 }
 
@@ -95,7 +95,7 @@ async fn delete_session_removes_the_session_token() {
     let context = TestCtx::new().await.expect("test context");
     let token = uuid::Uuid::now_v7().to_string();
     let key = token_key(&token).expect("token key");
-    context.state.caches.session.insert(
+    context.state.cache.session.insert(
         &key,
         SessionTokenEntry {
             user_id: "user-123".to_string(),
@@ -104,7 +104,7 @@ async fn delete_session_removes_the_session_token() {
 
     let pow = context.issued_pow("delete-session-nonce");
     crate::logic::session::delete_session(&context.state, &pow, &token).expect("delete");
-    assert!(context.state.caches.session.read(&key).is_none());
+    assert!(context.state.cache.session.read(&key).is_none());
 }
 
 #[tokio::test]
@@ -120,12 +120,12 @@ async fn delete_session_requires_a_valid_session() {
 async fn read_user_name_returns_the_account_name() {
     let context = TestCtx::new().await.expect("test context");
     let email_hash = nail_common::hash::email("alice@example.com");
-    let user_id = crate::repository::user::create_user(&context.state.graph, &email_hash)
+    let user_id = crate::repository::user::create_user(&context.state.database, &email_hash)
         .await
         .expect("create user");
     let token = uuid::Uuid::now_v7().to_string();
     let key = token_key(&token).expect("token key");
-    context.state.caches.session.insert(
+    context.state.cache.session.insert(
         &key,
         SessionTokenEntry {
             user_id: user_id.clone(),

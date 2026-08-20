@@ -10,14 +10,14 @@ const TEST_TAGS: &[&str] = &["rust", "backend", "frontend", "devops", "web", "go
 
 async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email(email),
     )
     .await
     .expect("user");
     let token = Uuid::now_v7().to_string();
     let key = token_key(&token).expect("token key");
-    context.state.caches.session.insert(
+    context.state.cache.session.insert(
         &key,
         SessionTokenEntry {
             user_id: user_id.clone(),
@@ -29,7 +29,7 @@ async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
 async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
     context.seed_tags(TEST_TAGS).await;
     let (user_id, token) = session_for(context, email).await;
-    hold_role(&context.state.graph, &user_id, ROLE_MEMBER)
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
         .await
         .expect("member role");
     (user_id, token)
@@ -541,7 +541,7 @@ async fn delete_article_transfer_repoints_to_the_recycler() {
     assert_eq!(status, StatusCode::OK, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("deleted"));
     let recycler_id = crate::repository::user::read_user_by_email_address_hash(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email("user-zero@example.com"),
     )
     .await
@@ -577,7 +577,7 @@ async fn delete_article_soft_hides_the_article_over_http() {
     assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("article not found"));
     let (versions, _) =
-        crate::repository::version::versions_of(&context.state.graph, &article_id, 10, 0)
+        crate::repository::version::versions_of(&context.state.database, &article_id, 10, 0)
             .await
             .expect("versions");
     assert_eq!(

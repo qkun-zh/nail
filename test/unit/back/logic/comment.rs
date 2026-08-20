@@ -13,14 +13,14 @@ use crate::repository::role::{ROLE_MEMBER, hold_role};
 use crate::repository::version::VersionDraft;
 
 async fn create_user(state: &AppState, email: &str) -> String {
-    crate::repository::user::create_user(&state.graph, &nail_common::hash::email(email))
+    crate::repository::user::create_user(&state.database, &nail_common::hash::email(email))
         .await
         .expect("user")
 }
 
 async fn member(state: &AppState, email: &str) -> String {
     let user_id = create_user(state, email).await;
-    hold_role(&state.graph, &user_id, ROLE_MEMBER)
+    hold_role(&state.database, &user_id, ROLE_MEMBER)
         .await
         .expect("member");
     user_id
@@ -28,7 +28,7 @@ async fn member(state: &AppState, email: &str) -> String {
 
 async fn admin(state: &AppState) -> String {
     crate::repository::user::read_user_by_email_address_hash(
-        &state.graph,
+        &state.database,
         &nail_common::hash::email("user-zero@example.com"),
     )
     .await
@@ -40,7 +40,7 @@ async fn create_version_fixture(state: &AppState, author_id: &str) -> String {
     let article_id = uuid::Uuid::now_v7().to_string();
     let version_id = uuid::Uuid::now_v7().to_string();
     create_article(
-        &state.graph,
+        &state.database,
         &ArticleDraft {
             article_id: article_id.clone(),
             author_id: author_id.to_string(),
@@ -198,7 +198,7 @@ async fn read_comments_rejects_a_non_uuidv7_comment_id() {
     let author_id = member(&state, "alice@example.com").await;
     let version_id = create_version_fixture(&state, &author_id).await;
     crate::repository::comment::create_top_level_comment(
-        &state.graph,
+        &state.database,
         "not-a-uuid",
         &author_id,
         &version_id,
@@ -266,7 +266,7 @@ async fn delete_comment_transfer_repoints_the_owner() {
         .await
         .expect("transfer");
 
-    let owner = crate::repository::comment::owner_of_comment(&state.graph, &comment_id)
+    let owner = crate::repository::comment::owner_of_comment(&state.database, &comment_id)
         .await
         .expect("owner");
     assert!(owner.is_some());
@@ -291,13 +291,13 @@ async fn delete_comment_hard_removes_the_subtree_as_admin() {
         .expect("hard delete");
 
     assert_eq!(
-        crate::repository::comment::owner_of_comment(&state.graph, &top)
+        crate::repository::comment::owner_of_comment(&state.database, &top)
             .await
             .expect("owner"),
         None
     );
     assert_eq!(
-        crate::repository::comment::owner_of_comment(&state.graph, &reply)
+        crate::repository::comment::owner_of_comment(&state.database, &reply)
             .await
             .expect("owner"),
         None
@@ -393,7 +393,7 @@ async fn delete_comment_soft_keeps_the_owner_edge() {
         .expect("soft delete");
 
     assert_eq!(
-        crate::repository::comment::owner_of_comment(&state.graph, &comment_id)
+        crate::repository::comment::owner_of_comment(&state.database, &comment_id)
             .await
             .expect("owner")
             .as_deref(),
@@ -430,7 +430,7 @@ async fn undelete_soft_comment_revives_the_comment_as_admin() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = member(&state, "alice@example.com").await;
     let admin_id = crate::repository::user::read_user_by_email_address_hash(
-        &state.graph,
+        &state.database,
         &nail_common::hash::email("user-zero@example.com"),
     )
     .await
@@ -489,7 +489,7 @@ async fn undelete_soft_comment_rejects_a_comment_that_is_not_soft_deleted() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = member(&state, "alice@example.com").await;
     let admin_id = crate::repository::user::read_user_by_email_address_hash(
-        &state.graph,
+        &state.database,
         &nail_common::hash::email("user-zero@example.com"),
     )
     .await

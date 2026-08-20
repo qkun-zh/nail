@@ -36,14 +36,14 @@ fn validate_email_rejects_disallowed_or_malformed_addresses() {
 
 async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email(email),
     )
     .await
     .expect("user");
     let token = uuid::Uuid::now_v7().to_string();
     let key = token_key(&token).expect("token key");
-    context.state.caches.session.insert(
+    context.state.cache.session.insert(
         &key,
         SessionTokenEntry {
             user_id: user_id.clone(),
@@ -77,7 +77,7 @@ async fn create_user_token_sends_and_caches_a_token() {
     assert_eq!(to, "alice@example.com");
     assert_eq!(message_subject, &subject);
     let token_key = token_key(body).expect("token key");
-    assert!(context.state.caches.create_user.read(&token_key).is_some());
+    assert!(context.state.cache.create_user.read(&token_key).is_some());
 }
 
 #[tokio::test]
@@ -113,7 +113,7 @@ async fn create_user_token_rejects_a_disallowed_domain_without_burning_the_chall
     assert!(
         context
             .state
-            .caches
+            .cache
             .challenge
             .consume(&pow.challenge.id.to_string())
             .is_some()
@@ -166,7 +166,7 @@ async fn change_email_sends_two_emails_and_caches_the_token_hashes() {
 
     let entry = context
         .state
-        .caches
+        .cache
         .email_update
         .read(&user_id)
         .expect("entry");
@@ -220,7 +220,7 @@ async fn update_user_email_updates_email_and_returns_a_new_session() {
     let (user_id, _old_session) = session_for(&context, "alice@example.com").await;
     let old_token = uuid::Uuid::now_v7().to_string();
     let new_token = uuid::Uuid::now_v7().to_string();
-    context.state.caches.email_update.insert(
+    context.state.cache.email_update.insert(
         &user_id,
         crate::repository::cache::EmailUpdateTokenEntry {
             old_email_hash: nail_common::hash::email("alice@example.com"),
@@ -237,7 +237,7 @@ async fn update_user_email_updates_email_and_returns_a_new_session() {
         .expect("update email");
     assert!(!new_session.is_empty());
 
-    let entry = crate::repository::user::read_user(&context.state.graph, &user_id)
+    let entry = crate::repository::user::read_user(&context.state.database, &user_id)
         .await
         .expect("read")
         .expect("entry");
@@ -304,7 +304,7 @@ async fn update_user_email_rejects_same_old_and_new_token() {
     let (user_id, _) = session_for(&context, "alice@example.com").await;
     let same_token = uuid::Uuid::now_v7().to_string();
     let other_token = uuid::Uuid::now_v7().to_string();
-    context.state.caches.email_update.insert(
+    context.state.cache.email_update.insert(
         &user_id,
         crate::repository::cache::EmailUpdateTokenEntry {
             old_email_hash: nail_common::hash::email("alice@example.com"),
@@ -331,7 +331,7 @@ async fn update_user_email_rejects_token_mismatch() {
     let old_token = uuid::Uuid::now_v7().to_string();
     let new_token = uuid::Uuid::now_v7().to_string();
     let wrong_token = uuid::Uuid::now_v7().to_string();
-    context.state.caches.email_update.insert(
+    context.state.cache.email_update.insert(
         &user_id,
         crate::repository::cache::EmailUpdateTokenEntry {
             old_email_hash: nail_common::hash::email("alice@example.com"),
@@ -386,7 +386,7 @@ async fn update_user_email_rejects_pow_payload_not_matching_tokens() {
     let (user_id, _) = session_for(&context, "alice@example.com").await;
     let old_token = uuid::Uuid::now_v7().to_string();
     let new_token = uuid::Uuid::now_v7().to_string();
-    context.state.caches.email_update.insert(
+    context.state.cache.email_update.insert(
         &user_id,
         crate::repository::cache::EmailUpdateTokenEntry {
             old_email_hash: nail_common::hash::email("alice@example.com"),

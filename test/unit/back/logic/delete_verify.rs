@@ -8,12 +8,12 @@ const TEST_TAGS: &[&str] = &["rust", "backend", "frontend", "devops"];
 
 async fn member(context: &TestCtx, email: &str) -> String {
     let user_id = crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email(email),
     )
     .await
     .expect("user");
-    hold_role(&context.state.graph, &user_id, ROLE_MEMBER)
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
         .await
         .expect("member role");
     user_id
@@ -21,12 +21,12 @@ async fn member(context: &TestCtx, email: &str) -> String {
 
 async fn admin(context: &TestCtx, email: &str) -> String {
     let user_id = crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email(email),
     )
     .await
     .expect("user");
-    hold_role(&context.state.graph, &user_id, ROLE_ADMIN)
+    hold_role(&context.state.database, &user_id, ROLE_ADMIN)
         .await
         .expect("admin role");
     user_id
@@ -77,14 +77,14 @@ async fn hard_delete_article_removes_versions_comments_and_search_docs() {
     .expect("hard delete");
 
     assert!(
-        crate::repository::article::read_article(&context.state.graph, &article_id)
+        crate::repository::article::read_article(&context.state.database, &article_id)
             .await
             .expect("read")
             .is_none(),
         "article node must be gone"
     );
     assert!(
-        crate::repository::version::versions_of(&context.state.graph, &article_id, 10, 0)
+        crate::repository::version::versions_of(&context.state.database, &article_id, 10, 0)
             .await
             .expect("versions")
             .0
@@ -142,14 +142,14 @@ async fn hard_delete_version_removes_only_that_version_and_its_comments() {
     .expect("hard delete v1");
 
     assert!(
-        crate::repository::version::read_version(&context.state.graph, &first_version_id)
+        crate::repository::version::read_version(&context.state.database, &first_version_id)
             .await
             .expect("read v1")
             .is_none(),
         "v1 must be gone"
     );
     assert!(
-        crate::repository::version::read_version(&context.state.graph, &second_version_id)
+        crate::repository::version::read_version(&context.state.database, &second_version_id)
             .await
             .expect("read v2")
             .is_some(),
@@ -231,7 +231,7 @@ async fn soft_deleted_article_can_still_be_hard_deleted() {
     .expect("hard delete after soft");
 
     assert!(
-        crate::repository::article::read_article(&context.state.graph, &article_id)
+        crate::repository::article::read_article(&context.state.database, &article_id)
             .await
             .expect("read")
             .is_none(),
@@ -265,7 +265,7 @@ async fn soft_deleted_version_can_still_be_hard_deleted() {
     .expect("hard delete after soft");
 
     assert!(
-        crate::repository::version::read_version(&context.state.graph, &version_id)
+        crate::repository::version::read_version(&context.state.database, &version_id)
             .await
             .expect("read")
             .is_none(),
@@ -290,7 +290,7 @@ async fn transfer_article_repoints_ownership_but_keeps_content_readable() {
     .expect("transfer");
 
     assert!(
-        crate::repository::article::read_article(&context.state.graph, &article_id)
+        crate::repository::article::read_article(&context.state.database, &article_id)
             .await
             .expect("read")
             .is_some(),
@@ -320,13 +320,13 @@ async fn transfer_article_updates_the_search_author_name() {
     .expect("transfer");
 
     let recycler_id = crate::repository::user::read_user_by_email_address_hash(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email("user-zero@example.com"),
     )
     .await
     .expect("lookup recycler")
     .expect("seeded recycler");
-    let recycler_name = crate::repository::user::read_user(&context.state.graph, &recycler_id)
+    let recycler_name = crate::repository::user::read_user(&context.state.database, &recycler_id)
         .await
         .expect("read recycler")
         .expect("recycler exists")
@@ -492,7 +492,7 @@ async fn member_owner_cannot_hard_delete_own_article() {
     .expect_err("member must not hard delete");
     assert!(matches!(error, LogicError::Forbidden(_)));
     assert!(
-        crate::repository::article::read_article(&context.state.graph, &article_id)
+        crate::repository::article::read_article(&context.state.database, &article_id)
             .await
             .expect("read")
             .is_some(),
@@ -557,7 +557,7 @@ async fn admin_can_hard_delete_a_members_article() {
     .await
     .expect("admin hard delete");
     assert!(
-        crate::repository::article::read_article(&context.state.graph, &article_id)
+        crate::repository::article::read_article(&context.state.database, &article_id)
             .await
             .expect("read")
             .is_none()
@@ -604,14 +604,14 @@ async fn hard_delete_user_removes_content_and_search_docs() {
     .expect("hard delete user");
 
     assert!(
-        crate::repository::user::read_user(&context.state.graph, &owner)
+        crate::repository::user::read_user(&context.state.database, &owner)
             .await
             .expect("read user")
             .is_none(),
         "user node must be gone"
     );
     assert!(
-        crate::repository::article::read_article(&context.state.graph, &article_id)
+        crate::repository::article::read_article(&context.state.database, &article_id)
             .await
             .expect("read article")
             .is_none(),
@@ -657,13 +657,13 @@ async fn soft_delete_keeps_article_identity_while_hiding_it() {
         LogicError::not_found("article not found")
     );
     assert!(
-        crate::repository::article::read_article(&context.state.graph, &article_id)
+        crate::repository::article::read_article(&context.state.database, &article_id)
             .await
             .expect("read")
             .is_some(),
         "the node must survive for identity/occupancy"
     );
-    let guard = context.state.graph.read().await;
+    let guard = context.state.database.read().await;
     let holder = crate::repository::graph::resolve_node_id(
         &guard,
         crate::repository::schema::ENTITY_TYPE_ARTICLE,
@@ -704,7 +704,7 @@ async fn soft_deleted_article_hides_its_whole_subtree_and_rejects_writes() {
     .expect("soft delete");
 
     let (versions, _) =
-        crate::repository::version::versions_of(&context.state.graph, &article_id, 10, 0)
+        crate::repository::version::versions_of(&context.state.database, &article_id, 10, 0)
             .await
             .expect("versions");
     assert!(versions.is_empty(), "version list hidden");
@@ -787,19 +787,19 @@ async fn soft_deleted_article_restore_brings_back_the_whole_subtree() {
     .await
     .expect("soft delete");
 
-    crate::repository::delete::clear_soft_deleted_flag(&context.state.graph, &article_id)
+    crate::repository::delete::clear_soft_deleted_flag(&context.state.database, &article_id)
         .await
         .expect("restore");
 
     assert!(
-        crate::repository::article::read_article(&context.state.graph, &article_id)
+        crate::repository::article::read_article(&context.state.database, &article_id)
             .await
             .expect("read article")
             .is_some(),
         "article readable again"
     );
     let (versions, _) =
-        crate::repository::version::versions_of(&context.state.graph, &article_id, 10, 0)
+        crate::repository::version::versions_of(&context.state.database, &article_id, 10, 0)
             .await
             .expect("versions");
     assert_eq!(versions.len(), 1, "version list back");
@@ -852,11 +852,11 @@ async fn soft_deleted_version_hides_its_comments_and_download() {
         LogicError::not_found("comment not found")
     );
 
-    crate::repository::delete::clear_soft_deleted_flag(&context.state.graph, &version_id)
+    crate::repository::delete::clear_soft_deleted_flag(&context.state.database, &version_id)
         .await
         .expect("restore version");
     assert!(
-        crate::repository::version::read_version(&context.state.graph, &version_id)
+        crate::repository::version::read_version(&context.state.database, &version_id)
             .await
             .expect("read version")
             .is_some(),
@@ -871,7 +871,7 @@ async fn soft_deleted_version_hides_its_comments_and_download() {
         "comment back after version restore"
     );
     let (versions, _) =
-        crate::repository::version::versions_of(&context.state.graph, &article_id, 10, 0)
+        crate::repository::version::versions_of(&context.state.database, &article_id, 10, 0)
             .await
             .expect("versions");
     assert_eq!(versions.len(), 1, "version listed again");
@@ -916,7 +916,7 @@ async fn soft_deleted_comment_hides_its_reply_subtree() {
         LogicError::not_found("comment not found")
     );
 
-    crate::repository::delete::clear_soft_deleted_flag(&context.state.graph, &top)
+    crate::repository::delete::clear_soft_deleted_flag(&context.state.database, &top)
         .await
         .expect("restore top");
     assert_eq!(

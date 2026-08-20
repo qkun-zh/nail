@@ -7,14 +7,14 @@ use crate::repository::cache::{SessionTokenEntry, token_key};
 
 async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email(email),
     )
     .await
     .expect("user");
     let token = uuid::Uuid::now_v7().to_string();
     let key = token_key(&token).expect("token key");
-    context.state.caches.session.insert(
+    context.state.cache.session.insert(
         &key,
         SessionTokenEntry {
             user_id: user_id.clone(),
@@ -129,7 +129,7 @@ async fn update_user_admin_rename_to_a_taken_name_is_a_bad_request() {
     let (admin, _) = admin_session(&context).await;
     let (target, _) = session_for(&context, "alice@example.com").await;
     let (other, _) = session_for(&context, "bob@example.com").await;
-    crate::repository::user::update_user_name(&context.state.graph, &other, "taken-name")
+    crate::repository::user::update_user_name(&context.state.database, &other, "taken-name")
         .await
         .expect("set other name");
 
@@ -154,7 +154,7 @@ async fn update_user_rejects_a_taken_name() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, _) = session_for(&context, "alice@example.com").await;
     let (other, _) = session_for(&context, "bob@example.com").await;
-    crate::repository::user::update_user_name(&context.state.graph, &other, "alice-renamed")
+    crate::repository::user::update_user_name(&context.state.database, &other, "alice-renamed")
         .await
         .expect("rename other");
     let pow = context.issued_pow("alice-renamed");
@@ -218,7 +218,7 @@ async fn delete_user_hard_by_admin_removes_the_user() {
     };
     assert_eq!(view.user_id, target);
     assert!(
-        crate::repository::user::read_user(&context.state.graph, &target)
+        crate::repository::user::read_user(&context.state.database, &target)
             .await
             .expect("read")
             .is_none()
@@ -262,7 +262,7 @@ async fn delete_user_transfer_after_email_confirmation() {
     .expect("transfer delete");
     assert!(matches!(data, UserDeleteView::Empty(_)));
     assert!(
-        crate::repository::user::read_user(&context.state.graph, &user_id)
+        crate::repository::user::read_user(&context.state.database, &user_id)
             .await
             .expect("read")
             .is_none()
@@ -326,7 +326,7 @@ async fn delete_user_soft_after_email_confirmation() {
     .expect("soft delete");
     assert!(matches!(data, UserDeleteView::Empty(_)));
     assert!(
-        crate::repository::delete::is_soft_deleted(&context.state.graph, "user", &user_id)
+        crate::repository::delete::is_soft_deleted(&context.state.database, "user", &user_id)
             .await
             .expect("soft-deleted check")
     );
@@ -368,7 +368,7 @@ async fn undelete_soft_user_by_admin_revives_the_user() {
     .await
     .expect("soft delete");
     assert!(
-        crate::repository::delete::is_soft_deleted(&context.state.graph, "user", &user_id)
+        crate::repository::delete::is_soft_deleted(&context.state.database, "user", &user_id)
             .await
             .expect("soft-deleted check")
     );
@@ -377,7 +377,7 @@ async fn undelete_soft_user_by_admin_revives_the_user() {
         .await
         .expect("undelete");
     assert!(
-        !crate::repository::delete::is_soft_deleted(&context.state.graph, "user", &user_id)
+        !crate::repository::delete::is_soft_deleted(&context.state.database, "user", &user_id)
             .await
             .expect("soft-deleted check")
     );
@@ -593,7 +593,7 @@ async fn create_user_rejects_a_soft_deleted_account() {
         LogicError::bad_request("email address is deactivated")
     );
     assert!(
-        crate::repository::delete::is_soft_deleted(&context.state.graph, "user", &user_id)
+        crate::repository::delete::is_soft_deleted(&context.state.database, "user", &user_id)
             .await
             .expect("soft-deleted check")
     );

@@ -8,12 +8,12 @@ const TEST_TAGS: &[&str] = &["rust", "backend", "frontend", "devops", "web"];
 async fn member(context: &TestCtx, email: &str) -> String {
     context.seed_tags(TEST_TAGS).await;
     let user_id = crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email(email),
     )
     .await
     .expect("user");
-    hold_role(&context.state.graph, &user_id, ROLE_MEMBER)
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
         .await
         .expect("member role");
     user_id
@@ -21,12 +21,12 @@ async fn member(context: &TestCtx, email: &str) -> String {
 
 async fn admin(context: &TestCtx, email: &str) -> String {
     let user_id = crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email(email),
     )
     .await
     .expect("user");
-    hold_role(&context.state.graph, &user_id, ROLE_ADMIN)
+    hold_role(&context.state.database, &user_id, ROLE_ADMIN)
         .await
         .expect("admin role");
     user_id
@@ -194,7 +194,7 @@ async fn search_hides_the_comments_of_a_soft_deleted_article() {
 }
 
 async fn article_id_of(context: &TestCtx, version_id: &str) -> String {
-    crate::repository::version::parent_article_of(&context.state.graph, version_id)
+    crate::repository::version::parent_article_of(&context.state.database, version_id)
         .await
         .expect("parent")
         .expect("article")
@@ -226,7 +226,7 @@ async fn search_hides_a_soft_deleted_version_but_keeps_siblings() {
     .expect("second version");
 
     let (versions, _) =
-        crate::repository::version::versions_of(&context.state.graph, &article_id, 10, 0)
+        crate::repository::version::versions_of(&context.state.database, &article_id, 10, 0)
             .await
             .expect("versions");
     let doomed = versions
@@ -568,7 +568,7 @@ async fn search_note_range_only_matches_the_note_field() {
 async fn search_author_range_matches_the_author_name() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com").await;
-    crate::repository::user::update_user_name(&context.state.graph, &actor, "probe-author")
+    crate::repository::user::update_user_name(&context.state.database, &actor, "probe-author")
         .await
         .expect("rename");
     create_seeded_article(
@@ -604,7 +604,7 @@ async fn search_author_name_refreshes_after_a_rename() {
         "note",
     )
     .await;
-    crate::repository::user::update_user_name(&context.state.graph, &actor, "new-author-name")
+    crate::repository::user::update_user_name(&context.state.database, &actor, "new-author-name")
         .await
         .expect("rename");
     crate::logic::search::sync_user_best_effort(&context.state, &actor).await;
@@ -1037,7 +1037,7 @@ async fn search_after_clear_flag_and_resync_revives_the_article() {
     .await
     .expect("soft delete");
 
-    crate::repository::delete::clear_soft_deleted_flag(&context.state.graph, &article_id)
+    crate::repository::delete::clear_soft_deleted_flag(&context.state.database, &article_id)
         .await
         .expect("clear flag");
     crate::logic::search::sync_article_best_effort(&context.state, &article_id).await;

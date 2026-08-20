@@ -6,7 +6,7 @@ use crate::logic::role::{
 
 async fn admin(context: &TestCtx) -> String {
     crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email("user-zero@example.com"),
     )
     .await

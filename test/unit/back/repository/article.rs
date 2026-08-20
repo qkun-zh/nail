@@ -31,7 +31,7 @@ fn article_draft(author_id: &str, title: &str, hash: &str, tags: Vec<String>) ->
 }
 
 async fn create_user(state: &crate::infrastructure::state::AppState, email: &str) -> String {
-    crate::repository::user::create_user(&state.graph, &nail_common::hash::email(email))
+    crate::repository::user::create_user(&state.database, &nail_common::hash::email(email))
         .await
         .expect("user")
 }
@@ -45,7 +45,7 @@ async fn create_article_fixture(
     let article_id = uuid::Uuid::now_v7().to_string();
     let version_id = uuid::Uuid::now_v7().to_string();
     create_article(
-        &state.graph,
+        &state.database,
         &ArticleDraft {
             article_id: article_id.clone(),
             author_id: author_id.to_string(),
@@ -73,7 +73,7 @@ async fn create_article_writes_nodes_and_edges_and_reads_back() {
     let version_id = uuid::Uuid::now_v7().to_string();
 
     create_article(
-        &state.graph,
+        &state.database,
         &ArticleDraft {
             article_id: article_id.clone(),
             author_id: author_id.clone(),
@@ -91,7 +91,7 @@ async fn create_article_writes_nodes_and_edges_and_reads_back() {
     .await
     .expect("create");
 
-    let detail = read_article(&state.graph, &article_id)
+    let detail = read_article(&state.database, &article_id)
         .await
         .expect("read")
         .expect("article");
@@ -100,7 +100,7 @@ async fn create_article_writes_nodes_and_edges_and_reads_back() {
     assert_eq!(detail.tags.len(), 2);
     assert!(detail.tags.iter().any(|tag| tag.name == "rust"));
 
-    let version = crate::repository::version::read_version(&state.graph, &version_id)
+    let version = crate::repository::version::read_version(&state.database, &version_id)
         .await
         .expect("version")
         .expect("version");
@@ -112,7 +112,7 @@ async fn create_article_writes_nodes_and_edges_and_reads_back() {
 async fn create_article_rejects_a_missing_author() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let error = create_article(
-        &state.graph,
+        &state.database,
         &article_draft("missing", "Title", &pdf_hash(1), vec!["go".to_string()]),
     )
     .await
@@ -127,7 +127,7 @@ async fn create_article_rejects_a_duplicate_title() {
     create_article_fixture(&state, &author_id, "Duplicated", &pdf_hash(1)).await;
 
     let error = create_article(
-        &state.graph,
+        &state.database,
         &article_draft(
             &author_id,
             "Duplicated",
@@ -147,7 +147,7 @@ async fn create_article_rejects_a_duplicate_content_hash() {
     create_article_fixture(&state, &author_id, "First", &pdf_hash(3)).await;
 
     let error = create_article(
-        &state.graph,
+        &state.database,
         &article_draft(&author_id, "Second", &pdf_hash(3), vec!["go".to_string()]),
     )
     .await
@@ -162,7 +162,7 @@ async fn update_article_changes_fields_and_reconciles_tags() {
     let (article_id, _) = create_article_fixture(&state, &author_id, "Article", &pdf_hash(1)).await;
 
     update_article(
-        &state.graph,
+        &state.database,
         &article_id,
         &ArticleUpdate {
             title: "Renamed".to_string(),
@@ -173,7 +173,7 @@ async fn update_article_changes_fields_and_reconciles_tags() {
     .await
     .expect("update");
 
-    let detail = read_article(&state.graph, &article_id)
+    let detail = read_article(&state.database, &article_id)
         .await
         .expect("read")
         .expect("article");
@@ -191,7 +191,7 @@ async fn update_article_rejects_a_duplicate_title() {
     create_article_fixture(&state, &author_id, "Second", &pdf_hash(2)).await;
 
     let error = update_article(
-        &state.graph,
+        &state.database,
         &article_id,
         &ArticleUpdate {
             title: "Second".to_string(),
@@ -208,7 +208,7 @@ async fn update_article_rejects_a_duplicate_title() {
 async fn update_article_returns_missing_for_an_unknown_article() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let error = update_article(
-        &state.graph,
+        &state.database,
         "missing",
         &ArticleUpdate {
             title: "Title".to_string(),
@@ -227,11 +227,11 @@ async fn owner_of_returns_the_author() {
     let author_id = create_user(&state, "alice@example.com").await;
     let (article_id, _) = create_article_fixture(&state, &author_id, "Titled", &pdf_hash(9)).await;
     assert_eq!(
-        owner_of(&state.graph, &article_id).await.expect("owner"),
+        owner_of(&state.database, &article_id).await.expect("owner"),
         Some(author_id)
     );
     assert_eq!(
-        owner_of(&state.graph, "missing").await.expect("owner"),
+        owner_of(&state.database, "missing").await.expect("owner"),
         None
     );
 }
@@ -254,8 +254,8 @@ async fn concurrent_identical_content_hashes_are_serialized_by_the_write_lock() 
         &shared_hash,
         vec!["b".to_string()],
     );
-    let first = create_article(&state.graph, &first_draft);
-    let second = create_article(&state.graph, &second_draft);
+    let first = create_article(&state.database, &first_draft);
+    let second = create_article(&state.database, &second_draft);
 
     let (left, right) = tokio::join!(first, second);
     let mut accepted = 0;
@@ -281,7 +281,7 @@ async fn tag_node_ids_by_name(
     state: &crate::infrastructure::state::AppState,
     name: &str,
 ) -> Vec<agdb::DbId> {
-    let guard = state.graph.read().await;
+    let guard = state.database.read().await;
     crate::repository::graph::find_by_index(&guard, crate::repository::schema::KEY_TAG_NAME, name)
         .expect("tag name index lookup")
 }
@@ -297,7 +297,7 @@ async fn update_article_removes_orphan_tags_and_keeps_shared_tags() {
         vec!["shared".to_string(), "one".to_string()],
     );
     let first_id = first_draft.article_id.clone();
-    create_article(&state.graph, &first_draft)
+    create_article(&state.database, &first_draft)
         .await
         .expect("create first");
     let second_draft = article_draft(
@@ -307,13 +307,13 @@ async fn update_article_removes_orphan_tags_and_keeps_shared_tags() {
         vec!["shared".to_string(), "two".to_string()],
     );
     let second_id = second_draft.article_id.clone();
-    create_article(&state.graph, &second_draft)
+    create_article(&state.database, &second_draft)
         .await
         .expect("create second");
     assert_eq!(tag_node_ids_by_name(&state, "shared").await.len(), 1);
 
     update_article(
-        &state.graph,
+        &state.database,
         &first_id,
         &ArticleUpdate {
             title: "Shared First".to_string(),
@@ -324,7 +324,7 @@ async fn update_article_removes_orphan_tags_and_keeps_shared_tags() {
     .await
     .expect("update first");
 
-    let second_view = read_article(&state.graph, &second_id)
+    let second_view = read_article(&state.database, &second_id)
         .await
         .expect("read second")
         .expect("second article");
@@ -332,7 +332,7 @@ async fn update_article_removes_orphan_tags_and_keeps_shared_tags() {
     assert_eq!(tag_node_ids_by_name(&state, "shared").await.len(), 1);
 
     update_article(
-        &state.graph,
+        &state.database,
         &second_id,
         &ArticleUpdate {
             title: "Shared Second".to_string(),

@@ -15,7 +15,7 @@ pub(crate) async fn read_text_field(
         .bytes()
         .await
         .map_err(|error| map_multipart_error(&error))?;
-    if bytes.len() as u64 > state.config.server.max_text_field_bytes {
+    if bytes.len() as u64 > state.configurator.max_text_field_bytes() {
         return Err(ApiError::bad_request("text field too large"));
     }
     String::from_utf8(bytes.to_vec()).map_err(|_| ApiError::bad_request("text field must be UTF-8"))
@@ -25,7 +25,7 @@ pub(crate) async fn stream_pdf_field(
     state: &AppState,
     mut field: axum::extract::multipart::Field<'_>,
 ) -> Result<PdfUpload, ApiError> {
-    let temp_path = std::path::Path::new(&state.config.server.pdf_storage_path)
+    let temp_path = std::path::Path::new(state.configurator.pdf_storage_path())
         .join(".tmp")
         .join(format!("{}.pdf", uuid::Uuid::now_v7()));
     let temp = TempPdf::new(temp_path.clone());
@@ -34,7 +34,7 @@ pub(crate) async fn stream_pdf_field(
             "failed to create temp pdf: {error}"
         )))
     })?;
-    let mut guard = PdfStreamGuard::new(state.config.server.max_pdf_size_bytes);
+    let mut guard = PdfStreamGuard::new(state.configurator.max_pdf_size_bytes());
     let mut hasher = PdfHasher::new();
 
     while let Some(chunk) = field

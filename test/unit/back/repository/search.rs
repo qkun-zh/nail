@@ -15,7 +15,7 @@ async fn create_article_fixture(
 ) -> String {
     let article_id = uuid::Uuid::now_v7().to_string();
     create_article(
-        &state.graph,
+        &state.database,
         &ArticleDraft {
             article_id: article_id.clone(),
             author_id: author_id.to_string(),
@@ -74,7 +74,7 @@ fn version_articles(
 async fn sync_and_read_round_trips_an_article() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
-        &state.graph,
+        &state.database,
         &nail_common::hash::email("alice@example.com"),
     )
     .await
@@ -85,11 +85,11 @@ async fn sync_and_read_round_trips_an_article() {
         .expect("index");
     let article_id = create_article_fixture(&state, &author_id, "A Unique Title").await;
 
-    index.sync(&state.graph, &article_id).await.expect("sync");
+    index.sync(&state.database, &article_id).await.expect("sync");
 
     let outcome = index
         .read(
-            &state.graph,
+            &state.database,
             query_request("unique", vec![nail_common::search::SearchRange::Title]),
         )
         .await
@@ -107,31 +107,31 @@ async fn sync_and_read_round_trips_an_article() {
 async fn sync_all_and_sync_user_skip_soft_deleted_articles() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
-        &state.graph,
+        &state.database,
         &nail_common::hash::email("alice@example.com"),
     )
     .await
     .expect("user");
-    let index = state.search.clone();
+    let index = state.searcher.clone();
 
     let first = create_fixture_with_hash(&state, &author_id, "Soft Del First", &pdf_hash(4)).await;
     let second =
         create_fixture_with_hash(&state, &author_id, "Soft Del Second", &pdf_hash(5)).await;
-    index.sync(&state.graph, &first).await.expect("sync first");
+    index.sync(&state.database, &first).await.expect("sync first");
     index
-        .sync(&state.graph, &second)
+        .sync(&state.database, &second)
         .await
         .expect("sync second");
 
-    crate::repository::delete::soft_delete_article(&state.graph, &first)
+    crate::repository::delete::soft_delete_article(&state.database, &first)
         .await
         .expect("soft delete");
 
-    let synced_all = index.sync_all(&state.graph).await.expect("sync all");
+    let synced_all = index.sync_all(&state.database).await.expect("sync all");
     assert_eq!(synced_all, 1, "deleted article excluded from sync_all");
 
     let synced_user = index
-        .sync_user(&state.graph, &author_id)
+        .sync_user(&state.database, &author_id)
         .await
         .expect("sync user");
     assert_eq!(synced_user, 1, "deleted article excluded from sync_user");
@@ -139,7 +139,7 @@ async fn sync_all_and_sync_user_skip_soft_deleted_articles() {
     let rebuilt = version_articles(
         &index
             .read(
-                &state.graph,
+                &state.database,
                 query_request("soft", vec![nail_common::search::SearchRange::Title]),
             )
             .await
@@ -155,7 +155,7 @@ async fn sync_all_and_sync_user_skip_soft_deleted_articles() {
 async fn keyword_read_returns_highlighted_hits() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
-        &state.graph,
+        &state.database,
         &nail_common::hash::email("alice@example.com"),
     )
     .await
@@ -165,11 +165,11 @@ async fn keyword_read_returns_highlighted_hits() {
         .await
         .expect("index");
     let article_id = create_article_fixture(&state, &author_id, "Rust Programming").await;
-    index.sync(&state.graph, &article_id).await.expect("sync");
+    index.sync(&state.database, &article_id).await.expect("sync");
 
     let outcome = index
         .read(
-            &state.graph,
+            &state.database,
             SearchRequest {
                 query: Some("rust".to_string()),
                 ranges: vec![nail_common::search::SearchRange::Title],
@@ -194,7 +194,7 @@ async fn keyword_read_returns_highlighted_hits() {
 async fn sync_user_refreshes_the_author_name() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
-        &state.graph,
+        &state.database,
         &nail_common::hash::email("alice@example.com"),
     )
     .await
@@ -204,21 +204,21 @@ async fn sync_user_refreshes_the_author_name() {
         .await
         .expect("index");
     let article_id = create_article_fixture(&state, &author_id, "Article").await;
-    index.sync(&state.graph, &article_id).await.expect("sync");
+    index.sync(&state.database, &article_id).await.expect("sync");
 
-    crate::repository::user::update_user_name(&state.graph, &author_id, "renamed-author")
+    crate::repository::user::update_user_name(&state.database, &author_id, "renamed-author")
         .await
         .expect("rename");
 
     let synced = index
-        .sync_user(&state.graph, &author_id)
+        .sync_user(&state.database, &author_id)
         .await
         .expect("sync user");
     assert_eq!(synced, 1);
 
     let outcome = index
         .read(
-            &state.graph,
+            &state.database,
             query_request("article", vec![nail_common::search::SearchRange::Title]),
         )
         .await
@@ -233,18 +233,18 @@ async fn sync_user_refreshes_the_author_name() {
 async fn sync_user_refreshes_the_author_name_of_their_comments() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
-        &state.graph,
+        &state.database,
         &nail_common::hash::email("alice@example.com"),
     )
     .await
     .expect("user");
     let commenter_id = crate::repository::user::create_user(
-        &state.graph,
+        &state.database,
         &nail_common::hash::email("bob@example.com"),
     )
     .await
     .expect("user");
-    crate::repository::user::update_user_name(&state.graph, &commenter_id, "old-name")
+    crate::repository::user::update_user_name(&state.database, &commenter_id, "old-name")
         .await
         .expect("name");
 
@@ -256,7 +256,7 @@ async fn sync_user_refreshes_the_author_name_of_their_comments() {
     let version_id = uuid::Uuid::now_v7().to_string();
     let article_id = uuid::Uuid::now_v7().to_string();
     create_article(
-        &state.graph,
+        &state.database,
         &ArticleDraft {
             article_id: article_id.clone(),
             author_id: author_id.clone(),
@@ -274,7 +274,7 @@ async fn sync_user_refreshes_the_author_name_of_their_comments() {
     .await
     .expect("create");
     crate::repository::comment::create_top_level_comment(
-        &state.graph,
+        &state.database,
         &uuid::Uuid::now_v7().to_string(),
         &commenter_id,
         &version_id,
@@ -282,21 +282,21 @@ async fn sync_user_refreshes_the_author_name_of_their_comments() {
     )
     .await
     .expect("comment");
-    index.sync(&state.graph, &article_id).await.expect("sync");
+    index.sync(&state.database, &article_id).await.expect("sync");
 
-    crate::repository::user::update_user_name(&state.graph, &commenter_id, "new-name")
+    crate::repository::user::update_user_name(&state.database, &commenter_id, "new-name")
         .await
         .expect("rename");
 
     let synced = index
-        .sync_user(&state.graph, &commenter_id)
+        .sync_user(&state.database, &commenter_id)
         .await
         .expect("sync user");
     assert_eq!(synced, 1, "commenter's article must be re-synced");
 
     let outcome = index
         .read(
-            &state.graph,
+            &state.database,
             SearchRequest {
                 query: Some("hello".to_string()),
                 ranges: vec![nail_common::search::SearchRange::Comment],
@@ -327,7 +327,7 @@ async fn sync_user_refreshes_the_author_name_of_their_comments() {
 async fn sync_removes_documents_for_a_deleted_article() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
-        &state.graph,
+        &state.database,
         &nail_common::hash::email("alice@example.com"),
     )
     .await
@@ -337,19 +337,19 @@ async fn sync_removes_documents_for_a_deleted_article() {
         .await
         .expect("index");
     let article_id = create_article_fixture(&state, &author_id, "Article").await;
-    index.sync(&state.graph, &article_id).await.expect("sync");
+    index.sync(&state.database, &article_id).await.expect("sync");
 
-    crate::repository::delete::delete_article(&state.graph, &article_id)
+    crate::repository::delete::delete_article(&state.database, &article_id)
         .await
         .expect("delete");
     index
-        .sync(&state.graph, &article_id)
+        .sync(&state.database, &article_id)
         .await
         .expect("sync after delete");
 
     let outcome = index
         .read(
-            &state.graph,
+            &state.database,
             query_request("article", vec![nail_common::search::SearchRange::Title]),
         )
         .await
@@ -364,7 +364,7 @@ async fn sync_removes_documents_for_a_deleted_article() {
 async fn sync_excludes_a_soft_deleted_version_doc_and_its_comments() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
-        &state.graph,
+        &state.database,
         &nail_common::hash::email("alice@example.com"),
     )
     .await
@@ -377,7 +377,7 @@ async fn sync_excludes_a_soft_deleted_version_doc_and_its_comments() {
     let version_id = uuid::Uuid::now_v7().to_string();
     let article_id = uuid::Uuid::now_v7().to_string();
     create_article(
-        &state.graph,
+        &state.database,
         &ArticleDraft {
             article_id: article_id.clone(),
             author_id: author_id.clone(),
@@ -396,7 +396,7 @@ async fn sync_excludes_a_soft_deleted_version_doc_and_its_comments() {
     .expect("create");
     let comment_id = uuid::Uuid::now_v7().to_string();
     crate::repository::comment::create_top_level_comment(
-        &state.graph,
+        &state.database,
         &comment_id,
         &author_id,
         &version_id,
@@ -404,19 +404,19 @@ async fn sync_excludes_a_soft_deleted_version_doc_and_its_comments() {
     )
     .await
     .expect("comment");
-    index.sync(&state.graph, &article_id).await.expect("sync");
+    index.sync(&state.database, &article_id).await.expect("sync");
 
-    crate::repository::delete::soft_delete_version(&state.graph, &version_id)
+    crate::repository::delete::soft_delete_version(&state.database, &version_id)
         .await
         .expect("soft delete version");
     index
-        .sync(&state.graph, &article_id)
+        .sync(&state.database, &article_id)
         .await
         .expect("resync after soft delete");
 
     let outcome = index
         .read(
-            &state.graph,
+            &state.database,
             query_request("soft", vec![nail_common::search::SearchRange::Title]),
         )
         .await
@@ -428,7 +428,7 @@ async fn sync_excludes_a_soft_deleted_version_doc_and_its_comments() {
     );
     let comments = index
         .read(
-            &state.graph,
+            &state.database,
             SearchRequest {
                 query: Some("public comment".to_string()),
                 ranges: vec![nail_common::search::SearchRange::Comment],
@@ -458,7 +458,7 @@ async fn sync_excludes_a_soft_deleted_version_doc_and_its_comments() {
 async fn sync_excludes_a_soft_deleted_comment_doc() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
-        &state.graph,
+        &state.database,
         &nail_common::hash::email("alice@example.com"),
     )
     .await
@@ -471,7 +471,7 @@ async fn sync_excludes_a_soft_deleted_comment_doc() {
     let version_id = uuid::Uuid::now_v7().to_string();
     let article_id = uuid::Uuid::now_v7().to_string();
     create_article(
-        &state.graph,
+        &state.database,
         &ArticleDraft {
             article_id: article_id.clone(),
             author_id: author_id.clone(),
@@ -490,7 +490,7 @@ async fn sync_excludes_a_soft_deleted_comment_doc() {
     .expect("create");
     let deleted_comment = uuid::Uuid::now_v7().to_string();
     crate::repository::comment::create_top_level_comment(
-        &state.graph,
+        &state.database,
         &deleted_comment,
         &author_id,
         &version_id,
@@ -500,7 +500,7 @@ async fn sync_excludes_a_soft_deleted_comment_doc() {
     .expect("comment");
     let live_comment = uuid::Uuid::now_v7().to_string();
     crate::repository::comment::create_top_level_comment(
-        &state.graph,
+        &state.database,
         &live_comment,
         &author_id,
         &version_id,
@@ -508,19 +508,19 @@ async fn sync_excludes_a_soft_deleted_comment_doc() {
     )
     .await
     .expect("comment");
-    index.sync(&state.graph, &article_id).await.expect("sync");
+    index.sync(&state.database, &article_id).await.expect("sync");
 
-    crate::repository::delete::soft_delete_comment(&state.graph, &deleted_comment)
+    crate::repository::delete::soft_delete_comment(&state.database, &deleted_comment)
         .await
         .expect("soft delete comment");
     index
-        .sync(&state.graph, &article_id)
+        .sync(&state.database, &article_id)
         .await
         .expect("resync after soft delete");
 
     let comments = index
         .read(
-            &state.graph,
+            &state.database,
             SearchRequest {
                 query: Some("comment text".to_string()),
                 ranges: vec![nail_common::search::SearchRange::Comment],
@@ -550,7 +550,7 @@ async fn sync_excludes_a_soft_deleted_comment_doc() {
 async fn sync_drops_all_docs_of_a_soft_deleted_article() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
-        &state.graph,
+        &state.database,
         &nail_common::hash::email("alice@example.com"),
     )
     .await
@@ -563,7 +563,7 @@ async fn sync_drops_all_docs_of_a_soft_deleted_article() {
     let version_id = uuid::Uuid::now_v7().to_string();
     let article_id = uuid::Uuid::now_v7().to_string();
     create_article(
-        &state.graph,
+        &state.database,
         &ArticleDraft {
             article_id: article_id.clone(),
             author_id: author_id.clone(),
@@ -580,19 +580,19 @@ async fn sync_drops_all_docs_of_a_soft_deleted_article() {
     )
     .await
     .expect("create");
-    index.sync(&state.graph, &article_id).await.expect("sync");
+    index.sync(&state.database, &article_id).await.expect("sync");
 
-    crate::repository::delete::soft_delete_article(&state.graph, &article_id)
+    crate::repository::delete::soft_delete_article(&state.database, &article_id)
         .await
         .expect("soft delete article");
     index
-        .sync(&state.graph, &article_id)
+        .sync(&state.database, &article_id)
         .await
         .expect("resync after soft delete");
 
     let outcome = index
         .read(
-            &state.graph,
+            &state.database,
             query_request(
                 "soft article",
                 vec![nail_common::search::SearchRange::Title],
@@ -614,24 +614,24 @@ async fn sync_drops_all_docs_of_a_soft_deleted_article() {
 async fn sync_all_and_incremental_sync_agree_on_document_count() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let author_id = crate::repository::user::create_user(
-        &state.graph,
+        &state.database,
         &nail_common::hash::email("alice@example.com"),
     )
     .await
     .expect("user");
-    let index = state.search.clone();
+    let index = state.searcher.clone();
 
     let first = create_fixture_with_hash(&state, &author_id, "First Article", &pdf_hash(2)).await;
     let second = create_fixture_with_hash(&state, &author_id, "Second Article", &pdf_hash(3)).await;
-    index.sync(&state.graph, &first).await.expect("sync first");
+    index.sync(&state.database, &first).await.expect("sync first");
     index
-        .sync(&state.graph, &second)
+        .sync(&state.database, &second)
         .await
         .expect("sync second");
     let incremental_versions = version_articles(
         &index
             .read(
-                &state.graph,
+                &state.database,
                 query_request("article", vec![nail_common::search::SearchRange::Title]),
             )
             .await
@@ -640,12 +640,12 @@ async fn sync_all_and_incremental_sync_agree_on_document_count() {
     .len();
     assert_eq!(incremental_versions, 2);
 
-    let rebuilt = index.sync_all(&state.graph).await.expect("sync all");
+    let rebuilt = index.sync_all(&state.database).await.expect("sync all");
     assert_eq!(rebuilt, 2, "one version document per article");
     let after_rebuild_versions = version_articles(
         &index
             .read(
-                &state.graph,
+                &state.database,
                 query_request("article", vec![nail_common::search::SearchRange::Title]),
             )
             .await
@@ -657,17 +657,17 @@ async fn sync_all_and_incremental_sync_agree_on_document_count() {
         "full rebuild must agree with incremental sync"
     );
 
-    crate::repository::delete::delete_article(&state.graph, &first)
+    crate::repository::delete::delete_article(&state.database, &first)
         .await
         .expect("delete");
     index
-        .sync(&state.graph, &first)
+        .sync(&state.database, &first)
         .await
         .expect("sync after delete");
     let after_delete_versions = version_articles(
         &index
             .read(
-                &state.graph,
+                &state.database,
                 query_request("article", vec![nail_common::search::SearchRange::Title]),
             )
             .await
@@ -719,7 +719,7 @@ async fn create_fixture_with_hash(
 ) -> String {
     let article_id = uuid::Uuid::now_v7().to_string();
     create_article(
-        &state.graph,
+        &state.database,
         &ArticleDraft {
             article_id: article_id.clone(),
             author_id: author_id.to_string(),

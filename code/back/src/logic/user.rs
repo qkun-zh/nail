@@ -52,25 +52,25 @@ pub async fn create_user(state: &AppState, pow: &Pow) -> Result<String, LogicErr
     )?;
 
     let entry = state
-        .caches
+        .cache
         .create_user
         .consume(&key)
         .ok_or_else(|| LogicError::bad_request("invalid or expired token"))?;
 
     let user_id =
-        match crate::repository::user::create_user(&state.graph, &entry.email_address_hash).await {
+        match crate::repository::user::create_user(&state.database, &entry.email_address_hash).await {
             Ok(user_id) => user_id,
             Err(error) => {
-                state.caches.create_user.insert(&key, entry);
+                state.cache.create_user.insert(&key, entry);
                 return Err(error.into());
             }
         };
 
-    if crate::repository::delete::is_soft_deleted(&state.graph, "user", &user_id).await? {
+    if crate::repository::delete::is_soft_deleted(&state.database, "user", &user_id).await? {
         return Err(LogicError::bad_request("email address is deactivated"));
     }
 
-    crate::repository::role::hold_role(&state.graph, &user_id, ROLE_MEMBER)
+    crate::repository::role::hold_role(&state.database, &user_id, ROLE_MEMBER)
         .await
         .map_err(|error| LogicError::internal(format!("failed to grant member role: {error}")))?;
 
@@ -92,7 +92,7 @@ pub async fn read_user(
         ..UserView::default()
     };
     if name_requested || email_hash_requested {
-        let entry = read_user_node(&state.graph, target_id)
+        let entry = read_user_node(&state.database, target_id)
             .await?
             .ok_or_else(|| LogicError::not_found("user not found"))?;
         if name_requested {
@@ -102,9 +102,9 @@ pub async fn read_user(
             view.email_hash = Some(entry.email_address_hash);
         }
     }
-    let roles = crate::repository::role::roles_of_user(&state.graph, target_id).await?;
+    let roles = crate::repository::role::roles_of_user(&state.database, target_id).await?;
     view.roles = Some(roles);
-    let articles = crate::repository::article::articles_of_user(&state.graph, target_id).await?;
+    let articles = crate::repository::article::articles_of_user(&state.database, target_id).await?;
     view.articles = Some(articles);
     Ok(view)
 }
@@ -116,13 +116,13 @@ pub async fn read_users(
     limit: u64,
 ) -> Result<nail_common::response::ListPage<UserListItem>, LogicError> {
     authorize_global(state, actor_id, PERMISSION_USER_READ).await?;
-    let users = read_user_nodes(&state.graph).await?;
+    let users = read_user_nodes(&state.database).await?;
     let total = users.len() as u64;
     let (page_users, has_next) = paginate(users, page, limit);
 
     let mut items = Vec::with_capacity(page_users.len());
     for user in &page_users {
-        let roles = crate::repository::role::roles_of_user(&state.graph, &user.id).await?;
+        let roles = crate::repository::role::roles_of_user(&state.database, &user.id).await?;
         items.push(UserListItem {
             id: user.id.clone(),
             name: user.name.clone(),
@@ -226,7 +226,7 @@ async fn handle_update_name(
     verify_issued_pow(state, pow)?;
     let name = nail_common::name::validate_name(&pow.payload)
         .map_err(|error| LogicError::bad_request(error.to_string()))?;
-    update_user_name(&state.graph, actor_id, &name).await?;
+    update_user_name(&state.database, actor_id, &name).await?;
     Ok(name)
 }
 
@@ -245,7 +245,7 @@ async fn handle_admin_update_name(
     .await?;
     let name = nail_common::name::validate_name(raw_name)
         .map_err(|error| LogicError::bad_request(error.to_string()))?;
-    update_user_name(&state.graph, target_id, &name)
+    update_user_name(&state.database, target_id, &name)
         .await
         .map_err(|error| match error {
             UserWriteError::UserMissing => LogicError::not_found("user not found"),
@@ -272,12 +272,12 @@ async fn handle_delete_user_transfer(
         LogicError::bad_request("invalid delete token"),
     )?;
 
-    let Some(entry) = state.caches.delete_user.read(&token_hash) else {
-        let user_exists = read_user_node(&state.graph, actor_id).await?.is_some();
+    let Some(entry) = state.cache.delete_user.read(&token_hash) else {
+        let user_exists = read_user_node(&state.database, actor_id).await?.is_some();
         if user_exists {
             return Err(LogicError::bad_request("invalid or expired delete token"));
         }
-        state.caches.session.delete_by_reverse_key(actor_id);
+        state.cache.session.delete_by_reverse_key(actor_id);
         return Ok(());
     };
     if entry.user_id != actor_id {
@@ -287,15 +287,15 @@ async fn handle_delete_user_transfer(
     }
 
     let outcome =
-        crate::repository::transfer::transfer_account_assets(&state.graph, actor_id).await?;
+        crate::repository::transfer::transfer_account_assets(&state.database, actor_id).await?;
 
     let email_address_hash = entry.email_address_hash;
-    state.caches.delete_user.consume(&token_hash);
-    state.caches.session.delete_by_reverse_key(actor_id);
-    state.caches.email_update.delete(actor_id);
-    state.caches.delete_user.delete_by_reverse_key(actor_id);
+    state.cache.delete_user.consume(&token_hash);
+    state.cache.session.delete_by_reverse_key(actor_id);
+    state.cache.email_update.delete(actor_id);
+    state.cache.delete_user.delete_by_reverse_key(actor_id);
     state
-        .caches
+        .cache
         .create_user
         .delete_by_reverse_key(&email_address_hash);
 
@@ -324,12 +324,12 @@ async fn handle_delete_user_soft(
         LogicError::bad_request("invalid delete token"),
     )?;
 
-    let Some(entry) = state.caches.delete_user.read(&token_hash) else {
-        let user_exists = read_user_node(&state.graph, actor_id).await?.is_some();
+    let Some(entry) = state.cache.delete_user.read(&token_hash) else {
+        let user_exists = read_user_node(&state.database, actor_id).await?.is_some();
         if user_exists {
             return Err(LogicError::bad_request("invalid or expired delete token"));
         }
-        state.caches.session.delete_by_reverse_key(actor_id);
+        state.cache.session.delete_by_reverse_key(actor_id);
         return Ok(());
     };
     if entry.user_id != actor_id {
@@ -338,17 +338,17 @@ async fn handle_delete_user_soft(
         ));
     }
 
-    crate::repository::delete::soft_delete_user(&state.graph, actor_id)
+    crate::repository::delete::soft_delete_user(&state.database, actor_id)
         .await
         .map_err(|error| LogicError::internal(format!("failed to soft-delete user: {error}")))?;
 
     let email_address_hash = entry.email_address_hash;
-    state.caches.delete_user.consume(&token_hash);
-    state.caches.session.delete_by_reverse_key(actor_id);
-    state.caches.email_update.delete(actor_id);
-    state.caches.delete_user.delete_by_reverse_key(actor_id);
+    state.cache.delete_user.consume(&token_hash);
+    state.cache.session.delete_by_reverse_key(actor_id);
+    state.cache.email_update.delete(actor_id);
+    state.cache.delete_user.delete_by_reverse_key(actor_id);
     state
-        .caches
+        .cache
         .create_user
         .delete_by_reverse_key(&email_address_hash);
 
@@ -369,7 +369,7 @@ pub async fn undelete_soft_user(
         EntityRef::User(target_id),
     )
     .await?;
-    crate::repository::delete::undelete_soft_user(&state.graph, target_id)
+    crate::repository::delete::undelete_soft_user(&state.database, target_id)
         .await
         .map_err(|error| LogicError::internal(format!("failed to undelete user: {error}")))?;
     sync_all_best_effort(state).await;
@@ -388,7 +388,7 @@ async fn handle_delete_user_hard(
         EntityRef::User(target_id),
     )
     .await?;
-    let outcome = crate::repository::delete::delete_user(&state.graph, target_id)
+    let outcome = crate::repository::delete::delete_user(&state.database, target_id)
         .await
         .map_err(|error| LogicError::internal(format!("failed to delete user: {error}")))?;
     crate::logic::version::remove_orphaned_pdfs(state, &outcome.removed_pdf_hashes).await;

@@ -4,12 +4,12 @@ use crate::repository::role::{ROLE_MEMBER, hold_role};
 
 async fn member(context: &TestCtx, email: &str) -> String {
     let user_id = crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email(email),
     )
     .await
     .expect("user");
-    hold_role(&context.state.graph, &user_id, ROLE_MEMBER)
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
         .await
         .expect("member role");
     user_id
@@ -17,7 +17,7 @@ async fn member(context: &TestCtx, email: &str) -> String {
 
 async fn admin(context: &TestCtx) -> String {
     crate::repository::user::read_user_by_email_address_hash(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email("user-zero@example.com"),
     )
     .await
@@ -52,7 +52,7 @@ async fn article_with_tags(context: &TestCtx, actor: &str, tags: &str) -> String
 
 async fn seeded_tag_id(context: &TestCtx, name: &str) -> String {
     context.seed_tags(&[name]).await;
-    crate::repository::tag::read_tag_by_name(&context.state.graph, name)
+    crate::repository::tag::read_tag_by_name(&context.state.database, name)
         .await
         .expect("read tag")
         .expect("tag exists")
@@ -69,7 +69,7 @@ async fn apply_tag_links_article_and_tag() {
     crate::logic::tag::apply_tag(&context.state, &actor, &article_id, &tag_id)
         .await
         .expect("apply");
-    let articles = crate::repository::tag::read_tag_articles(&context.state.graph, &tag_id)
+    let articles = crate::repository::tag::read_tag_articles(&context.state.database, &tag_id)
         .await
         .expect("read articles");
     assert!(articles.contains(&article_id));
@@ -88,7 +88,7 @@ async fn apply_tag_is_idempotent() {
     crate::logic::tag::apply_tag(&context.state, &actor, &article_id, &tag_id)
         .await
         .expect("apply again");
-    let articles = crate::repository::tag::read_tag_articles(&context.state.graph, &tag_id)
+    let articles = crate::repository::tag::read_tag_articles(&context.state.database, &tag_id)
         .await
         .expect("read articles");
     assert_eq!(articles.iter().filter(|id| **id == article_id).count(), 1);
@@ -107,7 +107,7 @@ async fn unapply_tag_removes_the_link() {
     crate::logic::tag::unapply_tag(&context.state, &actor, &article_id, &tag_id)
         .await
         .expect("unapply");
-    let articles = crate::repository::tag::read_tag_articles(&context.state.graph, &tag_id)
+    let articles = crate::repository::tag::read_tag_articles(&context.state.database, &tag_id)
         .await
         .expect("read articles");
     assert!(!articles.contains(&article_id));
@@ -123,7 +123,7 @@ async fn unapply_tag_when_not_applied_is_a_no_op() {
     crate::logic::tag::unapply_tag(&context.state, &actor, &article_id, &tag_id)
         .await
         .expect("unapply");
-    let articles = crate::repository::tag::read_tag_articles(&context.state.graph, &tag_id)
+    let articles = crate::repository::tag::read_tag_articles(&context.state.database, &tag_id)
         .await
         .expect("read articles");
     assert!(!articles.contains(&article_id));

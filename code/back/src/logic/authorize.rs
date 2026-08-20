@@ -20,7 +20,7 @@ pub async fn require_visible_if_soft_deleted(
     resource: &Resource,
     not_found_message: &str,
 ) -> Result<(), LogicError> {
-    if crate::repository::delete::is_soft_deleted(&state.graph, entity_type, business_id).await?
+    if crate::repository::delete::is_soft_deleted(&state.database, entity_type, business_id).await?
         && authorize(state, actor_id, undelete_action, resource)
             .await
             .is_err()
@@ -36,7 +36,7 @@ pub async fn authorize(
     action: &str,
     resource: &Resource,
 ) -> Result<(), LogicError> {
-    let assembly = assemble(&state.graph, actor_id, resource.clone()).await?;
+    let assembly = assemble(&state.database, actor_id, resource.clone()).await?;
     let allowed = crate::infrastructure::cedar::decide(
         &assembly.principal,
         action,
@@ -57,7 +57,7 @@ pub async fn authorize_anonymous(
     resource: &Resource,
 ) -> Result<(), LogicError> {
     let (resource_uid, resource_entities) =
-        assemble_resource(&state.graph, resource.clone()).await?;
+        assemble_resource(&state.database, resource.clone()).await?;
     let principal = "User::\"anonymous\""
         .parse::<cedar_policy::EntityUid>()
         .map_err(|error| LogicError::internal(format!("invalid anonymous principal: {error}")))?;

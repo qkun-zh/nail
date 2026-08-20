@@ -1,44 +1,43 @@
-use std::sync::Arc;
 use std::time::Duration;
 
 use crate::infrastructure::config::AppConfig;
-use crate::infrastructure::state::AppState;
+use crate::infrastructure::state::{AppState, Configurator};
 use crate::interface;
 use crate::repository;
 
 use tower_http::trace::TraceLayer;
 
 pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
-    let graph = repository::graph::open(&config.server.db_path)?;
-    repository::seed::init_graph(&graph, &config.server.user_zero_email).await?;
-    let search =
-        repository::search::SearchIndex::open_or_create(&config.server.search_index_path).await?;
-    if search.was_recreated() {
+    let database = repository::graph::open(config.db_path())?;
+    repository::seed::init_graph(&database, config.user_zero_email()).await?;
+    let searcher =
+        repository::search::SearchIndex::open_or_create(config.search_index_path()).await?;
+    if searcher.was_recreated() {
         tracing::info!("rebuilt search index; synchronizing from graph");
-        search.sync_all(&graph).await?;
+        searcher.sync_all(&database).await?;
     }
-    crate::infrastructure::pdf::prepare_pdf_storage(&config.server.pdf_storage_path).await?;
+    crate::infrastructure::pdf::prepare_pdf_storage(config.pdf_storage_path()).await?;
 
-    let caches = repository::cache::TokenCaches::new(
-        Duration::from_secs(config.server.token_ttl_seconds),
-        Duration::from_secs(config.server.session_ttl_seconds),
-        Duration::from_secs(config.server.challenge_ttl_seconds),
-        Duration::from_secs(config.server.download_token_ttl_seconds),
-        config.server.token_cache_capacity,
+    let cache = repository::cache::TokenCaches::new(
+        Duration::from_secs(config.token_ttl_seconds()),
+        Duration::from_secs(config.session_ttl_seconds()),
+        Duration::from_secs(config.challenge_ttl_seconds()),
+        Duration::from_secs(config.download_token_ttl_seconds()),
+        config.token_cache_capacity(),
     );
 
-    let email = emailer::Emailer::new(&config.emailer);
+    let email_sender = emailer::Emailer::new(&config.emailer);
 
     let state = AppState {
-        graph,
-        search,
-        caches,
-        email,
-        config: Arc::new(config),
+        database,
+        searcher,
+        cache,
+        emailer: email_sender,
+        configurator: Configurator::new(config),
     };
 
-    let listener = tokio::net::TcpListener::bind(&state.config.server.listen_addr).await?;
-    tracing::info!(address = %state.config.server.listen_addr, "listening");
+    let listener = tokio::net::TcpListener::bind(state.configurator.listen_addr()).await?;
+    tracing::info!(address = %state.configurator.listen_addr(), "listening");
     let router = interface::router::build_router(state.clone()).layer(TraceLayer::new_for_http());
 
     axum::serve(
@@ -47,7 +46,7 @@ pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
     )
     .with_graceful_shutdown(shutdown_signal())
     .await?;
-    state.search.close().await;
+    state.searcher.close().await;
     Ok(())
 }
 

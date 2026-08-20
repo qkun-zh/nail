@@ -12,7 +12,7 @@ fn pdf_hash(seed: u8) -> String {
 }
 
 async fn create_user(state: &crate::infrastructure::state::AppState, email: &str) -> String {
-    crate::repository::user::create_user(&state.graph, &nail_common::hash::email(email))
+    crate::repository::user::create_user(&state.database, &nail_common::hash::email(email))
         .await
         .expect("user")
 }
@@ -25,7 +25,7 @@ async fn create_article_fixture(
     let article_id = uuid::Uuid::now_v7().to_string();
     let version_id = uuid::Uuid::now_v7().to_string();
     create_article(
-        &state.graph,
+        &state.database,
         &ArticleDraft {
             article_id: article_id.clone(),
             author_id: author_id.to_string(),
@@ -66,7 +66,7 @@ async fn mint_then_consume_round_trips_and_the_token_is_single_use() {
         )
     );
 
-    let expected_path = std::path::Path::new(&state.config.server.pdf_storage_path)
+    let expected_path = std::path::Path::new(&state.configurator.pdf_storage_path())
         .join("11/11/11111111111111111111111111111111.pdf");
     let token = token_from_url(&url);
     let path = consume_download_token(&state, &author_id, &article_id, &version_id, token)

@@ -7,14 +7,14 @@ use crate::repository::cache::{SessionTokenEntry, token_key};
 
 async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email(email),
     )
     .await
     .expect("user");
     let token = Uuid::now_v7().to_string();
     let key = token_key(&token).expect("token key");
-    context.state.caches.session.insert(
+    context.state.cache.session.insert(
         &key,
         SessionTokenEntry {
             user_id: user_id.clone(),
@@ -93,7 +93,7 @@ async fn user_read_other_by_admin_returns_profile() {
 async fn user_read_self_after_hard_delete_is_not_found() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = session_for(&context, "alice@example.com").await;
-    crate::repository::delete::delete_user(&context.state.graph, &user_id)
+    crate::repository::delete::delete_user(&context.state.database, &user_id)
         .await
         .expect("hard delete");
 
@@ -207,7 +207,7 @@ async fn user_delete_transfer_after_email_confirmation() {
     assert_eq!(body["message"].as_str(), Some("deleted"));
 
     assert!(
-        crate::repository::user::read_user(&context.state.graph, &user_id)
+        crate::repository::user::read_user(&context.state.database, &user_id)
             .await
             .expect("read")
             .is_none()
@@ -250,7 +250,7 @@ async fn email_change_two_step_flow_updates_email_and_rotates_session() {
     assert_eq!(messages[1].0, "alice-new@example.com");
     let old_token = messages[0].2.clone();
     let new_token = messages[1].2.clone();
-    assert!(context.state.caches.email_update.read(&user_id).is_some());
+    assert!(context.state.cache.email_update.read(&user_id).is_some());
 
     let payload = format!("{old_token}\n{new_token}");
     let (status, body) = context
@@ -272,7 +272,7 @@ async fn email_change_two_step_flow_updates_email_and_rotates_session() {
             .is_empty()
     );
 
-    let entry = crate::repository::user::read_user(&context.state.graph, &user_id)
+    let entry = crate::repository::user::read_user(&context.state.database, &user_id)
         .await
         .expect("read")
         .expect("entry");

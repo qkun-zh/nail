@@ -83,7 +83,7 @@ impl TestCtx {
     }
 
     pub fn difficulty(&self) -> u64 {
-        self.state.config.server.pow_difficulty_iterations
+        self.state.configurator.pow_difficulty_iterations()
     }
 
     pub fn client_pow(&self, payload: &str) -> Pow {
@@ -103,7 +103,7 @@ impl TestCtx {
             difficulty: self.difficulty(),
         };
         self.state
-            .caches
+            .cache
             .challenge
             .insert(&challenge.id.to_string(), ChallengeEntry);
         prove(ProveInput {
@@ -115,7 +115,7 @@ impl TestCtx {
 
     pub fn upload(&self, bytes: &[u8]) -> PdfUpload {
         let hash = nail_common::hash::pdf(bytes);
-        let temp_path = std::path::Path::new(&self.state.config.server.pdf_storage_path)
+        let temp_path = std::path::Path::new(&self.state.configurator.pdf_storage_path())
             .join(".tmp")
             .join(format!("{}.pdf", uuid::Uuid::now_v7()));
         std::fs::write(&temp_path, bytes).expect("write temp pdf");
@@ -131,7 +131,7 @@ impl TestCtx {
     }
 
     pub async fn create_tag(&self, name: &str) -> String {
-        crate::repository::tag::create_tag(&self.state.graph, name)
+        crate::repository::tag::create_tag(&self.state.database, name)
             .await
             .expect("create tag")
     }
@@ -255,17 +255,17 @@ pub async fn build_state(
         .join(format!("nail_test_pdf_{}", uuid::Uuid::now_v7()))
         .to_string_lossy()
         .to_string();
-    let graph = repository::graph::open("memory")?;
-    repository::seed::init_graph(&graph, &config.server.user_zero_email).await?;
+    let database = repository::graph::open("memory")?;
+    repository::seed::init_graph(&database, &config.server.user_zero_email).await?;
     let search_dir =
         std::env::temp_dir().join(format!("nail_state_search_{}", uuid::Uuid::now_v7()));
-    let search = repository::search::SearchIndex::open_or_create_with_segments(
+    let searcher = repository::search::SearchIndex::open_or_create_with_segments(
         search_dir.to_str().expect("temp path"),
         2,
     )
     .await?;
     crate::infrastructure::pdf::prepare_pdf_storage(&config.server.pdf_storage_path).await?;
-    let caches = repository::cache::TokenCaches::new(
+    let cache = repository::cache::TokenCaches::new(
         Duration::from_secs(config.server.token_ttl_seconds),
         Duration::from_secs(config.server.session_ttl_seconds),
         Duration::from_secs(config.server.challenge_ttl_seconds),
@@ -273,13 +273,13 @@ pub async fn build_state(
         config.server.token_cache_capacity,
     );
     let recorder = RecordingSender::default();
-    let email = emailer::Emailer::with_sender(Arc::new(recorder.clone()), &config.emailer);
+    let emailer_instance = emailer::Emailer::with_sender(Arc::new(recorder.clone()), &config.emailer);
     let state = AppState {
-        graph,
-        search,
-        caches,
-        email,
-        config: Arc::new(config.clone()),
+        database,
+        searcher,
+        cache,
+        emailer: emailer_instance,
+        configurator: crate::infrastructure::state::Configurator::new(config.clone()),
     };
     Ok((state, recorder))
 }

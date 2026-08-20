@@ -158,7 +158,7 @@ async fn token_create_authenticate_requires_a_pow() {
 fn insert_session(context: &TestCtx) -> String {
     let token = Uuid::now_v7().to_string();
     let key = token_key(&token).expect("token key");
-    context.state.caches.session.insert(
+    context.state.cache.session.insert(
         &key,
         SessionTokenEntry {
             user_id: Uuid::now_v7().to_string(),

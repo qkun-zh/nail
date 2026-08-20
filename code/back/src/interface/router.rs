@@ -53,7 +53,7 @@ pub const ROUTE_ARTICLE_ID_TAG_ID_APPLY: &str = "/article/{id}/tag/{tag_id}/appl
 pub const ROUTE_ARTICLE_ID_TAG_ID_UNAPPLY: &str = "/article/{id}/tag/{tag_id}/unapply";
 
 pub fn build_router(state: AppState) -> Router {
-    let body_limit = state.config.server.max_request_body_bytes();
+    let body_limit = state.configurator.max_request_body_bytes();
 
     Router::new()
         .route(ROUTE_CHALLENGE_CREATE, post(challenge::create_challenge))

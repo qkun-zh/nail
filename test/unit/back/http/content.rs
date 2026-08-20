@@ -12,17 +12,17 @@ const TEST_TAGS: &[&str] = &["rust", "backend", "frontend", "devops"];
 async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
     context.seed_tags(TEST_TAGS).await;
     let user_id = crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email(email),
     )
     .await
     .expect("user");
-    hold_role(&context.state.graph, &user_id, ROLE_MEMBER)
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
         .await
         .expect("member role");
     let token = Uuid::now_v7().to_string();
     let key = token_key(&token).expect("token key");
-    context.state.caches.session.insert(
+    context.state.cache.session.insert(
         &key,
         SessionTokenEntry {
             user_id: user_id.clone(),
@@ -33,14 +33,14 @@ async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
 
 async fn plain_session(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email(email),
     )
     .await
     .expect("user");
     let token = Uuid::now_v7().to_string();
     let key = token_key(&token).expect("token key");
-    context.state.caches.session.insert(
+    context.state.cache.session.insert(
         &key,
         SessionTokenEntry {
             user_id: user_id.clone(),
@@ -83,7 +83,7 @@ async fn article_without_pdf_file(context: &TestCtx, author_id: &str) -> (String
     let article_id = Uuid::now_v7().to_string();
     let version_id = Uuid::now_v7().to_string();
     create_article(
-        &context.state.graph,
+        &context.state.database,
         &ArticleDraft {
             article_id: article_id.clone(),
             author_id: author_id.to_string(),

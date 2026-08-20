@@ -9,12 +9,12 @@ const TEST_TAGS: &[&str] = &["rust", "backend", "frontend", "devops"];
 async fn member(context: &TestCtx, email: &str) -> String {
     context.seed_tags(TEST_TAGS).await;
     let user_id = crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email(email),
     )
     .await
     .expect("user");
-    hold_role(&context.state.graph, &user_id, ROLE_MEMBER)
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
         .await
         .expect("member role");
     user_id
@@ -22,7 +22,7 @@ async fn member(context: &TestCtx, email: &str) -> String {
 
 async fn admin(context: &TestCtx) -> String {
     crate::repository::user::read_user_by_email_address_hash(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email("user-zero@example.com"),
     )
     .await
@@ -31,7 +31,7 @@ async fn admin(context: &TestCtx) -> String {
 }
 
 async fn plain(context: &TestCtx, email: &str) -> String {
-    crate::repository::user::create_user(&context.state.graph, &nail_common::hash::email(email))
+    crate::repository::user::create_user(&context.state.database, &nail_common::hash::email(email))
         .await
         .expect("user")
 }
@@ -243,7 +243,7 @@ async fn search_filters_by_iso8601_time_range_and_renders_utc_times() {
         let article_id = nail_common::time::uuidv7_min_for_ms(now - offset_hours * 3_600_000);
         let version_id = nail_common::time::uuidv7_max_for_ms(now - offset_hours * 3_600_000);
         crate::repository::article::create_article(
-            &context.state.graph,
+            &context.state.database,
             &crate::repository::article::ArticleDraft {
                 article_id: article_id.clone(),
                 author_id: actor.clone(),
@@ -300,7 +300,7 @@ async fn seed_article(
     let article_id = nail_common::time::uuidv7_min_for_ms(version_ms);
     let version_id = nail_common::time::uuidv7_max_for_ms(version_ms);
     crate::repository::article::create_article(
-        &context.state.graph,
+        &context.state.database,
         &crate::repository::article::ArticleDraft {
             article_id: article_id.clone(),
             author_id: author_id.to_string(),
@@ -325,10 +325,10 @@ async fn search_combines_keyword_range_time_author_tag() {
     let context = TestCtx::new().await.expect("test context");
     let alice = member(&context, "alice@example.com").await;
     let bob = member(&context, "bob@example.com").await;
-    crate::repository::user::update_user_name(&context.state.graph, &alice, "alice-smith")
+    crate::repository::user::update_user_name(&context.state.database, &alice, "alice-smith")
         .await
         .expect("alice name");
-    crate::repository::user::update_user_name(&context.state.graph, &bob, "bob-jones")
+    crate::repository::user::update_user_name(&context.state.database, &bob, "bob-jones")
         .await
         .expect("bob name");
     let now = nail_common::time::now_ms().expect("now");
@@ -488,10 +488,10 @@ async fn search_paginates_with_limit_and_page() {
     let context = TestCtx::new().await.expect("test context");
     let alice = member(&context, "alice@example.com").await;
     let bob = member(&context, "bob@example.com").await;
-    crate::repository::user::update_user_name(&context.state.graph, &alice, "alice-smith")
+    crate::repository::user::update_user_name(&context.state.database, &alice, "alice-smith")
         .await
         .expect("alice name");
-    crate::repository::user::update_user_name(&context.state.graph, &bob, "bob-jones")
+    crate::repository::user::update_user_name(&context.state.database, &bob, "bob-jones")
         .await
         .expect("bob name");
     let now = nail_common::time::now_ms().expect("now");

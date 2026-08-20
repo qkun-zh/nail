@@ -8,14 +8,14 @@ use crate::repository::role::{ROLE_MEMBER, hold_role};
 
 async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
-        &context.state.graph,
+        &context.state.database,
         &nail_common::hash::email(email),
     )
     .await
     .expect("user");
     let token = Uuid::now_v7().to_string();
     let key = token_key(&token).expect("token key");
-    context.state.caches.session.insert(
+    context.state.cache.session.insert(
         &key,
         SessionTokenEntry {
             user_id: user_id.clone(),
@@ -30,14 +30,14 @@ async fn admin_session(context: &TestCtx) -> (String, String) {
 
 async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
     let (user_id, token) = session_for(context, email).await;
-    hold_role(&context.state.graph, &user_id, ROLE_MEMBER)
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
         .await
         .expect("member role");
     (user_id, token)
 }
 
 async fn create_editor_role(context: &TestCtx) -> String {
-    crate::repository::role::create_role(&context.state.graph, "editor")
+    crate::repository::role::create_role(&context.state.database, "editor")
         .await
         .expect("create role")
 }
@@ -105,7 +105,7 @@ async fn read_roles_reports_real_member_counts() {
     let (_, token) = admin_session(&context).await;
     let (editor_id, _) = member_session(&context, "alice@example.com").await;
     let editor_role_id = create_editor_role(&context).await;
-    crate::repository::role::hold_role(&context.state.graph, &editor_id, "editor")
+    crate::repository::role::hold_role(&context.state.database, &editor_id, "editor")
         .await
         .expect("hold editor");
 
@@ -289,7 +289,7 @@ async fn revoke_a_permission_from_a_custom_role_succeeds() {
     let (_, token) = admin_session(&context).await;
     let editor_id = create_editor_role(&context).await;
     crate::repository::role::grant_permission_to_role(
-        &context.state.graph,
+        &context.state.database,
         "editor",
         "Article::Update",
     )

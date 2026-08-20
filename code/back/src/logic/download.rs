@@ -22,17 +22,17 @@ pub async fn resolve_version_pdf_path(
         EntityRef::Version(version_id),
     )
     .await?;
-    let parent = parent_article_of(&state.graph, version_id)
+    let parent = parent_article_of(&state.database, version_id)
         .await?
         .ok_or_else(|| LogicError::not_found("version not found"))?;
     if parent != article_id {
         return Err(LogicError::not_found("version not found"));
     }
-    let entry = read_version(&state.graph, version_id)
+    let entry = read_version(&state.database, version_id)
         .await?
         .ok_or_else(|| LogicError::not_found("version not found"))?;
     require_entity_visible(state, actor_id, EntityRef::Version(version_id)).await?;
-    pdf_final_path(&state.config.server.pdf_storage_path, &entry.content_hash)
+    pdf_final_path(state.configurator.pdf_storage_path(), &entry.content_hash)
         .ok_or_else(|| LogicError::internal("invalid content hash"))
 }
 
@@ -46,7 +46,7 @@ pub async fn mint_download_token(
 
     let token = uuid::Uuid::now_v7().to_string();
     let key = hash_canonical_token(&token)?;
-    state.caches.download.insert(
+    state.cache.download.insert(
         &key,
         DownloadTokenEntry {
             version_id: version_id.to_string(),
@@ -70,7 +70,7 @@ pub async fn consume_download_token(
         LogicError::bad_request("invalid or expired download token"),
     )?;
     let entry = state
-        .caches
+        .cache
         .download
         .read(&key)
         .ok_or_else(|| LogicError::bad_request("invalid or expired download token"))?;
@@ -83,7 +83,7 @@ pub async fn consume_download_token(
         return Err(LogicError::not_found("version not found"));
     }
     let consumed = state
-        .caches
+        .cache
         .download
         .consume_if(&key, |entry| entry.user_id == actor_id);
     let Some(_consumed) = consumed else {

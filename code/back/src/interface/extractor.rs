@@ -94,8 +94,8 @@ impl FromRequestParts<AppState> for AppPaged {
         let (page, limit) = crate::logic::pagination::clamp_page_limit(
             params.page,
             params.limit,
-            state.config.server.search_page_size,
-            state.config.server.max_search_pages,
+            state.configurator.search_page_size(),
+            state.configurator.max_search_pages(),
         )
         .map_err(ApiError::from_logic)?;
         Ok(Self((page, limit)))

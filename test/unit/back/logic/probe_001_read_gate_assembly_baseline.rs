@@ -48,22 +48,22 @@ async fn probe_001_read_gate_assembly_baseline() {
         .expect("state");
 
     let hash = nail_common::hash::email("user-zero@example.com");
-    let user_zero = crate::repository::user::read_user_by_email_address_hash(&state.graph, &hash)
+    let user_zero = crate::repository::user::read_user_by_email_address_hash(&state.database, &hash)
         .await
         .expect("lookup")
         .expect("user zero");
     let alice = crate::repository::user::create_user(
-        &state.graph,
+        &state.database,
         &nail_common::hash::email("alice@example.com"),
     )
     .await
     .expect("user");
-    crate::repository::role::hold_role(&state.graph, &alice, ROLE_MEMBER)
+    crate::repository::role::hold_role(&state.database, &alice, ROLE_MEMBER)
         .await
         .expect("hold");
 
     let author = crate::repository::user::create_user(
-        &state.graph,
+        &state.database,
         &nail_common::hash::email("author@example.com"),
     )
     .await
@@ -71,7 +71,7 @@ async fn probe_001_read_gate_assembly_baseline() {
     let article_id = uuid::Uuid::now_v7().to_string();
     let version_id = uuid::Uuid::now_v7().to_string();
     crate::repository::article::create_article(
-        &state.graph,
+        &state.database,
         &crate::repository::article::ArticleDraft {
             article_id: article_id.clone(),
             author_id: author.clone(),
@@ -94,7 +94,7 @@ async fn probe_001_read_gate_assembly_baseline() {
             .expect("comment");
 
     let admin_principal = mean_duration(|| {
-        let graph = state.graph.clone();
+        let graph = state.database.clone();
         let user = user_zero.clone();
         async move {
             let _ = assemble_principal(&graph, &user)
@@ -106,7 +106,7 @@ async fn probe_001_read_gate_assembly_baseline() {
     report("assemble_principal admin (27 grants)", admin_principal);
 
     let member_principal = mean_duration(|| {
-        let graph = state.graph.clone();
+        let graph = state.database.clone();
         let user = alice.clone();
         async move {
             let _ = assemble_principal(&graph, &user)
