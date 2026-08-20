@@ -19,7 +19,8 @@ official builds only.
 
 **The gate is GitHub Actions, not the local machine.** Per commit:
 
-1. `git commit` (one commit per slice — see workflow §8)
+1. `git commit` (one commit per slice — see workflow §8). Documentation-only
+   changes: start the message with `[skip ci]` to skip the CI run.
 2. `git push origin main` — pushes all local commits and triggers CI
    (`.github/workflows/ci.yml`): fmt, clippy, tests (pow, common, back,
    front host), wasm build, security audit.

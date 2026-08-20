@@ -128,6 +128,7 @@ gate:  fmt --check && clippy -D warnings → clean
 commit: one commit per slice, clean tree
 push:  git push origin main → CI runs all tests (see document/run.md)
        confirm with document/ci-watch.sh; failing CI job = failed gate
+       documentation-only commits: prefix message with `[skip ci]`
 ```
 
 The test gate is the CI run, not the local machine — see `document/run.md`
