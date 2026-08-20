@@ -18,12 +18,15 @@ Never `--release` — LLVM is official builds only.
 
 ## Test
 
-All crates: `env CARGO_PROFILE_DEV_DEBUG=line-tables-only RUSTFLAGS=-Zcodegen-backend=cranelift cargo +nightly test -j 2 --workspace` (from `WORKSPACE`).
+Single crate only — never `--workspace` (parallel crate builds exhaust RAM).
 
-Single crate: replace `--workspace` with `-p nail_back` / `-p nail_common` / `-p nail_front`.
+Backend: `env CARGO_PROFILE_DEV_DEBUG=line-tables-only RUSTFLAGS=-Zcodegen-backend=cranelift cargo +nightly test -j 1 -p nail_back` (from `WORKSPACE`).
+
+Common: `-p nail_common`; Emailer: `-p emailer`; Frontend: `-p nail_front`. One crate at a time.
 
 **Memory constraint**: cranelift + parallel compilation easily exhausts 12GB RAM.
-Always use `-j 2` to cap parallelism. Do not omit this flag.
+Mandatory: `-j 1` (single-threaded compilation) and one crate per invocation.
+Do not omit `-j 1`; do not combine crates in one command.
 
 ## Health checks
 
