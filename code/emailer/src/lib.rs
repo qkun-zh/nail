@@ -370,10 +370,44 @@ mod tests {
     // --- gc ---
 
     #[tokio::test]
-    async fn auto_gc_on_send() {
+    async fn gc_removes_stale_entries() {
         let sender = Arc::new(MockSender::new());
-        let emailer = Emailer::with_sender(sender.clone(), &limited_config());
-        assert!(emailer.send("a@x.com", "m1").await.is_ok());
+        let mut cfg = test_config();
+        cfg.per_recipient_cooldown_secs = 1;
+        let emailer = Emailer::with_sender(sender, &cfg);
+
+        emailer.send("a@x.com", "m1").await.unwrap();
+        assert_eq!(emailer.len(), 1);
+
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        emailer.gc();
+        assert_eq!(emailer.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn gc_preserves_active_entries() {
+        let sender = Arc::new(MockSender::new());
+        let mut cfg = test_config();
+        cfg.per_recipient_cooldown_secs = 10;
+        let emailer = Emailer::with_sender(sender, &cfg);
+
+        emailer.send("a@x.com", "m1").await.unwrap();
+        emailer.gc();
+        assert_eq!(emailer.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn auto_gc_before_send_cleans_stale() {
+        let sender = Arc::new(MockSender::new());
+        let mut cfg = test_config();
+        cfg.per_recipient_cooldown_secs = 1;
+        let emailer = Emailer::with_sender(sender, &cfg);
+
+        emailer.send("a@x.com", "m1").await.unwrap();
+        assert_eq!(emailer.len(), 1);
+
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        emailer.send("a@x.com", "m2").await.unwrap();
         assert_eq!(emailer.len(), 1);
     }
 
