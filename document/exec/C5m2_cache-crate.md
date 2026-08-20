@@ -6,8 +6,9 @@ truth for this task.
 ## Requirement
 
 Extract `code/back/src/repository/cache.rs` into a standalone workspace crate
-`code/cache/` (package `cache`) depending only on `moka` + `std` — no project
-crate dependency. Expose `Caches` (six tables: `user_creation`, `session`,
+`code/cache/` (package `cache`) depending on `moka` + `uuid` + `std` — no
+project crate dependency. Expose `Caches` (six tables: `user_creation`,
+`session`,
 `email_update`, `user_deletion`, `challenge`, `download`) and the generic
 `Cache<E: CacheValue>` (`new`/`insert`/`read`/`delete`/`delete_if`/
 `delete_by_reverse_key`). Keys are opaque `&str`; value types validate at
@@ -21,7 +22,7 @@ refactor with no behavior change.
 
 Acceptance criteria:
 - `code/cache/` is a standalone crate, compiles independently, and is a
-  workspace member; it depends only on `moka` + `std`.
+  workspace member; it depends only on `moka` + `uuid` + `std`.
 - `back` depends on `cache`; `repository/cache.rs` is deleted; no
   `TokenCaches`/`TokenCache`/`CacheEntry`/`*Entry`/`token_key` remain.
 - All callers use the new table names (`user_creation`, `user_deletion`) and
@@ -62,8 +63,9 @@ Out of scope: `code/front/**`, `code/common/**`, `code/emailer/**`,
 - Literal naming: each table, its value type, and its TTL parameter share one
   noun (e.g. `user_creation` / `Cache<EmailAddressHash>` / `user_creation_ttl`).
 - Independence: the crate knows nothing about `nail_common`; hashing lives in
-  the caller. Value validation encodes only format facts (hex length, UUID
-  shape) — decision pending user confirmation (see Questions).
+  the caller. Value validation encodes only format facts: 32-hex hash shape
+  (manual check) and UUIDv7 shape via `uuid::Uuid::parse_str` (user decision:
+  add the third-party `uuid` dependency).
 - Keys are opaque `&str`: the crate never hashes; callers pre-hash with
   `cache_key` (= `nail_common::hash::token`) now moved to `logic/session.rs`.
 
@@ -74,13 +76,17 @@ Out of scope: `code/front/**`, `code/common/**`, `code/emailer/**`,
 ```rust
 pub enum CacheError { InvalidHash, InvalidId }
 
-pub struct EmailAddressHash(String);   // new(String) -> Result<Self, CacheError>  ascon hex
-pub struct TokenHash(String);          // new(String) -> Result<Self, CacheError>  ascon hex
-pub struct UserId(String);             // new(String) -> Result<Self, CacheError>  UUIDv7
-pub struct VersionId(String);          // new(String) -> Result<Self, CacheError>  UUIDv7
-pub struct ChallengeId(String);        // new(String) -> Result<Self, CacheError>  UUIDv7
-pub struct Challenge;                  // unit, no validation
+pub struct Hash(String);             // new(String) -> Result<Self, CacheError>  ascon hex, 32 chars
+pub struct UserId(String);           // new(String) -> Result<Self, CacheError>  UUIDv7 via uuid crate
+pub struct VersionId(String);        // new(String) -> Result<Self, CacheError>  UUIDv7 via uuid crate
+pub struct ChallengeId(String);      // new(String) -> Result<Self, CacheError>  UUIDv7 via uuid crate
+pub struct Challenge;                // unit, no validation
 ```
+
+> H7aU (done) unified hashing to one 128-bit `nail_common::hash::hash()`:
+> the former `EmailAddressHash` and `TokenHash` (64-hex token) merged into
+> the single `Hash` type above. Field names keep the old spellings
+> (`email_address_hash`, `email_token_hash`) to minimize back churn.
 
 ### trait + generic cache
 
@@ -108,41 +114,41 @@ impl<E: CacheValue> Cache<E> {
 ### six value types (name = stored content)
 
 ```rust
-// user_creation: single email hash
-pub struct EmailAddressHash(String);                       // reverse_key = itself
+// user_creation: single hash
+pub struct Hash(String);                                       // reverse_key = itself
 
 // session: single user id
-pub struct UserId(String);                                 // reverse_key = itself
+pub struct UserId(String);                                     // reverse_key = itself
 
 // challenge: empty
-pub struct Challenge;                                      // no reverse
+pub struct Challenge;                                          // no reverse
 
 // email_update: four hashes
 pub struct OldAndNewEmailAddressAndTokenHashes {
-    pub old_email_address_hash: EmailAddressHash,
-    pub new_email_address_hash: EmailAddressHash,
-    pub old_email_token_hash:   TokenHash,
-    pub new_email_token_hash:   TokenHash,
-}                                                          // no reverse
+    pub old_email_address_hash: Hash,
+    pub new_email_address_hash: Hash,
+    pub old_email_token_hash:   Hash,
+    pub new_email_token_hash:   Hash,
+}                                                              // no reverse
 
 // user_deletion
 pub struct UserIdAndEmailAddressHash {
     pub user_id: UserId,
-    pub email_address_hash: EmailAddressHash,
-}                                                          // reverse_key = user_id
+    pub email_address_hash: Hash,
+}                                                              // reverse_key = user_id
 
 // download
 pub struct VersionIdAndUserId {
     pub version_id: VersionId,
     pub user_id: UserId,
-}                                                          // no reverse
+}                                                              // no reverse
 ```
 
 ### aggregation
 
 ```rust
 pub struct Caches {
-    pub user_creation: Cache<EmailAddressHash>,
+    pub user_creation: Cache<Hash>,
     pub session:       Cache<UserId>,
     pub email_update:  Cache<OldAndNewEmailAddressAndTokenHashes>,
     pub user_deletion: Cache<UserIdAndEmailAddressHash>,
@@ -167,22 +173,18 @@ impl Caches {
 
 | table | main key | value type | reverse entity | TTL param |
 |---|---|---|---|---|
-| `user_creation` | email token hash | `EmailAddressHash` | itself | `user_creation_ttl` |
+| `user_creation` | email token hash | `Hash` | itself | `user_creation_ttl` |
 | `session` | session token hash | `UserId` | itself | `session_ttl` |
 | `email_update` | `UserId` | `OldAndNewEmailAddressAndTokenHashes` | none | `email_update_ttl` |
 | `user_deletion` | delete token hash | `UserIdAndEmailAddressHash` | `UserId` | `user_deletion_ttl` |
 | `challenge` | `ChallengeId` | `Challenge` | none | `challenge_ttl` |
 | `download` | download token hash | `VersionIdAndUserId` | none | `download_ttl` |
 
-### hash-length facts (from `code/common/src/hash.rs`)
+### hash-length facts (H7aU unified, done 2026-08-20)
 
-- `hash::email` → AsconXof128, 16 bytes → **32 hex** → `EmailAddressHash`.
-- `hash::token` → AsconCxof128 (salt `b"token-hash"`), 32 bytes → **64 hex** → `TokenHash`.
-
-> Note: hash unification (Task II, H7aU) will later collapse both to one
-> 128-bit format, enabling `EmailAddressHash`/`TokenHash` to merge into a
-> single `Hash` type. This task proceeds with the two current lengths unless
-> the user orders otherwise.
+- `nail_common::hash::hash()` → AsconCxof128 (salt = value), 16 bytes →
+  **32 hex** for every credential/string hash (email, token, ids). Source:
+  `code/common/src/hash.rs` (read). Every `Hash` validates 32 hex.
 
 ## Slice breakdown
 
@@ -204,14 +206,11 @@ impl Caches {
 
 ## Open unknowns
 
-- UUIDv7 validation without a `uuid` dependency: manual hex + hyphen + version
-  format check, or allow a third-party `uuid` dependency. Pending user decision
-  (see Questions). Evidence: `back` currently generates ids with
-  `uuid::Uuid::now_v7()`.
-- Hash length facts: `nail_common::hash::email` → 16 bytes → 32 hex chars;
-  `nail_common::hash::token` → 32 bytes → 64 hex chars. Source:
-  `code/common/src/hash.rs` (read). EmailAddressHash validates 32 hex,
-  TokenHash validates 64 hex.
+- RESOLVED (2026-08-20, user): UUIDv7 validation via the third-party `uuid`
+  crate — `uuid::Uuid::parse_str` in the value constructors (new dep of
+  `cache`). Evidence: `back` already generates ids with `uuid::Uuid::now_v7()`.
+- RESOLVED (H7aU done): unified `hash()` → 128-bit → 32 hex for every
+  credential hash; `EmailAddressHash`/`TokenHash` merged into `Hash`.
 - moka `Cache::builder`/`entry`/`and_compute_with` API — already exercised by
   the existing `cache.rs`; source available in pinned registry, no standalone
   probe needed.
@@ -228,9 +227,9 @@ impl Caches {
 
 ## Risks
 
-- UUID validation hand-rolled may reject a valid id or accept an invalid one —
-  mitigated by source evidence on UUIDv7 format and a dedicated unit test; if
-  too risky, fall back to allowing a `uuid` dependency (user decision).
+- UUIDv7 validation via the `uuid` crate is authoritative (parse + version
+  check) — risk of false accept/reject removed; dedicated unit tests still
+  cover the newtype constructors.
 - Large atomic rewire slice risks a big diff — accepted; necessary for
   compilation; CI catches breakage.
 - Value-format coupling makes the crate encode ascon/UUID facts — accepted for
@@ -238,7 +237,7 @@ impl Caches {
 
 ## Constraints
 
-- `cache` depends only on `moka` + `std`; no project crate dependency.
+- `cache` depends on `moka` + `uuid` + `std`; no project crate dependency.
 - No `unwrap`/`expect`/new panics; no comments restating code; English only.
 - No hand-edited `Cargo.lock`; never touch `target/`/`dist/`/`data/`/`log/`.
 - Check machine load before any build; back off if loaded. The gate is CI, not
@@ -248,8 +247,8 @@ impl Caches {
 ## Questions
 
 1. Orchestrator: approve this plan at the adoption gate?
-2. UUIDv7 validation: hand-roll a hex+hyphen+version format check (keeps the
-   crate std-only, no new dependency), or add the third-party `uuid` crate?
+2. UUIDv7 validation: RESOLVED (user, 2026-08-20) — add the third-party
+   `uuid` crate.
 3. Accept the documented red-phase note (refactor; existing back tests are the
    regression pin, no genuinely-red test)?
 
@@ -260,3 +259,6 @@ impl Caches {
   types, trait, `Cache` methods, six value types, `Caches` + `new` signature,
   table overview, hash-length facts) so the exec doc is self-contained for any
   agent. Open gate questions (UUID validation, plan adoption) unchanged.
+- 2026-08-20: user decision — UUIDv7 validation via `uuid` crate (new dep);
+  `EmailAddressHash`/`TokenHash` merged into single `Hash` (H7aU done, 32 hex);
+  docs updated everywhere. Remaining gates: plan adoption + red-phase note.
