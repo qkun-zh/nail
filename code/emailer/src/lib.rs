@@ -88,7 +88,33 @@ impl Emailer {
 
         let email_id = uuid::Uuid::now_v7().to_string();
         self.sender.send(to_where, &email_id, send_what).await?;
+
+        self.gc();
         Ok(email_id)
+    }
+
+    /// Evict stale entries from the per-recipient rate limiter.
+    ///
+    /// Keys whose rate-limiting state is indistinguishable from a fresh
+    /// state (i.e. the cooldown has fully elapsed) are removed.
+    /// Call periodically to prevent unbounded memory growth.
+    pub fn gc(&self) {
+        if let Some(ref pr) = self.per_recipient {
+            pr.retain_recent();
+            pr.shrink_to_fit();
+        }
+    }
+
+    /// Return the number of live keys in the per-recipient rate limiter.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.per_recipient.as_ref().map_or(0, |pr| pr.len())
+    }
+
+    /// Return `true` if the per-recipient rate limiter has no live keys.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.per_recipient.as_ref().is_none_or(|pr| pr.is_empty())
     }
 
     fn build(sender: Arc<dyn EmailSender>, config: &EmailerConfig) -> Self {
@@ -138,4 +164,242 @@ fn validate_body(body: &str) -> Result<(), SendEmailError> {
         )));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct MockSender {
+        call_count: AtomicUsize,
+    }
+
+    impl MockSender {
+        fn new() -> Self {
+            Self {
+                call_count: AtomicUsize::new(0),
+            }
+        }
+    }
+
+    impl EmailSender for MockSender {
+        fn send<'a>(
+            &'a self,
+            _to: &'a str,
+            _subject: &'a str,
+            _body: &'a str,
+        ) -> BoxFuture<'a, Result<(), SendEmailError>> {
+            self.call_count.fetch_add(1, Ordering::SeqCst);
+            Box::pin(async { Ok(()) })
+        }
+
+        fn clone_box(&self) -> Box<dyn EmailSender> {
+            Box::new(Self {
+                call_count: AtomicUsize::new(self.call_count.load(Ordering::SeqCst)),
+            })
+        }
+    }
+
+    struct FailingSender;
+
+    impl EmailSender for FailingSender {
+        fn send<'a>(
+            &'a self,
+            _to: &'a str,
+            _subject: &'a str,
+            _body: &'a str,
+        ) -> BoxFuture<'a, Result<(), SendEmailError>> {
+            Box::pin(async { Err(SendEmailError::Transport("smtp down".into())) })
+        }
+
+        fn clone_box(&self) -> Box<dyn EmailSender> {
+            Box::new(Self)
+        }
+    }
+
+    fn test_config() -> EmailerConfig {
+        EmailerConfig {
+            host: "smtp.example.com".into(),
+            port: 587,
+            username: "user".into(),
+            password: "pass".into(),
+            from_email: "from@example.com".into(),
+            from_name: "test".into(),
+            timeout_secs: 5,
+            wall_clock_timeout_secs: 10,
+            starttls: true,
+            per_recipient_cooldown_secs: 0,
+            global_max_per_minute: 0,
+        }
+    }
+
+    fn limited_config() -> EmailerConfig {
+        EmailerConfig {
+            per_recipient_cooldown_secs: 60,
+            global_max_per_minute: 2,
+            ..test_config()
+        }
+    }
+
+    // --- validate_email ---
+
+    #[test]
+    fn reject_empty_email() {
+        assert!(validate_email("").is_err());
+        assert!(validate_email("  ").is_err());
+    }
+
+    #[test]
+    fn reject_no_at_sign() {
+        assert!(validate_email("userexample.com").is_err());
+    }
+
+    #[test]
+    fn reject_too_long() {
+        let long = format!("{}@example.com", "a".repeat(321));
+        assert!(validate_email(&long).is_err());
+    }
+
+    #[test]
+    fn accept_valid_email() {
+        assert!(validate_email("user@example.com").is_ok());
+        assert!(validate_email(" a@b.c ").is_ok());
+    }
+
+    // --- validate_body ---
+
+    #[test]
+    fn reject_empty_body() {
+        assert!(validate_body("").is_err());
+    }
+
+    #[test]
+    fn reject_oversized_body() {
+        let big = "x".repeat(MAX_BODY_BYTES + 1);
+        assert!(validate_body(&big).is_err());
+    }
+
+    #[test]
+    fn accept_normal_body() {
+        assert!(validate_body("hello").is_ok());
+        assert!(validate_body(&"x".repeat(MAX_BODY_BYTES)).is_ok());
+    }
+
+    // --- SendEmailError display ---
+
+    #[test]
+    fn error_display() {
+        assert_eq!(SendEmailError::RateLimited.to_string(), "rate limited");
+        assert!(
+            SendEmailError::Validation("bad".into())
+                .to_string()
+                .contains("bad")
+        );
+        assert!(
+            SendEmailError::Transport("smtp".into())
+                .to_string()
+                .contains("smtp")
+        );
+    }
+
+    // --- send with mock ---
+
+    #[tokio::test]
+    async fn send_returns_email_id() {
+        let sender = Arc::new(MockSender::new());
+        let emailer = Emailer::with_sender(sender.clone(), &test_config());
+        let id = emailer.send("user@example.com", "hi").await.unwrap();
+        assert!(!id.is_empty());
+        assert_eq!(sender.call_count.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn send_propagates_transport_error() {
+        let sender = Arc::new(FailingSender);
+        let emailer = Emailer::with_sender(sender, &test_config());
+        let err = emailer.send("u@x.com", "body").await.unwrap_err();
+        assert!(matches!(err, SendEmailError::Transport(_)));
+    }
+
+    // --- validation blocks before rate limit ---
+
+    #[tokio::test]
+    async fn invalid_input_does_not_consume_rate_limit() {
+        let sender = Arc::new(MockSender::new());
+        let emailer = Emailer::with_sender(sender.clone(), &limited_config());
+        assert!(emailer.send("", "body").await.is_err());
+        assert!(emailer.send("bad", "body").await.is_err());
+        assert!(emailer.send("ok@x.com", "").await.is_err());
+        assert_eq!(emailer.len(), 0);
+    }
+
+    // --- rate limiting ---
+
+    #[tokio::test]
+    async fn per_recipient_rate_limit() {
+        let sender = Arc::new(MockSender::new());
+        let emailer = Emailer::with_sender(sender.clone(), &limited_config());
+        assert!(emailer.send("a@x.com", "m1").await.is_ok());
+        let err = emailer.send("a@x.com", "m2").await.unwrap_err();
+        assert!(matches!(err, SendEmailError::RateLimited));
+        assert_eq!(emailer.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn global_rate_limit() {
+        let sender = Arc::new(MockSender::new());
+        let emailer = Emailer::with_sender(sender.clone(), &limited_config());
+        assert!(emailer.send("a@x.com", "m1").await.is_ok());
+        assert!(emailer.send("b@x.com", "m2").await.is_ok());
+        let err = emailer.send("c@x.com", "m3").await.unwrap_err();
+        assert!(matches!(err, SendEmailError::RateLimited));
+    }
+
+    #[tokio::test]
+    async fn different_recipients_independent() {
+        let sender = Arc::new(MockSender::new());
+        let emailer = Emailer::with_sender(sender.clone(), &limited_config());
+        assert!(emailer.send("a@x.com", "m1").await.is_ok());
+        assert!(emailer.send("b@x.com", "m2").await.is_ok());
+        assert_eq!(emailer.len(), 2);
+    }
+
+    // --- gc ---
+
+    #[tokio::test]
+    async fn auto_gc_on_send() {
+        let sender = Arc::new(MockSender::new());
+        let emailer = Emailer::with_sender(sender.clone(), &limited_config());
+        assert!(emailer.send("a@x.com", "m1").await.is_ok());
+        assert_eq!(emailer.len(), 1);
+    }
+
+    #[test]
+    fn gc_without_per_recipient_does_not_panic() {
+        let emailer = Emailer::with_sender(Arc::new(MockSender::new()), &test_config());
+        emailer.gc();
+        assert!(emailer.is_empty());
+    }
+
+    // --- len / is_empty ---
+
+    #[test]
+    fn len_is_zero_when_no_limiter() {
+        let emailer = Emailer::with_sender(Arc::new(MockSender::new()), &test_config());
+        assert_eq!(emailer.len(), 0);
+        assert!(emailer.is_empty());
+    }
+
+    // --- config disabled limiters ---
+
+    #[tokio::test]
+    async fn zero_cooldown_allows_burst() {
+        let sender = Arc::new(MockSender::new());
+        let emailer = Emailer::with_sender(sender.clone(), &test_config());
+        for i in 0..100 {
+            emailer.send("a@x.com", &i.to_string()).await.unwrap();
+        }
+        assert_eq!(sender.call_count.load(Ordering::SeqCst), 100);
+    }
 }
