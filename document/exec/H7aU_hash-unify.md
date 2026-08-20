@@ -192,5 +192,17 @@ CI gates all crates together, and back still compiles only while `email()`/
 - 2026-08-20: probe 003 (`test/unit/common/hash/probe_003_salt_equals_value_deterministic.rs`)
   written; RED (compile error, `hash()` missing) → `hash()` implemented →
   GREEN (probe + 103 common tests). Evidence recorded in Open unknowns.
-  Slice breakdown refined for the CI-gate constraint: `email()`/`token()`
+  Slice breakdown refined for the CI-gate constraint: `email()`/`token()` 
   stay transitional until all back callers migrate (slice 3).
+- 2026-08-20: SLICE 1 done — `hash()` added (commit 1286ee8), CI success
+  (run #32372089821). Probe 003 acceptance answered (deterministic, 32 hex,
+  distinct, no error) and deleted (covered by tests.rs).
+- 2026-08-20: SLICE 2 done — all production callers migrated (`seed.rs`,
+  `seed_demo.rs`, `email.rs` ×4 with `LogicError::internal` mapping,
+  `cache.rs::token_key`), `email()`/`token()` removed from hash.rs, all
+  `test/unit/back` callers migrated (~110 sites, `.expect("hash must succeed")`
+  in tests only), probe deleted, fmt clean. One CI gate failure
+  (run #32380003069): `token_key_is_the_ascon_hash_of_the_token` asserted the
+  old 64-hex length → fixed to 32 (commit bc602b6), CI success
+  (run #32381784765). TASK COMPLETE. User must re-seed `data/` (user-zero and
+  alice hashes changed) and all sessions are invalidated.
