@@ -1,5 +1,5 @@
 [workspace]
-members = ["back", "common", "emailer", "front"]
+members = ["back", "common", "emailer", "front", "pow"]
 resolver = "3"
 
 [workspace.package]

@@ -3476,6 +3476,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pow"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ascon-xof128",
+ "hex",
+ "pso-vdf",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
 name = "powerfmt"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
