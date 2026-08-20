@@ -1,7 +1,7 @@
 [package]
 name = "nail_front"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
 
 [dependencies]
 anyhow = "1.0.104"
@@ -19,5 +19,5 @@ uuid = { version = "1.24.0", features = ["js"] }
 wasm-bindgen = "0.2.127"
 web-sys = { version = "0.3.104", features = ["AbortController", "AbortSignal", "Blob", "Document", "Element", "File", "FileList", "FormData", "HtmlAnchorElement", "HtmlInputElement", "Location", "Node", "Url", "Window", "console"] }
 
-[lints.clippy]
-pedantic = { level = "deny", priority = -1 }
+[lints]
+workspace = true

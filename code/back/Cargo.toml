@@ -1,7 +1,7 @@
 [package]
 name = "nail_back"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
 build = "build.rs"
 
 [dependencies]
@@ -22,6 +22,7 @@ tokio = { version = "1.53.1", features = ["macros", "net", "rt-multi-thread", "s
 tokio-util = { version = "0.7.19", features = ["io"] }
 toml = "1.1.4"
 tracing = "0.1.44"
+tracing-appender = "0.2.5"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 uuid = { version = "1.24.0", features = ["serde", "v7"] }
 
@@ -32,5 +33,5 @@ tower = { version = "0.5.3", features = ["util"] }
 [build-dependencies]
 cedar-policy = "4.12.0"
 
-[lints.clippy]
-pedantic = { level = "deny", priority = -1 }
+[lints]
+workspace = true
