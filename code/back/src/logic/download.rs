@@ -59,7 +59,8 @@ pub async fn mint_download_token(
         },
     );
     Ok(format!(
-        "/api/article/{article_id}/version/{version_id}/content/read?token={token}"
+        "/api/article/{article_id}/version/{}/content/read?token={token}",
+        version_id.as_str()
     ))
 }
 
