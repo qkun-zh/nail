@@ -76,10 +76,10 @@ impl Emailer {
     /// rate limits are exceeded, or [`SendEmailError::Transport`] on
     /// SMTP failure.
     pub async fn send(&self, to_where: &str, send_what: &str) -> Result<String, SendEmailError> {
+        self.gc();
+
         validate_email(to_where)?;
         validate_body(send_what)?;
-
-        self.gc();
 
         if let Some(ref g) = self.global {
             g.check()?;
