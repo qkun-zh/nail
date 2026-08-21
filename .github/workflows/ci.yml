@@ -26,11 +26,11 @@ jobs:
       - name: Format common
         working-directory: code/common
         run: cargo fmt --check
-      - name: Format back
-        working-directory: code/back
+      - name: Format server
+        working-directory: code/server
         run: cargo fmt --check
-      - name: Format front
-        working-directory: code/front
+      - name: Format client
+        working-directory: code/client
         run: cargo fmt --check
 
   clippy:
@@ -51,11 +51,11 @@ jobs:
       - name: Clippy common
         working-directory: code/common
         run: cargo clippy --all-targets -- -D warnings
-      - name: Clippy back
-        working-directory: code/back
+      - name: Clippy server
+        working-directory: code/server
         run: cargo clippy --all-targets -- -D warnings
-      - name: Clippy front
-        working-directory: code/front
+      - name: Clippy client
+        working-directory: code/client
         run: cargo clippy --all-targets -- -D warnings
 
   test:
@@ -74,11 +74,11 @@ jobs:
       - name: Test common
         working-directory: code/common
         run: cargo test
-      - name: Test back
-        working-directory: code/back
+      - name: Test server
+        working-directory: code/server
         run: cargo test
-      - name: Test front (host)
-        working-directory: code/front
+      - name: Test client (host)
+        working-directory: code/client
         run: cargo test
 
   build:
@@ -92,7 +92,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: jetli/trunk-action@v0.5.0
       - name: Build frontend
-        working-directory: code/front
+        working-directory: code/client
         run: env -u NO_COLOR trunk build
 
   audit:
@@ -109,9 +109,9 @@ jobs:
       - name: Audit cache
         working-directory: code/cache
         run: cargo audit
-      - name: Audit back
-        working-directory: code/back
+      - name: Audit server
+        working-directory: code/server
         run: cargo audit
-      - name: Audit front
-        working-directory: code/front
+      - name: Audit client
+        working-directory: code/client
         run: cargo audit

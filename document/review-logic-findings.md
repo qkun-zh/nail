@@ -13,7 +13,7 @@ fixing the finding flips it green. Run:
 
 ```
 env CARGO_PROFILE_DEV_DEBUG=line-tables-only RUSTFLAGS=-Zcodegen-backend=cranelift \
-  cargo +nightly test probe_review --bin nail_back
+  cargo +nightly test probe_review --bin server
 ```
 
 ---

@@ -11,7 +11,7 @@ before any work — they cross-reference and must be read together.
 
 Layering mandatory; dependencies point strictly inward.
 
-**Backend** (`code/back/`):
+**Backend** (`code/server/`):
 ```
 interface → logic → repository
 interface/logic/repository → infrastructure
@@ -22,7 +22,7 @@ interface/logic/repository → infrastructure
 - `repository` — agdb, SeekStorm, moka cache.
 - `infrastructure` — config, logging, email, PDF, server bootstrap.
 
-**Frontend** (`code/front/`):
+**Frontend** (`code/client/`):
 ```
 router → page → request
 page/request → infrastructure
@@ -83,15 +83,15 @@ Logging: `tracing` + `tracing-subscriber` to `log/`, daily pruning.
 ## 7. Testing
 
 - Test every function across all cases (exhaustive when cheap; else boundaries + randomized regular cases).
-- Unit tests in `test/unit/{common,back,front}` via `#[path]`.
+- Unit tests in `test/unit/{common,server,client}` via `#[path]`.
 - Run `cargo test` in each crate; keep `cargo clippy` (zero warnings) and `cargo fmt` clean.
 - Clippy runs plain (no `--all-targets`) so tests are exempt.
 
 ## 8. Building & Running
 
 - **Full-stack restart**: see `document/workflow.md` (Running the stack).
-- **Backend alone**: `cargo run --bin nail_back` (from `code/back`); seed samples with `-- seed-samples [count]`.
-- **Frontend**: `trunk build` (from `code/front`), served by the proxy.
+- **Backend alone**: `cargo run --bin server` (from `code/server`); seed samples with `-- seed-samples [count]`.
+- **Frontend**: `trunk build` (from `code/client`), served by the proxy.
 
 ## 9. Dependencies
 
@@ -104,13 +104,13 @@ For any crate question: read the pinned source, then confirm with a probe test �
 Search is precise, never the whole tree — most is generated/runtime data that pollutes results. Always set the search root; never search the repo root or a whole crate.
 
 **Relevant roots** (search one of these, not above them):
-- `code/{back,front,common}/src/` — Rust source.
+- `code/{server,client,common}/src/` — Rust source.
 - `test/`, `document/`, `configuration/` — those layers only.
-- `code/{back,front,common}/Cargo.toml` — dependency declarations.
+- `code/{server,client,common}/Cargo.toml` — dependency declarations.
 
 **Never include** (large or unrelated):
 - `target/` — root and every crate (~14G combined).
-- `code/front/dist/` — frontend build output.
+- `code/client/dist/` — frontend build output.
 - `code/proxy/pingap-linux-gnu-x86-full` — downloaded binary.
 - `data/`, `log/`, `.git/`, `Cargo.lock`.
 

@@ -1,200 +1,224 @@
-# Workflow — the correctness loop
+# Workflow
 
-Mandatory for every code change. Authority: `README.md`, `AGENTS.md`; this
-file wins on execution order.
+**Purpose:** Evidence-based code changes with mandatory feedback loops.
 
-## Environment
+**Notation:** `R` = requirement, `gate` = binary pass/fail checkpoint.
 
-- Roots: `WORKSPACE=/home/qkun/nail/code`, `FRONT=/home/qkun/nail/code/front`,
-  `PROXY=/home/qkun/nail/code/proxy/pingap-linux-gnu-x86-full`,
-  `CFG=/home/qkun/nail/configuration/proxy`.
-- Toolchain: stable (same as CI). No extra flags, no `--release` (official
-  LLVM builds only).
+---
 
-## Loop
+## Execution loop
 
 ```
 execute(R):
-  1  baseline green          # bugfix: failing repro first, else STOP
-  2  clean tree              # dirty → commit unrelated or ask
-  3  pin(R)                  # precise, consistent, no ambiguity
-  4  plan(R)                 # ordered, verifiable slices with exit tests
-  5  exec_doc(R, plan)       # single source of truth — §Exec doc
-  6  research(plan)          # source + probe double evidence — §Evidence
-  7  gate adoption           # evidence consistent + user approves — §Gate
-  8  for slice in plan: red → green → gate → commit → push → CI green
-  9  handoff                 # record state, report
- 10  final gate              # CI green: tests + clippy + fmt; never red
+  1  baseline(R)              §1
+  2  clean-tree               §2
+  3  propose(R)               §3
+  4  research(R)              §4
+  5  resolve(R, research)     §5
+  6  plan(R, research)        §6
+  7  exec-doc(R, plan)        §7
+  8  gate-adopt               §8
+  9  for-slice(plan)          §9
+ 10  gate-final               §10
 ```
-
-Local `cargo test` is a smoke pass only; the test gate is always CI (§8).
 
 ---
 
-## §1 Baseline
+## §1 baseline
 
-- Smoke pass green → proceed. One crate per invocation, `-j 1` mandatory
-  (parallel crate builds exhaust RAM), crates never combined, from
-  `WORKSPACE`: `cargo test -j 1 -p {nail_back|nail_common|emailer|nail_front}`
-  (`nail_front` = host tests); pow: `cargo test -j 1 -p pow --all-targets`.
-- Bug fix → failing repro test first; it must fail before anything else.
-- Red and not a bug fix → STOP; fix the tree first.
+**Input:** `R` | **Output:** green tree
 
-## §2 Clean tree
+```
+cargo test -j 1 -p {server|common|emailer|client}
+cargo test -j 1 -p pow --all-targets
+```
 
-Uncommitted changes unrelated to R → commit or ask. Never discard.
+- One crate per invocation, `-j 1` mandatory.
+- Bugfix: failing repro test first; passes → STOP.
+- Non-bugfix: fail → STOP.
 
-## §3 Pin requirements
+---
 
-R must be unambiguous and internally consistent; any ambiguity → ask.
-Outcome: one precise, testable requirement statement.
+## §2 clean-tree
 
-## §4 Plan
+**Input:** working tree | **Output:** clean tree
 
-Ordered slices, each stating: **Goal** (one sentence), **Files** (exact),
-**Red** (test that must fail first), **Green** (expected behavior),
-**Exit test** (command proving completion). Unknowns → §6: flag, don't block.
+Uncommitted unrelated changes → commit or ask. Never discard.
 
-## §5 Exec doc
+---
 
-`document/exec/<4-char code>_<slug>.md` — random alphanumeric code, unique,
-never reused, invented by the agent (no scripts/system calls). Under 300
-lines. Deleted at completion (§9). Single source of truth during execution:
-read at every slice start, updated in place when evidence contradicts, with
-a trailing `## Change log`.
+## §3 propose
 
-Required sections (empty only as explicit "N/A" + one-line reason):
+**Input:** `R` (raw) | **Output:** `R₀`
 
-1. **Requirement** — pinned R, acceptance criteria
-2. **Scope** — in-scope, explicitly out-of-scope
-3. **Design decisions** — modules, seams, trade-offs, rationale
-4. **Slice breakdown** — from §4, one entry per slice
-5. **Open unknowns** — evidence source per item (source/probe)
-6. **Verification plan** — dimensions per slice, how verified
-7. **Risks** — failure modes, mitigation, rollback
-8. **Constraints** — task-specific prohibitions
-9. **Questions** — unresolved ambiguities for the user
+Write one precise, testable requirement. Ambiguity → ask. `R₀` provisional.
 
-## §6 Evidence
+---
 
-Every unknown gets **source** (pinned code read) + **probe** (disposable
-test). `source ≠ probe` → resolve before proceeding; contradicts R → ask.
+## §4 research
 
-Evidence is mandatory when: return/side effects are unclear; source
-contradicts belief (probe wins); two APIs look equivalent (probe decides).
-Behavior visible in source needs source only.
+**Input:** `R₀` | **Output:** research report
 
-Verification dimensions — each applicable row `verified` or `N/A` + reason;
-`unknown` → back to research; an unevidenced dimension blocks the gate.
+**File:** `document/research/<4-char>_<slug>.md` (≤300 lines, deleted §10)
+
+**Update:** after each unknown resolved (source + probe complete).
+
+**Sections:**
+1. Requirement — `R₀`
+2. Research questions — unknowns list
+3. Evidence — per unknown: source (code read) + probe (test)
+4. Findings — discoveries
+5. Impact on R — revision needed? New `R₁`?
+6. Open items — user input needed
+
+**Evidence rules:**
+- Every unknown: source + probe, `source ≠ probe`.
+- Contradicts `R` → update report, goto §3.
+
+**Verification dimensions:**
 
 | Dimension | Check |
-| --- | --- |
-| Correctness | matches R, normal + edge cases |
-| Behavior change | input/output delta vs baseline = R |
-| Time / space complexity | Big-O; allocations, DB footprint |
-| Performance | latency/throughput delta vs baseline |
+|-----------|-------|
+| Correctness | matches `R`, normal + edge |
+| Behavior change | I/O delta vs baseline = `R` |
+| Complexity | Big-O, allocations |
+| Performance | latency/throughput delta |
 
-Reuse before build: official APIs first; a custom wheel or workaround needs
-user consent plus recorded rejection reasons.
-
-### Probes
-
-One file per probe, never a shared `probe.rs`, at
-`test/unit/{common,back,front}/<area>/probe_<NNN>_<purpose>.rs`. `<NNN>`:
-3-digit zero-padded, repo-unique, lowest first. First line: doc comment with
-purpose, source evidence, acceptance question. Function: `probe_<NNN>_<purpose>`.
-One agent per number; after the gate, promote (rename, move) or delete.
-
-## §7 Gate (adoption)
-
-No code before: (1) evidence consistent across applicable dimensions,
-(2) user explicitly adopts the plan. Rejection → §3.
-
-## §8 Slice loop
-
-```
-red:    write test → smoke pass (§1) → must fail
-green:  implement → smoke pass → must pass
-gate:   cargo fmt --check && cargo clippy -D warnings → clean
-commit: one commit per slice, clean tree; docs-only → `[skip ci]` prefix
-push:   git push origin main → CI gate
-```
-
-CI gate — GitHub Actions, never the local machine. Push runs
-`.github/workflows/ci.yml`: fmt, clippy, tests (pow, common, back, front
-host), wasm build, security audit.
-
-- Pushed ⇔ `git push` exits 0 and `git log origin/main..HEAD` is empty.
-- Watch via `document/ci-watch.sh`: `--once` (single check) or `bg [timeout]`
-  (background, logs `/tmp/ci-watch.log`, poll with `tail -f`).
-- Failing job = failed gate → debug, fix, re-gate. Never skip a gate.
-
-Resource contention: prefer CI; before any local build/test (here, §9, or
-probes) check load (`uptime`, `ps -eo pcpu`, `mpstat`); loaded → back off and
-poll. Never build on a busy machine — a shared tree gives unreliable results.
-
-## §9 Handoff
-
-Mandatory before reporting done: the next session must need no memory of this
-one. Update `document/handoff/readme.md` and the per-task file: current
-state, slices done, decisions, remaining risks. Drop completed slices; label
-ownership; never touch others' tasks; use the 64-em-dash divider. Stale or
-incomplete handoff = red gate. Task fully complete → delete its exec doc.
-Report to the user.
-
-## §10 Final gate
-
-Full build + all tests + clippy (0 warnings) + fmt, gated by CI: push `main`
-and confirm `document/ci-watch.sh` reports success. Must reproduce green;
-never report red. Fail → §8.
+**Probe:** `test/unit/{area}/probe_<NNN>_<purpose>.rs`, 3-digit zero-padded.
+After slice gate: promote or delete.
 
 ---
 
-## Running the stack
+## §5 resolve
 
-Full-stack restart, for debugging or manual verification:
+**Input:** research report, `R₀` | **Output:** `R`
 
-1. Frontend: `env -u NO_COLOR trunk build` (from `FRONT`)
-2. Backend: `cargo run -p nail_back` (from `WORKSPACE`); background:
-   `setsid nohup cargo run -p nail_back > /home/qkun/nail/log/back/run.log 2>&1 < /dev/null &`
-3. Proxy: `PROXY -c CFG`; background:
-   `setsid nohup PROXY -c CFG > /home/qkun/nail/log/proxy/run.log 2>&1 < /dev/null &`
+```
+if findings contradict R₀:
+  R = revise(R₀)  # in-place update
+  update research report
+else:
+  R = R₀
+goto §6
+```
 
-Health checks: backend `curl -sf http://127.0.0.1:3000/config/read`; via
-proxy `curl -sf http://127.0.0.1:8080/api/config/read`.
+---
+
+## §6 plan
+
+**Input:** `R`, research report | **Output:** slice list
+
+Each slice: **Goal** (1 sentence), **Files** (exact), **Red** (test fails), **Green** (behavior), **Exit test** (command).
+
+Unknowns → flag in exec doc, don't block.
+
+---
+
+## §7 exec-doc
+
+**Input:** `R`, plan | **Output:** exec doc
+
+**File:** `document/exec/<4-char>_<slug>.md` (≤300 lines, deleted §10)
+
+**Update:** after each slice complete.
+
+**Sections:**
+1. Requirement — `R`, acceptance criteria
+2. Scope — in/out
+3. Design decisions — modules, trade-offs
+4. Slice breakdown — from §6
+5. Open unknowns — evidence source
+6. Verification plan — per slice
+7. Risks — failure modes
+8. Constraints — prohibitions
+9. Questions — for user
+
+---
+
+## §8 gate-adopt
+
+**Input:** research report, exec doc | **Output:** adoption
+
+Gate passes iff:
+1. Evidence consistent across dimensions.
+2. User adopts plan.
+
+Rejection → §3.
+
+---
+
+## §9 slice loop
+
+**Input:** exec doc | **Output:** commit + CI green
+
+Per slice:
+```
+red:    test → smoke-pass → must fail
+green:  impl → smoke-pass → must pass
+gate:   fmt + clippy → clean
+commit: one commit, clean tree
+push:   git push → CI gate
+handoff: exec doc + handoff doc sync
+```
+
+**CI gate:** GitHub Actions (fmt, clippy, tests, wasm, audit).
+- `git push` exits 0 AND `git log origin/main..HEAD` empty.
+- Watch: `document/ci-watch.sh --once` or `bg [timeout]`.
+- Fail → debug, fix, re-gate.
+
+**Resource contention:** check load before local build. Never on busy machine.
+
+---
+
+## §10 gate-final
+
+**Input:** all slices committed, CI green | **Output:** task complete
+
+Full CI pass. Fail → §9.
+
+Cleanup: delete research report + exec doc.
+
+---
+
+## Handoff
+
+**Mandatory after each slice.** Sync exec doc + handoff doc.
+
+`document/handoff/readme.md`: state, slices done, decisions, risks. Stale = gate fail.
 
 ---
 
 ## Loop-back
 
-| Condition | Return to |
-| --- | --- |
-| Exec doc incomplete / exceeds 300 lines | §4 |
-| Evidence contradicts R | §3 |
-| User rejects adoption | §3 |
-| source ≠ probe | §6 |
-| Research improves plan | §4 |
-| Scope changes | §4 |
-| Bug repro passes (no bug) | §3 |
-| Test fails unexpectedly | §6 |
-| Slice gate fails | §8 |
-| Final gate fails | §8 |
+| Condition | Return |
+|-----------|--------|
+| Exec doc incomplete | §7 |
+| User rejects | §3 |
+| source ≠ probe | §4 |
+| Research improves plan | §6 |
+| Scope changes | §6 |
+| Bug repro passes | §3 |
+| Test fails | §4 |
+| Slice gate fails | §9 |
+| Final gate fails | §10 |
 | Requirement changes | §3 |
+
+---
 
 ## STOP
 
-At any phase: stop, leave the tree as-is, report blocked phase + reason.
-Never proceed past a block on a guess.
+At any phase: stop, tree as-is, report block. Never guess.
 
 ---
 
 ## Invariants
 
-1. Every uncertainty is a question, never a guess.
-2. No code without exec doc (§5) + evidence (§6) + adoption (§7).
-3. API behavior from source + probe; official APIs win; wheel/patch needs consent.
-4. Verification dimensions evidenced or N/A before every gate.
-5. One commit per slice; clean tree at every loop-back.
-6. Results reproducible by re-running gates.
-7. No hand-edited `Cargo.lock`; no `unwrap`/`expect`; no secrets.
-8. Never discard work; recover from commit or ask.
+1. Uncertainty → question → answer, never guess.
+2. No code without research report + exec doc + adoption.
+3. Official APIs win; custom wheel needs consent.
+4. Dimensions evidenced or N/A before gate.
+5. One commit per slice; clean tree.
+6. Reproducible gates.
+7. No `Cargo.lock` edit, no `unwrap`, no secrets.
+8. Never discard work.
+9. Docs update at phase boundary; verify after update.
