@@ -15,6 +15,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ddb5c615fe52399cdc387e66c9fe13e8a0176a783f80bb2fe27d74b53c05bfb8"
 dependencies = [
  "agdb_derive",
+ "tokio",
 ]
 
 [[package]]
@@ -1180,6 +1181,13 @@ dependencies = [
  "lock_api",
  "once_cell",
  "parking_lot_core",
+]
+
+[[package]]
+name = "database"
+version = "0.1.0"
+dependencies = [
+ "agdb",
 ]
 
 [[package]]
