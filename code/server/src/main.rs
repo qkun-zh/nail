@@ -25,7 +25,8 @@ async fn seed_samples(
 ) -> anyhow::Result<()> {
     let graph = infrastructure::server::open_database(config.db_path())?;
     repository::seed::init_graph(&graph, config.user_zero_email())?;
-    let search = repository::search::Searcher::open_or_create(config.search_index_path()).await?;
+    let search =
+        infrastructure::search::Searcher::open_or_create(config.search_index_path()).await?;
     repository::seed_demo::seed_sample_articles(&graph, &search, count).await?;
     search.close().await;
     tracing::info!("sample seeding finished");

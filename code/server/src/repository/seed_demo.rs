@@ -2,7 +2,7 @@ use anyhow::Context;
 
 use database::Database;
 
-use crate::repository::search::Searcher;
+use crate::infrastructure::search::Searcher;
 
 const SAMPLE_TAG_POOL: &[&str] = &[
     "rust",

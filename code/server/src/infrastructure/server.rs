@@ -28,7 +28,8 @@ pub(crate) fn open_database(address: &str) -> anyhow::Result<database::Database>
 pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
     let database = open_database(config.db_path())?;
     repository::seed::init_graph(&database, config.user_zero_email())?;
-    let searcher = repository::search::Searcher::open_or_create(config.search_index_path()).await?;
+    let searcher =
+        crate::infrastructure::search::Searcher::open_or_create(config.search_index_path()).await?;
     if searcher.was_recreated() {
         tracing::info!("rebuilt search index; synchronizing from graph");
         searcher.sync_all(&database).await?;

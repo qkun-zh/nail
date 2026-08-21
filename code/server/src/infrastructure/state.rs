@@ -4,7 +4,7 @@ use database::Database;
 
 use crate::infrastructure::authorizer::Authorizer;
 use crate::infrastructure::config::AppConfig;
-use crate::repository::search::Searcher;
+use crate::infrastructure::search::Searcher;
 
 #[derive(Clone)]
 pub struct AppState {

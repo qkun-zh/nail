@@ -1,7 +1,7 @@
 use super::context::{build_state, test_config};
 
+use crate::infrastructure::search::{SearchDocOutcome, SearchRequest, Searcher};
 use crate::repository::article::{ArticleDraft, create_article};
-use crate::repository::search::{SearchDocOutcome, SearchRequest, Searcher};
 use crate::repository::version::VersionDraft;
 
 fn pdf_hash(seed: u8) -> String {
@@ -57,8 +57,8 @@ fn query_request(query: &str, ranges: Vec<common::search::SearchRange>) -> Searc
 }
 
 fn version_articles(
-    outcome: &crate::repository::search::SearchOutcome,
-) -> Vec<&crate::repository::search::SearchVersionOutcome> {
+    outcome: &crate::infrastructure::search::SearchOutcome,
+) -> Vec<&crate::infrastructure::search::SearchVersionOutcome> {
     outcome
         .docs
         .iter()

@@ -25,8 +25,8 @@ pub mod repository_delete;
 #[path = "repository/transfer.rs"]
 pub mod repository_transfer;
 
-#[path = "repository/search.rs"]
-pub mod repository_search;
+#[path = "infrastructure/search.rs"]
+pub mod infrastructure_search;
 
 #[path = "logic/error.rs"]
 pub mod logic_error;

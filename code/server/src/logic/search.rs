@@ -6,12 +6,12 @@ use common::response::search::{
 };
 use common::search::SearchRange;
 
+use crate::infrastructure::search::{SearchCommentOutcome, SearchDocOutcome, SearchRequest};
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::authorize_global;
 use crate::logic::error::LogicError;
 use crate::logic::pagination::{page_offset, paginate};
 use crate::repository::role::PERMISSION_ARTICLE_READ;
-use crate::repository::search::{SearchCommentOutcome, SearchDocOutcome, SearchRequest};
 
 pub async fn search_articles(
     state: &AppState,
@@ -210,7 +210,7 @@ fn assemble_tree(docs: &[SearchDocOutcome]) -> Vec<SearchArticleItem> {
         .collect()
 }
 
-fn hit_to_response(hit: &crate::repository::search::SearchHitOutcome) -> SearchHit {
+fn hit_to_response(hit: &crate::infrastructure::search::SearchHitOutcome) -> SearchHit {
     SearchHit {
         field: hit.range,
         label: hit.range.label().to_string(),
