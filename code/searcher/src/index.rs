@@ -176,9 +176,21 @@ impl SearchIndex {
         &self,
         articles: impl IntoIterator<Item = (String, Vec<IndexDoc>)>,
     ) -> Result<usize, Error> {
-        {
-            let mut guard = self.index.write().await;
-            guard.clear_index().await;
+        // WORKAROUND(#68): SeekStorm 3.3.5 clear_index doesn't reset
+        // Index::docid_global (src/index.rs:4920 vs :1699/:5286), causing
+        // post-clear reads to panic with src_len≈262k (doc_store.rs:137).
+        // Delete-all via query keeps tombstones but is safe.
+        // TODO: revert to clear_index when SeekStorm >=3.3.6 fixes #68.
+        // {
+        //     let mut guard = self.index.write().await;
+        //     guard.clear_index().await;
+        // }
+        let all_ids = self.find_all_doc_ids().await;
+        if !all_ids.is_empty() {
+            self.index
+                .delete_documents(all_ids.into_iter().map(|id| id as u64).collect())
+                .await;
+            self.index.commit().await;
         }
         let mut indexed_count = 0usize;
         let mut chunk: Vec<Document> = Vec::new();
@@ -233,6 +245,29 @@ impl SearchIndex {
                 Vec::new(),
                 Vec::new(),
                 facet_filter,
+                Vec::new(),
+                QueryRewriting::SearchOnly,
+            )
+            .await;
+        result.results.into_iter().map(|hit| hit.doc_id).collect()
+    }
+
+    async fn find_all_doc_ids(&self) -> Vec<usize> {
+        let result = self
+            .index
+            .search(
+                String::new(),
+                None,
+                QueryType::Union,
+                SearchMode::Lexical,
+                true,
+                0,
+                ARTICLE_SCAN_LIMIT,
+                ResultType::TopkCount,
+                false,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
                 Vec::new(),
                 QueryRewriting::SearchOnly,
             )
