@@ -567,10 +567,7 @@ async fn bare_tag_search_matches_tag_field() {
         .iter()
         .find(|hit| hit.label == "tag")
         .expect("tag hit present");
-    assert_eq!(
-        tag_hit.snippet, "[\"<mark>rust</mark>\"]",
-        "bare tag snippet"
-    );
+    assert_eq!(tag_hit.snippet, "<mark>rust</mark>", "bare tag snippet");
 }
 
 #[tokio::test]

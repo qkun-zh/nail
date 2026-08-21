@@ -184,10 +184,28 @@ impl Searcher {
 }
 
 fn hit_outcome(hit: FieldHit) -> SearchHitOutcome {
+    let snippet = if search_range(hit.field) == SearchRange::Tag {
+        clean_tag_snippet(&hit.snippet)
+    } else {
+        hit.snippet
+    };
     SearchHitOutcome {
         range: search_range(hit.field),
-        snippet: hit.snippet,
+        snippet,
     }
+}
+
+fn clean_tag_snippet(raw: &str) -> String {
+    let trimmed = raw.trim();
+    let inner = trimmed
+        .strip_prefix('[')
+        .and_then(|rest| rest.strip_suffix(']'))
+        .unwrap_or(trimmed);
+    inner
+        .split(',')
+        .map(|piece| piece.trim().trim_matches('"').to_string())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 const fn search_field(range: SearchRange) -> SearchField {
@@ -221,5 +239,23 @@ const fn search_range(field: SearchField) -> SearchRange {
         SearchField::CommentId => SearchRange::CommentId,
         SearchField::AuthorId => SearchRange::AuthorId,
         SearchField::Role => SearchRange::Role,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::clean_tag_snippet;
+
+    #[test]
+    fn clean_tag_snippet_strips_the_json_array_shell() {
+        assert_eq!(
+            clean_tag_snippet("[\"<mark>rust</mark>\", \"search\"]"),
+            "<mark>rust</mark> search"
+        );
+    }
+
+    #[test]
+    fn clean_tag_snippet_passes_plain_text_through() {
+        assert_eq!(clean_tag_snippet("<mark>rust</mark>"), "<mark>rust</mark>");
     }
 }
