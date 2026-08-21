@@ -1,5 +1,5 @@
 [workspace]
-members = ["server", "cache", "common", "database", "emailer", "client", "pow"]
+members = ["server", "cache", "common", "database", "emailer", "client", "pow", "searcher"]
 resolver = "3"
 
 [workspace.package]
