@@ -68,5 +68,5 @@ pub struct NamedRef {
 pub struct EmptyView {}
 
 #[cfg(test)]
-#[path = "../../../test/unit/common/response/tests.rs"]
+#[path = "response_tests.rs"]
 mod tests;

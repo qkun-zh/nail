@@ -198,5 +198,5 @@ pub fn Pagination(
 }
 
 #[cfg(test)]
-#[path = "../../../../test/unit/client/page/pagination/tests.rs"]
+#[path = "pagination_tests.rs"]
 mod tests;

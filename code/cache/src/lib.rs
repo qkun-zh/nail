@@ -10,5 +10,4 @@ pub use value::{
 };
 
 #[cfg(test)]
-#[path = "../../../test/unit/cache/tests.rs"]
 mod tests;

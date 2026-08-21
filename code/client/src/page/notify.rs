@@ -101,5 +101,5 @@ pub fn ToastContainer() -> impl IntoView {
 }
 
 #[cfg(test)]
-#[path = "../../../../test/unit/client/page/notify/tests.rs"]
+#[path = "notify_tests.rs"]
 mod tests;

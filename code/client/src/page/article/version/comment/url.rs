@@ -48,5 +48,5 @@ pub fn comment_id_from_level(level: &CommentLevel) -> Option<&str> {
 }
 
 #[cfg(test)]
-#[path = "../../../../../../../test/unit/client/page/comment/url/tests.rs"]
+#[path = "url_tests.rs"]
 mod tests;

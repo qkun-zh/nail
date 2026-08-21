@@ -160,5 +160,5 @@ fn parse_offset_parts(tail: &str) -> Option<(i8, i8)> {
 }
 
 #[cfg(test)]
-#[path = "../../../test/unit/common/time/tests.rs"]
+#[path = "time_tests.rs"]
 mod tests;

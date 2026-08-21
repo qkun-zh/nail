@@ -49,5 +49,5 @@ impl ValidationError for NameError {
 }
 
 #[cfg(test)]
-#[path = "../../../test/unit/common/name/tests.rs"]
+#[path = "name_tests.rs"]
 mod tests;

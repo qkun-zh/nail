@@ -51,5 +51,5 @@ pub fn api_base_url() -> &'static str {
 }
 
 #[cfg(test)]
-#[path = "../../../../test/unit/client/infrastructure/config/tests.rs"]
+#[path = "config_tests.rs"]
 mod tests;

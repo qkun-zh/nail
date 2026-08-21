@@ -24,5 +24,4 @@ pub use value::Value;
 pub use write::WriteScope;
 
 #[cfg(test)]
-#[path = "../../../test/unit/database/tests.rs"]
 mod tests;

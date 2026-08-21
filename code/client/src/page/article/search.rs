@@ -340,5 +340,5 @@ pub fn Search() -> impl IntoView {
 }
 
 #[cfg(test)]
-#[path = "../../../../../test/unit/client/page/search/tests.rs"]
+#[path = "search_tests.rs"]
 mod tests;

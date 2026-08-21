@@ -138,5 +138,5 @@ fn save_blob(bytes: &[u8], filename: &str) -> Result<(), String> {
 }
 
 #[cfg(test)]
-#[path = "../../../../test/unit/client/request/download/tests.rs"]
+#[path = "download_tests.rs"]
 mod tests;

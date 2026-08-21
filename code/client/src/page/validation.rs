@@ -69,5 +69,5 @@ pub fn validate_pdf_selection(
 }
 
 #[cfg(test)]
-#[path = "../../../../test/unit/client/page/validation/tests.rs"]
+#[path = "validation_tests.rs"]
 mod tests;

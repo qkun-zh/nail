@@ -19,7 +19,7 @@ include!(concat!(env!("OUT_DIR"), "/all_permissions.rs"));
 include!(concat!(env!("OUT_DIR"), "/cedar_entities.rs"));
 
 #[cfg(test)]
-#[path = "../../../test/unit/authorizer/harness.rs"]
+#[path = "tests/harness.rs"]
 mod authorizer_tests;
 
 pub use authorizer::Authorizer;

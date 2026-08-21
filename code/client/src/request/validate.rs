@@ -10,5 +10,5 @@ pub fn validate_id(raw: &str, label: &str) -> RequestResult<String> {
 }
 
 #[cfg(test)]
-#[path = "../../../../test/unit/client/request/validate/tests.rs"]
+#[path = "validate_tests.rs"]
 mod tests;

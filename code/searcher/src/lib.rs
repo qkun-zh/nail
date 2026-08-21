@@ -20,7 +20,7 @@ pub(crate) mod schema;
 pub mod searcher;
 
 #[cfg(test)]
-#[path = "../../../test/unit/searcher/harness.rs"]
+#[path = "tests/harness.rs"]
 mod searcher_tests;
 
 pub use doc::{CommentDoc, SearchDoc, VersionDoc};

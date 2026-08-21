@@ -44,5 +44,5 @@ pub fn build_path_with_query(path_segments: &[&str], query: &[(&str, &str)]) -> 
 }
 
 #[cfg(test)]
-#[path = "../../../../test/unit/client/request/url/tests.rs"]
+#[path = "url_tests.rs"]
 mod tests;

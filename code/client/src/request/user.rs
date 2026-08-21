@@ -113,5 +113,5 @@ pub async fn undelete_soft_user(user_id: &str) -> RequestResult<EmptyView> {
 }
 
 #[cfg(test)]
-#[path = "../../../../test/unit/client/request/user/tests.rs"]
+#[path = "user_tests.rs"]
 mod tests;

@@ -33,5 +33,5 @@ pub fn notify_session_invalid() {
 }
 
 #[cfg(test)]
-#[path = "../../../../test/unit/client/request/session/tests.rs"]
+#[path = "session_tests.rs"]
 mod tests;

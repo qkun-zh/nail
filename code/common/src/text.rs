@@ -55,5 +55,5 @@ impl ValidationError for TextError {
 }
 
 #[cfg(test)]
-#[path = "../../../test/unit/common/text/tests.rs"]
+#[path = "text_tests.rs"]
 mod tests;

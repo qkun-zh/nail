@@ -103,5 +103,4 @@ pub fn verify(pow: &Pow, server_difficulty: u64) -> bool {
 }
 
 #[cfg(test)]
-#[path = "../../../test/unit/pow/tests.rs"]
 mod tests;

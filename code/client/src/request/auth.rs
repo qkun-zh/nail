@@ -46,5 +46,5 @@ pub async fn delete_session() -> RequestResult<EmptyView> {
 }
 
 #[cfg(test)]
-#[path = "../../../../test/unit/client/request/auth/tests.rs"]
+#[path = "auth_tests.rs"]
 mod tests;

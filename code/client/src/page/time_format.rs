@@ -4,5 +4,5 @@ pub fn format_timestamp(created_at_secs: u64) -> String {
 }
 
 #[cfg(test)]
-#[path = "../../../../test/unit/client/page/time_format/tests.rs"]
+#[path = "time_format_tests.rs"]
 mod tests;

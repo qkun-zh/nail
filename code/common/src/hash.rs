@@ -54,5 +54,5 @@ pub fn pdf(data: &[u8]) -> String {
 }
 
 #[cfg(test)]
-#[path = "../../../test/unit/common/hash/tests.rs"]
+#[path = "hash_tests.rs"]
 mod tests;

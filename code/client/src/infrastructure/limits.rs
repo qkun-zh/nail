@@ -108,5 +108,5 @@ async fn fetch_runtime_limits(base: &str) -> Result<RuntimeLimits, String> {
 }
 
 #[cfg(test)]
-#[path = "../../../../test/unit/client/infrastructure/limits/tests.rs"]
+#[path = "limits_tests.rs"]
 mod tests;

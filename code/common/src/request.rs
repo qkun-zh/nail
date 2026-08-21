@@ -124,5 +124,5 @@ pub struct ArticleSearchParams {
 }
 
 #[cfg(test)]
-#[path = "../../../test/unit/common/request/tests.rs"]
+#[path = "request_tests.rs"]
 mod tests;

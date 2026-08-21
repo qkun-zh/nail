@@ -4,7 +4,7 @@ mod logic;
 mod repository;
 
 #[cfg(test)]
-#[path = "../../../test/unit/server/harness.rs"]
+#[path = "tests/harness.rs"]
 mod server_tests;
 
 #[tokio::main]

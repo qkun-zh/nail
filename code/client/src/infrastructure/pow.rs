@@ -5,5 +5,5 @@ pub fn prove(challenge: &Challenge) -> Result<Pow, String> {
 }
 
 #[cfg(test)]
-#[path = "../../../../test/unit/client/infrastructure/pow/tests.rs"]
+#[path = "pow_tests.rs"]
 mod tests;

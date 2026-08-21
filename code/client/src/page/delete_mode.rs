@@ -50,5 +50,5 @@ pub fn DeleteModePicker(
 }
 
 #[cfg(test)]
-#[path = "../../../../test/unit/client/page/delete_mode/tests.rs"]
+#[path = "delete_mode_tests.rs"]
 mod tests;

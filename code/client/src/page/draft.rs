@@ -63,5 +63,5 @@ pub fn persist_draft<Navigate>(
 }
 
 #[cfg(test)]
-#[path = "../../../../test/unit/client/page/draft/tests.rs"]
+#[path = "draft_tests.rs"]
 mod tests;

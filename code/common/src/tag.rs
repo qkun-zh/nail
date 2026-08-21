@@ -90,5 +90,5 @@ impl fmt::Display for TagNamesError {
 }
 
 #[cfg(test)]
-#[path = "../../../test/unit/common/tag/tests.rs"]
+#[path = "tag_tests.rs"]
 mod tests;

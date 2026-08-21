@@ -21,5 +21,5 @@ pub fn unwrap_envelope<T>(envelope: ResponseEnvelope<T>) -> RequestResult<T> {
 }
 
 #[cfg(test)]
-#[path = "../../../../test/unit/client/request/envelope/tests.rs"]
+#[path = "envelope_tests.rs"]
 mod tests;

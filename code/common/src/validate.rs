@@ -58,5 +58,5 @@ impl CharPolicy for PrintableAscii {
 }
 
 #[cfg(test)]
-#[path = "../../../test/unit/common/validate/tests.rs"]
+#[path = "validate_tests.rs"]
 mod tests;

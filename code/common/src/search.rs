@@ -106,5 +106,5 @@ impl<'de> Deserialize<'de> for SearchRange {
 }
 
 #[cfg(test)]
-#[path = "../../../test/unit/common/search/tests.rs"]
+#[path = "search_tests.rs"]
 mod tests;
