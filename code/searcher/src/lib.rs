@@ -13,9 +13,10 @@
 
 pub mod doc;
 pub mod error;
-// Wired into the public API by the index module in an upcoming slice.
-pub(crate) mod field;
+pub mod index;
+// Wired into the public API by the read module in an upcoming slice.
 #[allow(dead_code)]
+pub(crate) mod field;
 pub(crate) mod schema;
 
 #[cfg(test)]

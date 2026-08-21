@@ -40,8 +40,6 @@ impl IndexDoc {
         }
     }
 
-    // Consumed by the index module in an upcoming slice.
-    #[allow(dead_code)]
     pub(crate) fn to_document(&self) -> Document {
         let mut document = Document::new();
         match self {
