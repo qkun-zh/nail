@@ -3,8 +3,8 @@ use std::time::Duration;
 use uuid::Uuid;
 
 use crate::{
-    Cache, CacheConfig, CacheError, CacheValue, Caches, Challenge, ChallengeId, Hash,
-    OldAndNewEmailAddressAndTokenHashes, UserId, UserIdAndEmailAddressHash, VersionId,
+    Cache, CacheConfig, CacheError, CacheValue, Challenge, ChallengeId, Hash,
+    OldAndNewEmailAddressAndTokenHashes, Table, UserId, UserIdAndEmailAddressHash, VersionId,
     VersionIdAndUserId,
 };
 
@@ -16,8 +16,8 @@ fn hash_32() -> String {
     "a".repeat(32)
 }
 
-fn session_cache() -> Cache<UserId> {
-    Cache::new(Duration::from_mins(1), 100)
+fn session_cache() -> Table<UserId> {
+    Table::new(Duration::from_mins(1), 100)
 }
 
 fn email_update_entry() -> OldAndNewEmailAddressAndTokenHashes {
@@ -71,7 +71,7 @@ fn uuid_newtypes_reject_other_versions_and_garbage() {
 
 #[test]
 fn insert_read_and_delete_round_trip() {
-    let cache: Cache<UserId> = session_cache();
+    let cache: Table<UserId> = session_cache();
     let key = uuid_v7();
     let user_id = UserId::new(uuid_v7()).expect("user id");
     cache.insert(&key, user_id.clone());
@@ -82,7 +82,7 @@ fn insert_read_and_delete_round_trip() {
 
 #[test]
 fn delete_removes_the_reverse_member() {
-    let cache: Cache<UserId> = session_cache();
+    let cache: Table<UserId> = session_cache();
     let key = uuid_v7();
     let user_id = UserId::new(uuid_v7()).expect("user id");
     let reverse_key = user_id.as_str().to_string();
@@ -93,7 +93,7 @@ fn delete_removes_the_reverse_member() {
 
 #[test]
 fn delete_by_reverse_key_removes_every_entry_of_an_entity() {
-    let cache: Cache<UserId> = session_cache();
+    let cache: Table<UserId> = session_cache();
     let first = uuid_v7();
     let second = uuid_v7();
     let user_id = UserId::new(uuid_v7()).expect("user id");
@@ -107,7 +107,7 @@ fn delete_by_reverse_key_removes_every_entry_of_an_entity() {
 
 #[test]
 fn delete_if_removes_the_entry_only_when_the_predicate_matches() {
-    let cache: Cache<OldAndNewEmailAddressAndTokenHashes> = Cache::new(Duration::from_mins(1), 100);
+    let cache: Table<OldAndNewEmailAddressAndTokenHashes> = Table::new(Duration::from_mins(1), 100);
     let entry = email_update_entry();
     cache.insert("user-1", entry.clone());
 
@@ -126,7 +126,7 @@ fn delete_if_removes_the_entry_only_when_the_predicate_matches() {
 
 #[test]
 fn delete_if_removes_the_reverse_member() {
-    let cache: Cache<UserIdAndEmailAddressHash> = Cache::new(Duration::from_mins(1), 100);
+    let cache: Table<UserIdAndEmailAddressHash> = Table::new(Duration::from_mins(1), 100);
     let key = uuid_v7();
     let user_id = UserId::new(uuid_v7()).expect("user id");
     let reverse_key = user_id.as_str().to_string();
@@ -176,7 +176,7 @@ fn caches_hold_the_six_tables() {
         download_ttl_seconds: 60,
         cache_capacity: 100,
     };
-    let caches = Caches::new(&config);
+    let caches = Cache::new(&config);
 
     let creation_key = uuid_v7();
     let creation_hash = Hash::new(hash_32()).expect("hash");

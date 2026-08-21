@@ -11,7 +11,7 @@ pub struct AppState {
     pub authorizer: Authorizer,
     pub database: Database,
     pub searcher: SearchIndex,
-    pub cache: cache::Caches,
+    pub cache: cache::Cache,
     pub configurator: Configurator,
     pub emailer: emailer::Emailer,
 }

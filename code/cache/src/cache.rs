@@ -13,12 +13,12 @@ use crate::value::{
 };
 
 #[derive(Clone)]
-pub struct Cache<E: CacheValue> {
+pub struct Table<E: CacheValue> {
     entries: MokaCache<String, E>,
     reverse_index: MokaCache<String, Vec<String>>,
 }
 
-impl<E: CacheValue> Cache<E> {
+impl<E: CacheValue> Table<E> {
     /// Constructs a cache that expires entries after `ttl` and holds at most
     /// `capacity` entries.
     #[must_use]
@@ -142,36 +142,36 @@ fn reverse_remove(cache: &MokaCache<String, Vec<String>>, key: &str, member_key:
 }
 
 #[derive(Clone)]
-pub struct Caches {
-    pub user_creation: Cache<Hash>,
-    pub session: Cache<UserId>,
-    pub email_update: Cache<OldAndNewEmailAddressAndTokenHashes>,
-    pub user_deletion: Cache<UserIdAndEmailAddressHash>,
-    pub challenge: Cache<Challenge>,
-    pub download: Cache<VersionIdAndUserId>,
+pub struct Cache {
+    pub user_creation: Table<Hash>,
+    pub session: Table<UserId>,
+    pub email_update: Table<OldAndNewEmailAddressAndTokenHashes>,
+    pub user_deletion: Table<UserIdAndEmailAddressHash>,
+    pub challenge: Table<Challenge>,
+    pub download: Table<VersionIdAndUserId>,
 }
 
-impl Caches {
+impl Cache {
     /// Constructs the six tables from a loaded configuration.
     #[must_use]
     pub fn new(config: &CacheConfig) -> Self {
         let capacity = config.cache_capacity;
         Self {
-            user_creation: Cache::new(
+            user_creation: Table::new(
                 Duration::from_secs(config.user_creation_ttl_seconds),
                 capacity,
             ),
-            session: Cache::new(Duration::from_secs(config.session_ttl_seconds), capacity),
-            email_update: Cache::new(
+            session: Table::new(Duration::from_secs(config.session_ttl_seconds), capacity),
+            email_update: Table::new(
                 Duration::from_secs(config.email_update_ttl_seconds),
                 capacity,
             ),
-            user_deletion: Cache::new(
+            user_deletion: Table::new(
                 Duration::from_secs(config.user_deletion_ttl_seconds),
                 capacity,
             ),
-            challenge: Cache::new(Duration::from_secs(config.challenge_ttl_seconds), capacity),
-            download: Cache::new(Duration::from_secs(config.download_ttl_seconds), capacity),
+            challenge: Table::new(Duration::from_secs(config.challenge_ttl_seconds), capacity),
+            download: Table::new(Duration::from_secs(config.download_ttl_seconds), capacity),
         }
     }
 

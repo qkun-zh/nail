@@ -280,7 +280,7 @@ pub async fn build_state(
     )
     .await?;
     crate::infrastructure::pdf::prepare_pdf_storage(&config.server.pdf_storage_path).await?;
-    let cache = cache::Caches::new(&config.cache);
+    let cache = cache::Cache::new(&config.cache);
     let recorder = RecordingSender::default();
     let emailer_instance =
         emailer::Emailer::with_sender(Arc::new(recorder.clone()), &config.emailer);

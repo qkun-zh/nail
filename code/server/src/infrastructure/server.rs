@@ -36,7 +36,7 @@ pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
     }
     crate::infrastructure::pdf::prepare_pdf_storage(config.pdf_storage_path()).await?;
 
-    let cache = cache::Caches::new(&config.cache);
+    let cache = cache::Cache::new(&config.cache);
 
     let email_sender = emailer::Emailer::new(&config.emailer);
 
