@@ -133,12 +133,18 @@ async fn apply_tag_to_a_missing_tag_is_not_found() {
 #[tokio::test]
 async fn apply_tag_requires_the_apply_permission() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com");
+    let actor = admin(&context);
     let article_id = article_with_tags(&context, &actor, "rust").await;
     let tag_id = seeded_tag_id(&context, "devops");
 
+    let outsider = crate::repository::user::create_user(
+        &context.state.database,
+        &common::hash::hash("outsider@example.com".as_bytes()).expect("hash must succeed"),
+    )
+    .expect("user");
+
     let err =
-        crate::logic::tag::apply_tag(&context.state, &actor, &article_id, &tag_id).unwrap_err();
+        crate::logic::tag::apply_tag(&context.state, &outsider, &article_id, &tag_id).unwrap_err();
     assert_eq!(err, LogicError::forbidden("you are denied"));
 }
 

@@ -4,10 +4,11 @@ use crate::repository::role::{
     PERMISSION_ARTICLE_CREATE, PERMISSION_ARTICLE_READ, PERMISSION_COMMENT_CREATE,
     PERMISSION_COMMENT_DELETE_TRANSFER, PERMISSION_COMMENT_READ, PERMISSION_ROLE_CREATE,
     PERMISSION_ROLE_DELETE, PERMISSION_ROLE_GRANT, PERMISSION_ROLE_READ, PERMISSION_ROLE_REVOKE,
-    PERMISSION_ROLE_UPDATE, PERMISSION_USER_DELETE_TRANSFER, PERMISSION_USER_READ,
-    PERMISSION_VERSION_DELETE_HARD, PERMISSION_VERSION_READ, ROLE_MEMBER, ROLE_RECYCLER,
-    create_permission, create_role, grant_permission_to_role, hold_role, read_role,
-    user_holds_permission, user_holds_role, users_holding_role,
+    PERMISSION_ROLE_UPDATE, PERMISSION_TAG_APPLY, PERMISSION_TAG_CREATE, PERMISSION_TAG_READ,
+    PERMISSION_USER_DELETE_TRANSFER, PERMISSION_USER_READ, PERMISSION_VERSION_DELETE_HARD,
+    PERMISSION_VERSION_READ, ROLE_MEMBER, ROLE_RECYCLER, create_permission, create_role,
+    grant_permission_to_role, hold_role, read_role, user_holds_permission, user_holds_role,
+    users_holding_role,
 };
 
 #[tokio::test]
@@ -117,6 +118,9 @@ async fn member_role_holds_exactly_the_seeded_baseline_permissions() {
         PERMISSION_ARTICLE_READ,
         PERMISSION_VERSION_READ,
         PERMISSION_COMMENT_READ,
+        PERMISSION_TAG_READ,
+        PERMISSION_TAG_CREATE,
+        PERMISSION_TAG_APPLY,
     ];
     expected.sort_unstable();
 
