@@ -144,3 +144,24 @@ pub mod http_envelope;
 
 #[path = "infrastructure/config_server.rs"]
 pub mod infrastructure_config_server;
+
+#[path = "probe_003_cedar_lifecycle.rs"]
+pub mod probe_003_cedar_lifecycle;
+
+#[path = "probe_004_entity_model.rs"]
+pub mod probe_004_entity_model;
+
+#[path = "probe_005_principal_assembly.rs"]
+pub mod probe_005_principal_assembly;
+
+#[path = "probe_006_resource_assembly.rs"]
+pub mod probe_006_resource_assembly;
+
+#[path = "probe_007_authorize_orchestration.rs"]
+pub mod probe_007_authorize_orchestration;
+
+#[path = "probe_008_logic_wrappers.rs"]
+pub mod probe_008_logic_wrappers;
+
+#[path = "probe_009_legacy_decoupling.rs"]
+pub mod probe_009_legacy_decoupling;
