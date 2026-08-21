@@ -13,6 +13,9 @@ log/
 # --- sensitive configuration (credentials); template: smtp.toml.example ---
 configuration/smtp.toml
 
+# --- github api token for ci log access (never commit) ---
+document/github_token.txt
+
 # --- downloaded tooling (proxy binary is fetched, not vendored) ---
 code/proxy/pingap-linux-gnu-x86-full
 
