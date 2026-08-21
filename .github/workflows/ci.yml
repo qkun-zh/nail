@@ -125,5 +125,5 @@ jobs:
         working-directory: code/client
         run: cargo audit
       - name: Audit searcher
-        working-directory: code/searcher
+        working-directory: code
         run: cargo audit
