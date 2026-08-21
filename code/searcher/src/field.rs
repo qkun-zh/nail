@@ -15,8 +15,6 @@ pub enum SearchField {
 }
 
 impl SearchField {
-    // Consumed by the read module in an upcoming slice.
-    #[allow(dead_code)]
     pub(crate) const fn as_engine_field(self) -> &'static str {
         match self {
             SearchField::Title => "title",
