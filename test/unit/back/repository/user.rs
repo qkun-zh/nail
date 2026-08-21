@@ -9,17 +9,15 @@ use crate::repository::user::{
 async fn create_user_is_idempotent_on_email_hash() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let hash = nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed");
-    let first = create_user(&state.database, &hash).await.expect("first");
-    let second = create_user(&state.database, &hash).await.expect("second");
+    let first = create_user(&state.database, &hash).expect("first");
+    let second = create_user(&state.database, &hash).expect("second");
     assert_eq!(first, second);
 }
 
 #[tokio::test]
 async fn read_user_by_email_address_hash_returns_none_for_unknown() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let result = read_user_by_email_address_hash(&state.database, "missing")
-        .await
-        .expect("lookup");
+    let result = read_user_by_email_address_hash(&state.database, "missing").expect("lookup");
     assert_eq!(result, None);
 }
 
@@ -27,9 +25,8 @@ async fn read_user_by_email_address_hash_returns_none_for_unknown() {
 async fn read_user_returns_the_email_hash_and_default_name() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let hash = nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed");
-    let user_id = create_user(&state.database, &hash).await.expect("user");
+    let user_id = create_user(&state.database, &hash).expect("user");
     let entry = read_user(&state.database, &user_id)
-        .await
         .expect("read")
         .expect("entry");
     assert_eq!(entry.email_address_hash, hash);
@@ -39,7 +36,7 @@ async fn read_user_returns_the_email_hash_and_default_name() {
 #[tokio::test]
 async fn read_user_returns_none_for_an_unknown_id() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let entry = read_user(&state.database, "missing").await.expect("read");
+    let entry = read_user(&state.database, "missing").expect("read");
     assert_eq!(entry, None);
 }
 
@@ -47,12 +44,9 @@ async fn read_user_returns_none_for_an_unknown_id() {
 async fn update_user_name_applies_the_new_name() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let hash = nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed");
-    let user_id = create_user(&state.database, &hash).await.expect("user");
-    update_user_name(&state.database, &user_id, "alice")
-        .await
-        .expect("update");
+    let user_id = create_user(&state.database, &hash).expect("user");
+    update_user_name(&state.database, &user_id, "alice").expect("update");
     let entry = read_user(&state.database, &user_id)
-        .await
         .expect("read")
         .expect("entry");
     assert_eq!(entry.name, "alice");
@@ -65,19 +59,15 @@ async fn update_user_name_rejects_a_taken_name() {
         &state.database,
         &nail_common::hash::hash("a@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("first");
     let second = create_user(
         &state.database,
         &nail_common::hash::hash("b@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("second");
-    update_user_name(&state.database, &first, "alice")
-        .await
-        .expect("first update");
+    update_user_name(&state.database, &first, "alice").expect("first update");
     assert!(matches!(
-        update_user_name(&state.database, &second, "alice").await,
+        update_user_name(&state.database, &second, "alice"),
         Err(UserWriteError::AlreadyTaken)
     ));
 }
@@ -86,7 +76,7 @@ async fn update_user_name_rejects_a_taken_name() {
 async fn update_user_name_reports_a_missing_user() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     assert!(matches!(
-        update_user_name(&state.database, "missing", "alice").await,
+        update_user_name(&state.database, "missing", "alice"),
         Err(UserWriteError::UserMissing)
     ));
 }
@@ -98,12 +88,9 @@ async fn update_user_email_applies_the_new_hash() {
         nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed");
     let new_hash =
         nail_common::hash::hash("alice-new@example.com".as_bytes()).expect("hash must succeed");
-    let user_id = create_user(&state.database, &old_hash).await.expect("user");
-    update_user_email(&state.database, &user_id, &old_hash, &new_hash)
-        .await
-        .expect("update");
+    let user_id = create_user(&state.database, &old_hash).expect("user");
+    update_user_email(&state.database, &user_id, &old_hash, &new_hash).expect("update");
     let entry = read_user(&state.database, &user_id)
-        .await
         .expect("read")
         .expect("entry");
     assert_eq!(entry.email_address_hash, new_hash);
@@ -116,13 +103,11 @@ async fn update_user_email_rejects_a_taken_new_hash() {
         &state.database,
         &nail_common::hash::hash("a@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("first");
     create_user(
         &state.database,
         &nail_common::hash::hash("b@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("second");
     assert!(matches!(
         update_user_email(
@@ -130,8 +115,7 @@ async fn update_user_email_rejects_a_taken_new_hash() {
             &first,
             &nail_common::hash::hash("a@example.com".as_bytes()).expect("hash must succeed"),
             &nail_common::hash::hash("b@example.com".as_bytes()).expect("hash must succeed")
-        )
-        .await,
+        ),
         Err(UserWriteError::AlreadyTaken)
     ));
 }
@@ -143,7 +127,6 @@ async fn update_user_email_rejects_a_mismatched_old_hash() {
         &state.database,
         &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     assert!(matches!(
         update_user_email(
@@ -153,8 +136,7 @@ async fn update_user_email_rejects_a_mismatched_old_hash() {
                 .expect("hash must succeed"),
             &nail_common::hash::hash("alice-new@example.com".as_bytes())
                 .expect("hash must succeed")
-        )
-        .await,
+        ),
         Err(UserWriteError::EmailMismatch)
     ));
 }

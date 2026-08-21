@@ -1,3 +1,4 @@
+use database::NodeKind;
 use std::path::PathBuf;
 
 use nail_common::request::DeleteMode;
@@ -72,11 +73,10 @@ pub(crate) async fn reject_duplicate_content_hash(
     state: &AppState,
     hash: &str,
 ) -> Result<(), LogicError> {
-    let Some(owner) = content_hash_owner(&state.database, hash).await? else {
+    let Some(owner) = content_hash_owner(&state.database, hash)? else {
         return Ok(());
     };
-    let owned_version = read_version_node(&state.database, &owner.version_id)
-        .await?
+    let owned_version = read_version_node(&state.database, &owner.version_id)?
         .map(|entry| entry.version_number)
         .unwrap_or_default();
     Err(LogicError::bad_request(format!(
@@ -97,8 +97,7 @@ pub async fn create_version(
         actor_id,
         PERMISSION_VERSION_CREATE,
         EntityRef::Article(article_id),
-    )
-    .await?;
+    )?;
 
     let version_number = validate_version(raw_version)?;
     let note = validate_note(raw_note, state.configurator.max_version_note_chars())?;
@@ -115,7 +114,7 @@ pub async fn create_version(
         note,
     };
 
-    match create_version_node(&state.database, article_id, &draft).await {
+    match create_version_node(&state.database, article_id, &draft) {
         Ok(()) => {
             upload.keep_final();
             sync_article_best_effort(state, article_id).await;
@@ -128,7 +127,7 @@ pub async fn create_version(
     }
 }
 
-pub async fn read_version(
+pub fn read_version(
     state: &AppState,
     actor_id: &str,
     version_id: &str,
@@ -139,10 +138,8 @@ pub async fn read_version(
         actor_id,
         PERMISSION_VERSION_READ,
         EntityRef::Version(version_id),
-    )
-    .await?;
-    let parent_article = parent_article_of(&state.database, version_id)
-        .await?
+    )?;
+    let parent_article = parent_article_of(&state.database, version_id)?
         .ok_or_else(|| LogicError::not_found("version not found"))?;
     if let Some(expected_article) = article_id
         && parent_article != expected_article
@@ -150,10 +147,9 @@ pub async fn read_version(
         return Err(LogicError::not_found("version not found"));
     }
 
-    let entry = read_version_node(&state.database, version_id)
-        .await?
+    let entry = read_version_node(&state.database, version_id)?
         .ok_or_else(|| LogicError::not_found("version not found"))?;
-    require_entity_visible(state, actor_id, EntityRef::Version(version_id)).await?;
+    require_entity_visible(state, actor_id, EntityRef::Version(version_id))?;
 
     let created_at = nail_common::time::uuidv7_timestamp_secs(version_id).unwrap_or(0);
     let view = VersionView {
@@ -165,7 +161,7 @@ pub async fn read_version(
     Ok(view)
 }
 
-pub async fn read_versions(
+pub fn read_versions(
     state: &AppState,
     actor_id: &str,
     article_id: &str,
@@ -177,11 +173,10 @@ pub async fn read_versions(
         actor_id,
         PERMISSION_VERSION_READ,
         EntityRef::Article(article_id),
-    )
-    .await?;
-    let total = crate::repository::version::count_versions_of(&state.database, article_id).await?;
+    )?;
+    let total = crate::repository::version::count_versions_of(&state.database, article_id)?;
     let offset = page_offset(page, limit);
-    let (items, has_next) = versions_of(&state.database, article_id, limit, offset).await?;
+    let (items, has_next) = versions_of(&state.database, article_id, limit, offset)?;
     let items: Vec<VersionListItem> = items
         .into_iter()
         .map(|item| VersionListItem {
@@ -196,7 +191,7 @@ pub async fn read_versions(
     })
 }
 
-pub async fn update_version(
+pub fn update_version(
     state: &AppState,
     actor_id: &str,
     version_id: &str,
@@ -207,10 +202,9 @@ pub async fn update_version(
         actor_id,
         PERMISSION_VERSION_UPDATE,
         EntityRef::Version(version_id),
-    )
-    .await?;
+    )?;
     let note = validate_note(raw_note, state.configurator.max_version_note_chars())?;
-    update_version_node(&state.database, version_id, &note).await?;
+    update_version_node(&state.database, version_id, &note)?;
     Ok(VersionIdView {
         version_id: version_id.to_string(),
     })
@@ -229,16 +223,17 @@ pub async fn delete_version(
                 actor_id,
                 PERMISSION_VERSION_DELETE_SOFT,
                 EntityRef::Version(version_id),
-            )
-            .await?;
-            let parent_article = parent_article_of(&state.database, version_id).await?;
-            let already_deleted =
-                crate::repository::delete::is_soft_deleted(&state.database, "version", version_id)
-                    .await?;
+            )?;
+            let parent_article = parent_article_of(&state.database, version_id)?;
+            let already_deleted = crate::repository::delete::is_soft_deleted(
+                &state.database,
+                NodeKind::Version,
+                version_id,
+            )?;
             if already_deleted {
                 return Err(LogicError::bad_request("already soft-deleted"));
             }
-            soft_delete_version(&state.database, version_id).await?;
+            soft_delete_version(&state.database, version_id)?;
             if let Some(parent_article) = parent_article {
                 sync_article_best_effort(state, &parent_article).await;
             }
@@ -252,10 +247,9 @@ pub async fn delete_version(
                 actor_id,
                 PERMISSION_VERSION_DELETE_HARD,
                 EntityRef::Version(version_id),
-            )
-            .await?;
-            let parent_article = parent_article_of(&state.database, version_id).await?;
-            let outcome = delete_version_node(&state.database, version_id).await?;
+            )?;
+            let parent_article = parent_article_of(&state.database, version_id)?;
+            let outcome = delete_version_node(&state.database, version_id)?;
             remove_orphaned_pdfs(state, &outcome.removed_pdf_hashes).await;
             if let Some(parent_article) = parent_article {
                 sync_article_best_effort(state, &parent_article).await;
@@ -280,15 +274,14 @@ pub async fn undelete_soft_version(
         actor_id,
         PERMISSION_VERSION_UNDELETE_SOFT,
         EntityRef::Version(version_id),
-    )
-    .await?;
+    )?;
     let hidden =
-        crate::repository::delete::is_soft_deleted(&state.database, "version", version_id).await?;
+        crate::repository::delete::is_soft_deleted(&state.database, NodeKind::Version, version_id)?;
     if !hidden {
         return Err(LogicError::bad_request("not soft-deleted"));
     }
-    clear_soft_deleted_flag(&state.database, version_id).await?;
-    if let Some(parent_article) = parent_article_of(&state.database, version_id).await? {
+    clear_soft_deleted_flag(&state.database, version_id)?;
+    if let Some(parent_article) = parent_article_of(&state.database, version_id)? {
         sync_article_best_effort(state, &parent_article).await;
     }
     Ok(VersionIdView {

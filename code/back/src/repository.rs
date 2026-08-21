@@ -1,8 +1,8 @@
+pub(crate) mod access;
 pub mod article;
 pub mod authorization;
 pub mod comment;
 pub mod delete;
-pub mod graph;
 pub mod role;
 pub mod schema;
 pub mod search;

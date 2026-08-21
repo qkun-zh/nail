@@ -1,14 +1,33 @@
+use std::path::Path;
+
 use crate::infrastructure::authorizer::Authorizer;
 use crate::infrastructure::config::AppConfig;
 use crate::infrastructure::state::{AppState, Configurator};
 use crate::interface;
 use crate::repository;
+use crate::repository::schema::INDEX_KEYS;
 
 use tower_http::trace::TraceLayer;
 
+pub(crate) fn open_database(address: &str) -> anyhow::Result<database::Database> {
+    let indexes: Vec<String> = INDEX_KEYS.iter().map(|key| (*key).to_string()).collect();
+    let database = match address.trim().to_ascii_lowercase().as_str() {
+        "memory" | "mem" | ":memory:" | "in-memory" => {
+            database::Database::open_memory("nail_memory", &indexes)?
+        }
+        path => {
+            if path.is_empty() || path == "/" {
+                anyhow::bail!("invalid db_path: {path:?} (use a file path or a memory indicator)");
+            }
+            database::Database::open_mapped(Path::new(path), &indexes)?
+        }
+    };
+    Ok(database)
+}
+
 pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
-    let database = repository::graph::open(config.db_path())?;
-    repository::seed::init_graph(&database, config.user_zero_email()).await?;
+    let database = open_database(config.db_path())?;
+    repository::seed::init_graph(&database, config.user_zero_email())?;
     let searcher =
         repository::search::SearchIndex::open_or_create(config.search_index_path()).await?;
     if searcher.was_recreated() {

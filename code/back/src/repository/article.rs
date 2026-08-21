@@ -1,19 +1,14 @@
 use std::collections::{HashMap, HashSet};
 
-use agdb::{DbError, QueryBuilder};
+use database::{Database, EdgeKind, Error, NodeId, NodeKind, Value, WriteScope};
 use nail_common::response::NamedRef;
 
-use crate::repository::graph::{
-    DbHandle, find_by_index, highest_version_number, incoming_edges, insert_edge, outgoing_edges,
-    read_rows, resolve_node_id,
-};
+use crate::repository::access::GraphRead;
+use crate::repository::delete::{has_soft_deleted_flag, highest_version_number};
 use crate::repository::schema::{
-    ArticleRow, EDGE_ARTICLE_APPLY_TAG, EDGE_ARTICLE_HOLD_VERSION, EDGE_USER_AUTHOR_ARTICLE,
-    ENTITY_TYPE_ARTICLE, ENTITY_TYPE_TAG, ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, IdRow,
-    KEY_CONTENT_HASH, KEY_SOFT_DELETED, KEY_SUMMARY, KEY_TITLE, KEY_TYPE, TagRow, UserRow,
-    VersionRow, alias_of,
+    ArticleRow, KEY_CONTENT_HASH, KEY_SUMMARY, KEY_TITLE, TagRow, UserRow, VersionRow,
 };
-use crate::repository::tag::create_tag_in_txn;
+use crate::repository::tag::create_tag_in_scope;
 use crate::repository::version::VersionDraft;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -50,11 +45,11 @@ pub enum CreateArticleError {
     AuthorMissing,
     TitleTaken,
     ContentHashTaken,
-    Db(DbError),
+    Db(Error),
 }
 
-impl From<DbError> for CreateArticleError {
-    fn from(error: DbError) -> Self {
+impl From<Error> for CreateArticleError {
+    fn from(error: Error) -> Self {
         Self::Db(error)
     }
 }
@@ -76,11 +71,11 @@ impl std::error::Error for CreateArticleError {}
 pub enum UpdateArticleError {
     Missing,
     TitleTaken,
-    Db(DbError),
+    Db(Error),
 }
 
-impl From<DbError> for UpdateArticleError {
-    fn from(error: DbError) -> Self {
+impl From<Error> for UpdateArticleError {
+    fn from(error: Error) -> Self {
         Self::Db(error)
     }
 }
@@ -97,251 +92,236 @@ impl std::fmt::Display for UpdateArticleError {
 
 impl std::error::Error for UpdateArticleError {}
 
-pub async fn create_article(db: &DbHandle, draft: &ArticleDraft) -> Result<(), CreateArticleError> {
-    let mut guard = db.write().await;
-    guard.transaction_mut(|transaction| {
-        if resolve_node_id(transaction, ENTITY_TYPE_USER, &draft.author_id)?.is_none() {
-            return Err(CreateArticleError::AuthorMissing);
+pub fn create_article(db: &Database, draft: &ArticleDraft) -> Result<(), CreateArticleError> {
+    db.write(|scope| {
+        let Some(author) = scope.resolve(NodeKind::User, &draft.author_id)? else {
+            return Ok(Err(CreateArticleError::AuthorMissing));
+        };
+        if scope.find_by_key(KEY_TITLE, &draft.title)?.is_some() {
+            return Ok(Err(CreateArticleError::TitleTaken));
         }
-        if !find_by_index(transaction, KEY_TITLE, &draft.title)?.is_empty() {
-            return Err(CreateArticleError::TitleTaken);
-        }
-        if !find_by_index(
-            transaction,
-            KEY_CONTENT_HASH,
-            &draft.first_version.content_hash,
-        )?
-        .is_empty()
+        if scope
+            .find_by_key(KEY_CONTENT_HASH, &draft.first_version.content_hash)?
+            .is_some()
         {
-            return Err(CreateArticleError::ContentHashTaken);
+            return Ok(Err(CreateArticleError::ContentHashTaken));
         }
 
         let mut seen_tags = HashSet::new();
-        let mut tag_ids: Vec<String> = Vec::with_capacity(draft.tags.len());
+        let mut tag_nodes: Vec<NodeId> = Vec::with_capacity(draft.tags.len());
         for name in &draft.tags {
             if seen_tags.insert(name) {
-                let tag = create_tag_in_txn(transaction, name)?;
-                tag_ids.push(tag.id);
+                let tag = create_tag_in_scope(scope, name)?;
+                let node = scope
+                    .resolve(NodeKind::Tag, &tag.id)?
+                    .ok_or_else(|| Error::Invalid("inserted tag missing".to_string()))?;
+                tag_nodes.push(node);
             }
         }
 
-        transaction.exec_mut(
-            QueryBuilder::insert()
-                .nodes()
-                .aliases([alias_of(
-                    ENTITY_TYPE_VERSION,
-                    &draft.first_version.version_id,
-                )])
-                .values(VersionRow {
-                    db_id: None,
-                    entity_type: ENTITY_TYPE_VERSION.to_string(),
-                    id: draft.first_version.version_id.clone(),
-                    version_number: draft.first_version.version_number.clone(),
-                    content_hash: draft.first_version.content_hash.clone(),
-                    note: draft.first_version.note.clone(),
-                })
-                .query(),
-        )?;
+        scope.insert_node(&VersionRow {
+            id: draft.first_version.version_id.clone(),
+            version_number: draft.first_version.version_number.clone(),
+            content_hash: draft.first_version.content_hash.clone(),
+            note: draft.first_version.note.clone(),
+        })?;
+        let version_node = scope
+            .resolve(NodeKind::Version, &draft.first_version.version_id)?
+            .ok_or_else(|| Error::Invalid("inserted version missing".to_string()))?;
 
-        let article_alias = alias_of(ENTITY_TYPE_ARTICLE, &draft.article_id);
-        transaction.exec_mut(
-            QueryBuilder::insert()
-                .nodes()
-                .aliases([article_alias.clone()])
-                .values(ArticleRow {
-                    db_id: None,
-                    entity_type: ENTITY_TYPE_ARTICLE.to_string(),
-                    id: draft.article_id.clone(),
-                    title: draft.title.clone(),
-                    summary: draft.summary.clone(),
-                    latest_version_id: Some(draft.first_version.version_id.clone()),
-                })
-                .query(),
-        )?;
+        scope.insert_node(&ArticleRow {
+            id: draft.article_id.clone(),
+            title: draft.title.clone(),
+            summary: draft.summary.clone(),
+            latest_version_id: Some(draft.first_version.version_id.clone()),
+        })?;
+        let article_node = scope
+            .resolve(NodeKind::Article, &draft.article_id)?
+            .ok_or_else(|| Error::Invalid("inserted article missing".to_string()))?;
 
-        insert_edge(
-            transaction,
-            EDGE_USER_AUTHOR_ARTICLE,
-            alias_of(ENTITY_TYPE_USER, &draft.author_id).into(),
-            article_alias.clone().into(),
+        scope.insert_edge(
+            NodeKind::User,
+            author,
+            EdgeKind::UserAuthorArticle,
+            NodeKind::Article,
+            article_node,
         )?;
-        insert_edge(
-            transaction,
-            EDGE_ARTICLE_HOLD_VERSION,
-            article_alias.clone().into(),
-            alias_of(ENTITY_TYPE_VERSION, &draft.first_version.version_id).into(),
+        scope.insert_edge(
+            NodeKind::Article,
+            article_node,
+            EdgeKind::ArticleHoldVersion,
+            NodeKind::Version,
+            version_node,
         )?;
-        for tag_id in &tag_ids {
-            insert_edge(
-                transaction,
-                EDGE_ARTICLE_APPLY_TAG,
-                article_alias.clone().into(),
-                alias_of(ENTITY_TYPE_TAG, tag_id).into(),
+        for tag_node in &tag_nodes {
+            scope.insert_edge(
+                NodeKind::Article,
+                article_node,
+                EdgeKind::ArticleApplyTag,
+                NodeKind::Tag,
+                *tag_node,
             )?;
         }
-        Ok(())
+        Ok(Ok(()))
+    })
+    .map_err(CreateArticleError::from)
+    .and_then(std::convert::identity)
+}
+
+pub fn read_article(db: &Database, article_id: &str) -> Result<Option<ArticleView>, Error> {
+    db.read(|scope| {
+        let Some(id) = scope.resolve(NodeKind::Article, article_id)? else {
+            return Ok(None);
+        };
+        Ok(enrich_articles(scope, &[id])?.into_iter().next())
     })
 }
 
-pub async fn read_article(db: &DbHandle, article_id: &str) -> Result<Option<ArticleView>, DbError> {
-    let guard = db.read().await;
-    let Some(id) = resolve_node_id(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
-        return Ok(None);
-    };
-    Ok(enrich_articles(&guard, &[id])?.into_iter().next())
+pub fn article_exists(db: &Database, article_id: &str) -> Result<bool, Error> {
+    db.read(|scope| Ok(scope.resolve(NodeKind::Article, article_id)?.is_some()))
 }
 
-pub async fn article_exists(db: &DbHandle, article_id: &str) -> Result<bool, DbError> {
-    let guard = db.read().await;
-    Ok(resolve_node_id(&guard, ENTITY_TYPE_ARTICLE, article_id)?.is_some())
-}
-
-pub async fn update_article(
-    db: &DbHandle,
+pub fn update_article(
+    db: &Database,
     article_id: &str,
     update: &ArticleUpdate,
 ) -> Result<(), UpdateArticleError> {
-    let mut guard = db.write().await;
-    guard.transaction_mut(|transaction| {
-        let Some(article) = resolve_node_id(transaction, ENTITY_TYPE_ARTICLE, article_id)? else {
-            return Err(UpdateArticleError::Missing);
+    db.write(|scope| {
+        let Some(article) = scope.resolve(NodeKind::Article, article_id)? else {
+            return Ok(Err(UpdateArticleError::Missing));
         };
-        let title_conflict = find_by_index(transaction, KEY_TITLE, &update.title)?
-            .into_iter()
-            .any(|other| other != article);
+        let title_conflict = scope
+            .find_by_key(KEY_TITLE, &update.title)?
+            .is_some_and(|other| other != article);
         if title_conflict {
-            return Err(UpdateArticleError::TitleTaken);
+            return Ok(Err(UpdateArticleError::TitleTaken));
         }
 
-        transaction.exec_mut(
-            QueryBuilder::insert()
-                .nodes()
-                .ids([article])
-                .values([[
-                    (KEY_TITLE, update.title.as_str()).into(),
-                    (KEY_SUMMARY, update.summary.as_str()).into(),
-                ]])
-                .query(),
-        )?;
+        scope.set_key(article, KEY_TITLE, Value::Text(update.title.clone()))?;
+        scope.set_key(article, KEY_SUMMARY, Value::Text(update.summary.clone()))?;
 
-        let old_edges = outgoing_edges(transaction, article, EDGE_ARTICLE_APPLY_TAG)?;
-        let old_ids: HashSet<agdb::DbId> = old_edges.iter().map(|edge| edge.to).collect();
+        let old_edges = scope.outgoing(article, EdgeKind::ArticleApplyTag)?;
+        let old_ids: HashSet<NodeId> = old_edges.iter().copied().collect();
 
         let mut seen_tags = HashSet::new();
-        let mut new_ids: Vec<agdb::DbId> = Vec::with_capacity(update.tags.len());
+        let mut new_ids: Vec<NodeId> = Vec::with_capacity(update.tags.len());
         for name in &update.tags {
             if seen_tags.insert(name) {
-                let tag = create_tag_in_txn(transaction, name)?;
-                let tag_id = resolve_node_id(transaction, ENTITY_TYPE_TAG, &tag.id)?
-                    .ok_or(UpdateArticleError::Missing)?;
+                let tag = create_tag_in_scope(scope, name)?;
+                let Some(tag_id) = scope.resolve(NodeKind::Tag, &tag.id)? else {
+                    return Ok(Err(UpdateArticleError::Missing));
+                };
                 new_ids.push(tag_id);
             }
         }
 
         for tag_id in &new_ids {
             if !old_ids.contains(tag_id) {
-                insert_edge(
-                    transaction,
-                    EDGE_ARTICLE_APPLY_TAG,
-                    article.into(),
-                    (*tag_id).into(),
+                scope.insert_edge(
+                    NodeKind::Article,
+                    article,
+                    EdgeKind::ArticleApplyTag,
+                    NodeKind::Tag,
+                    *tag_id,
                 )?;
             }
         }
 
-        let new_set: HashSet<agdb::DbId> = new_ids.iter().copied().collect();
-        let stale_edge_ids: Vec<agdb::DbId> = old_edges
-            .iter()
-            .filter(|edge| !new_set.contains(&edge.to))
-            .map(|edge| edge.id)
-            .collect();
-        if !stale_edge_ids.is_empty() {
-            transaction.exec_mut(QueryBuilder::remove().ids(stale_edge_ids).query())?;
+        for stale in old_edges.iter().filter(|edge| !new_ids.contains(edge)) {
+            scope.remove_edge(article, EdgeKind::ArticleApplyTag, *stale)?;
         }
 
-        let orphan_tags = transaction.exec(
-            QueryBuilder::search()
-                .elements()
-                .where_()
-                .key(KEY_TYPE)
-                .value(ENTITY_TYPE_TAG)
-                .and()
-                .edge_count_to(agdb::CountComparison::Equal(0))
-                .query(),
-        )?;
-        if !orphan_tags.elements.is_empty() {
-            let ids: Vec<agdb::DbId> = orphan_tags.elements.iter().map(|edge| edge.id).collect();
-            transaction.exec_mut(QueryBuilder::remove().ids(ids).query())?;
-        }
-        Ok(())
+        remove_orphan_tags(scope)?;
+        Ok(Ok(()))
     })
+    .map_err(UpdateArticleError::from)
+    .and_then(std::convert::identity)
+}
+
+fn remove_orphan_tags(scope: &mut WriteScope<'_, '_>) -> Result<(), Error> {
+    let tags = scope.all_nodes(NodeKind::Tag)?;
+    let mut orphans = Vec::new();
+    for tag in tags {
+        if scope.count_incoming(tag, EdgeKind::ArticleApplyTag)? == 0 {
+            orphans.push(tag);
+        }
+    }
+    scope.remove(&orphans)
 }
 
 #[cfg(test)]
-pub async fn owner_of(db: &DbHandle, article_id: &str) -> Result<Option<String>, DbError> {
-    let guard = db.read().await;
-    let Some(article) = resolve_node_id(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
-        return Ok(None);
-    };
-    let edges = incoming_edges(&guard, article, EDGE_USER_AUTHOR_ARTICLE)?;
-    Ok(edges.first().and_then(|edge| {
-        read_rows::<IdRow>(&guard, &[edge.from])
-            .ok()
-            .and_then(|rows| rows.into_iter().next())
-            .map(|row| row.id)
-    }))
+pub fn owner_of(db: &Database, article_id: &str) -> Result<Option<String>, Error> {
+    db.read(|scope| {
+        let Some(article) = scope.resolve(NodeKind::Article, article_id)? else {
+            return Ok(None);
+        };
+        Ok(scope
+            .incoming(article, EdgeKind::UserAuthorArticle)?
+            .first()
+            .and_then(|user| {
+                scope
+                    .scope_read_node::<crate::repository::schema::IdRow>(*user)
+                    .transpose()
+            })
+            .transpose()?
+            .map(|row| row.id))
+    })
 }
 
-fn enrich_articles(guard: &agdb::DbAny, ids: &[agdb::DbId]) -> Result<Vec<ArticleView>, DbError> {
+fn enrich_articles(scope: &impl GraphRead, ids: &[NodeId]) -> Result<Vec<ArticleView>, Error> {
     if ids.is_empty() {
         return Ok(Vec::new());
     }
-    let article_rows = read_rows::<ArticleRow>(guard, ids)?;
-    let article_by_node: HashMap<agdb::DbId, ArticleRow> = article_rows
-        .into_iter()
-        .filter_map(|row| row.db_id.map(|node| (node, row)))
-        .collect();
+    let mut article_by_node: HashMap<NodeId, ArticleRow> = HashMap::new();
+    for &id in ids {
+        if let Some(row) = scope.scope_read_node::<ArticleRow>(id)? {
+            article_by_node.insert(id, row);
+        }
+    }
 
-    let mut owner_of: HashMap<agdb::DbId, agdb::DbId> = HashMap::new();
-    let mut tag_nodes: HashSet<agdb::DbId> = HashSet::new();
-    let mut tags_by_article: HashMap<agdb::DbId, Vec<agdb::DbId>> = HashMap::new();
+    let mut owner_of: HashMap<NodeId, NodeId> = HashMap::new();
+    let mut tag_nodes: HashSet<NodeId> = HashSet::new();
+    let mut tags_by_article: HashMap<NodeId, Vec<NodeId>> = HashMap::new();
     for &article in ids {
         if !article_by_node.contains_key(&article) {
             continue;
         }
-        let owner_edges = incoming_edges(guard, article, EDGE_USER_AUTHOR_ARTICLE)?;
-        if let Some(edge) = owner_edges.first() {
-            owner_of.insert(article, edge.from);
+        if let Some(owner) = scope
+            .scope_incoming(article, EdgeKind::UserAuthorArticle)?
+            .first()
+        {
+            owner_of.insert(article, *owner);
         }
-        let tag_edges = outgoing_edges(guard, article, EDGE_ARTICLE_APPLY_TAG)?;
-        let article_tag_nodes: Vec<agdb::DbId> = tag_edges.iter().map(|edge| edge.to).collect();
+        let article_tag_nodes = scope.scope_outgoing(article, EdgeKind::ArticleApplyTag)?;
         for tag_node in &article_tag_nodes {
             tag_nodes.insert(*tag_node);
         }
         tags_by_article.insert(article, article_tag_nodes);
     }
 
-    let owner_ids: Vec<agdb::DbId> = owner_of.values().copied().collect();
-    let author_by_node: HashMap<agdb::DbId, UserRow> = read_rows::<UserRow>(guard, &owner_ids)?
-        .into_iter()
-        .filter_map(|row| row.db_id.map(|node| (node, row)))
-        .collect();
+    let owner_ids: Vec<NodeId> = owner_of.values().copied().collect();
+    let mut author_by_node: HashMap<NodeId, UserRow> = HashMap::new();
+    for owner in &owner_ids {
+        if let Some(row) = scope.scope_read_node::<UserRow>(*owner)? {
+            author_by_node.insert(*owner, row);
+        }
+    }
 
-    let tag_node_list: Vec<agdb::DbId> = tag_nodes.iter().copied().collect();
-    let tag_name_by_node: HashMap<agdb::DbId, String> = read_rows::<TagRow>(guard, &tag_node_list)?
-        .into_iter()
-        .filter_map(|row| row.db_id.map(|node| (node, row.tag_name)))
-        .collect();
-    let tag_id_by_node: HashMap<agdb::DbId, String> = read_rows::<IdRow>(guard, &tag_node_list)?
-        .into_iter()
-        .filter_map(|row| row.db_id.map(|node| (node, row.id)))
-        .collect();
+    let tag_node_list: Vec<NodeId> = tag_nodes.iter().copied().collect();
+    let mut tag_name_by_node: HashMap<NodeId, String> = HashMap::new();
+    let mut tag_id_by_node: HashMap<NodeId, String> = HashMap::new();
+    for tag_node in &tag_node_list {
+        if let Some(row) = scope.scope_read_node::<TagRow>(*tag_node)? {
+            tag_name_by_node.insert(*tag_node, row.tag_name);
+            tag_id_by_node.insert(*tag_node, row.id);
+        }
+    }
 
     let latest_ids: Vec<String> = article_by_node
         .values()
         .filter_map(|row| row.latest_version_id.clone())
         .collect();
-    let version_by_business = read_version_numbers(guard, &latest_ids)?;
+    let version_by_business = read_version_numbers(scope, &latest_ids)?;
 
     let mut items = Vec::with_capacity(ids.len());
     for id in ids {
@@ -359,7 +339,7 @@ fn enrich_articles(guard: &agdb::DbAny, ids: &[agdb::DbId]) -> Result<Vec<Articl
             .unwrap_or_default();
         if latest_version.is_empty()
             && !stored_latest_id.is_empty()
-            && let Some((live_id, live_number)) = live_latest_version(guard, *id)?
+            && let Some((live_id, live_number)) = live_latest_version(scope, *id)?
         {
             latest_version_id = live_id;
             latest_version = live_number;
@@ -399,18 +379,18 @@ fn enrich_articles(guard: &agdb::DbAny, ids: &[agdb::DbId]) -> Result<Vec<Articl
 }
 
 fn read_version_numbers(
-    guard: &agdb::DbAny,
+    scope: &impl GraphRead,
     version_ids: &[String],
-) -> Result<HashMap<String, String>, DbError> {
+) -> Result<HashMap<String, String>, Error> {
     let mut resolved = Vec::with_capacity(version_ids.len());
     for version_id in version_ids {
-        if let Some(node) = resolve_node_id(guard, ENTITY_TYPE_VERSION, version_id)?
-            && !crate::repository::delete::has_soft_deleted_flag(guard, node)?
+        if let Some(node) = scope.scope_resolve(NodeKind::Version, version_id)?
+            && !has_soft_deleted_flag(scope, node)?
         {
             resolved.push(node);
         }
     }
-    let rows = read_rows::<VersionRow>(guard, &resolved)?;
+    let rows = scope.scope_read_nodes::<VersionRow>(&resolved)?;
     let mut map = HashMap::new();
     for row in rows {
         map.insert(row.id, row.version_number);
@@ -419,62 +399,44 @@ fn read_version_numbers(
 }
 
 fn live_latest_version(
-    guard: &agdb::DbAny,
-    article: agdb::DbId,
-) -> Result<Option<(String, String)>, DbError> {
-    let nodes = guard.exec(
-        QueryBuilder::search()
-            .from(article)
-            .where_()
-            .distance(agdb::CountComparison::Equal(2))
-            .and()
-            .node()
-            .and()
-            .key(KEY_TYPE)
-            .value(ENTITY_TYPE_VERSION)
-            .and()
-            .not()
-            .keys(KEY_SOFT_DELETED)
-            .query(),
-    )?;
-    let rows = read_rows::<VersionRow>(
-        guard,
-        &nodes
-            .elements
-            .iter()
-            .map(|element| element.id)
-            .collect::<Vec<_>>(),
-    )?;
-    Ok(highest_version_number(rows).map(|row| (row.id, row.version_number)))
-}
-
-pub async fn articles_of_user(
-    db: &DbHandle,
-    user_id: &str,
-) -> Result<Vec<nail_common::response::article::ArticleListItem>, DbError> {
-    let guard = db.read().await;
-    let Some(user) = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)? else {
-        return Ok(Vec::new());
-    };
-    let edges = outgoing_edges(&guard, user, EDGE_USER_AUTHOR_ARTICLE)?;
-    let article_ids: Vec<agdb::DbId> = edges.iter().map(|edge| edge.to).collect();
-    let mut articles = Vec::new();
-    for &article_id in &article_ids {
-        if crate::repository::delete::has_soft_deleted_flag(&guard, article_id)? {
-            continue;
-        }
-        if let Some(row) = read_rows::<ArticleRow>(&guard, &[article_id])?
-            .into_iter()
-            .next()
-        {
-            let created_at = nail_common::time::uuidv7_timestamp_secs(&row.id).unwrap_or(0);
-            articles.push(nail_common::response::article::ArticleListItem {
-                id: row.id,
-                title: row.title,
-                created_at,
-            });
+    scope: &impl GraphRead,
+    article: NodeId,
+) -> Result<Option<(String, String)>, Error> {
+    let nodes = scope.scope_outgoing(article, EdgeKind::ArticleHoldVersion)?;
+    let rows = scope.scope_read_nodes::<VersionRow>(&nodes)?;
+    let mut live = Vec::with_capacity(rows.len());
+    for (node, row) in nodes.into_iter().zip(rows) {
+        if !has_soft_deleted_flag(scope, node)? {
+            live.push(row);
         }
     }
-    articles.sort_by_key(|article| std::cmp::Reverse(article.created_at));
-    Ok(articles)
+    Ok(highest_version_number(live).map(|row| (row.id, row.version_number)))
+}
+
+pub fn articles_of_user(
+    db: &Database,
+    user_id: &str,
+) -> Result<Vec<nail_common::response::article::ArticleListItem>, Error> {
+    db.read(|scope| {
+        let Some(user) = scope.resolve(NodeKind::User, user_id)? else {
+            return Ok(Vec::new());
+        };
+        let edges = scope.outgoing(user, EdgeKind::UserAuthorArticle)?;
+        let mut articles = Vec::new();
+        for article in edges {
+            if has_soft_deleted_flag(scope, article)? {
+                continue;
+            }
+            if let Some(row) = scope.scope_read_node::<ArticleRow>(article)? {
+                let created_at = nail_common::time::uuidv7_timestamp_secs(&row.id).unwrap_or(0);
+                articles.push(nail_common::response::article::ArticleListItem {
+                    id: row.id,
+                    title: row.title,
+                    created_at,
+                });
+            }
+        }
+        articles.sort_by_key(|article| std::cmp::Reverse(article.created_at));
+        Ok(articles)
+    })
 }

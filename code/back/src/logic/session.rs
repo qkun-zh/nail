@@ -46,17 +46,15 @@ pub fn create_session(state: &AppState, user_id: &str) -> Result<String, LogicEr
     Ok(session_token)
 }
 
-pub async fn read_user_name(state: &AppState, session_token: &str) -> Result<String, LogicError> {
+pub fn read_user_name(state: &AppState, session_token: &str) -> Result<String, LogicError> {
     let user_id = read_session(state, session_token)?;
     authorize_entity(
         state,
         &user_id,
         crate::repository::role::PERMISSION_USER_READ,
         EntityRef::User(&user_id),
-    )
-    .await?;
-    let entry = crate::repository::user::read_user(&state.database, &user_id)
-        .await?
+    )?;
+    let entry = crate::repository::user::read_user(&state.database, &user_id)?
         .ok_or_else(|| LogicError::unauthorized("user not found"))?;
     Ok(entry.name)
 }

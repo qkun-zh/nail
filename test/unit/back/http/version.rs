@@ -10,16 +10,13 @@ use crate::repository::article::{ArticleDraft, create_article};
 use crate::repository::role::{ROLE_MEMBER, hold_role};
 use crate::repository::version::VersionDraft;
 
-async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
+fn member_session(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
-    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
-        .await
-        .expect("member role");
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER).expect("member role");
     let token = Uuid::now_v7().to_string();
     let key = cache_key(&token).expect("cache key");
     context
@@ -30,16 +27,15 @@ async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
     (user_id, token)
 }
 
-async fn admin_session(context: &TestCtx) -> (String, String) {
-    member_session(context, "user-zero@example.com").await
+fn admin_session(context: &TestCtx) -> (String, String) {
+    member_session(context, "user-zero@example.com")
 }
 
-async fn plain_session(context: &TestCtx, email: &str) -> (String, String) {
+fn plain_session(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let token = Uuid::now_v7().to_string();
     let key = cache_key(&token).expect("cache key");
@@ -51,7 +47,7 @@ async fn plain_session(context: &TestCtx, email: &str) -> (String, String) {
     (user_id, token)
 }
 
-async fn article_fixture(context: &TestCtx, author_id: &str) -> (String, String) {
+fn article_fixture(context: &TestCtx, author_id: &str) -> (String, String) {
     let article_id = Uuid::now_v7().to_string();
     let version_id = Uuid::now_v7().to_string();
     let title = format!("Versioned {article_id}");
@@ -71,7 +67,6 @@ async fn article_fixture(context: &TestCtx, author_id: &str) -> (String, String)
             },
         },
     )
-    .await
     .expect("create article");
     (article_id, version_id)
 }
@@ -79,8 +74,8 @@ async fn article_fixture(context: &TestCtx, author_id: &str) -> (String, String)
 #[tokio::test]
 async fn create_version_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let (article_id, _) = article_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let (article_id, _) = article_fixture(&context, &user_id);
 
     let fields: Vec<(&str, &str)> = vec![("version", "1.1.0"), ("note", "next")];
     let (status, body) = context
@@ -101,8 +96,8 @@ async fn create_version_over_http() {
 #[tokio::test]
 async fn create_version_ignores_unknown_multipart_fields() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let (article_id, _) = article_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let (article_id, _) = article_fixture(&context, &user_id);
 
     let fields: Vec<(&str, &str)> = vec![
         ("version", "1.1.0"),
@@ -126,8 +121,8 @@ async fn create_version_ignores_unknown_multipart_fields() {
 #[tokio::test]
 async fn create_version_requires_a_session() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = member_session(&context, "alice@example.com").await;
-    let (article_id, _) = article_fixture(&context, &user_id).await;
+    let (user_id, _) = member_session(&context, "alice@example.com");
+    let (article_id, _) = article_fixture(&context, &user_id);
 
     let fields: Vec<(&str, &str)> = vec![("version", "1.1.0")];
     let (status, body) = context
@@ -146,8 +141,8 @@ async fn create_version_requires_a_session() {
 #[tokio::test]
 async fn read_versions_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let (article_id, _) = article_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let (article_id, _) = article_fixture(&context, &user_id);
 
     let (status, body) = context
         .get(
@@ -164,8 +159,8 @@ async fn read_versions_over_http() {
 #[tokio::test]
 async fn read_versions_rejects_a_page_beyond_max_search_pages() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let (article_id, _) = article_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let (article_id, _) = article_fixture(&context, &user_id);
 
     let (status, body) = context
         .get(
@@ -183,10 +178,10 @@ async fn read_versions_rejects_a_page_beyond_max_search_pages() {
 #[tokio::test]
 async fn read_versions_requires_a_read_grant() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = member_session(&context, "alice@example.com").await;
-    let (article_id, _) = article_fixture(&context, &user_id).await;
+    let (user_id, _) = member_session(&context, "alice@example.com");
+    let (article_id, _) = article_fixture(&context, &user_id);
 
-    let (_, outsider) = plain_session(&context, "bob@example.com").await;
+    let (_, outsider) = plain_session(&context, "bob@example.com");
     let (status, body) = context
         .get(&format!("/articles/{article_id}/versions"), Some(&outsider))
         .await;
@@ -196,10 +191,10 @@ async fn read_versions_requires_a_read_grant() {
 #[tokio::test]
 async fn read_version_requires_a_read_grant() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = member_session(&context, "alice@example.com").await;
-    let (_, version_id) = article_fixture(&context, &user_id).await;
+    let (user_id, _) = member_session(&context, "alice@example.com");
+    let (_, version_id) = article_fixture(&context, &user_id);
 
-    let (_, outsider) = plain_session(&context, "bob@example.com").await;
+    let (_, outsider) = plain_session(&context, "bob@example.com");
     let (status, body) = context
         .get(&format!("/versions/{version_id}"), Some(&outsider))
         .await;
@@ -209,9 +204,9 @@ async fn read_version_requires_a_read_grant() {
 #[tokio::test]
 async fn read_version_cross_check_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let (article_id, version_id) = article_fixture(&context, &user_id).await;
-    let (other_article, _) = article_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let (article_id, version_id) = article_fixture(&context, &user_id);
+    let (other_article, _) = article_fixture(&context, &user_id);
 
     let (status, body) = context
         .get(
@@ -234,8 +229,8 @@ async fn read_version_cross_check_over_http() {
 #[tokio::test]
 async fn update_version_note_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let (_, version_id) = article_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let (_, version_id) = article_fixture(&context, &user_id);
 
     let (status, body) = context
         .patch(
@@ -254,8 +249,8 @@ async fn update_version_note_over_http() {
 #[tokio::test]
 async fn delete_version_rejects_transfer_mode() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let (_, version_id) = article_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let (_, version_id) = article_fixture(&context, &user_id);
 
     let (status, body) = context
         .delete(
@@ -273,9 +268,9 @@ async fn delete_version_rejects_transfer_mode() {
 #[tokio::test]
 async fn delete_version_hard_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = member_session(&context, "alice@example.com").await;
-    let (_, admin_token) = admin_session(&context).await;
-    let (_, version_id) = article_fixture(&context, &user_id).await;
+    let (user_id, _) = member_session(&context, "alice@example.com");
+    let (_, admin_token) = admin_session(&context);
+    let (_, version_id) = article_fixture(&context, &user_id);
 
     let (status, body) = context
         .delete(
@@ -290,8 +285,8 @@ async fn delete_version_hard_over_http() {
 #[tokio::test]
 async fn delete_version_hard_is_forbidden_for_a_member_owner() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let (_, version_id) = article_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let (_, version_id) = article_fixture(&context, &user_id);
 
     let (status, body) = context
         .delete(&format!("/versions/{version_id}?mode=hard"), Some(&token))
@@ -303,9 +298,9 @@ async fn delete_version_hard_is_forbidden_for_a_member_owner() {
 #[tokio::test]
 async fn undelete_soft_version_revives_the_version_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = member_session(&context, "alice@example.com").await;
-    let (_, admin_token) = admin_session(&context).await;
-    let (_, version_id) = article_fixture(&context, &user_id).await;
+    let (user_id, _) = member_session(&context, "alice@example.com");
+    let (_, admin_token) = admin_session(&context);
+    let (_, version_id) = article_fixture(&context, &user_id);
 
     let (status, body) = context
         .delete(
@@ -334,9 +329,9 @@ async fn undelete_soft_version_revives_the_version_over_http() {
 #[tokio::test]
 async fn undelete_soft_version_is_forbidden_for_a_member_owner() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let (_, admin_token) = admin_session(&context).await;
-    let (_, version_id) = article_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let (_, admin_token) = admin_session(&context);
+    let (_, version_id) = article_fixture(&context, &user_id);
 
     let (status, _) = context
         .delete(
@@ -360,8 +355,8 @@ async fn undelete_soft_version_is_forbidden_for_a_member_owner() {
 #[tokio::test]
 async fn create_version_rejects_an_older_version() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let (article_id, _) = article_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let (article_id, _) = article_fixture(&context, &user_id);
     let fields: Vec<(&str, &str)> = vec![("version", "0.9.0"), ("note", "older")];
     let (status, body) = context
         .post_multipart(
@@ -383,8 +378,8 @@ async fn create_version_rejects_an_older_version() {
 #[tokio::test]
 async fn create_version_rejects_a_duplicate_content_hash() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let (article_id, _) = article_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let (article_id, _) = article_fixture(&context, &user_id);
     let title = format!("Versioned {article_id}");
     let fields: Vec<(&str, &str)> = vec![("version", "1.1.0"), ("note", "duplicate")];
     let (status, body) = context
@@ -408,7 +403,7 @@ async fn create_version_rejects_a_duplicate_content_hash() {
 #[tokio::test]
 async fn read_version_reports_a_missing_version() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let (status, body) = context
         .get(&format!("/versions/{}", Uuid::now_v7()), Some(&token))
         .await;
@@ -419,9 +414,9 @@ async fn read_version_reports_a_missing_version() {
 #[tokio::test]
 async fn update_version_is_forbidden_for_a_non_owner() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = member_session(&context, "alice@example.com").await;
-    let (_, stranger_token) = member_session(&context, "bob@example.com").await;
-    let (_, version_id) = article_fixture(&context, &user_id).await;
+    let (user_id, _) = member_session(&context, "alice@example.com");
+    let (_, stranger_token) = member_session(&context, "bob@example.com");
+    let (_, version_id) = article_fixture(&context, &user_id);
     let (status, body) = context
         .patch(
             &format!("/versions/{version_id}"),
@@ -436,9 +431,9 @@ async fn update_version_is_forbidden_for_a_non_owner() {
 #[tokio::test]
 async fn delete_version_is_forbidden_for_a_non_owner() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = member_session(&context, "alice@example.com").await;
-    let (_, stranger_token) = member_session(&context, "bob@example.com").await;
-    let (_, version_id) = article_fixture(&context, &user_id).await;
+    let (user_id, _) = member_session(&context, "alice@example.com");
+    let (_, stranger_token) = member_session(&context, "bob@example.com");
+    let (_, version_id) = article_fixture(&context, &user_id);
     let (status, body) = context
         .delete(
             &format!("/versions/{version_id}?mode=hard"),
@@ -452,7 +447,7 @@ async fn delete_version_is_forbidden_for_a_non_owner() {
 #[tokio::test]
 async fn delete_version_reports_a_missing_version() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let (status, body) = context
         .delete(
             &format!("/versions/{}?mode=hard", Uuid::now_v7()),

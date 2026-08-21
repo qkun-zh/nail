@@ -11,17 +11,14 @@ use crate::repository::version::VersionDraft;
 
 const TEST_TAGS: &[&str] = &["rust", "backend", "frontend", "devops"];
 
-async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
-    context.seed_tags(TEST_TAGS).await;
+fn member_session(context: &TestCtx, email: &str) -> (String, String) {
+    context.seed_tags(TEST_TAGS);
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
-    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
-        .await
-        .expect("member role");
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER).expect("member role");
     let token = Uuid::now_v7().to_string();
     let key = cache_key(&token).expect("cache key");
     context
@@ -32,12 +29,11 @@ async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
     (user_id, token)
 }
 
-async fn plain_session(context: &TestCtx, email: &str) -> (String, String) {
+fn plain_session(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let token = Uuid::now_v7().to_string();
     let key = cache_key(&token).expect("cache key");
@@ -79,7 +75,7 @@ async fn create_article_over_http(context: &TestCtx, token: &str) -> (String, St
     (article_id, version_id)
 }
 
-async fn article_without_pdf_file(context: &TestCtx, author_id: &str) -> (String, String) {
+fn article_without_pdf_file(context: &TestCtx, author_id: &str) -> (String, String) {
     let article_id = Uuid::now_v7().to_string();
     let version_id = Uuid::now_v7().to_string();
     create_article(
@@ -98,7 +94,6 @@ async fn article_without_pdf_file(context: &TestCtx, author_id: &str) -> (String
             },
         },
     )
-    .await
     .expect("create article");
     (article_id, version_id)
 }
@@ -110,7 +105,7 @@ fn token_from_url(url: &str) -> &str {
 #[tokio::test]
 async fn read_content_mints_a_json_url() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let (article_id, version_id) = create_article_over_http(&context, &token).await;
 
     let (status, body) = context
@@ -131,7 +126,7 @@ async fn read_content_mints_a_json_url() {
 #[tokio::test]
 async fn read_content_consumes_a_minted_token_once() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let (article_id, version_id) = create_article_over_http(&context, &token).await;
 
     let (_, mint_body) = context
@@ -167,8 +162,8 @@ async fn read_content_consumes_a_minted_token_once() {
 #[tokio::test]
 async fn read_content_rejects_a_token_bound_to_another_account() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
-    let (_, other_token) = member_session(&context, "bob@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
+    let (_, other_token) = member_session(&context, "bob@example.com");
     let (article_id, version_id) = create_article_over_http(&context, &token).await;
 
     let (_, mint_body) = context
@@ -195,7 +190,7 @@ async fn read_content_rejects_a_token_bound_to_another_account() {
 #[tokio::test]
 async fn read_content_requires_a_session() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let (article_id, version_id) = create_article_over_http(&context, &token).await;
 
     let (status, _, _) = context
@@ -210,10 +205,10 @@ async fn read_content_requires_a_session() {
 #[tokio::test]
 async fn read_content_requires_a_read_grant() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = member_session(&context, "alice@example.com").await;
-    let (article_id, version_id) = article_without_pdf_file(&context, &user_id).await;
+    let (user_id, _) = member_session(&context, "alice@example.com");
+    let (article_id, version_id) = article_without_pdf_file(&context, &user_id);
 
-    let (_, outsider) = plain_session(&context, "bob@example.com").await;
+    let (_, outsider) = plain_session(&context, "bob@example.com");
     let (status, body) = context
         .get(
             &format!("/articles/{article_id}/versions/{version_id}/content?mode=download"),
@@ -226,7 +221,7 @@ async fn read_content_requires_a_read_grant() {
 #[tokio::test]
 async fn read_content_requires_a_token() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let (article_id, version_id) = create_article_over_http(&context, &token).await;
 
     let (status, body) = context
@@ -242,8 +237,8 @@ async fn read_content_requires_a_token() {
 #[tokio::test]
 async fn read_content_reports_a_missing_pdf_file() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let (article_id, version_id) = article_without_pdf_file(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let (article_id, version_id) = article_without_pdf_file(&context, &user_id);
 
     let (_, mint_body) = context
         .get(
@@ -266,7 +261,7 @@ async fn read_content_reports_a_missing_pdf_file() {
 #[tokio::test]
 async fn read_content_reports_a_missing_version() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let (article_id, _) = create_article_over_http(&context, &token).await;
 
     let (status, body) = context

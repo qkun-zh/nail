@@ -1,3 +1,5 @@
+use database::NodeKind;
+
 use crate::infrastructure::authorizer::AuthorizationError;
 use crate::infrastructure::state::AppState;
 use crate::logic::error::LogicError;
@@ -7,9 +9,6 @@ use crate::repository::role::{
     PERMISSION_COMMENT_UNDELETE_SOFT, PERMISSION_ROLE_READ, PERMISSION_TAG_READ,
     PERMISSION_USER_READ, PERMISSION_USER_UNDELETE_SOFT, PERMISSION_VERSION_READ,
     PERMISSION_VERSION_UNDELETE_SOFT,
-};
-use crate::repository::schema::{
-    ENTITY_TYPE_ARTICLE, ENTITY_TYPE_COMMENT, ENTITY_TYPE_USER, ENTITY_TYPE_VERSION,
 };
 
 impl From<AuthorizationError> for LogicError {
@@ -22,20 +21,19 @@ impl From<AuthorizationError> for LogicError {
     }
 }
 
-pub async fn require_visible_if_soft_deleted(
+pub fn require_visible_if_soft_deleted(
     state: &AppState,
     actor_id: &str,
-    entity_type: &str,
+    kind: NodeKind,
     business_id: &str,
     undelete_action: &str,
     resource: &Resource,
     not_found_message: &str,
 ) -> Result<(), LogicError> {
-    if crate::repository::delete::is_soft_deleted(&state.database, entity_type, business_id).await?
+    if crate::repository::delete::is_soft_deleted(&state.database, kind, business_id)?
         && state
             .authorizer
             .authorize(actor_id, undelete_action, resource)
-            .await
             .is_err()
     {
         return Err(LogicError::not_found(not_found_message));
@@ -43,7 +41,7 @@ pub async fn require_visible_if_soft_deleted(
     Ok(())
 }
 
-pub async fn authorize(
+pub fn authorize(
     state: &AppState,
     actor_id: &str,
     action: &str,
@@ -52,11 +50,10 @@ pub async fn authorize(
     state
         .authorizer
         .authorize(actor_id, action, resource)
-        .await
         .map_err(LogicError::from)
 }
 
-pub async fn authorize_anonymous(
+pub fn authorize_anonymous(
     state: &AppState,
     action: &str,
     resource: &Resource,
@@ -64,18 +61,17 @@ pub async fn authorize_anonymous(
     state
         .authorizer
         .authorize("anonymous", action, resource)
-        .await
         .map_err(LogicError::from)
 }
 
-pub async fn authorize_or(
+pub fn authorize_or(
     state: &AppState,
     actor_id: &str,
     action: &str,
     resource: &Resource,
     not_found_message: &str,
 ) -> Result<(), LogicError> {
-    match authorize(state, actor_id, action, resource).await {
+    match authorize(state, actor_id, action, resource) {
         Ok(()) => Ok(()),
         Err(LogicError::NotFound(_)) => Err(LogicError::not_found(not_found_message)),
         Err(error) => Err(error),
@@ -137,41 +133,36 @@ impl EntityRef<'_> {
         }
     }
 
-    pub fn visibility(&self) -> Option<(&'static str, &'static str)> {
+    pub fn visibility(&self) -> Option<(NodeKind, &'static str)> {
         match *self {
-            EntityRef::Article(_) => Some((ENTITY_TYPE_ARTICLE, PERMISSION_ARTICLE_UNDELETE_SOFT)),
-            EntityRef::Version(_) => Some((ENTITY_TYPE_VERSION, PERMISSION_VERSION_UNDELETE_SOFT)),
-            EntityRef::Comment(_) => Some((ENTITY_TYPE_COMMENT, PERMISSION_COMMENT_UNDELETE_SOFT)),
-            EntityRef::User(_) => Some((ENTITY_TYPE_USER, PERMISSION_USER_UNDELETE_SOFT)),
+            EntityRef::Article(_) => Some((NodeKind::Article, PERMISSION_ARTICLE_UNDELETE_SOFT)),
+            EntityRef::Version(_) => Some((NodeKind::Version, PERMISSION_VERSION_UNDELETE_SOFT)),
+            EntityRef::Comment(_) => Some((NodeKind::Comment, PERMISSION_COMMENT_UNDELETE_SOFT)),
+            EntityRef::User(_) => Some((NodeKind::User, PERMISSION_USER_UNDELETE_SOFT)),
             EntityRef::Tag(_) | EntityRef::Role(_) => None,
         }
     }
 }
 
-pub async fn authorize_global(
-    state: &AppState,
-    actor_id: &str,
-    action: &str,
-) -> Result<(), LogicError> {
+pub fn authorize_global(state: &AppState, actor_id: &str, action: &str) -> Result<(), LogicError> {
     authorize(
         state,
         actor_id,
         action,
         &Resource::Virtual("any".to_string()),
     )
-    .await
 }
 
-pub async fn authorize_entity(
+pub fn authorize_entity(
     state: &AppState,
     actor_id: &str,
     action: &str,
     entity: EntityRef<'_>,
 ) -> Result<(), LogicError> {
-    authorize(state, actor_id, action, &entity.resource()).await
+    authorize(state, actor_id, action, &entity.resource())
 }
 
-pub async fn authorize_entity_or(
+pub fn authorize_entity_or(
     state: &AppState,
     actor_id: &str,
     action: &str,
@@ -184,10 +175,9 @@ pub async fn authorize_entity_or(
         &entity.resource(),
         entity.not_found_message(),
     )
-    .await
 }
 
-pub async fn require_entity_visible(
+pub fn require_entity_visible(
     state: &AppState,
     actor_id: &str,
     entity: EntityRef<'_>,
@@ -204,14 +194,13 @@ pub async fn require_entity_visible(
         &entity.resource(),
         entity.not_found_message(),
     )
-    .await
 }
 
-pub async fn require_entity_readable(
+pub fn require_entity_readable(
     state: &AppState,
     actor_id: &str,
     entity: EntityRef<'_>,
 ) -> Result<(), LogicError> {
-    authorize_entity_or(state, actor_id, entity.read_permission(), entity).await?;
-    require_entity_visible(state, actor_id, entity).await
+    authorize_entity_or(state, actor_id, entity.read_permission(), entity)?;
+    require_entity_visible(state, actor_id, entity)
 }

@@ -13,54 +13,30 @@ use crate::repository::role::{
 #[tokio::test]
 async fn create_role_is_idempotent() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let first = create_role(&state.database, "editor")
-        .await
-        .expect("create");
-    let second = create_role(&state.database, "editor")
-        .await
-        .expect("create");
+    let first = create_role(&state.database, "editor").expect("create");
+    let second = create_role(&state.database, "editor").expect("create");
     assert_eq!(first, second);
 }
 
 #[tokio::test]
 async fn create_permission_and_grant_are_idempotent() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    create_permission(&state.database, "Article::Create")
-        .await
-        .expect("permission");
-    create_permission(&state.database, "Article::Create")
-        .await
-        .expect("permission");
-    create_role(&state.database, "editor").await.expect("role");
-    grant_permission_to_role(&state.database, "editor", "Article::Create")
-        .await
-        .expect("grant");
-    grant_permission_to_role(&state.database, "editor", "Article::Create")
-        .await
-        .expect("grant");
+    create_permission(&state.database, "Article::Create").expect("permission");
+    create_permission(&state.database, "Article::Create").expect("permission");
+    create_role(&state.database, "editor").expect("role");
+    grant_permission_to_role(&state.database, "editor", "Article::Create").expect("grant");
+    grant_permission_to_role(&state.database, "editor", "Article::Create").expect("grant");
 }
 
 #[tokio::test]
 async fn hold_role_and_holds_check_agree() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let hash = nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed");
-    let user_id = crate::repository::user::create_user(&state.database, &hash)
-        .await
-        .expect("user");
-    create_role(&state.database, "editor").await.expect("role");
-    assert!(
-        !user_holds_role(&state.database, &user_id, "editor")
-            .await
-            .expect("check")
-    );
-    hold_role(&state.database, &user_id, "editor")
-        .await
-        .expect("hold");
-    assert!(
-        user_holds_role(&state.database, &user_id, "editor")
-            .await
-            .expect("check")
-    );
+    let user_id = crate::repository::user::create_user(&state.database, &hash).expect("user");
+    create_role(&state.database, "editor").expect("role");
+    assert!(!user_holds_role(&state.database, &user_id, "editor").expect("check"));
+    hold_role(&state.database, &user_id, "editor").expect("hold");
+    assert!(user_holds_role(&state.database, &user_id, "editor").expect("check"));
 }
 
 #[tokio::test]
@@ -69,15 +45,10 @@ async fn user_zero_holds_all_required_roles_after_seeding() {
     let hash =
         nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed");
     let user_id = crate::repository::user::read_user_by_email_address_hash(&state.database, &hash)
-        .await
         .expect("lookup")
         .expect("user zero");
     for role_name in crate::repository::role::REQUIRED_ROLES {
-        assert!(
-            user_holds_role(&state.database, &user_id, role_name)
-                .await
-                .expect("check")
-        );
+        assert!(user_holds_role(&state.database, &user_id, role_name).expect("check"));
     }
 }
 
@@ -87,14 +58,9 @@ async fn user_holds_permission_is_true_for_a_role_that_grants_it() {
     let hash =
         nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed");
     let user_id = crate::repository::user::read_user_by_email_address_hash(&state.database, &hash)
-        .await
         .expect("lookup")
         .expect("user zero");
-    assert!(
-        user_holds_permission(&state.database, &user_id, PERMISSION_USER_READ)
-            .await
-            .expect("check")
-    );
+    assert!(user_holds_permission(&state.database, &user_id, PERMISSION_USER_READ).expect("check"));
 }
 
 #[tokio::test]
@@ -104,15 +70,10 @@ async fn user_holds_permission_is_false_for_a_plain_member() {
         &state.database,
         &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
-    hold_role(&state.database, &user_id, ROLE_MEMBER)
-        .await
-        .expect("hold");
+    hold_role(&state.database, &user_id, ROLE_MEMBER).expect("hold");
     assert!(
-        !user_holds_permission(&state.database, &user_id, PERMISSION_USER_READ)
-            .await
-            .expect("check")
+        !user_holds_permission(&state.database, &user_id, PERMISSION_USER_READ).expect("check")
     );
 }
 
@@ -120,20 +81,15 @@ async fn user_holds_permission_is_false_for_a_plain_member() {
 async fn user_holds_permission_is_false_for_unknown_user_or_permission() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     assert!(
-        !user_holds_permission(&state.database, "missing", PERMISSION_USER_READ)
-            .await
-            .expect("check")
+        !user_holds_permission(&state.database, "missing", PERMISSION_USER_READ).expect("check")
     );
     let hash =
         nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed");
     let user_id = crate::repository::user::read_user_by_email_address_hash(&state.database, &hash)
-        .await
         .expect("lookup")
         .expect("user zero");
     assert!(
-        !user_holds_permission(&state.database, &user_id, "No::SuchPermission")
-            .await
-            .expect("check")
+        !user_holds_permission(&state.database, &user_id, "No::SuchPermission").expect("check")
     );
 }
 
@@ -144,12 +100,9 @@ async fn users_holding_role_lists_recycler_holders() {
         nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed");
     let user_zero =
         crate::repository::user::read_user_by_email_address_hash(&state.database, &hash)
-            .await
             .expect("lookup")
             .expect("user zero");
-    let recyclers = users_holding_role(&state.database, ROLE_RECYCLER)
-        .await
-        .expect("list");
+    let recyclers = users_holding_role(&state.database, ROLE_RECYCLER).expect("list");
     assert_eq!(recyclers, vec![user_zero]);
 }
 
@@ -157,7 +110,6 @@ async fn users_holding_role_lists_recycler_holders() {
 async fn member_role_holds_exactly_the_seeded_baseline_permissions() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let role = read_role(&state.database, ROLE_MEMBER)
-        .await
         .expect("read")
         .expect("member role");
 
@@ -182,7 +134,6 @@ async fn every_schema_action_is_seeded_as_a_permission_and_granted_to_admin() {
         nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed");
     let user_zero =
         crate::repository::user::read_user_by_email_address_hash(&state.database, &hash)
-            .await
             .expect("lookup")
             .expect("user zero");
     let schema: cedar_policy::Schema = crate::infrastructure::cedar::SCHEMA
@@ -191,9 +142,7 @@ async fn every_schema_action_is_seeded_as_a_permission_and_granted_to_admin() {
     for action in schema.actions() {
         let name = action.id().unescaped().to_string();
         assert!(
-            user_holds_permission(&state.database, &user_zero, &name)
-                .await
-                .expect("check"),
+            user_holds_permission(&state.database, &user_zero, &name).expect("check"),
             "admin must hold every schema action: {name}"
         );
     }
@@ -220,32 +169,20 @@ fn generated_permission_constants_have_expected_names() {
 #[tokio::test]
 async fn user_holds_role_returns_false_for_unknown_user() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    assert!(
-        !user_holds_role(&state.database, "nonexistent", ROLE_MEMBER)
-            .await
-            .expect("check")
-    );
+    assert!(!user_holds_role(&state.database, "nonexistent", ROLE_MEMBER).expect("check"));
 }
 
 #[tokio::test]
 async fn user_holds_role_returns_false_for_unknown_role() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let hash = nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed");
-    let user_id = crate::repository::user::create_user(&state.database, &hash)
-        .await
-        .expect("user");
-    assert!(
-        !user_holds_role(&state.database, &user_id, "NoSuchRole")
-            .await
-            .expect("check")
-    );
+    let user_id = crate::repository::user::create_user(&state.database, &hash).expect("user");
+    assert!(!user_holds_role(&state.database, &user_id, "NoSuchRole").expect("check"));
 }
 
 #[tokio::test]
 async fn users_holding_role_returns_empty_for_unknown_role() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let users = users_holding_role(&state.database, "NoSuchRole")
-        .await
-        .expect("list");
+    let users = users_holding_role(&state.database, "NoSuchRole").expect("list");
     assert!(users.is_empty());
 }

@@ -8,7 +8,7 @@ fn pdf_hash(seed: u8) -> String {
     format!("{seed:x}").repeat(32)
 }
 
-async fn create_article_fixture(
+fn create_article_fixture(
     state: &crate::infrastructure::state::AppState,
     author_id: &str,
     title: &str,
@@ -30,7 +30,6 @@ async fn create_article_fixture(
             },
         },
     )
-    .await
     .expect("create");
     article_id
 }
@@ -77,13 +76,12 @@ async fn sync_and_read_round_trips_an_article() {
         &state.database,
         &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
     let index = SearchIndex::open_or_create(directory.to_str().expect("path"))
         .await
         .expect("index");
-    let article_id = create_article_fixture(&state, &author_id, "A Unique Title").await;
+    let article_id = create_article_fixture(&state, &author_id, "A Unique Title");
 
     index
         .sync(&state.database, &article_id)
@@ -113,13 +111,11 @@ async fn sync_all_and_sync_user_skip_soft_deleted_articles() {
         &state.database,
         &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let index = state.searcher.clone();
 
-    let first = create_fixture_with_hash(&state, &author_id, "Soft Del First", &pdf_hash(4)).await;
-    let second =
-        create_fixture_with_hash(&state, &author_id, "Soft Del Second", &pdf_hash(5)).await;
+    let first = create_fixture_with_hash(&state, &author_id, "Soft Del First", &pdf_hash(4));
+    let second = create_fixture_with_hash(&state, &author_id, "Soft Del Second", &pdf_hash(5));
     index
         .sync(&state.database, &first)
         .await
@@ -129,9 +125,7 @@ async fn sync_all_and_sync_user_skip_soft_deleted_articles() {
         .await
         .expect("sync second");
 
-    crate::repository::delete::soft_delete_article(&state.database, &first)
-        .await
-        .expect("soft delete");
+    crate::repository::delete::soft_delete_article(&state.database, &first).expect("soft delete");
 
     let synced_all = index.sync_all(&state.database).await.expect("sync all");
     assert_eq!(synced_all, 1, "deleted article excluded from sync_all");
@@ -164,13 +158,12 @@ async fn keyword_read_returns_highlighted_hits() {
         &state.database,
         &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
     let index = SearchIndex::open_or_create(directory.to_str().expect("path"))
         .await
         .expect("index");
-    let article_id = create_article_fixture(&state, &author_id, "Rust Programming").await;
+    let article_id = create_article_fixture(&state, &author_id, "Rust Programming");
     index
         .sync(&state.database, &article_id)
         .await
@@ -206,20 +199,18 @@ async fn sync_user_refreshes_the_author_name() {
         &state.database,
         &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
     let index = SearchIndex::open_or_create(directory.to_str().expect("path"))
         .await
         .expect("index");
-    let article_id = create_article_fixture(&state, &author_id, "Article").await;
+    let article_id = create_article_fixture(&state, &author_id, "Article");
     index
         .sync(&state.database, &article_id)
         .await
         .expect("sync");
 
     crate::repository::user::update_user_name(&state.database, &author_id, "renamed-author")
-        .await
         .expect("rename");
 
     let synced = index
@@ -248,16 +239,13 @@ async fn sync_user_refreshes_the_author_name_of_their_comments() {
         &state.database,
         &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let commenter_id = crate::repository::user::create_user(
         &state.database,
         &nail_common::hash::hash("bob@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     crate::repository::user::update_user_name(&state.database, &commenter_id, "old-name")
-        .await
         .expect("name");
 
     let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
@@ -283,7 +271,6 @@ async fn sync_user_refreshes_the_author_name_of_their_comments() {
             },
         },
     )
-    .await
     .expect("create");
     crate::repository::comment::create_top_level_comment(
         &state.database,
@@ -292,7 +279,6 @@ async fn sync_user_refreshes_the_author_name_of_their_comments() {
         &version_id,
         "hello from bob",
     )
-    .await
     .expect("comment");
     index
         .sync(&state.database, &article_id)
@@ -300,7 +286,6 @@ async fn sync_user_refreshes_the_author_name_of_their_comments() {
         .expect("sync");
 
     crate::repository::user::update_user_name(&state.database, &commenter_id, "new-name")
-        .await
         .expect("rename");
 
     let synced = index
@@ -345,21 +330,18 @@ async fn sync_removes_documents_for_a_deleted_article() {
         &state.database,
         &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
     let index = SearchIndex::open_or_create(directory.to_str().expect("path"))
         .await
         .expect("index");
-    let article_id = create_article_fixture(&state, &author_id, "Article").await;
+    let article_id = create_article_fixture(&state, &author_id, "Article");
     index
         .sync(&state.database, &article_id)
         .await
         .expect("sync");
 
-    crate::repository::delete::delete_article(&state.database, &article_id)
-        .await
-        .expect("delete");
+    crate::repository::delete::delete_article(&state.database, &article_id).expect("delete");
     index
         .sync(&state.database, &article_id)
         .await
@@ -385,7 +367,6 @@ async fn sync_excludes_a_soft_deleted_version_doc_and_its_comments() {
         &state.database,
         &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
     let index = SearchIndex::open_or_create(directory.to_str().expect("path"))
@@ -410,7 +391,6 @@ async fn sync_excludes_a_soft_deleted_version_doc_and_its_comments() {
             },
         },
     )
-    .await
     .expect("create");
     let comment_id = uuid::Uuid::now_v7().to_string();
     crate::repository::comment::create_top_level_comment(
@@ -420,7 +400,6 @@ async fn sync_excludes_a_soft_deleted_version_doc_and_its_comments() {
         &version_id,
         "public comment on the soft-deleted version",
     )
-    .await
     .expect("comment");
     index
         .sync(&state.database, &article_id)
@@ -428,7 +407,6 @@ async fn sync_excludes_a_soft_deleted_version_doc_and_its_comments() {
         .expect("sync");
 
     crate::repository::delete::soft_delete_version(&state.database, &version_id)
-        .await
         .expect("soft delete version");
     index
         .sync(&state.database, &article_id)
@@ -482,7 +460,6 @@ async fn sync_excludes_a_soft_deleted_comment_doc() {
         &state.database,
         &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
     let index = SearchIndex::open_or_create(directory.to_str().expect("path"))
@@ -507,7 +484,6 @@ async fn sync_excludes_a_soft_deleted_comment_doc() {
             },
         },
     )
-    .await
     .expect("create");
     let deleted_comment = uuid::Uuid::now_v7().to_string();
     crate::repository::comment::create_top_level_comment(
@@ -517,7 +493,6 @@ async fn sync_excludes_a_soft_deleted_comment_doc() {
         &version_id,
         "doomed comment text",
     )
-    .await
     .expect("comment");
     let live_comment = uuid::Uuid::now_v7().to_string();
     crate::repository::comment::create_top_level_comment(
@@ -527,7 +502,6 @@ async fn sync_excludes_a_soft_deleted_comment_doc() {
         &version_id,
         "live comment text",
     )
-    .await
     .expect("comment");
     index
         .sync(&state.database, &article_id)
@@ -535,7 +509,6 @@ async fn sync_excludes_a_soft_deleted_comment_doc() {
         .expect("sync");
 
     crate::repository::delete::soft_delete_comment(&state.database, &deleted_comment)
-        .await
         .expect("soft delete comment");
     index
         .sync(&state.database, &article_id)
@@ -577,7 +550,6 @@ async fn sync_drops_all_docs_of_a_soft_deleted_article() {
         &state.database,
         &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
     let index = SearchIndex::open_or_create(directory.to_str().expect("path"))
@@ -602,7 +574,6 @@ async fn sync_drops_all_docs_of_a_soft_deleted_article() {
             },
         },
     )
-    .await
     .expect("create");
     index
         .sync(&state.database, &article_id)
@@ -610,7 +581,6 @@ async fn sync_drops_all_docs_of_a_soft_deleted_article() {
         .expect("sync");
 
     crate::repository::delete::soft_delete_article(&state.database, &article_id)
-        .await
         .expect("soft delete article");
     index
         .sync(&state.database, &article_id)
@@ -644,12 +614,11 @@ async fn sync_all_and_incremental_sync_agree_on_document_count() {
         &state.database,
         &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let index = state.searcher.clone();
 
-    let first = create_fixture_with_hash(&state, &author_id, "First Article", &pdf_hash(2)).await;
-    let second = create_fixture_with_hash(&state, &author_id, "Second Article", &pdf_hash(3)).await;
+    let first = create_fixture_with_hash(&state, &author_id, "First Article", &pdf_hash(2));
+    let second = create_fixture_with_hash(&state, &author_id, "Second Article", &pdf_hash(3));
     index
         .sync(&state.database, &first)
         .await
@@ -687,9 +656,7 @@ async fn sync_all_and_incremental_sync_agree_on_document_count() {
         "full rebuild must agree with incremental sync"
     );
 
-    crate::repository::delete::delete_article(&state.database, &first)
-        .await
-        .expect("delete");
+    crate::repository::delete::delete_article(&state.database, &first).expect("delete");
     index
         .sync(&state.database, &first)
         .await
@@ -741,7 +708,7 @@ async fn opening_a_stale_schema_recreates_the_index() {
     let _ = std::fs::remove_dir_all(&directory);
 }
 
-async fn create_fixture_with_hash(
+fn create_fixture_with_hash(
     state: &crate::infrastructure::state::AppState,
     author_id: &str,
     title: &str,
@@ -764,7 +731,6 @@ async fn create_fixture_with_hash(
             },
         },
     )
-    .await
     .expect("create");
     article_id
 }

@@ -148,10 +148,13 @@ removal as `remove(scan result)`, bulk seeding.
 | # | Goal | Files | Red | Green | Exit |
 | --- | --- | --- | --- | --- | --- |
 | 1 | `database` crate skeleton implementing §3.1 with full unit tests, additive | `code/Cargo.toml`, `code/database/{Cargo.toml,src/*}`, `test/unit/database/tests.rs` | new tests fail (crate absent) | tests pass; back untouched | `cargo test -j 1 -p database` |
-| 2 | Migrate user/role/seed/authorization repositories onto `database` | `repository/{user*,role*,seed*,authorization*}.rs` (+subdirs), `schema.rs` (Row impls) | those modules no longer import `graph` (compile-enforced) | modules build against new API; back tests green | `cargo test -j 1 -p nail_back` |
-| 3 | Migrate remaining repositories; delete substrate | `repository/{article,version,comment,tag,delete,transfer,search/**}.rs`, delete `graph*/`, substrate parts of `schema*`, `logic/version.rs` hosts semver helper | grep proves no `graph::` imports remain | back builds without substrate; all tests green | `cargo test -j 1 -p nail_back` + clippy |
-| 4 | Extract `authorizer` crate | `code/authorizer/**` (cedar.rs, cedar/, build.rs), `back` imports it | `cargo tree -p nail_back` shows no direct cedar dep | CI green | `cargo test -j 1 -p authorizer && cargo test -j 1 -p nail_back` |
-| 5 | Extract `searcher` crate | `code/searcher/**` (seekstorm, search repo/index), `back` imports it | `cargo tree` shows no direct seekstorm dep | CI green; final gate | full CI |
+| 2 | Migrate all repositories onto `database`; delete substrate | `repository/**` (all modules incl. authorization), `schema.rs` (Row impls), `main.rs`/composition root (handle swap), delete `graph*/`, substrate parts of `schema*`, `logic/version.rs` hosts semver helper | grep proves no `graph::` imports remain; back has no direct agdb dep | back builds without substrate; all tests green | `cargo test -j 1 -p nail_back` + clippy |
+| 3 | Extract `authorizer` crate | `code/authorizer/**` (cedar.rs, cedar/, build.rs), `back` imports it | `cargo tree -p nail_back` shows no direct cedar dep | CI green | `cargo test -j 1 -p authorizer && cargo test -j 1 -p nail_back` |
+| 4 | Extract `searcher` crate | `code/searcher/**` (seekstorm, search repo/index), `back` imports it | `cargo tree` shows no direct seekstorm dep | CI green; final gate | full CI |
+
+Note: former slices 2+3 merged — `DbHandle` threads through every repository
+signature and the process must open exactly one storage instance, so the
+migration is atomic per compiler necessity.
 
 ## 5. Open unknowns
 
@@ -203,3 +206,34 @@ best-practice redesign of the substrate rather than a file move.
 - Created at workflow §5 after research gate (report committed 0fe1a06).
 - §3 rewritten with adopted final API contract (§3.1): node vocabulary,
   business_id/NodeId split, Condition/Order pushdown, full-row-replace upsert.
+- Slice 1 committed 07089a0: crate + 21 unit tests; `open_*` take an
+  `indexes` parameter (index keys are row-field choices, so they are passed
+  by the caller instead of derived from kind tables); agdb `api` feature
+  enabled to name builder types in scan helpers; row-internal missing keys
+  map to `Invalid` (corruption), `NotFound` stays entity-level.
+- Slices 2+3 merged into one atomic migration slice (DbHandle coupling +
+  single-instance constraint); slice count now 4.
+- Slice 2 (atomic repo migration) implemented: all repositories take
+  `&Database` and are synchronous; `DbHandle`/agdb removed from `back`
+  (`repository/graph.rs` deleted, address parsing relocated to
+  `infrastructure::server::open_database`). Design decisions recorded:
+  - `GraphRead` trait (`access.rs`) with `scope_*`-prefixed methods so
+    internal helpers are generic over read/write scopes; scopes also expose
+    inherent methods for direct use.
+  - Write closures whose domain errors differ from `database::Error` return
+    `Result<Result<T, DomainError>, Error>` (two-layer), flattened by the
+    outer function — `Database::write` fixes the closure error type, so
+    domain failures must not abort the transaction.
+  - Business id is persisted under the `id` key on insert/replace
+    (`database::ID_KEY`) so row projections can recover it; the alias
+    remains the uniqueness mechanism.
+  - `find_by_key` is kind-agnostic (global indexes); callers verify the row.
+  - `IdRow`/`CounterRow` projections replace per-kind reads where only the
+    business id or the soft-delete counter is needed.
+  - Logic layer de-asynced where awaits were only over repositories
+    (clippy `unused_async`): authorizer.authorize, logic authorize family,
+    role/tag/user/version/comment/read paths, download token fns; call
+    sites updated. `EntityRef::visibility()` returns
+    `Option<(NodeKind, &str)>`.
+- Slice 2 verification: database 22 + back 570 + common 81 tests pass;
+  clippy pedantic `-D warnings` clean workspace-wide; fmt clean.

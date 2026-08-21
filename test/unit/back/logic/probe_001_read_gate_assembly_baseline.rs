@@ -51,24 +51,19 @@ async fn probe_001_read_gate_assembly_baseline() {
         nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed");
     let user_zero =
         crate::repository::user::read_user_by_email_address_hash(&state.database, &hash)
-            .await
             .expect("lookup")
             .expect("user zero");
     let alice = crate::repository::user::create_user(
         &state.database,
         &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
-    crate::repository::role::hold_role(&state.database, &alice, ROLE_MEMBER)
-        .await
-        .expect("hold");
+    crate::repository::role::hold_role(&state.database, &alice, ROLE_MEMBER).expect("hold");
 
     let author = crate::repository::user::create_user(
         &state.database,
         &nail_common::hash::hash("author@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("author");
     let article_id = uuid::Uuid::now_v7().to_string();
     let version_id = uuid::Uuid::now_v7().to_string();
@@ -88,7 +83,6 @@ async fn probe_001_read_gate_assembly_baseline() {
             },
         },
     )
-    .await
     .expect("article");
     let comment_id =
         crate::logic::comment::create_comment(&state, &user_zero, &version_id, "baseline comment")
@@ -99,9 +93,7 @@ async fn probe_001_read_gate_assembly_baseline() {
         let graph = state.database.clone();
         let user = user_zero.clone();
         async move {
-            let _ = assemble_principal(&graph, &user)
-                .await
-                .expect("assemble admin");
+            let _ = assemble_principal(&graph, &user).expect("assemble admin");
         }
     })
     .await;
@@ -111,9 +103,7 @@ async fn probe_001_read_gate_assembly_baseline() {
         let graph = state.database.clone();
         let user = alice.clone();
         async move {
-            let _ = assemble_principal(&graph, &user)
-                .await
-                .expect("assemble member");
+            let _ = assemble_principal(&graph, &user).expect("assemble member");
         }
     })
     .await;
@@ -130,7 +120,6 @@ async fn probe_001_read_gate_assembly_baseline() {
                 PERMISSION_ARTICLE_READ,
                 &Resource::Article(id.clone()),
             )
-            .await
             .expect("article read gate");
         }
     })
@@ -148,7 +137,6 @@ async fn probe_001_read_gate_assembly_baseline() {
                 PERMISSION_ARTICLE_READ,
                 &Resource::Version(id.clone()),
             )
-            .await
             .expect("version read gate");
         }
     })
@@ -166,7 +154,6 @@ async fn probe_001_read_gate_assembly_baseline() {
                 PERMISSION_ARTICLE_READ,
                 &Resource::Comment(id.clone()),
             )
-            .await
             .expect("comment read gate");
         }
     })
@@ -183,7 +170,6 @@ async fn probe_001_read_gate_assembly_baseline() {
                 PERMISSION_ARTICLE_READ,
                 &Resource::Virtual("read".to_string()),
             )
-            .await
             .expect("coarse desk gate");
         }
     })
@@ -195,9 +181,7 @@ async fn probe_001_read_gate_assembly_baseline() {
         let actor = alice.clone();
         let id = article_id.clone();
         async move {
-            let _ = crate::logic::article::read_article(&state, &actor, &id)
-                .await
-                .expect("read");
+            let _ = crate::logic::article::read_article(&state, &actor, &id).expect("read");
         }
     })
     .await;

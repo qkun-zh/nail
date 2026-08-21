@@ -5,9 +5,9 @@ use cedar_policy::{
     Authorizer as CedarAuthorizer, Decision, Entities, Entity, EntityUid, PolicySet, Request,
     ValidationMode, Validator,
 };
+use database::Database;
 
 use crate::repository::authorization::assemble;
-use crate::repository::graph::DbHandle;
 
 use super::cedar::{POLICY, SCHEMA};
 
@@ -15,7 +15,7 @@ use super::cedar::{POLICY, SCHEMA};
 pub struct Authorizer {
     cedar: CedarAuthorizer,
     policies: Arc<PolicySet>,
-    graph: DbHandle,
+    graph: Database,
 }
 
 #[derive(Debug)]
@@ -55,7 +55,7 @@ impl From<crate::repository::authorization::AssemblyError> for AuthorizationErro
 }
 
 impl Authorizer {
-    pub fn new(graph: DbHandle) -> Result<Self, AuthorizationError> {
+    pub fn new(graph: Database) -> Result<Self, AuthorizationError> {
         let policies = POLICY
             .parse::<PolicySet>()
             .map_err(|error| AuthorizationError::Internal(error.to_string()))?;
@@ -82,13 +82,13 @@ impl Authorizer {
         })
     }
 
-    pub async fn authorize(
+    pub fn authorize(
         &self,
         user_id: &str,
         action: &str,
         resource: &crate::repository::authorization::Resource,
     ) -> Result<(), AuthorizationError> {
-        let assembly = assemble(&self.graph, user_id, resource.clone()).await?;
+        let assembly = assemble(&self.graph, user_id, resource.clone())?;
 
         let action_uid = action_uid(action)?;
         let mut entities = assembly.entities;

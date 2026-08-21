@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 
-use agdb::{DbError, QueryBuilder};
+use database::{Database, Error, NodeKind, Value};
 
-use crate::repository::graph::{DbHandle, find_by_index, read_node, resolve_node_id};
-use crate::repository::schema::{
-    ENTITY_TYPE_USER, IdRow, KEY_EMAIL_ADDRESS_HASH, KEY_TYPE, KEY_USER_NAME, UserRow, alias_of,
-};
+use crate::repository::access::GraphRead;
+use crate::repository::schema::{KEY_EMAIL_ADDRESS_HASH, KEY_USER_NAME, UserRow};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UserEntry {
@@ -24,7 +22,13 @@ pub enum UserWriteError {
     UserMissing,
     AlreadyTaken,
     EmailMismatch,
-    Db(DbError),
+    Db(Error),
+}
+
+impl From<Error> for UserWriteError {
+    fn from(error: Error) -> Self {
+        Self::Db(error)
+    }
 }
 
 impl std::fmt::Display for UserWriteError {
@@ -40,159 +44,137 @@ impl std::fmt::Display for UserWriteError {
 
 impl std::error::Error for UserWriteError {}
 
-pub async fn create_user(db: &DbHandle, email_address_hash: &str) -> Result<String, DbError> {
-    let mut guard = db.write().await;
-    let ids = find_by_index(&guard, KEY_EMAIL_ADDRESS_HASH, email_address_hash)?;
-    if let Some(user_id) = ids.first()
-        && let Some(row) = read_node::<IdRow>(&guard, *user_id)?
-    {
-        return Ok(row.id.clone());
-    }
-    let user_id = uuid::Uuid::now_v7().to_string();
-    guard.exec_mut(
-        QueryBuilder::insert()
-            .nodes()
-            .aliases([alias_of(ENTITY_TYPE_USER, &user_id)])
-            .values(UserRow {
-                db_id: None,
-                entity_type: ENTITY_TYPE_USER.to_string(),
-                id: user_id.clone(),
-                email_address_hash: email_address_hash.to_string(),
-                name: user_id.replace('-', ""),
-            })
-            .query(),
-    )?;
-    Ok(user_id)
-}
-
-pub async fn read_user_by_email_address_hash(
-    db: &DbHandle,
-    email_address_hash: &str,
-) -> Result<Option<String>, DbError> {
-    let guard = db.read().await;
-    let ids = find_by_index(&guard, KEY_EMAIL_ADDRESS_HASH, email_address_hash)?;
-    let Some(user_id) = ids.first() else {
-        return Ok(None);
-    };
-    Ok(read_node::<IdRow>(&guard, *user_id)?.map(|row| row.id.clone()))
-}
-
-pub async fn read_user(db: &DbHandle, user_id: &str) -> Result<Option<UserEntry>, DbError> {
-    let guard = db.read().await;
-    let Some(id) = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)? else {
-        return Ok(None);
-    };
-    let row = read_node::<UserRow>(&guard, id)?
-        .ok_or_else(|| DbError::query(agdb::DbErrorType::NotFound, "user row missing"))?;
-    Ok(Some(UserEntry {
-        email_address_hash: row.email_address_hash,
-        name: row.name,
-    }))
-}
-
-pub async fn read_user_names(
-    db: &DbHandle,
-    user_ids: &[String],
-) -> Result<HashMap<String, String>, DbError> {
-    let guard = db.read().await;
-    let mut names = HashMap::new();
-    for user_id in user_ids {
-        let Some(node) = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)? else {
-            continue;
-        };
-        if let Some(row) = read_node::<UserRow>(&guard, node)? {
-            names.insert(user_id.clone(), row.name);
+pub fn create_user(db: &Database, email_address_hash: &str) -> Result<String, Error> {
+    db.write(|scope| {
+        if let Some(existing) = scope.find_by_key(KEY_EMAIL_ADDRESS_HASH, email_address_hash)?
+            && let Some(row) = scope.scope_read_node::<UserRow>(existing)?
+        {
+            return Ok(row.id);
         }
-    }
-    Ok(names)
+        let user_id = uuid::Uuid::now_v7().to_string();
+        let row = UserRow {
+            id: user_id.clone(),
+            email_address_hash: email_address_hash.to_string(),
+            name: user_id.replace('-', ""),
+        };
+        scope.insert_node(&row)?;
+        Ok(user_id)
+    })
 }
 
-pub async fn update_user_name(
-    db: &DbHandle,
-    user_id: &str,
-    name: &str,
-) -> Result<(), UserWriteError> {
-    let mut guard = db.write().await;
-    let id = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)
-        .map_err(UserWriteError::Db)?
-        .ok_or(UserWriteError::UserMissing)?;
-    let taken = find_by_index(&guard, KEY_USER_NAME, name)
-        .map_err(UserWriteError::Db)?
-        .into_iter()
-        .any(|other_id| other_id != id);
-    if taken {
-        return Err(UserWriteError::AlreadyTaken);
-    }
-    guard
-        .exec_mut(
-            QueryBuilder::insert()
-                .nodes()
-                .ids([id])
-                .values([[(KEY_USER_NAME, name).into()]])
-                .query(),
-        )
-        .map_err(UserWriteError::Db)?;
-    Ok(())
+pub fn read_user_by_email_address_hash(
+    db: &Database,
+    email_address_hash: &str,
+) -> Result<Option<String>, Error> {
+    db.read(|scope| {
+        Ok(scope
+            .find_by_key(KEY_EMAIL_ADDRESS_HASH, email_address_hash)?
+            .and_then(|id| scope.scope_read_node::<UserRow>(id).transpose())
+            .transpose()?
+            .map(|row| row.id))
+    })
 }
 
-pub async fn update_user_email(
-    db: &DbHandle,
+pub fn read_user(db: &Database, user_id: &str) -> Result<Option<UserEntry>, Error> {
+    db.read(|scope| {
+        let Some(id) = scope.resolve(NodeKind::User, user_id)? else {
+            return Ok(None);
+        };
+        let row = scope.scope_read_node::<UserRow>(id)?.ok_or_else(|| {
+            Error::Invalid(format!("user {user_id} exists but has no readable row"))
+        })?;
+        Ok(Some(UserEntry {
+            email_address_hash: row.email_address_hash,
+            name: row.name,
+        }))
+    })
+}
+
+pub fn read_user_names(
+    db: &Database,
+    user_ids: &[String],
+) -> Result<HashMap<String, String>, Error> {
+    db.read(|scope| {
+        let mut names = HashMap::new();
+        for user_id in user_ids {
+            let Some(node) = scope.resolve(NodeKind::User, user_id)? else {
+                continue;
+            };
+            if let Some(row) = scope.scope_read_node::<UserRow>(node)? {
+                names.insert(user_id.clone(), row.name);
+            }
+        }
+        Ok(names)
+    })
+}
+
+pub fn update_user_name(db: &Database, user_id: &str, name: &str) -> Result<(), UserWriteError> {
+    db.write(|scope| {
+        let Some(id) = scope.resolve(NodeKind::User, user_id)? else {
+            return Ok(Err(UserWriteError::UserMissing));
+        };
+        let taken = scope
+            .find_by_key(KEY_USER_NAME, name)?
+            .is_some_and(|other| other != id);
+        if taken {
+            return Ok(Err(UserWriteError::AlreadyTaken));
+        }
+        scope.set_key(id, KEY_USER_NAME, Value::Text(name.to_string()))?;
+        Ok(Ok(()))
+    })
+    .map_err(UserWriteError::from)
+    .and_then(std::convert::identity)
+}
+
+pub fn update_user_email(
+    db: &Database,
     user_id: &str,
     old_email_address_hash: &str,
     new_email_address_hash: &str,
 ) -> Result<(), UserWriteError> {
-    let mut guard = db.write().await;
-    let id = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)
-        .map_err(UserWriteError::Db)?
-        .ok_or(UserWriteError::UserMissing)?;
-    let current_hash = read_node::<UserRow>(&guard, id)
-        .map_err(UserWriteError::Db)?
-        .map(|row| row.email_address_hash)
-        .unwrap_or_default();
-    if current_hash != old_email_address_hash {
-        return Err(UserWriteError::EmailMismatch);
-    }
-    let taken = find_by_index(&guard, KEY_EMAIL_ADDRESS_HASH, new_email_address_hash)
-        .map_err(UserWriteError::Db)?
-        .into_iter()
-        .any(|other_id| other_id != id);
-    if taken {
-        return Err(UserWriteError::AlreadyTaken);
-    }
-    guard
-        .exec_mut(
-            QueryBuilder::insert()
-                .nodes()
-                .ids([id])
-                .values([[(KEY_EMAIL_ADDRESS_HASH, new_email_address_hash).into()]])
-                .query(),
-        )
-        .map_err(UserWriteError::Db)?;
-    Ok(())
+    db.write(|scope| {
+        let Some(id) = scope.resolve(NodeKind::User, user_id)? else {
+            return Ok(Err(UserWriteError::UserMissing));
+        };
+        let current_hash = scope
+            .scope_read_node::<UserRow>(id)?
+            .map(|row| row.email_address_hash)
+            .unwrap_or_default();
+        if current_hash != old_email_address_hash {
+            return Ok(Err(UserWriteError::EmailMismatch));
+        }
+        let taken = scope
+            .find_by_key(KEY_EMAIL_ADDRESS_HASH, new_email_address_hash)?
+            .is_some_and(|other| other != id);
+        if taken {
+            return Ok(Err(UserWriteError::AlreadyTaken));
+        }
+        scope.set_key(
+            id,
+            KEY_EMAIL_ADDRESS_HASH,
+            Value::Text(new_email_address_hash.to_string()),
+        )?;
+        Ok(Ok(()))
+    })
+    .map_err(UserWriteError::from)
+    .and_then(std::convert::identity)
 }
 
-pub async fn read_users(db: &DbHandle) -> Result<Vec<UserListItem>, DbError> {
-    let guard = db.read().await;
-    let result = guard.exec(
-        QueryBuilder::search()
-            .elements()
-            .where_()
-            .key(KEY_TYPE)
-            .value(ENTITY_TYPE_USER)
-            .query(),
-    )?;
-    let mut users = Vec::new();
-    for element in &result.elements {
-        if crate::repository::delete::has_soft_deleted_flag(&guard, element.id)? {
-            continue;
-        }
-        if let Some(row) = read_node::<UserRow>(&guard, element.id)? {
+pub fn read_users(db: &Database) -> Result<Vec<UserListItem>, Error> {
+    db.read(|scope| {
+        let nodes = scope.all_nodes(NodeKind::User)?;
+        let rows = scope.scope_read_nodes::<UserRow>(&nodes)?;
+        let mut users = Vec::with_capacity(rows.len());
+        for (node, row) in nodes.into_iter().zip(rows) {
+            if crate::repository::delete::has_soft_deleted_flag(scope, node)? {
+                continue;
+            }
             users.push(UserListItem {
                 id: row.id,
                 name: row.name,
             });
         }
-    }
-    users.sort_by(|left, right| left.name.cmp(&right.name));
-    Ok(users)
+        users.sort_by(|left, right| left.name.cmp(&right.name));
+        Ok(users)
+    })
 }

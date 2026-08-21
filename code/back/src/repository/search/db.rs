@@ -1,71 +1,67 @@
 use std::collections::{HashMap, HashSet};
 
-use agdb::{DbError, QueryBuilder};
+use database::{Database, EdgeKind, Error, NodeKind};
 
-use crate::repository::graph::{
-    DbHandle, incoming_edges, outgoing_edges, read_rows, resolve_node_id,
-};
-use crate::repository::schema::{
-    ArticleRow, EDGE_ARTICLE_HOLD_VERSION, EDGE_COMMENT_ATTACH_VERSION, EDGE_USER_AUTHOR_ARTICLE,
-    EDGE_USER_AUTHOR_COMMENT, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_USER, ENTITY_TYPE_VERSION, IdRow,
-    KEY_SOFT_DELETED, KEY_TYPE, UserRow, VersionRow,
-};
+use crate::repository::access::GraphRead;
+use crate::repository::delete::has_soft_deleted_flag;
+use crate::repository::schema::{ArticleRow, IdRow, UserRow, VersionRow};
 
 use super::SearchCommentOutcome;
 
-pub(super) async fn enrich_comment_headers(
-    db: &DbHandle,
+pub(super) fn enrich_comment_headers(
+    db: &Database,
     comments: &mut [SearchCommentOutcome],
 ) -> anyhow::Result<()> {
     if comments.is_empty() {
         return Ok(());
     }
-    let guard = db.read().await;
 
     let article_ids: HashSet<String> = comments.iter().map(|c| c.article_id.clone()).collect();
     let version_ids: HashSet<String> = comments.iter().map(|c| c.version_id.clone()).collect();
 
-    let mut article_by_id: HashMap<String, agdb::DbId> = HashMap::new();
+    let mut article_by_id: HashMap<String, database::NodeId> = HashMap::new();
+    let mut title_by_node: HashMap<database::NodeId, String> = HashMap::new();
     for id in &article_ids {
-        if let Some(node) = resolve_node_id(&guard, ENTITY_TYPE_ARTICLE, id)? {
-            article_by_id.insert(id.clone(), node);
-        }
+        db.read(|scope| {
+            if let Some(node) = scope.resolve(NodeKind::Article, id)?
+                && let Some(row) = scope.scope_read_node::<ArticleRow>(node)?
+            {
+                title_by_node.insert(node, row.title);
+                article_by_id.insert(id.clone(), node);
+            }
+            Ok(())
+        })?;
     }
-    let mut version_by_id: HashMap<String, agdb::DbId> = HashMap::new();
+
+    let mut version_by_id: HashMap<String, database::NodeId> = HashMap::new();
+    let mut version_number_by_node: HashMap<database::NodeId, String> = HashMap::new();
     for id in &version_ids {
-        if let Some(node) = resolve_node_id(&guard, ENTITY_TYPE_VERSION, id)? {
-            version_by_id.insert(id.clone(), node);
-        }
+        db.read(|scope| {
+            if let Some(node) = scope.resolve(NodeKind::Version, id)?
+                && let Some(row) = scope.scope_read_node::<VersionRow>(node)?
+            {
+                version_number_by_node.insert(node, row.version_number);
+                version_by_id.insert(id.clone(), node);
+            }
+            Ok(())
+        })?;
     }
 
-    let article_nodes: Vec<agdb::DbId> = article_by_id.values().copied().collect();
-    let title_by_node: HashMap<agdb::DbId, String> =
-        read_rows::<ArticleRow>(&guard, &article_nodes)?
-            .into_iter()
-            .filter_map(|row| row.db_id.map(|node| (node, row.title)))
-            .collect();
-
-    let version_nodes: Vec<agdb::DbId> = version_by_id.values().copied().collect();
-    let version_number_by_node: HashMap<agdb::DbId, String> =
-        read_rows::<VersionRow>(&guard, &version_nodes)?
-            .into_iter()
-            .filter_map(|row| row.db_id.map(|node| (node, row.version_number)))
-            .collect();
-
-    let mut author_by_article: HashMap<agdb::DbId, agdb::DbId> = HashMap::new();
-    let mut user_nodes: Vec<agdb::DbId> = Vec::new();
-    for article_node in &article_nodes {
-        let edges = incoming_edges(&guard, *article_node, EDGE_USER_AUTHOR_ARTICLE)?;
-        if let Some(edge) = edges.first() {
-            author_by_article.insert(*article_node, edge.from);
-            user_nodes.push(edge.from);
-        }
+    let mut author_by_article: HashMap<database::NodeId, database::NodeId> = HashMap::new();
+    let mut author_by_node: HashMap<database::NodeId, (String, String)> = HashMap::new();
+    for article_node in article_by_id.values().copied() {
+        db.read(|scope| {
+            if let Some(owner) = scope
+                .incoming(article_node, EdgeKind::UserAuthorArticle)?
+                .first()
+                && let Some(row) = scope.scope_read_node::<UserRow>(*owner)?
+            {
+                author_by_article.insert(article_node, *owner);
+                author_by_node.insert(*owner, (row.id, row.name));
+            }
+            Ok(())
+        })?;
     }
-    let author_by_node: HashMap<agdb::DbId, (String, String)> =
-        read_rows::<UserRow>(&guard, &user_nodes)?
-            .into_iter()
-            .filter_map(|row| row.db_id.map(|node| (node, (row.id, row.name))))
-            .collect();
 
     for comment in comments.iter_mut() {
         let article_node = article_by_id.get(comment.article_id.as_str());
@@ -87,94 +83,75 @@ pub(super) async fn enrich_comment_headers(
     Ok(())
 }
 
-pub(super) async fn article_ids_of_user(
-    db: &DbHandle,
-    user_id: &str,
-) -> Result<Vec<String>, DbError> {
-    let guard = db.read().await;
-    let Some(user) = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)? else {
-        return Ok(Vec::new());
-    };
-    let mut ids = Vec::new();
-    let mut seen = HashSet::new();
-    let articles = guard.exec(
-        QueryBuilder::search()
-            .from(user)
-            .where_()
-            .distance(agdb::CountComparison::Equal(2))
-            .and()
-            .node()
-            .and()
-            .key(KEY_TYPE)
-            .value(ENTITY_TYPE_ARTICLE)
-            .and()
-            .not()
-            .keys(KEY_SOFT_DELETED)
-            .query(),
-    )?;
-    for element in &articles.elements {
-        if let Some(row) = read_rows::<IdRow>(&guard, &[element.id])?
-            .into_iter()
-            .next()
-            && seen.insert(row.id.clone())
-        {
-            ids.push(row.id);
+pub(super) fn article_ids_of_user(db: &Database, user_id: &str) -> Result<Vec<String>, Error> {
+    db.read(|scope| {
+        let Some(user) = scope.resolve(NodeKind::User, user_id)? else {
+            return Ok(Vec::new());
+        };
+        let mut ids = Vec::new();
+        let mut seen = HashSet::new();
+        let articles = scope.outgoing(user, EdgeKind::UserAuthorArticle)?;
+        for article in articles {
+            if has_soft_deleted_flag(scope, article)? {
+                continue;
+            }
+            if let Some(row) = scope.scope_read_node::<IdRow>(article)?
+                && seen.insert(row.id.clone())
+            {
+                ids.push(row.id);
+            }
         }
-    }
 
-    let comment_edges = outgoing_edges(&guard, user, EDGE_USER_AUTHOR_COMMENT)?;
-    for edge in &comment_edges {
-        if let Some(article_id) = article_id_of_comment(&guard, edge.to)?
-            && seen.insert(article_id.clone())
-        {
-            ids.push(article_id);
+        let comment_edges = scope.outgoing(user, EdgeKind::UserAuthorComment)?;
+        for comment in comment_edges {
+            if let Some(article_id) = article_id_of_comment(scope, comment)?
+                && seen.insert(article_id.clone())
+            {
+                ids.push(article_id);
+            }
         }
-    }
-    Ok(ids)
+        Ok(ids)
+    })
 }
 
 fn article_id_of_comment(
-    guard: &agdb::DbAny,
-    comment: agdb::DbId,
-) -> Result<Option<String>, DbError> {
-    let version_edges = outgoing_edges(guard, comment, EDGE_COMMENT_ATTACH_VERSION)?;
-    let Some(version_edge) = version_edges.first() else {
+    scope: &impl GraphRead,
+    comment: database::NodeId,
+) -> Result<Option<String>, Error> {
+    let Some(version_edge) = scope
+        .scope_outgoing(comment, EdgeKind::CommentAttachVersion)?
+        .first()
+        .copied()
+    else {
         return Ok(None);
     };
-    let article_edges = incoming_edges(guard, version_edge.to, EDGE_ARTICLE_HOLD_VERSION)?;
-    let Some(article_edge) = article_edges.first() else {
+    let Some(article_edge) = scope
+        .scope_incoming(version_edge, EdgeKind::ArticleHoldVersion)?
+        .first()
+        .copied()
+    else {
         return Ok(None);
     };
-    if crate::repository::delete::has_soft_deleted_flag(guard, article_edge.from)? {
+    if has_soft_deleted_flag(scope, article_edge)? {
         return Ok(None);
     }
-    Ok(read_rows::<IdRow>(guard, &[article_edge.from])?
-        .into_iter()
-        .next()
+    Ok(scope
+        .scope_read_node::<IdRow>(article_edge)?
         .map(|row| row.id))
 }
 
-pub(super) async fn all_article_ids(db: &DbHandle) -> Result<Vec<String>, DbError> {
-    let guard = db.read().await;
-    let all = guard.exec(
-        QueryBuilder::search()
-            .elements()
-            .where_()
-            .key(KEY_TYPE)
-            .value(ENTITY_TYPE_ARTICLE)
-            .and()
-            .not()
-            .keys(KEY_SOFT_DELETED)
-            .query(),
-    )?;
-    let mut ids = Vec::with_capacity(all.elements.len());
-    for element in &all.elements {
-        if let Some(row) = read_rows::<IdRow>(&guard, &[element.id])?
-            .into_iter()
-            .next()
-        {
-            ids.push(row.id);
+pub(super) fn all_article_ids(db: &Database) -> Result<Vec<String>, Error> {
+    db.read(|scope| {
+        let articles = scope.all_nodes(NodeKind::Article)?;
+        let mut ids = Vec::with_capacity(articles.len());
+        for article in articles {
+            if has_soft_deleted_flag(scope, article)? {
+                continue;
+            }
+            if let Some(row) = scope.scope_read_node::<IdRow>(article)? {
+                ids.push(row.id);
+            }
         }
-    }
-    Ok(ids)
+        Ok(ids)
+    })
 }

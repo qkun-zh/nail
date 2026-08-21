@@ -5,30 +5,24 @@ use crate::repository::role::{ROLE_ADMIN, ROLE_MEMBER, hold_role};
 
 const TEST_TAGS: &[&str] = &["rust", "backend", "frontend", "devops", "web"];
 
-async fn member(context: &TestCtx, email: &str) -> String {
-    context.seed_tags(TEST_TAGS).await;
+fn member(context: &TestCtx, email: &str) -> String {
+    context.seed_tags(TEST_TAGS);
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
-    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
-        .await
-        .expect("member role");
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER).expect("member role");
     user_id
 }
 
-async fn admin(context: &TestCtx, email: &str) -> String {
+fn admin(context: &TestCtx, email: &str) -> String {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
-    hold_role(&context.state.database, &user_id, ROLE_ADMIN)
-        .await
-        .expect("admin role");
+    hold_role(&context.state.database, &user_id, ROLE_ADMIN).expect("admin role");
     user_id
 }
 
@@ -77,7 +71,7 @@ fn strip_marks(text: &str) -> String {
 #[tokio::test]
 async fn search_hides_a_soft_deleted_article() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (article_id, _) = create_seeded_article(
         &context,
         &actor,
@@ -118,7 +112,7 @@ async fn search_hides_a_soft_deleted_article() {
 #[tokio::test]
 async fn search_hides_the_versions_of_a_soft_deleted_article() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (article_id, _) = create_seeded_article(
         &context,
         &actor,
@@ -153,7 +147,7 @@ async fn search_hides_the_versions_of_a_soft_deleted_article() {
 #[tokio::test]
 async fn search_hides_the_comments_of_a_soft_deleted_article() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (_, version_id) = create_seeded_article(
         &context,
         &actor,
@@ -176,7 +170,7 @@ async fn search_hides_the_comments_of_a_soft_deleted_article() {
     crate::logic::article::delete_article(
         &context.state,
         &actor,
-        &article_id_of(&context, &version_id).await,
+        &article_id_of(&context, &version_id),
         Some(nail_common::request::DeleteMode::Soft),
     )
     .await
@@ -193,9 +187,8 @@ async fn search_hides_the_comments_of_a_soft_deleted_article() {
     );
 }
 
-async fn article_id_of(context: &TestCtx, version_id: &str) -> String {
+fn article_id_of(context: &TestCtx, version_id: &str) -> String {
     crate::repository::version::parent_article_of(&context.state.database, version_id)
-        .await
         .expect("parent")
         .expect("article")
 }
@@ -203,7 +196,7 @@ async fn article_id_of(context: &TestCtx, version_id: &str) -> String {
 #[tokio::test]
 async fn search_hides_a_soft_deleted_version_but_keeps_siblings() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (article_id, _) = create_seeded_article(
         &context,
         &actor,
@@ -227,7 +220,6 @@ async fn search_hides_a_soft_deleted_version_but_keeps_siblings() {
 
     let (versions, _) =
         crate::repository::version::versions_of(&context.state.database, &article_id, 10, 0)
-            .await
             .expect("versions");
     let doomed = versions
         .iter()
@@ -267,7 +259,7 @@ async fn search_hides_a_soft_deleted_version_but_keeps_siblings() {
 #[tokio::test]
 async fn search_hides_a_soft_deleted_version_and_its_comments() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (_, version_id) = create_seeded_article(
         &context,
         &actor,
@@ -319,7 +311,7 @@ async fn search_hides_a_soft_deleted_version_and_its_comments() {
 #[tokio::test]
 async fn search_hides_a_soft_deleted_comment_and_its_replies() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (_, version_id) = create_seeded_article(
         &context,
         &actor,
@@ -380,8 +372,8 @@ async fn search_hides_a_soft_deleted_comment_and_its_replies() {
 #[tokio::test]
 async fn search_removes_a_hard_deleted_article() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
-    let admin_id = admin(&context, "admin@example.com").await;
+    let owner = member(&context, "alice@example.com");
+    let admin_id = admin(&context, "admin@example.com");
     let (article_id, _) = create_seeded_article(
         &context,
         &owner,
@@ -412,7 +404,7 @@ async fn search_removes_a_hard_deleted_article() {
 #[tokio::test]
 async fn search_order_is_stable_across_repeated_queries() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     for title in ["Stable One", "Stable Two", "Stable Three"] {
         create_seeded_article(&context, &actor, title, "summary", "rust", "1.0.0", "note").await;
     }
@@ -441,7 +433,7 @@ async fn search_order_is_stable_across_repeated_queries() {
 #[tokio::test]
 async fn search_matches_keywords_case_insensitively() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     create_seeded_article(
         &context,
         &actor,
@@ -468,7 +460,7 @@ async fn search_matches_keywords_case_insensitively() {
 #[tokio::test]
 async fn search_limits_results_to_a_single_range() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     create_seeded_article(
         &context,
         &actor,
@@ -513,7 +505,7 @@ async fn search_limits_results_to_a_single_range() {
 #[tokio::test]
 async fn search_summary_range_only_matches_the_summary_field() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     create_seeded_article(
         &context,
         &actor,
@@ -544,7 +536,7 @@ async fn search_summary_range_only_matches_the_summary_field() {
 #[tokio::test]
 async fn search_note_range_only_matches_the_note_field() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     create_seeded_article(
         &context,
         &actor,
@@ -567,9 +559,8 @@ async fn search_note_range_only_matches_the_note_field() {
 #[tokio::test]
 async fn search_author_range_matches_the_author_name() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     crate::repository::user::update_user_name(&context.state.database, &actor, "probe-author")
-        .await
         .expect("rename");
     create_seeded_article(
         &context,
@@ -593,7 +584,7 @@ async fn search_author_range_matches_the_author_name() {
 #[tokio::test]
 async fn search_author_name_refreshes_after_a_rename() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     create_seeded_article(
         &context,
         &actor,
@@ -605,7 +596,6 @@ async fn search_author_name_refreshes_after_a_rename() {
     )
     .await;
     crate::repository::user::update_user_name(&context.state.database, &actor, "new-author-name")
-        .await
         .expect("rename");
     crate::logic::search::sync_user_best_effort(&context.state, &actor).await;
 
@@ -631,7 +621,7 @@ async fn search_author_name_refreshes_after_a_rename() {
 #[tokio::test]
 async fn search_time_range_is_inclusive_at_the_boundaries() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let now = nail_common::time::now_ms().expect("now");
     let _ = crate::logic::article::create_article(
         &context.state,
@@ -670,7 +660,7 @@ async fn search_time_range_is_inclusive_at_the_boundaries() {
 #[tokio::test]
 async fn search_excludes_articles_outside_the_time_range() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let now = nail_common::time::now_ms().expect("now");
     let _ = crate::logic::article::create_article(
         &context.state,
@@ -709,7 +699,7 @@ async fn search_excludes_articles_outside_the_time_range() {
 #[tokio::test]
 async fn search_has_next_flips_only_after_the_last_page() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     for title in ["Next One", "Next Two", "Next Three"] {
         create_seeded_article(&context, &actor, title, "summary", "rust", "1.0.0", "note").await;
     }
@@ -752,7 +742,7 @@ async fn search_has_next_flips_only_after_the_last_page() {
 #[tokio::test]
 async fn search_pages_do_not_duplicate_or_skip_articles() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let mut expected: Vec<String> = Vec::new();
     for i in 0..5 {
         let (article_id, _) = create_seeded_article(
@@ -796,7 +786,7 @@ async fn search_pages_do_not_duplicate_or_skip_articles() {
 #[tokio::test]
 async fn search_page_beyond_the_result_set_is_empty() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     create_seeded_article(
         &context,
         &actor,
@@ -826,7 +816,7 @@ async fn search_page_beyond_the_result_set_is_empty() {
 #[tokio::test]
 async fn search_empty_index_returns_no_results() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let _ = actor;
 
     let page =
@@ -840,7 +830,7 @@ async fn search_empty_index_returns_no_results() {
 #[tokio::test]
 async fn search_summary_hit_reports_a_summary_label_but_title_does_not() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     create_seeded_article(
         &context,
         &actor,
@@ -880,7 +870,7 @@ async fn search_summary_hit_reports_a_summary_label_but_title_does_not() {
 #[tokio::test]
 async fn search_version_number_hit_shows_the_version_card() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     create_seeded_article(
         &context,
         &actor,
@@ -906,7 +896,7 @@ async fn search_version_number_hit_shows_the_version_card() {
 #[tokio::test]
 async fn search_reports_nothing_for_a_word_in_no_field() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     create_seeded_article(
         &context,
         &actor,
@@ -931,8 +921,8 @@ async fn search_reports_nothing_for_a_word_in_no_field() {
 #[tokio::test]
 async fn search_after_hard_delete_of_one_article_keeps_the_others() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
-    let admin_id = admin(&context, "admin@example.com").await;
+    let owner = member(&context, "alice@example.com");
+    let admin_id = admin(&context, "admin@example.com");
     let (first_id, _) = create_seeded_article(
         &context,
         &owner,
@@ -976,7 +966,7 @@ async fn search_after_hard_delete_of_one_article_keeps_the_others() {
 #[tokio::test]
 async fn search_version_number_range_finds_versions() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (article_id, _) = create_seeded_article(
         &context,
         &actor,
@@ -1016,7 +1006,7 @@ async fn search_version_number_range_finds_versions() {
 #[tokio::test]
 async fn search_after_clear_flag_and_resync_revives_the_article() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (article_id, _) = create_seeded_article(
         &context,
         &actor,
@@ -1038,7 +1028,6 @@ async fn search_after_clear_flag_and_resync_revives_the_article() {
     .expect("soft delete");
 
     crate::repository::delete::clear_soft_deleted_flag(&context.state.database, &article_id)
-        .await
         .expect("clear flag");
     crate::logic::search::sync_article_best_effort(&context.state, &article_id).await;
 
@@ -1056,7 +1045,7 @@ async fn search_after_clear_flag_and_resync_revives_the_article() {
 #[tokio::test]
 async fn search_a_comment_only_phrase_lists_it_under_its_article_and_version() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (_, version_id) = create_seeded_article(
         &context,
         &actor,
@@ -1100,7 +1089,7 @@ async fn search_a_comment_only_phrase_lists_it_under_its_article_and_version() {
 #[tokio::test]
 async fn search_reports_an_article_level_hit_once_across_versions() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (article_id, _) = create_seeded_article(
         &context,
         &actor,
@@ -1146,7 +1135,7 @@ async fn search_reports_an_article_level_hit_once_across_versions() {
 #[tokio::test]
 async fn search_comment_only_article_keeps_its_author_id() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "bob@example.com").await;
+    let actor = member(&context, "bob@example.com");
     let (_, version_id) = create_seeded_article(
         &context,
         &actor,

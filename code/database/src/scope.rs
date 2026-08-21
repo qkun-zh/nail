@@ -5,8 +5,8 @@ use crate::error::Error;
 use crate::kinds::{EdgeKind, NodeKind};
 use crate::node_id::NodeId;
 use crate::read::{
-    all_nodes, count_incoming, count_nodes, count_outgoing, incoming, outgoing, read_nodes,
-    read_value, resolve, scan_nodes,
+    all_nodes, count_incoming, count_nodes, count_outgoing, find_by_key, incoming, outgoing,
+    read_nodes, read_value, resolve, scan_nodes,
 };
 use crate::row::Row;
 use crate::value::Value;
@@ -32,6 +32,17 @@ impl<'db, 'txn> ReadScope<'db, 'txn> {
     /// other than absence.
     pub fn resolve(&self, kind: NodeKind, business_id: &str) -> Result<Option<NodeId>, Error> {
         resolve(self.reader(), kind, business_id)
+    }
+
+    /// Finds a node by an indexed key-value pair. The key must have an
+    /// index ensured at open time. Indexes are global across kinds; callers
+    /// verify the returned node by reading its row.
+    ///
+    /// # Errors
+    /// Returns [`Error::Storage`] if the key has no index or the lookup
+    /// fails.
+    pub fn find_by_key(&self, key: &str, value: &str) -> Result<Option<NodeId>, Error> {
+        find_by_key(self.reader(), key, value)
     }
 
     /// Reads one node as a typed row.

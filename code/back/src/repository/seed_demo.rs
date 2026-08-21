@@ -1,6 +1,7 @@
 use anyhow::Context;
 
-use crate::repository::graph::DbHandle;
+use database::Database;
+
 use crate::repository::search::SearchIndex;
 
 const SAMPLE_TAG_POOL: &[&str] = &[
@@ -146,7 +147,7 @@ fn sample_note(rng: &mut SampleRng, index: usize) -> String {
 }
 
 pub async fn seed_sample_articles(
-    db: &DbHandle,
+    db: &Database,
     search: &SearchIndex,
     count: usize,
 ) -> anyhow::Result<()> {
@@ -156,14 +157,12 @@ pub async fn seed_sample_articles(
         let email = format!("sample-author-{author_index}@example.com");
         let user_id =
             crate::repository::user::create_user(db, &nail_common::hash::hash(email.as_bytes())?)
-                .await
                 .with_context(|| format!("create sample author {author_index}"))?;
         crate::repository::user::update_user_name(
             db,
             &user_id,
             &format!("sample-author-{author_index:02}"),
         )
-        .await
         .map_err(|error| anyhow::anyhow!("name sample author {author_index}: {error}"))?;
         author_ids.push(user_id);
     }
@@ -191,7 +190,6 @@ pub async fn seed_sample_articles(
             },
         };
         crate::repository::article::create_article(db, &draft)
-            .await
             .with_context(|| format!("create sample article {index}"))?;
     }
 

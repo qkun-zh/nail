@@ -8,8 +8,8 @@ use crate::repository::transfer::{TransferError, TransferTargetError};
 use crate::repository::user::UserWriteError;
 use crate::repository::version::CreateVersionError;
 
-fn db_error() -> agdb::DbError {
-    agdb::DbError::query(agdb::DbErrorType::TypeError, "boom")
+fn db_error() -> database::Error {
+    database::Error::Storage("boom".to_string())
 }
 
 #[test]

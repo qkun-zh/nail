@@ -13,37 +13,36 @@ use crate::repository::tag::{
 };
 use nail_common::response::tag::TagListItem;
 
-pub async fn create_tag(
+pub fn create_tag(
     state: &AppState,
     actor_id: &str,
     raw_name: &str,
 ) -> Result<(String, String), LogicError> {
-    authorize_global(state, actor_id, PERMISSION_TAG_CREATE).await?;
+    authorize_global(state, actor_id, PERMISSION_TAG_CREATE)?;
     let name = nail_common::tag::validate_tag_name(raw_name)
         .map_err(|error| LogicError::bad_request(error.to_string()))?;
-    if read_tag_by_name(&state.database, &name).await?.is_some() {
+    if read_tag_by_name(&state.database, &name)?.is_some() {
         return Err(LogicError::bad_request("tag already exists"));
     }
     let tag_id = create_tag_node(&state.database, &name)
-        .await
         .map_err(|error| LogicError::internal(format!("failed to create tag: {error}")))?;
     Ok((tag_id, name))
 }
 
-pub async fn read_tags(
+pub fn read_tags(
     state: &AppState,
     actor_id: &str,
     page: u64,
     limit: u64,
 ) -> Result<nail_common::response::ListPage<TagListItem>, LogicError> {
-    authorize_global(state, actor_id, PERMISSION_TAG_READ).await?;
-    let tags = read_tag_nodes(&state.database).await?;
+    authorize_global(state, actor_id, PERMISSION_TAG_READ)?;
+    let tags = read_tag_nodes(&state.database)?;
     let total = tags.len() as u64;
     let (page_tags, has_next) = paginate(tags, page, limit);
 
     let mut items = Vec::with_capacity(page_tags.len());
     for tag in &page_tags {
-        let article_count = count_tag_articles(&state.database, &tag.id).await?;
+        let article_count = count_tag_articles(&state.database, &tag.id)?;
         items.push(TagListItem {
             id: tag.id.clone(),
             name: tag.tag_name.clone(),
@@ -57,16 +56,11 @@ pub async fn read_tags(
     })
 }
 
-pub async fn read_tag(
-    state: &AppState,
-    actor_id: &str,
-    tag_id: &str,
-) -> Result<TagListItem, LogicError> {
-    authorize_global(state, actor_id, PERMISSION_TAG_READ).await?;
-    let tag = read_tag_by_id(&state.database, tag_id)
-        .await?
+pub fn read_tag(state: &AppState, actor_id: &str, tag_id: &str) -> Result<TagListItem, LogicError> {
+    authorize_global(state, actor_id, PERMISSION_TAG_READ)?;
+    let tag = read_tag_by_id(&state.database, tag_id)?
         .ok_or_else(|| LogicError::not_found("tag not found"))?;
-    let article_count = count_tag_articles(&state.database, &tag.id).await?;
+    let article_count = count_tag_articles(&state.database, &tag.id)?;
     Ok(TagListItem {
         id: tag.id,
         name: tag.tag_name,
@@ -74,7 +68,7 @@ pub async fn read_tag(
     })
 }
 
-pub async fn update_tag(
+pub fn update_tag(
     state: &AppState,
     actor_id: &str,
     tag_id: &str,
@@ -85,42 +79,38 @@ pub async fn update_tag(
         actor_id,
         PERMISSION_TAG_UPDATE,
         EntityRef::Tag(tag_id),
-    )
-    .await?;
+    )?;
     let name = nail_common::tag::validate_tag_name(raw_name)
         .map_err(|error| LogicError::bad_request(error.to_string()))?;
-    if read_tag_by_id(&state.database, tag_id).await?.is_none() {
+    if read_tag_by_id(&state.database, tag_id)?.is_none() {
         return Err(LogicError::not_found("tag not found"));
     }
-    if let Some(existing) = read_tag_by_name(&state.database, &name).await?
+    if let Some(existing) = read_tag_by_name(&state.database, &name)?
         && existing.id != tag_id
     {
         return Err(LogicError::bad_request("tag name already exists"));
     }
     update_tag_node(&state.database, tag_id, &name)
-        .await
         .map_err(|error| LogicError::internal(format!("failed to update tag: {error}")))?;
     Ok((tag_id.to_string(), name))
 }
 
-pub async fn delete_tag(state: &AppState, actor_id: &str, tag_id: &str) -> Result<(), LogicError> {
+pub fn delete_tag(state: &AppState, actor_id: &str, tag_id: &str) -> Result<(), LogicError> {
     authorize_entity(
         state,
         actor_id,
         PERMISSION_TAG_DELETE,
         EntityRef::Tag(tag_id),
-    )
-    .await?;
-    if read_tag_by_id(&state.database, tag_id).await?.is_none() {
+    )?;
+    if read_tag_by_id(&state.database, tag_id)?.is_none() {
         return Err(LogicError::not_found("tag not found"));
     }
     delete_tag_node(&state.database, tag_id)
-        .await
         .map_err(|error| LogicError::internal(format!("failed to delete tag: {error}")))?;
     Ok(())
 }
 
-pub async fn apply_tag(
+pub fn apply_tag(
     state: &AppState,
     actor_id: &str,
     article_id: &str,
@@ -131,18 +121,16 @@ pub async fn apply_tag(
         actor_id,
         PERMISSION_TAG_APPLY,
         EntityRef::Tag(tag_id),
-    )
-    .await?;
-    if !crate::repository::article::article_exists(&state.database, article_id).await? {
+    )?;
+    if !crate::repository::article::article_exists(&state.database, article_id)? {
         return Err(LogicError::not_found("article not found"));
     }
     apply_tag_to_article(&state.database, article_id, tag_id)
-        .await
         .map_err(|error| LogicError::internal(format!("failed to apply tag: {error}")))?;
     Ok(())
 }
 
-pub async fn unapply_tag(
+pub fn unapply_tag(
     state: &AppState,
     actor_id: &str,
     article_id: &str,
@@ -153,13 +141,11 @@ pub async fn unapply_tag(
         actor_id,
         PERMISSION_TAG_UNAPPLY,
         EntityRef::Tag(tag_id),
-    )
-    .await?;
-    if !crate::repository::article::article_exists(&state.database, article_id).await? {
+    )?;
+    if !crate::repository::article::article_exists(&state.database, article_id)? {
         return Err(LogicError::not_found("article not found"));
     }
     unapply_tag_from_article(&state.database, article_id, tag_id)
-        .await
         .map_err(|error| LogicError::internal(format!("failed to unapply tag: {error}")))?;
     Ok(())
 }

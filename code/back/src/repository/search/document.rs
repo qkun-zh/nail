@@ -1,18 +1,12 @@
 use std::collections::HashSet;
 
-use agdb::DbError;
+use database::{Database, EdgeKind, Error, NodeKind};
 use nail_common::search::SearchRange;
 use seekstorm::index::Document;
 
-use crate::repository::graph::{
-    DbHandle, incoming_edges, outgoing_edges, read_node, read_rows, resolve_node_id,
-};
-use crate::repository::schema::{
-    ArticleRow, CommentRow, EDGE_ARTICLE_APPLY_TAG, EDGE_ARTICLE_HOLD_VERSION,
-    EDGE_COMMENT_ATTACH_VERSION, EDGE_COMMENT_REPLY_COMMENT, EDGE_USER_AUTHOR_ARTICLE,
-    EDGE_USER_AUTHOR_COMMENT, EDGE_USER_HOLD_ROLE, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_USER, RoleRow,
-    TagRow, UserRow, VersionRow,
-};
+use crate::repository::access::GraphRead;
+use crate::repository::delete::has_soft_deleted_flag;
+use crate::repository::schema::{ArticleRow, CommentRow, RoleRow, TagRow, UserRow, VersionRow};
 
 use super::schema::{
     FIELD_ARTICLE_ID, FIELD_AUTHOR_ID, FIELD_AUTHOR_NAME, FIELD_COMMENT_ID, FIELD_CONTENT,
@@ -118,70 +112,78 @@ pub(super) fn read_comment_outcome(document: &Document) -> SearchCommentOutcome 
     }
 }
 
-fn read_user_roles_sync(guard: &agdb::DbAny, user_id: &str) -> Result<String, DbError> {
-    let Some(user_db_id) = resolve_node_id(guard, ENTITY_TYPE_USER, user_id)? else {
-        return Ok(String::new());
-    };
-    let edges = outgoing_edges(guard, user_db_id, EDGE_USER_HOLD_ROLE)?;
-    let mut roles = Vec::new();
-    for edge in &edges {
-        if let Some(row) = read_node::<RoleRow>(guard, edge.to)? {
-            roles.push(row.role_name);
-        }
-    }
-    roles.sort();
-    Ok(roles.join(","))
+fn read_user_roles(db: &Database, user_id: &str) -> Result<String, Error> {
+    db.read(|scope| {
+        let Some(user_db_id) = scope.resolve(NodeKind::User, user_id)? else {
+            return Ok(String::new());
+        };
+        let held = scope.outgoing(user_db_id, EdgeKind::UserHoldRole)?;
+        let rows = scope.scope_read_nodes::<RoleRow>(&held)?;
+        let mut roles: Vec<String> = rows.into_iter().map(|row| row.role_name).collect();
+        roles.sort();
+        Ok(roles.join(","))
+    })
 }
 
-pub(super) async fn build_documents(
-    db: &DbHandle,
+pub(super) fn build_documents(db: &Database, article_id: &str) -> anyhow::Result<Vec<Document>> {
+    let mut documents = Vec::new();
+    build_documents_inner(db, article_id, &mut documents)?;
+    Ok(documents)
+}
+
+fn build_documents_inner(
+    db: &Database,
     article_id: &str,
-) -> anyhow::Result<Vec<Document>> {
-    let guard = db.read().await;
-    let Some(article) = resolve_node_id(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
-        return Ok(Vec::new());
+    documents: &mut Vec<Document>,
+) -> anyhow::Result<()> {
+    let context = db.read(|scope| {
+        let Some(article) = scope.resolve(NodeKind::Article, article_id)? else {
+            return Ok(None);
+        };
+        if has_soft_deleted_flag(scope, article)? {
+            return Ok(None);
+        }
+        let article_row = scope.scope_read_node::<ArticleRow>(article)?;
+        let title = article_row
+            .as_ref()
+            .map(|row| row.title.clone())
+            .unwrap_or_default();
+        let summary = article_row
+            .as_ref()
+            .map(|row| row.summary.clone())
+            .unwrap_or_default();
+        let (author_id, author_name) = read_owner(scope, article, EdgeKind::UserAuthorArticle)?;
+        let tags = read_tag_names(scope, article)?;
+        let versions = scope.outgoing(article, EdgeKind::ArticleHoldVersion)?;
+        let version_rows = scope.scope_read_nodes::<VersionRow>(&versions)?;
+        Ok(Some((
+            title,
+            summary,
+            author_id,
+            author_name,
+            tags,
+            versions,
+            version_rows,
+        )))
+    })?;
+    let Some((title, summary, author_id, author_name, tags, versions, version_rows)) = context
+    else {
+        return Ok(());
     };
-    if crate::repository::delete::has_soft_deleted_flag(&guard, article)? {
-        return Ok(Vec::new());
-    }
-    let article_row = read_rows::<ArticleRow>(&guard, &[article])?
-        .into_iter()
-        .next();
-    let title = article_row
-        .as_ref()
-        .map(|row| row.title.clone())
-        .unwrap_or_default();
-    let summary = article_row
-        .as_ref()
-        .map(|row| row.summary.clone())
-        .unwrap_or_default();
-    let (author_id, author_name) = read_owner(&guard, article, EDGE_USER_AUTHOR_ARTICLE)?;
     let author_role = if author_id.is_empty() {
         String::new()
     } else {
-        read_user_roles_sync(&guard, &author_id)?
+        read_user_roles(db, &author_id)?
     };
-    let tags = read_tag_names(&guard, article)?;
 
-    let version_edges = outgoing_edges(&guard, article, EDGE_ARTICLE_HOLD_VERSION)?;
-
-    let mut documents = Vec::new();
-    for version_edge in &version_edges {
-        let Some(version_row) = read_rows::<VersionRow>(&guard, &[version_edge.to])?
-            .into_iter()
-            .next()
-        else {
-            continue;
-        };
+    for (version_node, version_row) in versions.into_iter().zip(version_rows) {
         let version_id = version_row.id;
         let version_ts = nail_common::time::uuidv7_timestamp_secs(&version_id)
             .map_or(0, |secs| i64::try_from(secs).unwrap_or(0));
-        let version_deleted =
-            crate::repository::delete::has_soft_deleted_flag(&guard, version_edge.to)?;
-
-        if version_deleted {
+        if db.read(|scope| has_soft_deleted_flag(scope, version_node))? {
             continue;
         }
+
         let mut version_doc = Document::new();
         version_doc.insert(
             FIELD_DOC_TYPE.to_string(),
@@ -206,23 +208,22 @@ pub(super) async fn build_documents(
         version_doc.insert(FIELD_TS.to_string(), serde_json::json!(version_ts));
         documents.push(version_doc);
 
-        for comment_node in comments_of_version(&guard, version_edge.to)? {
-            let Some(comment_row) = read_rows::<CommentRow>(&guard, &[comment_node])?
-                .into_iter()
-                .next()
+        for comment_node in comments_of_version(db, version_node)? {
+            let Some(comment_row) =
+                db.read(|scope| scope.scope_read_node::<CommentRow>(comment_node))?
             else {
                 continue;
             };
             let comment_id = comment_row.id;
-            if crate::repository::delete::has_soft_deleted_flag(&guard, comment_node)? {
+            if db.read(|scope| has_soft_deleted_flag(scope, comment_node))? {
                 continue;
             }
             let (comment_author_id, comment_author) =
-                read_owner(&guard, comment_node, EDGE_USER_AUTHOR_COMMENT)?;
+                read_owner_of(db, comment_node, EdgeKind::UserAuthorComment)?;
             let comment_author_role = if comment_author_id.is_empty() {
                 String::new()
             } else {
-                read_user_roles_sync(&guard, &comment_author_id)?
+                read_user_roles(db, &comment_author_id)?
             };
             let comment_ts = nail_common::time::uuidv7_timestamp_secs(&comment_id)
                 .map_or(0, |secs| i64::try_from(secs).unwrap_or(0));
@@ -255,47 +256,38 @@ pub(super) async fn build_documents(
             documents.push(comment_doc);
         }
     }
-    Ok(documents)
+    Ok(())
 }
 
 fn comments_of_version(
-    guard: &agdb::DbAny,
-    version: agdb::DbId,
-) -> Result<Vec<agdb::DbId>, DbError> {
-    let mut seen = HashSet::new();
-    let mut result = Vec::new();
-    let mut stack: Vec<agdb::DbId> =
-        incoming_comment_nodes(guard, version, EDGE_COMMENT_ATTACH_VERSION)?;
-    while let Some(node) = stack.pop() {
-        if !seen.insert(node) {
-            continue;
+    db: &Database,
+    version: database::NodeId,
+) -> Result<Vec<database::NodeId>, Error> {
+    db.read(|scope| {
+        let mut seen = HashSet::new();
+        let mut result = Vec::new();
+        let mut stack: Vec<database::NodeId> =
+            scope.incoming(version, EdgeKind::CommentAttachVersion)?;
+        while let Some(node) = stack.pop() {
+            if !seen.insert(node) {
+                continue;
+            }
+            result.push(node);
+            let replies = scope.incoming(node, EdgeKind::CommentReplyComment)?;
+            stack.extend(replies);
         }
-        result.push(node);
-        let replies = incoming_comment_nodes(guard, node, EDGE_COMMENT_REPLY_COMMENT)?;
-        stack.extend(replies);
-    }
-    Ok(result)
-}
-
-fn incoming_comment_nodes(
-    guard: &agdb::DbAny,
-    node: agdb::DbId,
-    edge_type: &str,
-) -> Result<Vec<agdb::DbId>, DbError> {
-    let edges = incoming_edges(guard, node, edge_type)?;
-    Ok(edges.iter().map(|edge| edge.from).collect())
+        Ok(result)
+    })
 }
 
 fn read_owner(
-    guard: &agdb::DbAny,
-    node: agdb::DbId,
-    edge_type: &str,
-) -> Result<(String, String), DbError> {
-    let edges = incoming_edges(guard, node, edge_type)?;
-    Ok(match edges.first() {
-        Some(edge) => {
-            let rows = read_rows::<UserRow>(guard, &[edge.from])?;
-            let row = rows.into_iter().next();
+    scope: &(impl GraphRead + ?Sized),
+    node: database::NodeId,
+    edge_kind: EdgeKind,
+) -> Result<(String, String), Error> {
+    Ok(match scope.scope_incoming(node, edge_kind)?.first() {
+        Some(user) => {
+            let row = scope.scope_read_node::<UserRow>(*user)?;
             (
                 row.as_ref().map(|r| r.id.clone()).unwrap_or_default(),
                 row.map(|r| r.name).unwrap_or_default(),
@@ -305,17 +297,19 @@ fn read_owner(
     })
 }
 
-fn read_tag_names(guard: &agdb::DbAny, article: agdb::DbId) -> Result<Vec<String>, DbError> {
-    let edges = outgoing_edges(guard, article, EDGE_ARTICLE_APPLY_TAG)?;
-    let mut tags = Vec::with_capacity(edges.len());
-    for edge in &edges {
-        if let Some(name) = read_rows::<TagRow>(guard, &[edge.to])?
-            .into_iter()
-            .next()
-            .map(|row| row.tag_name)
-        {
-            tags.push(name);
-        }
-    }
-    Ok(tags)
+fn read_owner_of(
+    db: &Database,
+    node: database::NodeId,
+    edge_kind: EdgeKind,
+) -> Result<(String, String), Error> {
+    db.read(|scope| read_owner(scope, node, edge_kind))
+}
+
+fn read_tag_names(
+    scope: &(impl GraphRead + ?Sized),
+    article: database::NodeId,
+) -> Result<Vec<String>, Error> {
+    let edges = scope.scope_outgoing(article, EdgeKind::ArticleApplyTag)?;
+    let rows = scope.scope_read_nodes::<TagRow>(&edges)?;
+    Ok(rows.into_iter().map(|row| row.tag_name).collect())
 }

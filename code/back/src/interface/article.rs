@@ -87,7 +87,6 @@ pub async fn read_article(
     AppPath(article_id): AppPath<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     let data = crate::logic::article::read_article(&state, &principal.user_id, &article_id)
-        .await
         .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }

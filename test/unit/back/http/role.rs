@@ -8,12 +8,11 @@ use super::context::TestCtx;
 use crate::logic::session::cache_key;
 use crate::repository::role::{ROLE_MEMBER, hold_role};
 
-async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
+fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let token = Uuid::now_v7().to_string();
     let key = cache_key(&token).expect("cache key");
@@ -25,22 +24,18 @@ async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     (user_id, token)
 }
 
-async fn admin_session(context: &TestCtx) -> (String, String) {
-    session_for(context, "user-zero@example.com").await
+fn admin_session(context: &TestCtx) -> (String, String) {
+    session_for(context, "user-zero@example.com")
 }
 
-async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
-    let (user_id, token) = session_for(context, email).await;
-    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
-        .await
-        .expect("member role");
+fn member_session(context: &TestCtx, email: &str) -> (String, String) {
+    let (user_id, token) = session_for(context, email);
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER).expect("member role");
     (user_id, token)
 }
 
-async fn create_editor_role(context: &TestCtx) -> String {
-    crate::repository::role::create_role(&context.state.database, "editor")
-        .await
-        .expect("create role")
+fn create_editor_role(context: &TestCtx) -> String {
+    crate::repository::role::create_role(&context.state.database, "editor").expect("create role")
 }
 
 async fn role_id_by_name(context: &TestCtx, token: &str, name: &str) -> String {
@@ -60,7 +55,7 @@ async fn role_id_by_name(context: &TestCtx, token: &str, name: &str) -> String {
 #[tokio::test]
 async fn create_role_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = admin_session(&context).await;
+    let (_, token) = admin_session(&context);
 
     let (status, body) = context
         .post("/roles", json!({ "name": "editor" }), Some(&token))
@@ -74,7 +69,7 @@ async fn create_role_over_http() {
 #[tokio::test]
 async fn create_duplicate_role_returns_400() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = admin_session(&context).await;
+    let (_, token) = admin_session(&context);
 
     let _ = context
         .post("/roles", json!({ "name": "editor" }), Some(&token))
@@ -89,7 +84,7 @@ async fn create_duplicate_role_returns_400() {
 #[tokio::test]
 async fn role_manage_requires_admin() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
 
     let (status, body) = context
         .post("/roles", json!({ "name": "editor" }), Some(&token))
@@ -101,11 +96,10 @@ async fn role_manage_requires_admin() {
 #[tokio::test]
 async fn read_roles_reports_real_member_counts() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = admin_session(&context).await;
-    let (editor_id, _) = member_session(&context, "alice@example.com").await;
-    let editor_role_id = create_editor_role(&context).await;
+    let (_, token) = admin_session(&context);
+    let (editor_id, _) = member_session(&context, "alice@example.com");
+    let editor_role_id = create_editor_role(&context);
     crate::repository::role::hold_role(&context.state.database, &editor_id, "editor")
-        .await
         .expect("hold editor");
 
     let (status, body) = context.get("/roles?page=1&limit=200", Some(&token)).await;
@@ -123,7 +117,7 @@ async fn read_roles_reports_real_member_counts() {
 #[tokio::test]
 async fn read_roles_rejects_a_page_beyond_max_search_pages() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = admin_session(&context).await;
+    let (_, token) = admin_session(&context);
 
     let (status, body) = context.get("/roles?page=1025", Some(&token)).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
@@ -136,7 +130,7 @@ async fn read_roles_rejects_a_page_beyond_max_search_pages() {
 #[tokio::test]
 async fn read_role_returns_members_and_permissions() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = admin_session(&context).await;
+    let (_, token) = admin_session(&context);
     let admin_id = role_id_by_name(&context, &token, "admin").await;
 
     let (status, body) = context
@@ -152,8 +146,8 @@ async fn read_role_returns_members_and_permissions() {
 #[tokio::test]
 async fn update_role_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = admin_session(&context).await;
-    let editor_id = create_editor_role(&context).await;
+    let (_, token) = admin_session(&context);
+    let editor_id = create_editor_role(&context);
 
     let (status, body) = context
         .patch(
@@ -182,7 +176,7 @@ async fn update_role_over_http() {
 #[tokio::test]
 async fn delete_required_role_returns_400() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = admin_session(&context).await;
+    let (_, token) = admin_session(&context);
     let member_id = role_id_by_name(&context, &token, "member").await;
 
     let (status, body) = context
@@ -198,8 +192,8 @@ async fn delete_required_role_returns_400() {
 #[tokio::test]
 async fn delete_role_requires_hard_mode() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = admin_session(&context).await;
-    let editor_id = create_editor_role(&context).await;
+    let (_, token) = admin_session(&context);
+    let editor_id = create_editor_role(&context);
 
     let (status, body) = context
         .delete(&format!("/roles/{editor_id}?mode=transfer"), Some(&token))
@@ -214,8 +208,8 @@ async fn delete_role_requires_hard_mode() {
 #[tokio::test]
 async fn delete_role_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = admin_session(&context).await;
-    let editor_id = create_editor_role(&context).await;
+    let (_, token) = admin_session(&context);
+    let editor_id = create_editor_role(&context);
 
     let (status, body) = context
         .delete(&format!("/roles/{editor_id}?mode=hard"), Some(&token))
@@ -234,7 +228,7 @@ async fn delete_role_over_http() {
 #[tokio::test]
 async fn update_required_role_rejects_destructive_changes() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = admin_session(&context).await;
+    let (_, token) = admin_session(&context);
     let member_id = role_id_by_name(&context, &token, "member").await;
 
     let (status, body) = context
@@ -254,7 +248,7 @@ async fn update_required_role_rejects_destructive_changes() {
 #[tokio::test]
 async fn revoke_from_the_admin_role_is_forbidden() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = admin_session(&context).await;
+    let (_, token) = admin_session(&context);
     let admin_id = role_id_by_name(&context, &token, "admin").await;
 
     let (status, body) = context
@@ -271,14 +265,13 @@ async fn revoke_from_the_admin_role_is_forbidden() {
 #[tokio::test]
 async fn revoke_a_permission_from_a_custom_role_succeeds() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = admin_session(&context).await;
-    let editor_id = create_editor_role(&context).await;
+    let (_, token) = admin_session(&context);
+    let editor_id = create_editor_role(&context);
     crate::repository::role::grant_permission_to_role(
         &context.state.database,
         "editor",
         "Article::Update",
     )
-    .await
     .expect("grant");
 
     let (status, body) = context
@@ -306,9 +299,9 @@ async fn revoke_a_permission_from_a_custom_role_succeeds() {
 #[tokio::test]
 async fn update_role_holds_and_unholds_users() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = admin_session(&context).await;
-    let editor_id = create_editor_role(&context).await;
-    let (plain_user, _) = session_for(&context, "alice@example.com").await;
+    let (_, token) = admin_session(&context);
+    let editor_id = create_editor_role(&context);
+    let (plain_user, _) = session_for(&context, "alice@example.com");
 
     let (status, body) = context
         .patch(
@@ -352,7 +345,7 @@ async fn update_role_holds_and_unholds_users() {
 #[tokio::test]
 async fn read_role_reports_a_missing_role() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = admin_session(&context).await;
+    let (_, token) = admin_session(&context);
 
     let (status, body) = context.get("/roles/nosuchrole", Some(&token)).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");

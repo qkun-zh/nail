@@ -28,7 +28,6 @@ pub async fn read_session(
     if params.name.unwrap_or(false) {
         view.name = Some(
             crate::logic::session::read_user_name(&state, &principal.token)
-                .await
                 .map_err(ApiError::from_logic)?,
         );
     }

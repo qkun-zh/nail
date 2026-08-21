@@ -10,16 +10,13 @@ use crate::repository::article::{ArticleDraft, create_article};
 use crate::repository::role::{ROLE_MEMBER, hold_role};
 use crate::repository::version::VersionDraft;
 
-async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
+fn member_session(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
-    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
-        .await
-        .expect("member role");
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER).expect("member role");
     let token = Uuid::now_v7().to_string();
     let key = cache_key(&token).expect("cache key");
     context
@@ -30,16 +27,15 @@ async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
     (user_id, token)
 }
 
-async fn admin_session(context: &TestCtx) -> (String, String) {
-    member_session(context, "user-zero@example.com").await
+fn admin_session(context: &TestCtx) -> (String, String) {
+    member_session(context, "user-zero@example.com")
 }
 
-async fn plain_session(context: &TestCtx, email: &str) -> (String, String) {
+fn plain_session(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let token = Uuid::now_v7().to_string();
     let key = cache_key(&token).expect("cache key");
@@ -51,7 +47,7 @@ async fn plain_session(context: &TestCtx, email: &str) -> (String, String) {
     (user_id, token)
 }
 
-async fn version_fixture(context: &TestCtx, author_id: &str) -> String {
+fn version_fixture(context: &TestCtx, author_id: &str) -> String {
     let article_id = Uuid::now_v7().to_string();
     let version_id = Uuid::now_v7().to_string();
     create_article(
@@ -70,7 +66,6 @@ async fn version_fixture(context: &TestCtx, author_id: &str) -> String {
             },
         },
     )
-    .await
     .expect("create article");
     version_id
 }
@@ -78,8 +73,8 @@ async fn version_fixture(context: &TestCtx, author_id: &str) -> String {
 #[tokio::test]
 async fn create_comment_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let version_id = version_fixture(&context, &user_id);
 
     let (status, body) = context
         .post(
@@ -96,8 +91,8 @@ async fn create_comment_over_http() {
 #[tokio::test]
 async fn create_reply_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let version_id = version_fixture(&context, &user_id);
 
     let (_, created) = context
         .post(
@@ -122,8 +117,8 @@ async fn create_reply_over_http() {
 #[tokio::test]
 async fn read_comments_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let version_id = version_fixture(&context, &user_id);
     context
         .post(
             &format!("/versions/{version_id}/comments"),
@@ -148,8 +143,8 @@ async fn read_comments_over_http() {
 #[tokio::test]
 async fn read_comments_rejects_a_page_beyond_max_search_pages() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let version_id = version_fixture(&context, &user_id);
 
     let (status, body) = context
         .get(
@@ -167,10 +162,10 @@ async fn read_comments_rejects_a_page_beyond_max_search_pages() {
 #[tokio::test]
 async fn read_comments_requires_a_read_grant() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = member_session(&context, "alice@example.com").await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, _) = member_session(&context, "alice@example.com");
+    let version_id = version_fixture(&context, &user_id);
 
-    let (_, outsider) = plain_session(&context, "bob@example.com").await;
+    let (_, outsider) = plain_session(&context, "bob@example.com");
     let (status, body) = context
         .get(&format!("/versions/{version_id}/comments"), Some(&outsider))
         .await;
@@ -180,8 +175,8 @@ async fn read_comments_requires_a_read_grant() {
 #[tokio::test]
 async fn read_comment_requires_a_read_grant() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let version_id = version_fixture(&context, &user_id);
     let (status, create_body) = context
         .post(
             &format!("/versions/{version_id}/comments"),
@@ -194,7 +189,7 @@ async fn read_comment_requires_a_read_grant() {
         .as_str()
         .expect("comment id");
 
-    let (_, outsider) = plain_session(&context, "bob@example.com").await;
+    let (_, outsider) = plain_session(&context, "bob@example.com");
     let (status, body) = context
         .get(&format!("/comments/{comment_id}"), Some(&outsider))
         .await;
@@ -204,8 +199,8 @@ async fn read_comment_requires_a_read_grant() {
 #[tokio::test]
 async fn read_comment_children_requires_a_read_grant() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let version_id = version_fixture(&context, &user_id);
     let (status, create_body) = context
         .post(
             &format!("/versions/{version_id}/comments"),
@@ -218,7 +213,7 @@ async fn read_comment_children_requires_a_read_grant() {
         .as_str()
         .expect("comment id");
 
-    let (_, outsider) = plain_session(&context, "bob@example.com").await;
+    let (_, outsider) = plain_session(&context, "bob@example.com");
     let (status, body) = context
         .get(&format!("/comments/{comment_id}/replies"), Some(&outsider))
         .await;
@@ -228,8 +223,8 @@ async fn read_comment_children_requires_a_read_grant() {
 #[tokio::test]
 async fn read_comment_children_returns_the_replies_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let version_id = version_fixture(&context, &user_id);
     let (status, create_body) = context
         .post(
             &format!("/versions/{version_id}/comments"),
@@ -263,8 +258,8 @@ async fn read_comment_children_returns_the_replies_over_http() {
 #[tokio::test]
 async fn read_comment_children_rejects_a_page_beyond_max_search_pages() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let version_id = version_fixture(&context, &user_id);
     let (_, create_body) = context
         .post(
             &format!("/versions/{version_id}/comments"),
@@ -290,9 +285,9 @@ async fn read_comment_children_rejects_a_page_beyond_max_search_pages() {
 #[tokio::test]
 async fn update_comment_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let (_, stranger_token) = member_session(&context, "bob@example.com").await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let (_, stranger_token) = member_session(&context, "bob@example.com");
+    let version_id = version_fixture(&context, &user_id);
     let (_, created) = context
         .post(
             &format!("/versions/{version_id}/comments"),
@@ -325,8 +320,8 @@ async fn update_comment_over_http() {
 #[tokio::test]
 async fn delete_comment_transfer_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let version_id = version_fixture(&context, &user_id);
     let (_, created) = context
         .post(
             &format!("/versions/{version_id}/comments"),
@@ -349,8 +344,8 @@ async fn delete_comment_transfer_over_http() {
 #[tokio::test]
 async fn delete_comment_soft_hides_the_comment_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let version_id = version_fixture(&context, &user_id);
     let (_, created) = context
         .post(
             &format!("/versions/{version_id}/comments"),
@@ -376,9 +371,9 @@ async fn delete_comment_soft_hides_the_comment_over_http() {
 #[tokio::test]
 async fn undelete_soft_comment_revives_the_comment_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let (_, admin_token) = admin_session(&context).await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let (_, admin_token) = admin_session(&context);
+    let version_id = version_fixture(&context, &user_id);
     let (_, created) = context
         .post(
             &format!("/versions/{version_id}/comments"),
@@ -412,8 +407,8 @@ async fn undelete_soft_comment_revives_the_comment_over_http() {
 #[tokio::test]
 async fn undelete_soft_comment_is_forbidden_for_a_member_owner() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let version_id = version_fixture(&context, &user_id);
     let (_, created) = context
         .post(
             &format!("/versions/{version_id}/comments"),
@@ -442,8 +437,8 @@ async fn undelete_soft_comment_is_forbidden_for_a_member_owner() {
 #[tokio::test]
 async fn delete_comment_requires_a_mode_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let version_id = version_fixture(&context, &user_id);
     let (_, created) = context
         .post(
             &format!("/versions/{version_id}/comments"),
@@ -462,8 +457,8 @@ async fn delete_comment_requires_a_mode_over_http() {
 #[tokio::test]
 async fn create_comment_requires_a_session_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = member_session(&context, "alice@example.com").await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, _) = member_session(&context, "alice@example.com");
+    let version_id = version_fixture(&context, &user_id);
 
     let (status, body) = context
         .post(
@@ -478,7 +473,7 @@ async fn create_comment_requires_a_session_over_http() {
 #[tokio::test]
 async fn create_comment_reports_a_missing_version() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
 
     let (status, body) = context
         .post(
@@ -497,7 +492,7 @@ async fn create_comment_reports_a_missing_version() {
 #[tokio::test]
 async fn create_reply_reports_a_missing_parent() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
 
     let (status, body) = context
         .post(
@@ -516,8 +511,8 @@ async fn create_reply_reports_a_missing_parent() {
 #[tokio::test]
 async fn create_reply_reports_a_thread_too_deep() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let version_id = version_fixture(&context, &user_id);
 
     let (_, created) = context
         .post(
@@ -563,7 +558,7 @@ async fn create_reply_reports_a_thread_too_deep() {
 #[tokio::test]
 async fn update_comment_reports_a_missing_comment() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
 
     let (status, body) = context
         .patch(
@@ -579,9 +574,9 @@ async fn update_comment_reports_a_missing_comment() {
 #[tokio::test]
 async fn delete_comment_hard_removes_the_comment() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let (_, admin_token) = admin_session(&context).await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let (_, admin_token) = admin_session(&context);
+    let version_id = version_fixture(&context, &user_id);
     let (_, created) = context
         .post(
             &format!("/versions/{version_id}/comments"),
@@ -604,8 +599,8 @@ async fn delete_comment_hard_removes_the_comment() {
 #[tokio::test]
 async fn delete_comment_hard_is_forbidden_for_a_member_owner() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let version_id = version_fixture(&context, &user_id);
     let (_, created) = context
         .post(
             &format!("/versions/{version_id}/comments"),
@@ -625,9 +620,9 @@ async fn delete_comment_hard_is_forbidden_for_a_member_owner() {
 #[tokio::test]
 async fn delete_comment_is_forbidden_for_a_non_owner() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
-    let (_, stranger_token) = member_session(&context, "bob@example.com").await;
-    let version_id = version_fixture(&context, &user_id).await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
+    let (_, stranger_token) = member_session(&context, "bob@example.com");
+    let version_id = version_fixture(&context, &user_id);
     let (_, created) = context
         .post(
             &format!("/versions/{version_id}/comments"),

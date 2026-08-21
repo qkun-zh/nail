@@ -35,12 +35,11 @@ fn validate_email_rejects_disallowed_or_malformed_addresses() {
     assert!(!validate_email(&"a".repeat(255), &allowed));
 }
 
-async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
+fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let token = uuid::Uuid::now_v7().to_string();
     let key = cache_key(&token).expect("cache key");
@@ -131,7 +130,7 @@ async fn change_email_requires_a_session() {
 #[tokio::test]
 async fn change_email_sends_two_emails_and_caches_the_token_hashes() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, session_token) = session_for(&context, "alice@example.com").await;
+    let (user_id, session_token) = session_for(&context, "alice@example.com");
     let request = CreateTokenRequest {
         purpose: TokenPurpose::UpdateUserEmail,
         email: None,
@@ -169,7 +168,7 @@ async fn change_email_sends_two_emails_and_caches_the_token_hashes() {
 #[tokio::test]
 async fn change_email_rejects_a_mismatched_old_email() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, session_token) = session_for(&context, "alice@example.com").await;
+    let (_, session_token) = session_for(&context, "alice@example.com");
     let request = CreateTokenRequest {
         purpose: TokenPurpose::UpdateUserEmail,
         email: None,
@@ -188,7 +187,7 @@ async fn change_email_rejects_a_mismatched_old_email() {
 #[tokio::test]
 async fn change_email_rejects_same_old_and_new_email() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, session_token) = session_for(&context, "alice@example.com").await;
+    let (_, session_token) = session_for(&context, "alice@example.com");
     let request = CreateTokenRequest {
         purpose: TokenPurpose::UpdateUserEmail,
         email: None,
@@ -207,7 +206,7 @@ async fn change_email_rejects_same_old_and_new_email() {
 #[tokio::test]
 async fn update_user_email_updates_email_and_returns_a_new_session() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _old_session) = session_for(&context, "alice@example.com").await;
+    let (user_id, _old_session) = session_for(&context, "alice@example.com");
     let old_token = uuid::Uuid::now_v7().to_string();
     let new_token = uuid::Uuid::now_v7().to_string();
     context.state.cache.email_update.insert(
@@ -229,13 +228,11 @@ async fn update_user_email_updates_email_and_returns_a_new_session() {
         },
     );
 
-    let new_session = update_user_email(&context.state, &user_id, &old_token, &new_token)
-        .await
-        .expect("update email");
+    let new_session =
+        update_user_email(&context.state, &user_id, &old_token, &new_token).expect("update email");
     assert!(!new_session.is_empty());
 
     let entry = crate::repository::user::read_user(&context.state.database, &user_id)
-        .await
         .expect("read")
         .expect("entry");
     assert_eq!(
@@ -247,7 +244,7 @@ async fn update_user_email_updates_email_and_returns_a_new_session() {
 #[tokio::test]
 async fn delete_user_token_sends_and_caches_a_confirmation_token() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, session_token) = session_for(&context, "alice@example.com").await;
+    let (user_id, session_token) = session_for(&context, "alice@example.com");
     let data = send_delete_user_email(&context.state, &user_id, "alice@example.com")
         .await
         .expect("deregister");
@@ -262,8 +259,8 @@ async fn delete_user_token_sends_and_caches_a_confirmation_token() {
 #[tokio::test]
 async fn send_update_user_email_rejects_a_taken_new_email() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = session_for(&context, "alice@example.com").await;
-    session_for(&context, "bob@example.com").await;
+    let (user_id, _) = session_for(&context, "alice@example.com");
+    session_for(&context, "bob@example.com");
     let error = send_update_user_email(
         &context.state,
         &user_id,
@@ -281,7 +278,7 @@ async fn send_update_user_email_rejects_a_taken_new_email() {
 #[tokio::test]
 async fn change_email_rejects_new_email_on_disallowed_domain() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, session_token) = session_for(&context, "alice@example.com").await;
+    let (_, session_token) = session_for(&context, "alice@example.com");
     let request = CreateTokenRequest {
         purpose: TokenPurpose::UpdateUserEmail,
         email: None,
@@ -297,7 +294,7 @@ async fn change_email_rejects_new_email_on_disallowed_domain() {
 #[tokio::test]
 async fn update_user_email_rejects_same_old_and_new_token() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = session_for(&context, "alice@example.com").await;
+    let (user_id, _) = session_for(&context, "alice@example.com");
     let same_token = uuid::Uuid::now_v7().to_string();
     let other_token = uuid::Uuid::now_v7().to_string();
     context.state.cache.email_update.insert(
@@ -316,9 +313,7 @@ async fn update_user_email_rejects_same_old_and_new_token() {
             new_email_token_hash: Hash::new(cache_key(&other_token).expect("hash")).expect("hash"),
         },
     );
-    let error = update_user_email(&context.state, &user_id, &same_token, &same_token)
-        .await
-        .unwrap_err();
+    let error = update_user_email(&context.state, &user_id, &same_token, &same_token).unwrap_err();
     assert_eq!(
         error,
         LogicError::bad_request("old token and new token must be different")
@@ -328,7 +323,7 @@ async fn update_user_email_rejects_same_old_and_new_token() {
 #[tokio::test]
 async fn update_user_email_rejects_token_mismatch() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = session_for(&context, "alice@example.com").await;
+    let (user_id, _) = session_for(&context, "alice@example.com");
     let old_token = uuid::Uuid::now_v7().to_string();
     let new_token = uuid::Uuid::now_v7().to_string();
     let wrong_token = uuid::Uuid::now_v7().to_string();
@@ -348,16 +343,14 @@ async fn update_user_email_rejects_token_mismatch() {
             new_email_token_hash: Hash::new(cache_key(&new_token).expect("hash")).expect("hash"),
         },
     );
-    let error = update_user_email(&context.state, &user_id, &old_token, &wrong_token)
-        .await
-        .unwrap_err();
+    let error = update_user_email(&context.state, &user_id, &old_token, &wrong_token).unwrap_err();
     assert_eq!(error, LogicError::bad_request("token mismatch"));
 }
 
 #[tokio::test]
 async fn send_delete_user_email_rejects_mismatched_email() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = session_for(&context, "alice@example.com").await;
+    let (user_id, _) = session_for(&context, "alice@example.com");
     let error = send_delete_user_email(&context.state, &user_id, "bob@example.com")
         .await
         .unwrap_err();

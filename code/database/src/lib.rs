@@ -16,7 +16,7 @@ mod write;
 pub use condition::{Condition, Order};
 pub use database::Database;
 pub use error::Error;
-pub use kinds::{EdgeKind, NodeKind};
+pub use kinds::{EdgeKind, ID_KEY, NodeKind};
 pub use node_id::NodeId;
 pub use row::{Row, ValueLookup};
 pub use scope::ReadScope;

@@ -11,16 +11,15 @@ fn pdf_hash(seed: u8) -> String {
     format!("{seed:x}").repeat(32)
 }
 
-async fn create_user(state: &crate::infrastructure::state::AppState, email: &str) -> String {
+fn create_user(state: &crate::infrastructure::state::AppState, email: &str) -> String {
     crate::repository::user::create_user(
         &state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user")
 }
 
-async fn create_article_fixture(
+fn create_article_fixture(
     state: &crate::infrastructure::state::AppState,
     author_id: &str,
     hash: &str,
@@ -43,7 +42,6 @@ async fn create_article_fixture(
             },
         },
     )
-    .await
     .expect("create article");
     (article_id, version_id)
 }
@@ -55,12 +53,10 @@ fn token_from_url(url: &str) -> &str {
 #[tokio::test]
 async fn mint_then_consume_round_trips_and_the_token_is_single_use() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1));
 
-    let url = mint_download_token(&state, &author_id, &article_id, &version_id)
-        .await
-        .expect("mint");
+    let url = mint_download_token(&state, &author_id, &article_id, &version_id).expect("mint");
     assert_eq!(
         url,
         format!(
@@ -73,12 +69,10 @@ async fn mint_then_consume_round_trips_and_the_token_is_single_use() {
         .join("11/11/11111111111111111111111111111111.pdf");
     let token = token_from_url(&url);
     let path = consume_download_token(&state, &author_id, &article_id, &version_id, token)
-        .await
         .expect("consume");
     assert_eq!(path, expected_path);
 
     let error = consume_download_token(&state, &author_id, &article_id, &version_id, token)
-        .await
         .expect_err("second consume");
     assert!(matches!(
         error,
@@ -89,17 +83,14 @@ async fn mint_then_consume_round_trips_and_the_token_is_single_use() {
 #[tokio::test]
 async fn consume_download_token_rejects_another_account() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let other_id = create_user(&state, "bob@example.com").await;
-    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let other_id = create_user(&state, "bob@example.com");
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1));
 
-    let url = mint_download_token(&state, &author_id, &article_id, &version_id)
-        .await
-        .expect("mint");
+    let url = mint_download_token(&state, &author_id, &article_id, &version_id).expect("mint");
     let token = token_from_url(&url);
 
     let error = consume_download_token(&state, &other_id, &article_id, &version_id, token)
-        .await
         .expect_err("other user");
     assert!(matches!(
         error,
@@ -110,8 +101,8 @@ async fn consume_download_token_rejects_another_account() {
 #[tokio::test]
 async fn consume_download_token_rejects_an_unknown_token() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1));
 
     let error = consume_download_token(
         &state,
@@ -120,7 +111,6 @@ async fn consume_download_token_rejects_an_unknown_token() {
         &version_id,
         &uuid::Uuid::now_v7().to_string(),
     )
-    .await
     .expect_err("unknown token");
     assert!(matches!(
         error,
@@ -131,17 +121,15 @@ async fn consume_download_token_rejects_an_unknown_token() {
 #[tokio::test]
 async fn resolve_version_pdf_path_rejects_a_version_of_another_article() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
-    let (other_article, _) = create_article_fixture(&state, &author_id, &pdf_hash(2)).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1));
+    let (other_article, _) = create_article_fixture(&state, &author_id, &pdf_hash(2));
 
     let error = resolve_version_pdf_path(&state, &author_id, &other_article, &version_id)
-        .await
         .expect_err("wrong article");
     assert!(matches!(error, LogicError::NotFound(_)));
 
     let path = resolve_version_pdf_path(&state, &author_id, &article_id, &version_id)
-        .await
         .expect("right article");
     assert!(path.ends_with("11/11/11111111111111111111111111111111.pdf"));
 }
@@ -149,17 +137,14 @@ async fn resolve_version_pdf_path_rejects_a_version_of_another_article() {
 #[tokio::test]
 async fn consume_download_token_rejects_a_version_mismatch() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
-    let (_, other_version) = create_article_fixture(&state, &author_id, &pdf_hash(2)).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1));
+    let (_, other_version) = create_article_fixture(&state, &author_id, &pdf_hash(2));
 
-    let url = mint_download_token(&state, &author_id, &article_id, &version_id)
-        .await
-        .expect("mint");
+    let url = mint_download_token(&state, &author_id, &article_id, &version_id).expect("mint");
     let token = token_from_url(&url);
 
     let error = consume_download_token(&state, &author_id, &article_id, &other_version, token)
-        .await
         .expect_err("version mismatch");
     assert!(matches!(
         error,

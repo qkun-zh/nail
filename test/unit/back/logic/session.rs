@@ -119,7 +119,6 @@ async fn read_user_name_returns_the_account_name() {
     let email_hash =
         nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed");
     let user_id = crate::repository::user::create_user(&context.state.database, &email_hash)
-        .await
         .expect("create user");
     let token = uuid::Uuid::now_v7().to_string();
     let key = cache_key(&token).expect("cache key");
@@ -129,8 +128,6 @@ async fn read_user_name_returns_the_account_name() {
         .session
         .insert(&key, UserId::new(user_id.clone()).expect("user id"));
 
-    let name = crate::logic::session::read_user_name(&context.state, &token)
-        .await
-        .expect("name");
+    let name = crate::logic::session::read_user_name(&context.state, &token).expect("name");
     assert_eq!(name, user_id.replace('-', ""));
 }

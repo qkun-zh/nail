@@ -18,7 +18,7 @@ impl NodeId {
 
     #[cfg(test)]
     pub(crate) fn from_raw(raw: u64) -> Self {
-        Self(raw as i64)
+        Self(raw.cast_signed())
     }
 }
 

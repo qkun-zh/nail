@@ -116,8 +116,7 @@ pub async fn send_update_user_email(
         ));
     }
 
-    let user_entry = read_user(&state.database, user_id)
-        .await?
+    let user_entry = read_user(&state.database, user_id)?
         .ok_or_else(|| LogicError::unauthorized("user not found"))?;
     let old_email_hash = nail_common::hash::hash(old_email.as_bytes())
         .map_err(|error| LogicError::internal(format!("failed to hash email: {error}")))?;
@@ -136,7 +135,7 @@ pub async fn send_update_user_email(
     let new_email_hash = nail_common::hash::hash(new_email.as_bytes())
         .map_err(|error| LogicError::internal(format!("failed to hash email: {error}")))?;
     if let Some(existing_user_id) =
-        read_user_by_email_address_hash(&state.database, &new_email_hash).await?
+        read_user_by_email_address_hash(&state.database, &new_email_hash)?
         && existing_user_id != user_id
     {
         return Err(LogicError::bad_request(
@@ -170,7 +169,7 @@ pub async fn send_update_user_email(
     Ok((old_email_id, new_email_id))
 }
 
-pub async fn update_user_email(
+pub fn update_user_email(
     state: &AppState,
     user_id: &str,
     raw_old_email_token: &str,
@@ -206,7 +205,7 @@ pub async fn update_user_email(
     let old_email_hash = entry.old_email_address_hash.as_str();
     let new_email_hash = entry.new_email_address_hash.as_str();
     if let Some(existing_user_id) =
-        read_user_by_email_address_hash(&state.database, new_email_hash).await?
+        read_user_by_email_address_hash(&state.database, new_email_hash)?
         && existing_user_id != user_id
     {
         return Err(LogicError::bad_request(
@@ -214,9 +213,8 @@ pub async fn update_user_email(
         ));
     }
 
-    write_user_email(&state.database, user_id, old_email_hash, new_email_hash)
-        .await
-        .map_err(|error| match error {
+    write_user_email(&state.database, user_id, old_email_hash, new_email_hash).map_err(
+        |error| match error {
             UserWriteError::AlreadyTaken => {
                 LogicError::bad_request("new email is already used by another account")
             }
@@ -227,7 +225,8 @@ pub async fn update_user_email(
             UserWriteError::Db(error) => {
                 LogicError::internal(format!("failed to update email: {error}"))
             }
-        })?;
+        },
+    )?;
 
     let _ = state.cache.email_update.delete_if(user_id, |current| {
         current.old_email_token_hash.as_str() == old_token_hash
@@ -250,8 +249,7 @@ pub async fn send_delete_user_email(
     raw_email: &str,
 ) -> Result<String, LogicError> {
     let email = normalize_email(raw_email);
-    let user_entry = read_user(&state.database, user_id)
-        .await?
+    let user_entry = read_user(&state.database, user_id)?
         .ok_or_else(|| LogicError::unauthorized("user not found"))?;
     let email_hash = nail_common::hash::hash(email.as_bytes())
         .map_err(|error| LogicError::internal(format!("failed to hash email: {error}")))?;

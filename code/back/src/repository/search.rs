@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::path::Path;
 
+use database::Database;
 use nail_common::search::SearchRange;
 use seekstorm::commit::Commit;
 use seekstorm::highlighter::{Highlight, highlighter};
@@ -9,14 +10,11 @@ use seekstorm::index::{
 };
 use seekstorm::search::{FacetFilter, QueryRewriting, QueryType, ResultType, Search, SearchMode};
 
-use crate::repository::graph::DbHandle;
-
 pub(crate) mod db;
 pub mod document;
 pub(crate) mod query;
 pub(crate) mod schema;
 
-use db::{all_article_ids, article_ids_of_user, enrich_comment_headers};
 use query::{effective_ranges, request_field_names};
 use schema::{FIELD_ARTICLE_ID, FIELD_COMMENT_ID, FIELD_TS, index_meta, schema_fields};
 
@@ -136,8 +134,8 @@ impl SearchIndex {
         self.index.close().await;
     }
 
-    pub async fn sync(&self, db: &DbHandle, article_id: &str) -> anyhow::Result<()> {
-        let documents = document::build_documents(db, article_id).await?;
+    pub async fn sync(&self, db: &Database, article_id: &str) -> anyhow::Result<()> {
+        let documents = document::build_documents(db, article_id)?;
         let existing = self.find_document_ids_by_article(article_id).await?;
         if !existing.is_empty() {
             self.index.delete_documents(existing).await;
@@ -149,8 +147,8 @@ impl SearchIndex {
         Ok(())
     }
 
-    pub async fn sync_user(&self, db: &DbHandle, user_id: &str) -> anyhow::Result<u64> {
-        let article_ids = article_ids_of_user(db, user_id).await?;
+    pub async fn sync_user(&self, db: &Database, user_id: &str) -> anyhow::Result<u64> {
+        let article_ids = db::article_ids_of_user(db, user_id)?;
         let mut synced = 0u64;
         for article_id in &article_ids {
             if self.sync(db, article_id).await.is_ok() {
@@ -160,7 +158,7 @@ impl SearchIndex {
         Ok(synced)
     }
 
-    pub async fn sync_all(&self, db: &DbHandle) -> anyhow::Result<u64> {
+    pub async fn sync_all(&self, db: &Database) -> anyhow::Result<u64> {
         let live = self.index.read().await.current_doc_count().await;
         if live > 0 {
             let all = self
@@ -192,11 +190,11 @@ impl SearchIndex {
             }
         }
 
-        let article_ids = all_article_ids(db).await?;
+        let article_ids = db::all_article_ids(db)?;
         let mut documents = Vec::new();
         let mut count = 0u64;
         for article_id in &article_ids {
-            let built = document::build_documents(db, article_id).await?;
+            let built = document::build_documents(db, article_id)?;
             count += built.len() as u64;
             documents.extend(built);
         }
@@ -209,7 +207,7 @@ impl SearchIndex {
 
     pub async fn read(
         &self,
-        db: &DbHandle,
+        db: &Database,
         request: SearchRequest,
     ) -> anyhow::Result<SearchOutcome> {
         let Some(query_string) = request.query else {
@@ -309,7 +307,7 @@ impl SearchIndex {
         }
 
         let mut enriched = comment_hits;
-        enrich_comment_headers(db, &mut enriched).await?;
+        db::enrich_comment_headers(db, &mut enriched)?;
 
         let mut docs = Vec::with_capacity(version_hits.len() + enriched.len());
         docs.extend(version_hits.into_iter().map(SearchDocOutcome::Version));

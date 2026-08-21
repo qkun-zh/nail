@@ -4,39 +4,34 @@ use crate::repository::article::{ArticleDraft, create_article};
 use crate::repository::role::{ROLE_MEMBER, hold_role};
 use crate::repository::version::VersionDraft;
 
-async fn member(context: &TestCtx, email: &str) -> String {
+fn member(context: &TestCtx, email: &str) -> String {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
-    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
-        .await
-        .expect("member role");
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER).expect("member role");
     user_id
 }
 
-async fn admin(context: &TestCtx) -> String {
+fn admin(context: &TestCtx) -> String {
     crate::repository::user::read_user_by_email_address_hash(
         &context.state.database,
         &nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("lookup user zero")
     .expect("seeded user zero")
 }
 
-async fn plain(context: &TestCtx, email: &str) -> String {
+fn plain(context: &TestCtx, email: &str) -> String {
     crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user")
 }
 
-async fn article_fixture(context: &TestCtx, author_id: &str, title: &str) -> (String, String) {
+fn article_fixture(context: &TestCtx, author_id: &str, title: &str) -> (String, String) {
     let article_id = uuid::Uuid::now_v7().to_string();
     let version_id = uuid::Uuid::now_v7().to_string();
     create_article(
@@ -55,7 +50,6 @@ async fn article_fixture(context: &TestCtx, author_id: &str, title: &str) -> (St
             },
         },
     )
-    .await
     .expect("create article");
     (article_id, version_id)
 }
@@ -79,8 +73,8 @@ fn validate_version_canonicalizes_valid_semver() {
 #[tokio::test]
 async fn create_version_requires_a_strictly_greater_semver() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let (article_id, _) = article_fixture(&context, &actor, "Article").await;
+    let actor = member(&context, "alice@example.com");
+    let (article_id, _) = article_fixture(&context, &actor, "Article");
 
     let error = crate::logic::version::create_version(
         &context.state,
@@ -101,8 +95,8 @@ async fn create_version_requires_a_strictly_greater_semver() {
 #[tokio::test]
 async fn create_version_writes_a_new_version() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let (article_id, _) = article_fixture(&context, &actor, "Article").await;
+    let actor = member(&context, "alice@example.com");
+    let (article_id, _) = article_fixture(&context, &actor, "Article");
 
     let version_id = crate::logic::version::create_version(
         &context.state,
@@ -116,7 +110,6 @@ async fn create_version_writes_a_new_version() {
     .expect("create version");
 
     let entry = crate::repository::version::read_version(&context.state.database, &version_id)
-        .await
         .expect("read")
         .expect("entry");
     assert_eq!(entry.version_number, "1.1.0");
@@ -126,13 +119,12 @@ async fn create_version_writes_a_new_version() {
 #[tokio::test]
 async fn read_version_cross_checks_the_parent_article() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let (article_id, version_id) = article_fixture(&context, &actor, "Article").await;
-    let (other_article, _) = article_fixture(&context, &actor, "Other").await;
+    let actor = member(&context, "alice@example.com");
+    let (article_id, version_id) = article_fixture(&context, &actor, "Article");
+    let (other_article, _) = article_fixture(&context, &actor, "Other");
 
     let data =
         crate::logic::version::read_version(&context.state, &actor, &version_id, Some(&article_id))
-            .await
             .expect("read");
     assert_eq!(data.version, "1.0.0");
 
@@ -142,7 +134,6 @@ async fn read_version_cross_checks_the_parent_article() {
         &version_id,
         Some(&other_article),
     )
-    .await
     .unwrap_err();
     assert_eq!(error, LogicError::not_found("version not found"));
 }
@@ -150,17 +141,15 @@ async fn read_version_cross_checks_the_parent_article() {
 #[tokio::test]
 async fn read_version_and_read_versions_deny_a_user_without_the_grant() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let (article_id, version_id) = article_fixture(&context, &actor, "Article").await;
-    let outsider = plain(&context, "stranger@example.com").await;
+    let actor = member(&context, "alice@example.com");
+    let (article_id, version_id) = article_fixture(&context, &actor, "Article");
+    let outsider = plain(&context, "stranger@example.com");
 
     let error = crate::logic::version::read_version(&context.state, &outsider, &version_id, None)
-        .await
         .unwrap_err();
     assert_eq!(error, LogicError::forbidden("you are denied"));
 
     let error = crate::logic::version::read_versions(&context.state, &outsider, &article_id, 1, 10)
-        .await
         .unwrap_err();
     assert_eq!(error, LogicError::forbidden("you are denied"));
 }
@@ -168,9 +157,9 @@ async fn read_version_and_read_versions_deny_a_user_without_the_grant() {
 #[tokio::test]
 async fn delete_version_hard_removes_the_version_as_admin() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let admin_id = admin(&context).await;
-    let (article_id, version_id) = article_fixture(&context, &actor, "Article").await;
+    let actor = member(&context, "alice@example.com");
+    let admin_id = admin(&context);
+    let (article_id, version_id) = article_fixture(&context, &actor, "Article");
 
     let data = crate::logic::version::delete_version(
         &context.state,
@@ -183,7 +172,6 @@ async fn delete_version_hard_removes_the_version_as_admin() {
     assert_eq!(data.version_id, version_id);
     assert!(
         crate::repository::version::read_version(&context.state.database, &version_id)
-            .await
             .expect("read")
             .is_none()
     );
@@ -193,8 +181,8 @@ async fn delete_version_hard_removes_the_version_as_admin() {
 #[tokio::test]
 async fn delete_version_hard_is_forbidden_for_a_member_owner() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let (_, version_id) = article_fixture(&context, &actor, "Article").await;
+    let actor = member(&context, "alice@example.com");
+    let (_, version_id) = article_fixture(&context, &actor, "Article");
 
     let error = crate::logic::version::delete_version(
         &context.state,
@@ -210,8 +198,8 @@ async fn delete_version_hard_is_forbidden_for_a_member_owner() {
 #[tokio::test]
 async fn delete_version_rejects_transfer_mode() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let (_, version_id) = article_fixture(&context, &actor, "Article").await;
+    let actor = member(&context, "alice@example.com");
+    let (_, version_id) = article_fixture(&context, &actor, "Article");
     let error = crate::logic::version::delete_version(
         &context.state,
         &actor,
@@ -229,9 +217,9 @@ async fn delete_version_rejects_transfer_mode() {
 #[tokio::test]
 async fn delete_version_soft_hides_the_version_as_admin() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let admin_id = admin(&context).await;
-    let (article_id, version_id) = article_fixture(&context, &actor, "Article").await;
+    let actor = member(&context, "alice@example.com");
+    let admin_id = admin(&context);
+    let (article_id, version_id) = article_fixture(&context, &actor, "Article");
 
     let data = crate::logic::version::delete_version(
         &context.state,
@@ -244,13 +232,11 @@ async fn delete_version_soft_hides_the_version_as_admin() {
     assert_eq!(data.version_id, version_id);
     assert_eq!(
         crate::logic::version::read_version(&context.state, &actor, &version_id, None)
-            .await
             .expect_err("soft-deleted version hidden from a member"),
         LogicError::not_found("version not found")
     );
     assert!(
         crate::logic::version::read_version(&context.state, &admin_id, &version_id, None)
-            .await
             .expect("admin holds Undelete::Soft")
             .version
             .as_str()
@@ -259,7 +245,6 @@ async fn delete_version_soft_hides_the_version_as_admin() {
     );
     let (versions, _) =
         crate::repository::version::versions_of(&context.state.database, &article_id, 10, 0)
-            .await
             .expect("versions");
     assert_eq!(
         versions.len(),
@@ -271,9 +256,9 @@ async fn delete_version_soft_hides_the_version_as_admin() {
 #[tokio::test]
 async fn delete_version_soft_hides_only_the_target_version() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let admin_id = admin(&context).await;
-    let (article_id, version_id) = article_fixture(&context, &actor, "Article").await;
+    let actor = member(&context, "alice@example.com");
+    let admin_id = admin(&context);
+    let (article_id, version_id) = article_fixture(&context, &actor, "Article");
     let second_id = {
         let draft = crate::repository::version::VersionDraft {
             version_id: uuid::Uuid::now_v7().to_string(),
@@ -282,7 +267,6 @@ async fn delete_version_soft_hides_only_the_target_version() {
             note: "note".to_string(),
         };
         crate::repository::version::create_version(&context.state.database, &article_id, &draft)
-            .await
             .expect("second version");
         draft.version_id
     };
@@ -298,13 +282,11 @@ async fn delete_version_soft_hides_only_the_target_version() {
 
     assert!(
         crate::repository::version::read_version(&context.state.database, &second_id)
-            .await
             .expect("read")
             .is_some(),
         "sibling version stays live"
     );
     let latest = crate::repository::article::read_article(&context.state.database, &article_id)
-        .await
         .expect("read")
         .expect("article")
         .latest_version_id;
@@ -318,8 +300,8 @@ async fn delete_version_soft_hides_only_the_target_version() {
 #[tokio::test]
 async fn delete_version_soft_is_allowed_for_the_member_owner() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let (_, version_id) = article_fixture(&context, &actor, "Article").await;
+    let actor = member(&context, "alice@example.com");
+    let (_, version_id) = article_fixture(&context, &actor, "Article");
 
     let data = crate::logic::version::delete_version(
         &context.state,
@@ -332,7 +314,6 @@ async fn delete_version_soft_is_allowed_for_the_member_owner() {
     assert_eq!(data.version_id, version_id);
     assert_eq!(
         crate::logic::version::read_version(&context.state, &actor, &version_id, None)
-            .await
             .expect_err("soft-deleted version hidden even from its owner"),
         LogicError::not_found("version not found")
     );
@@ -341,9 +322,9 @@ async fn delete_version_soft_is_allowed_for_the_member_owner() {
 #[tokio::test]
 async fn delete_version_soft_is_forbidden_for_a_stranger_member() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let stranger = member(&context, "bob@example.com").await;
-    let (_, version_id) = article_fixture(&context, &actor, "Article").await;
+    let actor = member(&context, "alice@example.com");
+    let stranger = member(&context, "bob@example.com");
+    let (_, version_id) = article_fixture(&context, &actor, "Article");
 
     let error = crate::logic::version::delete_version(
         &context.state,
@@ -356,7 +337,6 @@ async fn delete_version_soft_is_forbidden_for_a_stranger_member() {
     assert!(matches!(error, LogicError::Forbidden(_)));
     assert!(
         crate::repository::version::read_version(&context.state.database, &version_id)
-            .await
             .expect("read")
             .is_some(),
         "version untouched"
@@ -366,9 +346,9 @@ async fn delete_version_soft_is_forbidden_for_a_stranger_member() {
 #[tokio::test]
 async fn delete_version_soft_keeps_the_content_hash_held() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let admin_id = admin(&context).await;
-    let (_, version_id) = article_fixture(&context, &actor, "Article").await;
+    let actor = member(&context, "alice@example.com");
+    let admin_id = admin(&context);
+    let (_, version_id) = article_fixture(&context, &actor, "Article");
 
     crate::logic::version::delete_version(
         &context.state,
@@ -379,7 +359,7 @@ async fn delete_version_soft_keeps_the_content_hash_held() {
     .await
     .expect("soft delete");
 
-    let second_article = article_fixture(&context, &actor, "Other Article").await.0;
+    let second_article = article_fixture(&context, &actor, "Other Article").0;
     let error = crate::logic::version::create_version(
         &context.state,
         &actor,
@@ -400,9 +380,9 @@ async fn delete_version_soft_keeps_the_content_hash_held() {
 #[tokio::test]
 async fn delete_version_soft_is_rejected_for_an_already_hidden_version() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let admin_id = admin(&context).await;
-    let (_, version_id) = article_fixture(&context, &actor, "Article").await;
+    let actor = member(&context, "alice@example.com");
+    let admin_id = admin(&context);
+    let (_, version_id) = article_fixture(&context, &actor, "Article");
 
     crate::logic::version::delete_version(
         &context.state,
@@ -431,9 +411,9 @@ async fn delete_version_soft_is_rejected_for_an_already_hidden_version() {
 #[tokio::test]
 async fn undelete_soft_version_revives_the_version_as_admin() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let admin_id = admin(&context).await;
-    let (_, version_id) = article_fixture(&context, &actor, "Restorable").await;
+    let actor = member(&context, "alice@example.com");
+    let admin_id = admin(&context);
+    let (_, version_id) = article_fixture(&context, &actor, "Restorable");
 
     crate::logic::version::delete_version(
         &context.state,
@@ -451,7 +431,6 @@ async fn undelete_soft_version_revives_the_version_as_admin() {
 
     assert!(
         crate::repository::version::read_version(&context.state.database, &version_id)
-            .await
             .expect("read")
             .is_some(),
         "version visible again after undelete"
@@ -461,9 +440,9 @@ async fn undelete_soft_version_revives_the_version_as_admin() {
 #[tokio::test]
 async fn undelete_soft_version_is_forbidden_for_a_member() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let admin_id = admin(&context).await;
-    let (_, version_id) = article_fixture(&context, &actor, "Restore Denied").await;
+    let actor = member(&context, "alice@example.com");
+    let admin_id = admin(&context);
+    let (_, version_id) = article_fixture(&context, &actor, "Restore Denied");
 
     crate::logic::version::delete_version(
         &context.state,
@@ -483,8 +462,8 @@ async fn undelete_soft_version_is_forbidden_for_a_member() {
 #[tokio::test]
 async fn create_version_rejects_an_invalid_version_number() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let (article_id, _) = article_fixture(&context, &actor, "Bad Version").await;
+    let actor = member(&context, "alice@example.com");
+    let (article_id, _) = article_fixture(&context, &actor, "Bad Version");
 
     let error = crate::logic::version::create_version(
         &context.state,
@@ -502,8 +481,8 @@ async fn create_version_rejects_an_invalid_version_number() {
 #[tokio::test]
 async fn create_version_rejects_a_duplicate_content_hash() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let (article_id, _) = article_fixture(&context, &actor, "Dup Content").await;
+    let actor = member(&context, "alice@example.com");
+    let (article_id, _) = article_fixture(&context, &actor, "Dup Content");
     let pdf = unique_pdf("shared");
 
     let _ = crate::logic::version::create_version(
@@ -536,8 +515,8 @@ async fn create_version_rejects_a_duplicate_content_hash() {
 #[tokio::test]
 async fn reject_duplicate_content_hash_accepts_an_unknown_hash() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let (_, _) = article_fixture(&context, &actor, "Unknown Hash").await;
+    let actor = member(&context, "alice@example.com");
+    let (_, _) = article_fixture(&context, &actor, "Unknown Hash");
     crate::logic::version::reject_duplicate_content_hash(
         &context.state,
         &nail_common::hash::pdf(&unique_pdf("unseen")),
@@ -549,8 +528,8 @@ async fn reject_duplicate_content_hash_accepts_an_unknown_hash() {
 #[tokio::test]
 async fn reject_duplicate_content_hash_reports_the_owning_version() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let (article_id, _) = article_fixture(&context, &actor, "Owner Article").await;
+    let actor = member(&context, "alice@example.com");
+    let (article_id, _) = article_fixture(&context, &actor, "Owner Article");
     let pdf = unique_pdf("shared-hash");
     let hash = nail_common::hash::pdf(&pdf);
     crate::logic::version::create_version(
@@ -576,9 +555,9 @@ async fn reject_duplicate_content_hash_reports_the_owning_version() {
 #[tokio::test]
 async fn undelete_soft_version_rejects_a_version_that_is_not_soft_deleted() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
-    let admin_id = admin(&context).await;
-    let (_, version_id) = article_fixture(&context, &actor, "Visible Version").await;
+    let actor = member(&context, "alice@example.com");
+    let admin_id = admin(&context);
+    let (_, version_id) = article_fixture(&context, &actor, "Visible Version");
 
     let error =
         crate::logic::version::undelete_soft_version(&context.state, &admin_id, &version_id)

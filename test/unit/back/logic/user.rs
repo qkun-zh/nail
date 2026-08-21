@@ -6,12 +6,11 @@ use super::context::TestCtx;
 use crate::logic::error::LogicError;
 use crate::logic::session::cache_key;
 
-async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
+fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let token = uuid::Uuid::now_v7().to_string();
     let key = cache_key(&token).expect("cache key");
@@ -23,16 +22,15 @@ async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     (user_id, token)
 }
 
-async fn admin_session(context: &TestCtx) -> (String, String) {
-    session_for(context, "user-zero@example.com").await
+fn admin_session(context: &TestCtx) -> (String, String) {
+    session_for(context, "user-zero@example.com")
 }
 
 #[tokio::test]
 async fn read_user_self_returns_name_and_optional_email_hash() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = session_for(&context, "alice@example.com").await;
+    let (user_id, _) = session_for(&context, "alice@example.com");
     let data = crate::logic::user::read_user(&context.state, &user_id, &user_id, true, false)
-        .await
         .expect("read");
     assert_eq!(
         data.name.as_deref(),
@@ -41,7 +39,6 @@ async fn read_user_self_returns_name_and_optional_email_hash() {
     assert!(data.email_hash.is_none());
 
     let data = crate::logic::user::read_user(&context.state, &user_id, &user_id, true, true)
-        .await
         .expect("read");
     assert_eq!(
         data.email_hash.as_deref(),
@@ -56,22 +53,20 @@ async fn read_user_self_returns_name_and_optional_email_hash() {
 #[tokio::test]
 async fn read_user_other_by_member_is_forbidden() {
     let context = TestCtx::new().await.expect("test context");
-    let (actor, _) = session_for(&context, "alice@example.com").await;
-    let (target, _) = session_for(&context, "bob@example.com").await;
-    let error = crate::logic::user::read_user(&context.state, &actor, &target, true, false)
-        .await
-        .unwrap_err();
+    let (actor, _) = session_for(&context, "alice@example.com");
+    let (target, _) = session_for(&context, "bob@example.com");
+    let error =
+        crate::logic::user::read_user(&context.state, &actor, &target, true, false).unwrap_err();
     assert_eq!(error, LogicError::forbidden("you are denied"));
 }
 
 #[tokio::test]
 async fn read_user_other_by_admin_returns_profile() {
     let context = TestCtx::new().await.expect("test context");
-    let (admin, _) = admin_session(&context).await;
-    let (target, _) = session_for(&context, "alice@example.com").await;
-    let data = crate::logic::user::read_user(&context.state, &admin, &target, true, true)
-        .await
-        .expect("read");
+    let (admin, _) = admin_session(&context);
+    let (target, _) = session_for(&context, "alice@example.com");
+    let data =
+        crate::logic::user::read_user(&context.state, &admin, &target, true, true).expect("read");
     assert_eq!(data.id.as_deref(), Some(target.as_str()));
     assert_eq!(
         data.email_hash.as_deref(),
@@ -86,7 +81,7 @@ async fn read_user_other_by_admin_returns_profile() {
 #[tokio::test]
 async fn update_user_self_rename_via_name() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = session_for(&context, "alice@example.com").await;
+    let (user_id, _) = session_for(&context, "alice@example.com");
     let data = crate::logic::user::update_user(
         &context.state,
         &user_id,
@@ -108,8 +103,8 @@ async fn update_user_self_rename_via_name() {
 #[tokio::test]
 async fn update_user_admin_rename() {
     let context = TestCtx::new().await.expect("test context");
-    let (admin, _) = admin_session(&context).await;
-    let (target, _) = session_for(&context, "alice@example.com").await;
+    let (admin, _) = admin_session(&context);
+    let (target, _) = session_for(&context, "alice@example.com");
     let data = crate::logic::user::update_user(
         &context.state,
         &admin,
@@ -131,11 +126,10 @@ async fn update_user_admin_rename() {
 #[tokio::test]
 async fn update_user_admin_rename_to_a_taken_name_is_a_bad_request() {
     let context = TestCtx::new().await.expect("test context");
-    let (admin, _) = admin_session(&context).await;
-    let (target, _) = session_for(&context, "alice@example.com").await;
-    let (other, _) = session_for(&context, "bob@example.com").await;
+    let (admin, _) = admin_session(&context);
+    let (target, _) = session_for(&context, "alice@example.com");
+    let (other, _) = session_for(&context, "bob@example.com");
     crate::repository::user::update_user_name(&context.state.database, &other, "taken-name")
-        .await
         .expect("set other name");
 
     let error = crate::logic::user::update_user(
@@ -156,10 +150,9 @@ async fn update_user_admin_rename_to_a_taken_name_is_a_bad_request() {
 #[tokio::test]
 async fn update_user_rejects_a_taken_name() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = session_for(&context, "alice@example.com").await;
-    let (other, _) = session_for(&context, "bob@example.com").await;
+    let (user_id, _) = session_for(&context, "alice@example.com");
+    let (other, _) = session_for(&context, "bob@example.com");
     crate::repository::user::update_user_name(&context.state.database, &other, "alice-renamed")
-        .await
         .expect("rename other");
     let error = crate::logic::user::update_user(
         &context.state,
@@ -179,7 +172,7 @@ async fn update_user_rejects_a_taken_name() {
 #[tokio::test]
 async fn delete_user_rejects_a_missing_mode() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = session_for(&context, "alice@example.com").await;
+    let (user_id, _) = session_for(&context, "alice@example.com");
     let error = crate::logic::user::delete_user(
         &context.state,
         &user_id,
@@ -202,8 +195,8 @@ async fn delete_user_rejects_a_missing_mode() {
 #[tokio::test]
 async fn delete_user_hard_by_admin_removes_the_user() {
     let context = TestCtx::new().await.expect("test context");
-    let (admin, _) = admin_session(&context).await;
-    let (target, _) = session_for(&context, "alice@example.com").await;
+    let (admin, _) = admin_session(&context);
+    let (target, _) = session_for(&context, "alice@example.com");
     let data = crate::logic::user::delete_user(
         &context.state,
         &admin,
@@ -221,7 +214,6 @@ async fn delete_user_hard_by_admin_removes_the_user() {
     assert_eq!(view.user_id, target);
     assert!(
         crate::repository::user::read_user(&context.state.database, &target)
-            .await
             .expect("read")
             .is_none()
     );
@@ -230,7 +222,7 @@ async fn delete_user_hard_by_admin_removes_the_user() {
 #[tokio::test]
 async fn delete_user_transfer_after_email_confirmation() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = session_for(&context, "alice@example.com").await;
+    let (user_id, token) = session_for(&context, "alice@example.com");
 
     let email = "alice@example.com";
     let _ = crate::logic::email::create_token(
@@ -265,7 +257,6 @@ async fn delete_user_transfer_after_email_confirmation() {
     assert!(matches!(data, UserDeleteView::Empty(_)));
     assert!(
         crate::repository::user::read_user(&context.state.database, &user_id)
-            .await
             .expect("read")
             .is_none()
     );
@@ -274,7 +265,7 @@ async fn delete_user_transfer_after_email_confirmation() {
 #[tokio::test]
 async fn update_user_admin_rename_of_missing_user_is_not_found() {
     let context = TestCtx::new().await.expect("test context");
-    let (admin, _) = admin_session(&context).await;
+    let (admin, _) = admin_session(&context);
     let error = crate::logic::user::update_user(
         &context.state,
         &admin,
@@ -293,7 +284,7 @@ async fn update_user_admin_rename_of_missing_user_is_not_found() {
 #[tokio::test]
 async fn delete_user_soft_after_email_confirmation() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = session_for(&context, "alice@example.com").await;
+    let (user_id, token) = session_for(&context, "alice@example.com");
 
     let email = "alice@example.com";
     let _ = crate::logic::email::create_token(
@@ -327,17 +318,20 @@ async fn delete_user_soft_after_email_confirmation() {
     .expect("soft delete");
     assert!(matches!(data, UserDeleteView::Empty(_)));
     assert!(
-        crate::repository::delete::is_soft_deleted(&context.state.database, "user", &user_id)
-            .await
-            .expect("soft-deleted check")
+        crate::repository::delete::is_soft_deleted(
+            &context.state.database,
+            database::NodeKind::User,
+            &user_id
+        )
+        .expect("soft-deleted check")
     );
 }
 
 #[tokio::test]
 async fn undelete_soft_user_by_admin_revives_the_user() {
     let context = TestCtx::new().await.expect("test context");
-    let (admin, _) = admin_session(&context).await;
-    let (user_id, token) = session_for(&context, "alice@example.com").await;
+    let (admin, _) = admin_session(&context);
+    let (user_id, token) = session_for(&context, "alice@example.com");
 
     let email = "alice@example.com";
     let _ = crate::logic::email::create_token(
@@ -369,26 +363,32 @@ async fn undelete_soft_user_by_admin_revives_the_user() {
     .await
     .expect("soft delete");
     assert!(
-        crate::repository::delete::is_soft_deleted(&context.state.database, "user", &user_id)
-            .await
-            .expect("soft-deleted check")
+        crate::repository::delete::is_soft_deleted(
+            &context.state.database,
+            database::NodeKind::User,
+            &user_id
+        )
+        .expect("soft-deleted check")
     );
 
     crate::logic::user::undelete_soft_user(&context.state, &admin, &user_id)
         .await
         .expect("undelete");
     assert!(
-        !crate::repository::delete::is_soft_deleted(&context.state.database, "user", &user_id)
-            .await
-            .expect("soft-deleted check")
+        !crate::repository::delete::is_soft_deleted(
+            &context.state.database,
+            database::NodeKind::User,
+            &user_id
+        )
+        .expect("soft-deleted check")
     );
 }
 
 #[tokio::test]
 async fn undelete_soft_user_is_forbidden_for_a_member() {
     let context = TestCtx::new().await.expect("test context");
-    let (member, _) = session_for(&context, "bob@example.com").await;
-    let (user_id, token) = session_for(&context, "alice@example.com").await;
+    let (member, _) = session_for(&context, "bob@example.com");
+    let (user_id, token) = session_for(&context, "alice@example.com");
 
     let email = "alice@example.com";
     let _ = crate::logic::email::create_token(
@@ -429,8 +429,8 @@ async fn undelete_soft_user_is_forbidden_for_a_member() {
 #[tokio::test]
 async fn delete_user_transfer_rejects_a_token_for_a_different_account() {
     let context = TestCtx::new().await.expect("test context");
-    let (alice_id, alice_token) = session_for(&context, "alice@example.com").await;
-    let (bob_id, _) = session_for(&context, "bob@example.com").await;
+    let (alice_id, alice_token) = session_for(&context, "alice@example.com");
+    let (bob_id, _) = session_for(&context, "bob@example.com");
 
     let email = "alice@example.com";
     let _ = crate::logic::email::create_token(
@@ -471,7 +471,7 @@ async fn delete_user_transfer_rejects_a_token_for_a_different_account() {
 #[tokio::test]
 async fn update_user_requires_both_email_tokens() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = session_for(&context, "alice@example.com").await;
+    let (user_id, _) = session_for(&context, "alice@example.com");
     let error = crate::logic::user::update_user(
         &context.state,
         &user_id,
@@ -493,7 +493,7 @@ async fn update_user_requires_both_email_tokens() {
 #[tokio::test]
 async fn delete_user_transfer_rejects_an_expired_token_for_an_existing_account() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, _) = session_for(&context, "alice@example.com").await;
+    let (user_id, _) = session_for(&context, "alice@example.com");
     let delete_token = uuid::Uuid::now_v7().to_string();
     let error = crate::logic::user::delete_user(
         &context.state,
@@ -515,7 +515,7 @@ async fn delete_user_transfer_rejects_an_expired_token_for_an_existing_account()
 #[tokio::test]
 async fn create_user_rejects_a_soft_deleted_account() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = session_for(&context, "alice@example.com").await;
+    let (user_id, token) = session_for(&context, "alice@example.com");
 
     let email = "alice@example.com";
     let _ = crate::logic::email::create_token(
@@ -560,25 +560,26 @@ async fn create_user_rejects_a_soft_deleted_account() {
     let messages = context.emails();
     let register_token = messages[1].2.clone();
 
-    let error = crate::logic::user::create_user(&context.state, &register_token)
-        .await
-        .unwrap_err();
+    let error = crate::logic::user::create_user(&context.state, &register_token).unwrap_err();
     assert_eq!(
         error,
         LogicError::bad_request("email address is deactivated")
     );
     assert!(
-        crate::repository::delete::is_soft_deleted(&context.state.database, "user", &user_id)
-            .await
-            .expect("soft-deleted check")
+        crate::repository::delete::is_soft_deleted(
+            &context.state.database,
+            database::NodeKind::User,
+            &user_id
+        )
+        .expect("soft-deleted check")
     );
 }
 
 #[tokio::test]
 async fn read_user_hides_a_soft_deleted_account_from_members() {
     let context = TestCtx::new().await.expect("test context");
-    let (admin, _) = admin_session(&context).await;
-    let (user_id, token) = session_for(&context, "alice@example.com").await;
+    let (admin, _) = admin_session(&context);
+    let (user_id, token) = session_for(&context, "alice@example.com");
 
     let email = "alice@example.com";
     let _ = crate::logic::email::create_token(
@@ -608,12 +609,10 @@ async fn read_user_hides_a_soft_deleted_account_from_members() {
     .await
     .expect("soft delete");
 
-    let error = crate::logic::user::read_user(&context.state, &user_id, &user_id, true, false)
-        .await
-        .unwrap_err();
+    let error =
+        crate::logic::user::read_user(&context.state, &user_id, &user_id, true, false).unwrap_err();
     assert_eq!(error, LogicError::not_found("user not found"));
     let view = crate::logic::user::read_user(&context.state, &admin, &user_id, true, false)
-        .await
         .expect("admin holds User::Undelete::Soft");
     assert_eq!(view.id.as_deref(), Some(user_id.as_str()));
 }

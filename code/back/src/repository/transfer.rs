@@ -1,14 +1,8 @@
-use agdb::{DbError, QueryBuilder};
+use database::{Database, EdgeKind, Error, NodeId, NodeKind};
 
-use crate::repository::graph::{
-    DbHandle, edge_count, incoming_edges, insert_edge, outgoing_edges, read_node, read_rows,
-    resolve_node_id,
-};
+use crate::repository::access::GraphRead;
 use crate::repository::role::{ROLE_RECYCLER, users_holding_role};
-use crate::repository::schema::{
-    EDGE_USER_AUTHOR_ARTICLE, EDGE_USER_AUTHOR_COMMENT, ENTITY_TYPE_COMMENT, ENTITY_TYPE_USER,
-    IdRow,
-};
+use crate::repository::schema::IdRow;
 
 pub struct AccountTransferOutcome {
     pub transferred_article_ids: Vec<String>,
@@ -17,11 +11,11 @@ pub struct AccountTransferOutcome {
 #[derive(Debug)]
 pub enum TransferError {
     NoRecycler,
-    Db(DbError),
+    Db(Error),
 }
 
-impl From<DbError> for TransferError {
-    fn from(error: DbError) -> Self {
+impl From<Error> for TransferError {
+    fn from(error: Error) -> Self {
         Self::Db(error)
     }
 }
@@ -42,11 +36,11 @@ pub enum TransferTargetError {
     TargetMissing,
     TargetOwnerMissing,
     NoRecycler,
-    Db(DbError),
+    Db(Error),
 }
 
-impl From<DbError> for TransferTargetError {
-    fn from(error: DbError) -> Self {
+impl From<Error> for TransferTargetError {
+    fn from(error: Error) -> Self {
         Self::Db(error)
     }
 }
@@ -64,140 +58,157 @@ impl std::fmt::Display for TransferTargetError {
 
 impl std::error::Error for TransferTargetError {}
 
-pub async fn transfer_account_assets(
-    db: &DbHandle,
+pub fn transfer_account_assets(
+    db: &Database,
     author_id: &str,
 ) -> Result<AccountTransferOutcome, TransferError> {
-    let target = pick_recycler_target(db, &[author_id.to_string()])
-        .await?
-        .ok_or(TransferError::NoRecycler)?;
-    let mut guard = db.write().await;
-    guard.transaction_mut(|transaction| {
-        let recycler = resolve_node_id(transaction, ENTITY_TYPE_USER, &target)?
-            .ok_or(TransferError::NoRecycler)?;
-        let article_ids =
-            repoint_from_user(transaction, recycler, author_id, EDGE_USER_AUTHOR_ARTICLE)?;
-        repoint_from_user(transaction, recycler, author_id, EDGE_USER_AUTHOR_COMMENT)?;
-        if let Some(user_node) = resolve_node_id(transaction, ENTITY_TYPE_USER, author_id)? {
-            transaction.exec_mut(QueryBuilder::remove().ids([user_node]).query())?;
+    let target =
+        pick_recycler_target(db, &[author_id.to_string()])?.ok_or(TransferError::NoRecycler)?;
+    db.write(|scope| {
+        let Some(recycler) = scope.resolve(NodeKind::User, &target)? else {
+            return Ok(Err(TransferError::NoRecycler));
+        };
+        let article_ids = repoint_from_user(
+            scope,
+            recycler,
+            author_id,
+            EdgeKind::UserAuthorArticle,
+            NodeKind::Article,
+        )?;
+        repoint_from_user(
+            scope,
+            recycler,
+            author_id,
+            EdgeKind::UserAuthorComment,
+            NodeKind::Comment,
+        )?;
+        if let Some(user_node) = scope.resolve(NodeKind::User, author_id)? {
+            scope.remove(&[user_node])?;
         }
-        Ok(AccountTransferOutcome {
+        Ok(Ok(AccountTransferOutcome {
             transferred_article_ids: article_ids,
-        })
+        }))
     })
+    .map_err(TransferError::from)
+    .and_then(std::convert::identity)
 }
 
-pub async fn transfer_article(db: &DbHandle, article_id: &str) -> Result<(), TransferTargetError> {
+pub fn transfer_article(db: &Database, article_id: &str) -> Result<(), TransferTargetError> {
     transfer_target_ownership(
         db,
-        crate::repository::schema::ENTITY_TYPE_ARTICLE,
-        EDGE_USER_AUTHOR_ARTICLE,
+        NodeKind::Article,
+        EdgeKind::UserAuthorArticle,
         article_id,
     )
-    .await
 }
 
-pub async fn transfer_comment(db: &DbHandle, comment_id: &str) -> Result<(), TransferTargetError> {
+pub fn transfer_comment(db: &Database, comment_id: &str) -> Result<(), TransferTargetError> {
     transfer_target_ownership(
         db,
-        ENTITY_TYPE_COMMENT,
-        EDGE_USER_AUTHOR_COMMENT,
+        NodeKind::Comment,
+        EdgeKind::UserAuthorComment,
         comment_id,
     )
-    .await
 }
 
-async fn transfer_target_ownership(
-    db: &DbHandle,
-    target_kind: &str,
-    edge_type: &str,
+fn transfer_target_ownership(
+    db: &Database,
+    target_kind: NodeKind,
+    edge_kind: EdgeKind,
     target_id: &str,
 ) -> Result<(), TransferTargetError> {
     let mut exclude: Vec<String> = Vec::new();
-    {
-        let guard = db.read().await;
-        let Some(target_node) = resolve_node_id(&guard, target_kind, target_id)? else {
-            return Err(TransferTargetError::TargetMissing);
+    let found = db.read(|scope| {
+        let Some(target_node) = scope.resolve(target_kind, target_id)? else {
+            return Ok(false);
         };
-        let owner_edges = incoming_edges(&guard, target_node, edge_type)?;
-        if let Some(edge) = owner_edges.first()
-            && let Some(row) = read_node::<IdRow>(&guard, edge.from)?
+        if let Some(owner) = scope.incoming(target_node, edge_kind)?.first()
+            && let Some(row) = scope.read_node::<IdRow>(*owner)?
         {
             exclude.push(row.id);
         }
+        Ok(true)
+    })?;
+    if !found {
+        return Err(TransferTargetError::TargetMissing);
     }
-    let target = pick_recycler_target(db, &exclude)
-        .await?
-        .ok_or(TransferTargetError::NoRecycler)?;
-    let mut guard = db.write().await;
-    guard.transaction_mut(|transaction| {
-        let recycler = resolve_node_id(transaction, ENTITY_TYPE_USER, &target)?
-            .ok_or(TransferTargetError::NoRecycler)?;
-        let target_node = resolve_node_id(transaction, target_kind, target_id)?
-            .ok_or(TransferTargetError::TargetMissing)?;
-        let edges = incoming_edges(transaction, target_node, edge_type)?;
-        let edge = edges
-            .first()
-            .ok_or(TransferTargetError::TargetOwnerMissing)?;
-        let edge_ids = [edge.id];
-        transaction.exec_mut(QueryBuilder::remove().ids(edge_ids).query())?;
-        insert_edge(transaction, edge_type, recycler.into(), target_node.into())?;
-        Ok(())
+    let target = pick_recycler_target(db, &exclude)?.ok_or(TransferTargetError::NoRecycler)?;
+    db.write(|scope| {
+        let Some(recycler) = scope.resolve(NodeKind::User, &target)? else {
+            return Ok(Err(TransferTargetError::NoRecycler));
+        };
+        let Some(target_node) = scope.resolve(target_kind, target_id)? else {
+            return Ok(Err(TransferTargetError::TargetMissing));
+        };
+        let Some(old_owner) = scope.incoming(target_node, edge_kind)?.first().copied() else {
+            return Ok(Err(TransferTargetError::TargetOwnerMissing));
+        };
+        scope.remove_edge(old_owner, edge_kind, target_node)?;
+        scope.insert_edge(
+            NodeKind::User,
+            recycler,
+            edge_kind,
+            target_kind,
+            target_node,
+        )?;
+        Ok(Ok(()))
     })
+    .map_err(TransferTargetError::from)
+    .and_then(std::convert::identity)
 }
 
 fn repoint_from_user(
-    transaction: &mut agdb::DbAnyTransactionMut,
-    recycler: agdb::DbId,
+    scope: &mut database::WriteScope<'_, '_>,
+    recycler: NodeId,
     author_id: &str,
-    edge_type: &str,
-) -> Result<Vec<String>, DbError> {
-    let Some(author) = resolve_node_id(transaction, ENTITY_TYPE_USER, author_id)? else {
+    edge_kind: EdgeKind,
+    target_kind: NodeKind,
+) -> Result<Vec<String>, Error> {
+    let Some(author) = scope.resolve(NodeKind::User, author_id)? else {
         return Ok(Vec::new());
     };
-    let edges = outgoing_edges(transaction, author, edge_type)?;
-    let targets: Vec<agdb::DbId> = edges.iter().map(|element| element.to).collect();
-    if edges.is_empty() {
+    let targets = scope.outgoing(author, edge_kind)?;
+    if targets.is_empty() {
         return Ok(Vec::new());
     }
-    let target_ids = read_rows::<IdRow>(transaction, &targets)?
+    let target_ids = scope
+        .scope_read_nodes::<IdRow>(&targets)?
         .into_iter()
         .map(|row| row.id)
         .collect();
-    let edge_ids: Vec<agdb::DbId> = edges.iter().map(|element| element.id).collect();
-    transaction.exec_mut(QueryBuilder::remove().ids(edge_ids).query())?;
     for target in &targets {
-        insert_edge(transaction, edge_type, recycler.into(), (*target).into())?;
+        scope.remove_edge(author, edge_kind, *target)?;
+    }
+    for target in &targets {
+        scope.insert_edge(NodeKind::User, recycler, edge_kind, target_kind, *target)?;
     }
     Ok(target_ids)
 }
 
-async fn pick_recycler_target(
-    db: &DbHandle,
-    exclude: &[String],
-) -> Result<Option<String>, DbError> {
-    let recyclers = users_holding_role(db, ROLE_RECYCLER).await?;
-    let guard = db.read().await;
-    let mut best: Option<(String, u64)> = None;
-    for user_id in recyclers {
-        if exclude.contains(&user_id) {
-            continue;
-        }
-        let Some(node) = resolve_node_id(&guard, ENTITY_TYPE_USER, &user_id)? else {
-            continue;
-        };
-        let articles = edge_count(&guard, node, EDGE_USER_AUTHOR_ARTICLE)?;
-        let comments = edge_count(&guard, node, EDGE_USER_AUTHOR_COMMENT)?;
-        let total = articles + comments;
-        let better = match &best {
-            None => true,
-            Some((best_id, best_total)) => {
-                total < *best_total || (total == *best_total && user_id > *best_id)
+fn pick_recycler_target(db: &Database, exclude: &[String]) -> Result<Option<String>, Error> {
+    let recyclers = users_holding_role(db, ROLE_RECYCLER)?;
+    db.read(|scope| {
+        let mut best: Option<(String, u64)> = None;
+        for user_id in recyclers {
+            if exclude.contains(&user_id) {
+                continue;
             }
-        };
-        if better {
-            best = Some((user_id.clone(), total));
+            let Some(node) = scope.resolve(NodeKind::User, &user_id)? else {
+                continue;
+            };
+            let articles = scope.count_outgoing(node, EdgeKind::UserAuthorArticle)?;
+            let comments = scope.count_outgoing(node, EdgeKind::UserAuthorComment)?;
+            let total = articles + comments;
+            let better = match &best {
+                None => true,
+                Some((best_id, best_total)) => {
+                    total < *best_total || (total == *best_total && user_id > *best_id)
+                }
+            };
+            if better {
+                best = Some((user_id.clone(), total));
+            }
         }
-    }
-    Ok(best.map(|(user_id, _)| user_id))
+        Ok(best.map(|(user_id, _)| user_id))
+    })
 }

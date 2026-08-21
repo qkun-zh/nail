@@ -11,25 +11,22 @@ fn pdf_hash(seed: u8) -> String {
     format!("{seed:x}").repeat(32)
 }
 
-async fn admin(context: &TestCtx) -> String {
+fn admin(context: &TestCtx) -> String {
     crate::repository::user::read_user_by_email_address_hash(
         &context.state.database,
         &nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("lookup user zero")
     .expect("seeded user zero")
 }
 
-async fn member(context: &TestCtx, email: &str) -> String {
+fn member(context: &TestCtx, email: &str) -> String {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     crate::repository::role::hold_role(&context.state.database, &user_id, ROLE_MEMBER)
-        .await
         .expect("member role");
     user_id
 }
@@ -42,14 +39,14 @@ fn probe_1_read_tags_must_not_panic_on_a_far_page() {
         let runtime = tokio::runtime::Runtime::new().expect("runtime");
         runtime.block_on(async {
             let context = TestCtx::new().await.expect("ctx");
-            let actor = admin(&context).await;
-            context.seed_tags(&["alpha"]).await;
-            let _ = crate::logic::tag::read_tags(&context.state, &actor, 2, 200).await;
+            let actor = admin(&context);
+            context.seed_tags(&["alpha"]);
+            let _ = crate::logic::tag::read_tags(&context.state, &actor, 2, 200);
         });
     }));
     assert!(
         outcome.is_ok(),
-        "read_tags(page=2) must return an empty page, not panic (out-of-range slice)"
+        "read_tags(page=2).await must return an empty page, not panic (out-of-range slice)"
     );
 }
 
@@ -81,8 +78,8 @@ async fn probe_2_delete_session_with_noncanonical_token_must_remove_the_session(
 #[tokio::test]
 async fn probe_3_a_comment_heavy_article_exceeds_the_32_doc_per_article_assumption() {
     let context = TestCtx::new().await.expect("ctx");
-    let actor = member(&context, "alice@example.com").await;
-    context.seed_tags(&["rust"]).await;
+    let actor = member(&context, "alice@example.com");
+    context.seed_tags(&["rust"]);
 
     let (_article_id, version_id) = crate::logic::article::create_article(
         &context.state,
@@ -132,7 +129,6 @@ async fn probe_4_token_must_survive_a_version_mismatch_attempt() {
         &state.database,
         &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let make_article = |seed: u8| {
         let article_id = uuid::Uuid::now_v7().to_string();
@@ -154,16 +150,11 @@ async fn probe_4_token_must_survive_a_version_mismatch_attempt() {
     };
     let (article_id, version_id, draft) = make_article(1);
     let (other_article, other_version, other_draft) = make_article(2);
-    crate::repository::article::create_article(&state.database, &draft)
-        .await
-        .expect("article a");
-    crate::repository::article::create_article(&state.database, &other_draft)
-        .await
-        .expect("article b");
+    crate::repository::article::create_article(&state.database, &draft).expect("article a");
+    crate::repository::article::create_article(&state.database, &other_draft).expect("article b");
 
     let url =
         crate::logic::download::mint_download_token(&state, &author_id, &article_id, &version_id)
-            .await
             .expect("mint");
     let token = url.split("?token=").nth(1).expect("token");
 
@@ -174,7 +165,6 @@ async fn probe_4_token_must_survive_a_version_mismatch_attempt() {
         &other_version,
         token,
     )
-    .await
     .expect_err("mis-targeted consume");
     assert!(matches!(error, LogicError::NotFound(_)));
 
@@ -185,6 +175,5 @@ async fn probe_4_token_must_survive_a_version_mismatch_attempt() {
         &version_id,
         token,
     )
-    .await
     .expect("token must survive a version-mismatch attempt for its intended target");
 }

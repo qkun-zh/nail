@@ -2954,11 +2954,11 @@ dependencies = [
 name = "nail_back"
 version = "0.1.0"
 dependencies = [
- "agdb",
  "anyhow",
  "axum",
  "cache",
  "cedar-policy",
+ "database",
  "email_address",
  "emailer",
  "nail_common",

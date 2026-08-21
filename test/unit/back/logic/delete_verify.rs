@@ -6,29 +6,23 @@ use crate::repository::role::{ROLE_ADMIN, ROLE_MEMBER, hold_role};
 
 const TEST_TAGS: &[&str] = &["rust", "backend", "frontend", "devops"];
 
-async fn member(context: &TestCtx, email: &str) -> String {
+fn member(context: &TestCtx, email: &str) -> String {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
-    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
-        .await
-        .expect("member role");
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER).expect("member role");
     user_id
 }
 
-async fn admin(context: &TestCtx, email: &str) -> String {
+fn admin(context: &TestCtx, email: &str) -> String {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
-    hold_role(&context.state.database, &user_id, ROLE_ADMIN)
-        .await
-        .expect("admin role");
+    hold_role(&context.state.database, &user_id, ROLE_ADMIN).expect("admin role");
     user_id
 }
 
@@ -39,7 +33,7 @@ async fn create_seeded_article(
     version: &str,
     note: &str,
 ) -> (String, String) {
-    context.seed_tags(TEST_TAGS).await;
+    context.seed_tags(TEST_TAGS);
     crate::logic::article::create_article(
         &context.state,
         actor_id,
@@ -59,8 +53,8 @@ async fn create_seeded_article(
 #[tokio::test]
 async fn hard_delete_article_removes_versions_comments_and_search_docs() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
-    let admin_id = admin(&context, "admin@example.com").await;
+    let owner = member(&context, "alice@example.com");
+    let admin_id = admin(&context, "admin@example.com");
     let (article_id, version_id) =
         create_seeded_article(&context, &owner, "Hard Full Teardown", "1.0.0", "note").await;
     crate::logic::comment::create_comment(&context.state, &owner, &version_id, "comment marker")
@@ -78,14 +72,12 @@ async fn hard_delete_article_removes_versions_comments_and_search_docs() {
 
     assert!(
         crate::repository::article::read_article(&context.state.database, &article_id)
-            .await
             .expect("read")
             .is_none(),
         "article node must be gone"
     );
     assert!(
         crate::repository::version::versions_of(&context.state.database, &article_id, 10, 0)
-            .await
             .expect("versions")
             .0
             .is_empty(),
@@ -111,8 +103,8 @@ async fn hard_delete_article_removes_versions_comments_and_search_docs() {
 #[tokio::test]
 async fn hard_delete_version_removes_only_that_version_and_its_comments() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
-    let admin_id = admin(&context, "admin@example.com").await;
+    let owner = member(&context, "alice@example.com");
+    let admin_id = admin(&context, "admin@example.com");
     let (article_id, first_version_id) =
         create_seeded_article(&context, &owner, "Surgical Version", "1.0.0", "first").await;
     let second_version_id = crate::logic::version::create_version(
@@ -143,21 +135,18 @@ async fn hard_delete_version_removes_only_that_version_and_its_comments() {
 
     assert!(
         crate::repository::version::read_version(&context.state.database, &first_version_id)
-            .await
             .expect("read v1")
             .is_none(),
         "v1 must be gone"
     );
     assert!(
         crate::repository::version::read_version(&context.state.database, &second_version_id)
-            .await
             .expect("read v2")
             .is_some(),
         "v2 must survive"
     );
     let comments =
         crate::logic::comment::read_comments(&context.state, &owner, &second_version_id, 1, 10)
-            .await
             .expect("comments of v2");
     assert_eq!(comments.items.len(), 1, "v2 comment must survive");
 }
@@ -165,8 +154,8 @@ async fn hard_delete_version_removes_only_that_version_and_its_comments() {
 #[tokio::test]
 async fn hard_delete_comment_removes_the_subtree_but_keeps_siblings() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
-    let admin_id = admin(&context, "admin@example.com").await;
+    let owner = member(&context, "alice@example.com");
+    let admin_id = admin(&context, "admin@example.com");
     let (_, version_id) =
         create_seeded_article(&context, &owner, "Comment Tree", "1.0.0", "note").await;
     let doomed =
@@ -195,7 +184,6 @@ async fn hard_delete_comment_removes_the_subtree_but_keeps_siblings() {
     .expect("hard delete doomed top");
 
     let comments = crate::logic::comment::read_comments(&context.state, &owner, &version_id, 1, 10)
-        .await
         .expect("comments");
     assert_eq!(
         comments.items.len(),
@@ -208,8 +196,8 @@ async fn hard_delete_comment_removes_the_subtree_but_keeps_siblings() {
 #[tokio::test]
 async fn soft_deleted_article_can_still_be_hard_deleted() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
-    let admin_id = admin(&context, "admin@example.com").await;
+    let owner = member(&context, "alice@example.com");
+    let admin_id = admin(&context, "admin@example.com");
     let (article_id, _) =
         create_seeded_article(&context, &owner, "Soft Then Hard", "1.0.0", "note").await;
 
@@ -232,7 +220,6 @@ async fn soft_deleted_article_can_still_be_hard_deleted() {
 
     assert!(
         crate::repository::article::read_article(&context.state.database, &article_id)
-            .await
             .expect("read")
             .is_none(),
         "soft flag must not block a later hard delete"
@@ -242,8 +229,8 @@ async fn soft_deleted_article_can_still_be_hard_deleted() {
 #[tokio::test]
 async fn soft_deleted_version_can_still_be_hard_deleted() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
-    let admin_id = admin(&context, "admin@example.com").await;
+    let owner = member(&context, "alice@example.com");
+    let admin_id = admin(&context, "admin@example.com");
     let (_, version_id) =
         create_seeded_article(&context, &owner, "Version Soft Then Hard", "1.0.0", "note").await;
 
@@ -266,7 +253,6 @@ async fn soft_deleted_version_can_still_be_hard_deleted() {
 
     assert!(
         crate::repository::version::read_version(&context.state.database, &version_id)
-            .await
             .expect("read")
             .is_none(),
         "soft flag must not block a later hard delete"
@@ -276,7 +262,7 @@ async fn soft_deleted_version_can_still_be_hard_deleted() {
 #[tokio::test]
 async fn transfer_article_repoints_ownership_but_keeps_content_readable() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
+    let owner = member(&context, "alice@example.com");
     let (article_id, version_id) =
         create_seeded_article(&context, &owner, "Transferred Title", "1.0.0", "note").await;
 
@@ -291,13 +277,11 @@ async fn transfer_article_repoints_ownership_but_keeps_content_readable() {
 
     assert!(
         crate::repository::article::read_article(&context.state.database, &article_id)
-            .await
             .expect("read")
             .is_some(),
         "transferred article must remain readable"
     );
     let versions = crate::logic::version::read_versions(&context.state, &owner, &article_id, 1, 10)
-        .await
         .expect("versions");
     assert_eq!(versions.items.len(), 1, "version must survive transfer");
     let _ = version_id;
@@ -306,7 +290,7 @@ async fn transfer_article_repoints_ownership_but_keeps_content_readable() {
 #[tokio::test]
 async fn transfer_article_updates_the_search_author_name() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
+    let owner = member(&context, "alice@example.com");
     let (article_id, _) =
         create_seeded_article(&context, &owner, "Transferred Search", "1.0.0", "note").await;
 
@@ -323,11 +307,9 @@ async fn transfer_article_updates_the_search_author_name() {
         &context.state.database,
         &nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("lookup recycler")
     .expect("seeded recycler");
     let recycler_name = crate::repository::user::read_user(&context.state.database, &recycler_id)
-        .await
         .expect("read recycler")
         .expect("recycler exists")
         .name;
@@ -356,7 +338,7 @@ async fn transfer_article_updates_the_search_author_name() {
 #[tokio::test]
 async fn transfer_comment_repoints_ownership_but_keeps_it_visible() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
+    let owner = member(&context, "alice@example.com");
     let (_, version_id) =
         create_seeded_article(&context, &owner, "Transfer Comment", "1.0.0", "note").await;
     let comment_id =
@@ -374,7 +356,6 @@ async fn transfer_comment_repoints_ownership_but_keeps_it_visible() {
     .expect("transfer comment");
 
     let comments = crate::logic::comment::read_comments(&context.state, &owner, &version_id, 1, 10)
-        .await
         .expect("comments");
     assert_eq!(
         comments.items.len(),
@@ -386,8 +367,8 @@ async fn transfer_comment_repoints_ownership_but_keeps_it_visible() {
 #[tokio::test]
 async fn delete_missing_article_is_not_found() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
-    let admin_id = admin(&context, "admin@example.com").await;
+    let owner = member(&context, "alice@example.com");
+    let admin_id = admin(&context, "admin@example.com");
 
     let error = crate::logic::article::delete_article(
         &context.state,
@@ -404,7 +385,7 @@ async fn delete_missing_article_is_not_found() {
 #[tokio::test]
 async fn delete_missing_version_is_not_found() {
     let context = TestCtx::new().await.expect("test context");
-    let admin_id = admin(&context, "admin@example.com").await;
+    let admin_id = admin(&context, "admin@example.com");
 
     let error = crate::logic::version::delete_version(
         &context.state,
@@ -420,7 +401,7 @@ async fn delete_missing_version_is_not_found() {
 #[tokio::test]
 async fn delete_missing_comment_is_not_found() {
     let context = TestCtx::new().await.expect("test context");
-    let admin_id = admin(&context, "admin@example.com").await;
+    let admin_id = admin(&context, "admin@example.com");
 
     let error = crate::logic::comment::delete_comment(
         &context.state,
@@ -436,7 +417,7 @@ async fn delete_missing_comment_is_not_found() {
 #[tokio::test]
 async fn delete_article_without_a_mode_is_a_bad_request() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
+    let owner = member(&context, "alice@example.com");
     let (article_id, _) = create_seeded_article(&context, &owner, "No Mode", "1.0.0", "note").await;
 
     let error = crate::logic::article::delete_article(&context.state, &owner, &article_id, None)
@@ -448,7 +429,7 @@ async fn delete_article_without_a_mode_is_a_bad_request() {
 #[tokio::test]
 async fn delete_version_without_a_mode_is_a_bad_request() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
+    let owner = member(&context, "alice@example.com");
     let (_, version_id) =
         create_seeded_article(&context, &owner, "No Mode V", "1.0.0", "note").await;
 
@@ -461,7 +442,7 @@ async fn delete_version_without_a_mode_is_a_bad_request() {
 #[tokio::test]
 async fn delete_comment_without_a_mode_is_a_bad_request() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
+    let owner = member(&context, "alice@example.com");
     let (_, version_id) =
         create_seeded_article(&context, &owner, "No Mode C", "1.0.0", "note").await;
     let comment_id =
@@ -478,7 +459,7 @@ async fn delete_comment_without_a_mode_is_a_bad_request() {
 #[tokio::test]
 async fn member_owner_cannot_hard_delete_own_article() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
+    let owner = member(&context, "alice@example.com");
     let (article_id, _) =
         create_seeded_article(&context, &owner, "Owner No Hard", "1.0.0", "note").await;
 
@@ -493,7 +474,6 @@ async fn member_owner_cannot_hard_delete_own_article() {
     assert!(matches!(error, LogicError::Forbidden(_)));
     assert!(
         crate::repository::article::read_article(&context.state.database, &article_id)
-            .await
             .expect("read")
             .is_some(),
         "article must survive the forbidden attempt"
@@ -503,7 +483,7 @@ async fn member_owner_cannot_hard_delete_own_article() {
 #[tokio::test]
 async fn member_owner_cannot_hard_delete_own_version() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
+    let owner = member(&context, "alice@example.com");
     let (_, version_id) =
         create_seeded_article(&context, &owner, "Owner No Hard V", "1.0.0", "note").await;
 
@@ -521,7 +501,7 @@ async fn member_owner_cannot_hard_delete_own_version() {
 #[tokio::test]
 async fn member_owner_cannot_hard_delete_own_comment() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
+    let owner = member(&context, "alice@example.com");
     let (_, version_id) =
         create_seeded_article(&context, &owner, "Owner No Hard C", "1.0.0", "note").await;
     let comment_id =
@@ -543,8 +523,8 @@ async fn member_owner_cannot_hard_delete_own_comment() {
 #[tokio::test]
 async fn admin_can_hard_delete_a_members_article() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
-    let admin_id = admin(&context, "admin@example.com").await;
+    let owner = member(&context, "alice@example.com");
+    let admin_id = admin(&context, "admin@example.com");
     let (article_id, _) =
         create_seeded_article(&context, &owner, "Admin Hard", "1.0.0", "note").await;
 
@@ -558,7 +538,6 @@ async fn admin_can_hard_delete_a_members_article() {
     .expect("admin hard delete");
     assert!(
         crate::repository::article::read_article(&context.state.database, &article_id)
-            .await
             .expect("read")
             .is_none()
     );
@@ -567,8 +546,8 @@ async fn admin_can_hard_delete_a_members_article() {
 #[tokio::test]
 async fn stranger_member_cannot_soft_delete_others_article() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
-    let stranger = member(&context, "mallory@example.com").await;
+    let owner = member(&context, "alice@example.com");
+    let stranger = member(&context, "mallory@example.com");
     let (article_id, _) =
         create_seeded_article(&context, &owner, "Stranger Soft", "1.0.0", "note").await;
 
@@ -586,8 +565,8 @@ async fn stranger_member_cannot_soft_delete_others_article() {
 #[tokio::test]
 async fn hard_delete_user_removes_content_and_search_docs() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
-    let admin_id = admin(&context, "admin@example.com").await;
+    let owner = member(&context, "alice@example.com");
+    let admin_id = admin(&context, "admin@example.com");
     let (article_id, _) =
         create_seeded_article(&context, &owner, "User Hard", "1.0.0", "note").await;
 
@@ -605,14 +584,12 @@ async fn hard_delete_user_removes_content_and_search_docs() {
 
     assert!(
         crate::repository::user::read_user(&context.state.database, &owner)
-            .await
             .expect("read user")
             .is_none(),
         "user node must be gone"
     );
     assert!(
         crate::repository::article::read_article(&context.state.database, &article_id)
-            .await
             .expect("read article")
             .is_none(),
         "user hard delete must cascade to content"
@@ -637,7 +614,7 @@ async fn hard_delete_user_removes_content_and_search_docs() {
 #[tokio::test]
 async fn soft_delete_keeps_article_identity_while_hiding_it() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
+    let owner = member(&context, "alice@example.com");
     let (article_id, _) =
         create_seeded_article(&context, &owner, "Soft Identity", "1.0.0", "note").await;
 
@@ -652,24 +629,20 @@ async fn soft_delete_keeps_article_identity_while_hiding_it() {
 
     assert_eq!(
         crate::logic::article::read_article(&context.state, &owner, &article_id)
-            .await
             .expect_err("soft-deleted article hidden"),
         LogicError::not_found("article not found")
     );
     assert!(
         crate::repository::article::read_article(&context.state.database, &article_id)
-            .await
             .expect("read")
             .is_some(),
         "the node must survive for identity/occupancy"
     );
-    let guard = context.state.database.read().await;
-    let holder = crate::repository::graph::resolve_node_id(
-        &guard,
-        crate::repository::schema::ENTITY_TYPE_ARTICLE,
-        &article_id,
-    )
-    .expect("resolve node");
+    let holder = context
+        .state
+        .database
+        .read(|scope| scope.resolve(database::NodeKind::Article, &article_id))
+        .expect("resolve node");
     assert!(
         holder.is_some(),
         "the node must survive for identity/occupancy"
@@ -679,7 +652,7 @@ async fn soft_delete_keeps_article_identity_while_hiding_it() {
 #[tokio::test]
 async fn soft_deleted_article_hides_its_whole_subtree_and_rejects_writes() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
+    let owner = member(&context, "alice@example.com");
     let (article_id, version_id) =
         create_seeded_article(&context, &owner, "Subtree Hidden", "1.0.0", "note").await;
     let top = crate::logic::comment::create_comment(
@@ -705,22 +678,18 @@ async fn soft_deleted_article_hides_its_whole_subtree_and_rejects_writes() {
 
     let (versions, _) =
         crate::repository::version::versions_of(&context.state.database, &article_id, 10, 0)
-            .await
             .expect("versions");
     assert!(versions.is_empty(), "version list hidden");
     assert_eq!(
         crate::logic::version::read_version(&context.state, &owner, &version_id, None)
-            .await
             .expect_err("version detail hidden"),
         LogicError::not_found("version not found")
     );
     let comments = crate::logic::comment::read_comments(&context.state, &owner, &version_id, 1, 50)
-        .await
         .expect_err("comment page hidden");
     assert_eq!(comments, LogicError::not_found("version not found"));
     assert_eq!(
         crate::logic::comment::read_comment(&context.state, &owner, &top)
-            .await
             .expect_err("comment hidden"),
         LogicError::not_found("comment not found")
     );
@@ -771,7 +740,7 @@ async fn soft_deleted_article_hides_its_whole_subtree_and_rejects_writes() {
 #[tokio::test]
 async fn soft_deleted_article_restore_brings_back_the_whole_subtree() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
+    let owner = member(&context, "alice@example.com");
     let (article_id, version_id) =
         create_seeded_article(&context, &owner, "Restore All", "1.0.0", "note").await;
     crate::logic::comment::create_comment(&context.state, &owner, &version_id, "restored comment")
@@ -788,23 +757,19 @@ async fn soft_deleted_article_restore_brings_back_the_whole_subtree() {
     .expect("soft delete");
 
     crate::repository::delete::clear_soft_deleted_flag(&context.state.database, &article_id)
-        .await
         .expect("restore");
 
     assert!(
         crate::repository::article::read_article(&context.state.database, &article_id)
-            .await
             .expect("read article")
             .is_some(),
         "article readable again"
     );
     let (versions, _) =
         crate::repository::version::versions_of(&context.state.database, &article_id, 10, 0)
-            .await
             .expect("versions");
     assert_eq!(versions.len(), 1, "version list back");
     let comments = crate::logic::comment::read_comments(&context.state, &owner, &version_id, 1, 50)
-        .await
         .expect("comments back");
     assert_eq!(comments.items.len(), 1, "comments back");
 }
@@ -812,7 +777,7 @@ async fn soft_deleted_article_restore_brings_back_the_whole_subtree() {
 #[tokio::test]
 async fn soft_deleted_version_hides_its_comments_and_download() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
+    let owner = member(&context, "alice@example.com");
     let (article_id, version_id) =
         create_seeded_article(&context, &owner, "Version Hide", "1.0.0", "note").await;
     let top = crate::logic::comment::create_comment(
@@ -835,36 +800,30 @@ async fn soft_deleted_version_hides_its_comments_and_download() {
 
     assert_eq!(
         crate::logic::version::read_version(&context.state, &owner, &version_id, None)
-            .await
             .expect_err("version detail hidden"),
         LogicError::not_found("version not found")
     );
     assert_eq!(
         crate::logic::comment::read_comments(&context.state, &owner, &version_id, 1, 50)
-            .await
             .expect_err("comments hidden"),
         LogicError::not_found("version not found")
     );
     assert_eq!(
         crate::logic::comment::read_comment(&context.state, &owner, &top)
-            .await
             .expect_err("comment hidden"),
         LogicError::not_found("comment not found")
     );
 
     crate::repository::delete::clear_soft_deleted_flag(&context.state.database, &version_id)
-        .await
         .expect("restore version");
     assert!(
         crate::repository::version::read_version(&context.state.database, &version_id)
-            .await
             .expect("read version")
             .is_some(),
         "version back after restore"
     );
     assert_eq!(
         crate::logic::comment::read_comment(&context.state, &owner, &top)
-            .await
             .expect("comment back")
             .id,
         top,
@@ -872,7 +831,6 @@ async fn soft_deleted_version_hides_its_comments_and_download() {
     );
     let (versions, _) =
         crate::repository::version::versions_of(&context.state.database, &article_id, 10, 0)
-            .await
             .expect("versions");
     assert_eq!(versions.len(), 1, "version listed again");
 }
@@ -880,7 +838,7 @@ async fn soft_deleted_version_hides_its_comments_and_download() {
 #[tokio::test]
 async fn soft_deleted_comment_hides_its_reply_subtree() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = member(&context, "alice@example.com").await;
+    let owner = member(&context, "alice@example.com");
     let (_, version_id) =
         create_seeded_article(&context, &owner, "Reply Hide", "1.0.0", "note").await;
     let top =
@@ -904,24 +862,19 @@ async fn soft_deleted_comment_hides_its_reply_subtree() {
     .expect("soft delete top");
 
     assert_eq!(
-        crate::logic::comment::read_comment(&context.state, &owner, &top)
-            .await
-            .expect_err("top hidden"),
+        crate::logic::comment::read_comment(&context.state, &owner, &top).expect_err("top hidden"),
         LogicError::not_found("comment not found")
     );
     assert_eq!(
         crate::logic::comment::read_comment(&context.state, &owner, &reply)
-            .await
             .expect_err("reply hidden with parent"),
         LogicError::not_found("comment not found")
     );
 
     crate::repository::delete::clear_soft_deleted_flag(&context.state.database, &top)
-        .await
         .expect("restore top");
     assert_eq!(
         crate::logic::comment::read_comment(&context.state, &owner, &top)
-            .await
             .expect("top back")
             .id,
         top,
@@ -929,7 +882,6 @@ async fn soft_deleted_comment_hides_its_reply_subtree() {
     );
     assert_eq!(
         crate::logic::comment::read_comment(&context.state, &owner, &reply)
-            .await
             .expect("reply back")
             .id,
         reply,

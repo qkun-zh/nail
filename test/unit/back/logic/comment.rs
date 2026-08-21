@@ -12,34 +12,30 @@ use crate::repository::article::{ArticleDraft, create_article};
 use crate::repository::role::{ROLE_MEMBER, hold_role};
 use crate::repository::version::VersionDraft;
 
-async fn create_user(state: &AppState, email: &str) -> String {
+fn create_user(state: &AppState, email: &str) -> String {
     crate::repository::user::create_user(
         &state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user")
 }
 
-async fn member(state: &AppState, email: &str) -> String {
-    let user_id = create_user(state, email).await;
-    hold_role(&state.database, &user_id, ROLE_MEMBER)
-        .await
-        .expect("member");
+fn member(state: &AppState, email: &str) -> String {
+    let user_id = create_user(state, email);
+    hold_role(&state.database, &user_id, ROLE_MEMBER).expect("member");
     user_id
 }
 
-async fn admin(state: &AppState) -> String {
+fn admin(state: &AppState) -> String {
     crate::repository::user::read_user_by_email_address_hash(
         &state.database,
         &nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("lookup user zero")
     .expect("seeded user zero")
 }
 
-async fn create_version_fixture(state: &AppState, author_id: &str) -> String {
+fn create_version_fixture(state: &AppState, author_id: &str) -> String {
     let article_id = uuid::Uuid::now_v7().to_string();
     let version_id = uuid::Uuid::now_v7().to_string();
     create_article(
@@ -58,7 +54,6 @@ async fn create_version_fixture(state: &AppState, author_id: &str) -> String {
             },
         },
     )
-    .await
     .expect("create article");
     version_id
 }
@@ -66,8 +61,8 @@ async fn create_version_fixture(state: &AppState, author_id: &str) -> String {
 #[tokio::test]
 async fn create_comment_requires_the_comment_create_permission() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
 
     let error = create_comment(&state, &author_id, &version_id, "hello")
         .await
@@ -78,8 +73,8 @@ async fn create_comment_requires_the_comment_create_permission() {
 #[tokio::test]
 async fn create_comment_creates_a_top_level_comment_for_a_member() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = member(&state, "alice@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
 
     let comment_id = create_comment(&state, &author_id, &version_id, "hello")
         .await
@@ -90,7 +85,7 @@ async fn create_comment_creates_a_top_level_comment_for_a_member() {
 #[tokio::test]
 async fn create_comment_reports_a_missing_version() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
+    let author_id = member(&state, "alice@example.com");
 
     let error = create_comment(&state, &author_id, "missing-version", "hello")
         .await
@@ -101,8 +96,8 @@ async fn create_comment_reports_a_missing_version() {
 #[tokio::test]
 async fn create_reply_reports_a_thread_too_deep() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = member(&state, "alice@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
 
     let mut parent = create_comment(&state, &author_id, &version_id, "top")
         .await
@@ -122,8 +117,8 @@ async fn create_reply_reports_a_thread_too_deep() {
 #[tokio::test]
 async fn read_comments_returns_top_level_comments_with_child_counts() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = member(&state, "alice@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
     let top = create_comment(&state, &author_id, &version_id, "top")
         .await
         .expect("top");
@@ -131,9 +126,7 @@ async fn read_comments_returns_top_level_comments_with_child_counts() {
         .await
         .expect("reply");
 
-    let data = read_comments(&state, &author_id, &version_id, 1, 8)
-        .await
-        .expect("read");
+    let data = read_comments(&state, &author_id, &version_id, 1, 8).expect("read");
     let comments = &data.items;
     assert_eq!(comments.len(), 1);
     assert_eq!(comments[0].id, top);
@@ -141,18 +134,14 @@ async fn read_comments_returns_top_level_comments_with_child_counts() {
     assert_eq!(comments[0].child_count, 1);
     assert!(!comments[0].user_name.is_empty());
 
-    let children = read_comment_children(&state, &author_id, &top, 1, 8)
-        .await
-        .expect("children");
+    let children = read_comment_children(&state, &author_id, &top, 1, 8).expect("children");
     let child_list = &children.items;
     assert_eq!(child_list.len(), 1);
     assert_eq!(child_list[0].id, reply);
     assert_eq!(child_list[0].parent_id.as_deref(), Some(top.as_str()));
     assert_eq!(child_list[0].child_count, 0);
 
-    let single = read_comment(&state, &author_id, &top)
-        .await
-        .expect("single");
+    let single = read_comment(&state, &author_id, &top).expect("single");
     assert_eq!(single.id, top);
     assert_eq!(single.content, "top");
     assert_eq!(single.child_count, 1);
@@ -161,45 +150,39 @@ async fn read_comments_returns_top_level_comments_with_child_counts() {
 #[tokio::test]
 async fn read_comments_reports_a_missing_version() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
+    let author_id = member(&state, "alice@example.com");
 
-    let error = read_comments(&state, &author_id, "missing-version", 1, 8)
-        .await
-        .expect_err("missing version");
+    let error =
+        read_comments(&state, &author_id, "missing-version", 1, 8).expect_err("missing version");
     assert!(matches!(error, LogicError::NotFound(_)));
 }
 
 #[tokio::test]
 async fn read_comment_functions_deny_a_user_without_the_grant() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = member(&state, "alice@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
     let comment_id = create_comment(&state, &author_id, &version_id, "top")
         .await
         .expect("top");
-    let outsider = create_user(&state, "stranger@example.com").await;
+    let outsider = create_user(&state, "stranger@example.com");
 
-    let error = read_comments(&state, &outsider, &version_id, 1, 8)
-        .await
-        .expect_err("denied read");
+    let error = read_comments(&state, &outsider, &version_id, 1, 8).expect_err("denied read");
     assert_eq!(error, LogicError::forbidden("you are denied"));
 
-    let error = read_comment(&state, &outsider, &comment_id)
-        .await
-        .expect_err("denied read");
+    let error = read_comment(&state, &outsider, &comment_id).expect_err("denied read");
     assert_eq!(error, LogicError::forbidden("you are denied"));
 
-    let error = read_comment_children(&state, &outsider, &comment_id, 1, 8)
-        .await
-        .expect_err("denied read");
+    let error =
+        read_comment_children(&state, &outsider, &comment_id, 1, 8).expect_err("denied read");
     assert_eq!(error, LogicError::forbidden("you are denied"));
 }
 
 #[tokio::test]
 async fn read_comments_rejects_a_non_uuidv7_comment_id() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = member(&state, "alice@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
     crate::repository::comment::create_top_level_comment(
         &state.database,
         "not-a-uuid",
@@ -207,21 +190,19 @@ async fn read_comments_rejects_a_non_uuidv7_comment_id() {
         &version_id,
         "corrupt",
     )
-    .await
     .expect("corrupt comment");
 
-    let error = read_comments(&state, &author_id, &version_id, 1, 8)
-        .await
-        .expect_err("invalid comment id");
+    let error =
+        read_comments(&state, &author_id, &version_id, 1, 8).expect_err("invalid comment id");
     assert!(matches!(error, LogicError::BadRequest(message) if message == "invalid comment id"));
 }
 
 #[tokio::test]
 async fn update_comment_allows_the_comment_author_and_rejects_a_non_owner() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
-    let stranger = member(&state, "bob@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = member(&state, "alice@example.com");
+    let stranger = member(&state, "bob@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
     let comment_id = create_comment(&state, &author_id, &version_id, "hello")
         .await
         .expect("create");
@@ -244,8 +225,8 @@ async fn update_comment_allows_the_comment_author_and_rejects_a_non_owner() {
 #[tokio::test]
 async fn delete_comment_requires_a_mode() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = member(&state, "alice@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
     let comment_id = create_comment(&state, &author_id, &version_id, "hello")
         .await
         .expect("create");
@@ -259,8 +240,8 @@ async fn delete_comment_requires_a_mode() {
 #[tokio::test]
 async fn delete_comment_transfer_repoints_the_owner() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = member(&state, "alice@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
     let comment_id = create_comment(&state, &author_id, &version_id, "hello")
         .await
         .expect("create");
@@ -269,9 +250,8 @@ async fn delete_comment_transfer_repoints_the_owner() {
         .await
         .expect("transfer");
 
-    let owner = crate::repository::comment::owner_of_comment(&state.database, &comment_id)
-        .await
-        .expect("owner");
+    let owner =
+        crate::repository::comment::owner_of_comment(&state.database, &comment_id).expect("owner");
     assert!(owner.is_some());
     assert_ne!(owner.as_deref(), Some(author_id.as_str()));
 }
@@ -279,9 +259,9 @@ async fn delete_comment_transfer_repoints_the_owner() {
 #[tokio::test]
 async fn delete_comment_hard_removes_the_subtree_as_admin() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
-    let admin_id = admin(&state).await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = member(&state, "alice@example.com");
+    let admin_id = admin(&state);
+    let version_id = create_version_fixture(&state, &author_id);
     let top = create_comment(&state, &author_id, &version_id, "top")
         .await
         .expect("top");
@@ -294,15 +274,11 @@ async fn delete_comment_hard_removes_the_subtree_as_admin() {
         .expect("hard delete");
 
     assert_eq!(
-        crate::repository::comment::owner_of_comment(&state.database, &top)
-            .await
-            .expect("owner"),
+        crate::repository::comment::owner_of_comment(&state.database, &top).expect("owner"),
         None
     );
     assert_eq!(
-        crate::repository::comment::owner_of_comment(&state.database, &reply)
-            .await
-            .expect("owner"),
+        crate::repository::comment::owner_of_comment(&state.database, &reply).expect("owner"),
         None
     );
 }
@@ -310,8 +286,8 @@ async fn delete_comment_hard_removes_the_subtree_as_admin() {
 #[tokio::test]
 async fn delete_comment_hard_is_forbidden_for_a_member_owner() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = member(&state, "alice@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
     let comment_id = create_comment(&state, &author_id, &version_id, "hello")
         .await
         .expect("create");
@@ -325,8 +301,8 @@ async fn delete_comment_hard_is_forbidden_for_a_member_owner() {
 #[tokio::test]
 async fn delete_comment_soft_hides_the_comment_and_its_replies() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = member(&state, "alice@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
     let top = create_comment(&state, &author_id, &version_id, "top")
         .await
         .expect("top");
@@ -338,21 +314,15 @@ async fn delete_comment_soft_hides_the_comment_and_its_replies() {
         .await
         .expect("soft delete");
 
-    let error = read_comment(&state, &author_id, &top)
-        .await
-        .expect_err("soft-deleted comment");
+    let error = read_comment(&state, &author_id, &top).expect_err("soft-deleted comment");
     assert_eq!(error, LogicError::not_found("comment not found"));
-    let page = read_comments(&state, &author_id, &version_id, 1, 50)
-        .await
-        .expect("comments");
+    let page = read_comments(&state, &author_id, &version_id, 1, 50).expect("comments");
     assert!(
         page.items.is_empty(),
         "soft-deleted top-level comment hidden from the version page"
     );
     assert!(
-        read_comment(&state, &author_id, &reply)
-            .await
-            .expect_err("reply hidden with its parent")
+        read_comment(&state, &author_id, &reply).expect_err("reply hidden with its parent")
             == LogicError::not_found("comment not found"),
         "reply is hidden once its parent is soft-deleted"
     );
@@ -361,9 +331,9 @@ async fn delete_comment_soft_hides_the_comment_and_its_replies() {
 #[tokio::test]
 async fn delete_comment_soft_is_forbidden_for_a_stranger() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
-    let stranger = member(&state, "bob@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = member(&state, "alice@example.com");
+    let stranger = member(&state, "bob@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
     let comment_id = create_comment(&state, &author_id, &version_id, "hello")
         .await
         .expect("create");
@@ -374,7 +344,6 @@ async fn delete_comment_soft_is_forbidden_for_a_stranger() {
     assert!(matches!(error, LogicError::Forbidden(_)));
     assert!(
         read_comment(&state, &author_id, &comment_id)
-            .await
             .expect("read")
             .id
             == comment_id,
@@ -385,8 +354,8 @@ async fn delete_comment_soft_is_forbidden_for_a_stranger() {
 #[tokio::test]
 async fn delete_comment_soft_keeps_the_owner_edge() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = member(&state, "alice@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
     let comment_id = create_comment(&state, &author_id, &version_id, "hello")
         .await
         .expect("create");
@@ -397,7 +366,6 @@ async fn delete_comment_soft_keeps_the_owner_edge() {
 
     assert_eq!(
         crate::repository::comment::owner_of_comment(&state.database, &comment_id)
-            .await
             .expect("owner")
             .as_deref(),
         Some(author_id.as_str()),
@@ -408,8 +376,8 @@ async fn delete_comment_soft_keeps_the_owner_edge() {
 #[tokio::test]
 async fn delete_comment_soft_is_rejected_for_an_already_hidden_comment() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = member(&state, "alice@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
     let comment_id = create_comment(&state, &author_id, &version_id, "hello")
         .await
         .expect("create");
@@ -431,15 +399,14 @@ async fn delete_comment_soft_is_rejected_for_an_already_hidden_comment() {
 #[tokio::test]
 async fn undelete_soft_comment_revives_the_comment_as_admin() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
+    let author_id = member(&state, "alice@example.com");
     let admin_id = crate::repository::user::read_user_by_email_address_hash(
         &state.database,
         &nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("lookup user zero")
     .expect("seeded user zero");
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let version_id = create_version_fixture(&state, &author_id);
     let comment_id = create_comment(&state, &author_id, &version_id, "hello")
         .await
         .expect("create");
@@ -453,16 +420,14 @@ async fn undelete_soft_comment_revives_the_comment_as_admin() {
         .expect("undelete");
     assert_eq!(data.comment_id, comment_id);
 
-    read_comment(&state, &author_id, &comment_id)
-        .await
-        .expect("comment visible again");
+    read_comment(&state, &author_id, &comment_id).expect("comment visible again");
 }
 
 #[tokio::test]
 async fn undelete_soft_comment_is_forbidden_for_a_member() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = member(&state, "alice@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
     let comment_id = create_comment(&state, &author_id, &version_id, "hello")
         .await
         .expect("create");
@@ -480,7 +445,7 @@ async fn undelete_soft_comment_is_forbidden_for_a_member() {
 #[tokio::test]
 async fn update_comment_reports_a_missing_comment() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
+    let author_id = member(&state, "alice@example.com");
     let error = update_comment(&state, &author_id, "missing-comment", "edited")
         .await
         .expect_err("missing comment");
@@ -490,15 +455,14 @@ async fn update_comment_reports_a_missing_comment() {
 #[tokio::test]
 async fn undelete_soft_comment_rejects_a_comment_that_is_not_soft_deleted() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = member(&state, "alice@example.com").await;
+    let author_id = member(&state, "alice@example.com");
     let admin_id = crate::repository::user::read_user_by_email_address_hash(
         &state.database,
         &nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("lookup user zero")
     .expect("seeded user zero");
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let version_id = create_version_fixture(&state, &author_id);
     let comment_id = create_comment(&state, &author_id, &version_id, "hello")
         .await
         .expect("create");

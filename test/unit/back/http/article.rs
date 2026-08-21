@@ -10,12 +10,11 @@ use crate::repository::role::{ROLE_MEMBER, hold_role};
 
 const TEST_TAGS: &[&str] = &["rust", "backend", "frontend", "devops", "web", "go", "cpp"];
 
-async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
+fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let token = Uuid::now_v7().to_string();
     let key = cache_key(&token).expect("cache key");
@@ -27,18 +26,16 @@ async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     (user_id, token)
 }
 
-async fn member_session(context: &TestCtx, email: &str) -> (String, String) {
-    context.seed_tags(TEST_TAGS).await;
-    let (user_id, token) = session_for(context, email).await;
-    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
-        .await
-        .expect("member role");
+fn member_session(context: &TestCtx, email: &str) -> (String, String) {
+    context.seed_tags(TEST_TAGS);
+    let (user_id, token) = session_for(context, email);
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER).expect("member role");
     (user_id, token)
 }
 
-async fn admin_session(context: &TestCtx) -> (String, String) {
-    context.seed_tags(TEST_TAGS).await;
-    session_for(context, "user-zero@example.com").await
+fn admin_session(context: &TestCtx) -> (String, String) {
+    context.seed_tags(TEST_TAGS);
+    session_for(context, "user-zero@example.com")
 }
 fn article_fields<'a>(title: &'a str, tags: &'a str) -> Vec<(&'a str, &'a str)> {
     vec![
@@ -72,7 +69,7 @@ async fn create_article_fixture(context: &TestCtx, token: &str, title: &str) -> 
 #[tokio::test]
 async fn create_article_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
 
     let fields: Vec<(&str, &str)> = vec![
         ("title", "My Article"),
@@ -114,7 +111,7 @@ async fn create_article_requires_a_session() {
 #[tokio::test]
 async fn create_article_requires_permission() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = session_for(&context, "alice@example.com").await;
+    let (_, token) = session_for(&context, "alice@example.com");
 
     let fields: Vec<(&str, &str)> = vec![
         ("title", "Title"),
@@ -140,7 +137,7 @@ async fn create_article_requires_permission() {
 #[tokio::test]
 async fn create_article_rejects_an_empty_title() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
 
     let fields: Vec<(&str, &str)> = vec![
         ("title", ""),
@@ -166,7 +163,7 @@ async fn create_article_rejects_an_empty_title() {
 #[tokio::test]
 async fn read_article_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = member_session(&context, "alice@example.com").await;
+    let (user_id, token) = member_session(&context, "alice@example.com");
 
     let fields: Vec<(&str, &str)> = vec![
         ("title", "Titled"),
@@ -207,7 +204,7 @@ async fn article_requires_a_session_for_reads() {
 #[tokio::test]
 async fn read_article_requires_a_read_grant() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let (status, create_body) = context
         .post_multipart(
             "/articles",
@@ -223,7 +220,7 @@ async fn read_article_requires_a_read_grant() {
         .as_str()
         .expect("article id");
 
-    let (_, outsider) = session_for(&context, "bob@example.com").await;
+    let (_, outsider) = session_for(&context, "bob@example.com");
     let (status, body) = context
         .get(&format!("/articles/{article_id}"), Some(&outsider))
         .await;
@@ -233,7 +230,7 @@ async fn read_article_requires_a_read_grant() {
 #[tokio::test]
 async fn search_articles_requires_a_read_grant() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, outsider) = session_for(&context, "bob@example.com").await;
+    let (_, outsider) = session_for(&context, "bob@example.com");
     let (status, body) = context.get("/articles?q=rust", Some(&outsider)).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
 }
@@ -241,7 +238,7 @@ async fn search_articles_requires_a_read_grant() {
 #[tokio::test]
 async fn delete_article_rejects_missing_mode() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
 
     let fields: Vec<(&str, &str)> = vec![
         ("title", "Deletable"),
@@ -273,7 +270,7 @@ async fn delete_article_rejects_missing_mode() {
 #[tokio::test]
 async fn create_article_rejects_a_duplicate_title() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let fields = article_fields("Twin Title", "rust");
     let (status, _) = context
         .post_multipart(
@@ -303,7 +300,7 @@ async fn create_article_rejects_a_duplicate_title() {
 #[tokio::test]
 async fn create_article_rejects_a_duplicate_content_hash() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let first = article_fields("First Upload", "rust");
     let (status, _) = context
         .post_multipart(
@@ -338,7 +335,7 @@ async fn create_article_rejects_a_duplicate_content_hash() {
 #[tokio::test]
 async fn create_article_accepts_plain_tags_and_rejects_invalid_characters() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let fields = article_fields("Plain Tags", "rust web");
     let (status, body) = context
         .post_multipart(
@@ -373,7 +370,7 @@ async fn create_article_accepts_plain_tags_and_rejects_invalid_characters() {
 #[tokio::test]
 async fn create_article_rejects_an_empty_note() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let mut fields = article_fields("No Note", "rust");
     fields[4] = ("note", "");
     let (status, body) = context
@@ -393,7 +390,7 @@ async fn create_article_rejects_an_empty_note() {
 #[tokio::test]
 async fn create_article_rejects_a_non_pdf_file() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let fields = article_fields("Not A Pdf", "rust");
     let (status, body) = context
         .post_multipart(
@@ -417,7 +414,7 @@ async fn create_article_reports_an_oversized_text_field() {
     let mut config = test_config();
     config.server.max_text_field_bytes = 8;
     let context = TestCtx::with_config(config).await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let fields = article_fields("My Article", "rust");
     let (status, body) = context
         .post_multipart(
@@ -439,7 +436,7 @@ async fn create_article_reports_body_too_large() {
     config.server.max_pdf_size_bytes = 4096;
     config.server.max_text_field_bytes = 64;
     let context = TestCtx::with_config(config).await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let fields = article_fields("Huge Body", "rust");
     let (status, body) = context
         .post_multipart(
@@ -461,7 +458,7 @@ async fn create_article_reports_body_too_large() {
 #[tokio::test]
 async fn read_article_reports_a_missing_article() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let (status, body) = context
         .get(&format!("/articles/{}", Uuid::now_v7()), Some(&token))
         .await;
@@ -472,8 +469,8 @@ async fn read_article_reports_a_missing_article() {
 #[tokio::test]
 async fn update_article_is_forbidden_for_a_non_owner() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, owner_token) = member_session(&context, "alice@example.com").await;
-    let (_, stranger_token) = member_session(&context, "bob@example.com").await;
+    let (_, owner_token) = member_session(&context, "alice@example.com");
+    let (_, stranger_token) = member_session(&context, "bob@example.com");
     let article_id = create_article_fixture(&context, &owner_token, "Private Article").await;
     let (status, body) = context
         .patch(
@@ -489,7 +486,7 @@ async fn update_article_is_forbidden_for_a_non_owner() {
 #[tokio::test]
 async fn update_article_reconciles_tags() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let article_id = create_article_fixture(&context, &token, "Retagged").await;
     let (status, body) = context
         .patch(
@@ -519,7 +516,7 @@ async fn update_article_reconciles_tags() {
 #[tokio::test]
 async fn delete_article_transfer_repoints_to_the_recycler() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let article_id = create_article_fixture(&context, &token, "Transferable").await;
     let (status, body) = context
         .delete(
@@ -533,7 +530,6 @@ async fn delete_article_transfer_repoints_to_the_recycler() {
         &context.state.database,
         &nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user zero")
     .expect("recycler");
     let (status, body) = context
@@ -549,7 +545,7 @@ async fn delete_article_transfer_repoints_to_the_recycler() {
 #[tokio::test]
 async fn delete_article_soft_hides_the_article_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let article_id = create_article_fixture(&context, &token, "Soft Deletable").await;
     let (status, body) = context
         .delete(&format!("/articles/{article_id}?mode=soft"), Some(&token))
@@ -563,7 +559,6 @@ async fn delete_article_soft_hides_the_article_over_http() {
     assert_eq!(body["message"].as_str(), Some("article not found"));
     let (versions, _) =
         crate::repository::version::versions_of(&context.state.database, &article_id, 10, 0)
-            .await
             .expect("versions");
     assert_eq!(
         versions.len(),
@@ -575,8 +570,8 @@ async fn delete_article_soft_hides_the_article_over_http() {
 #[tokio::test]
 async fn delete_article_hard_cascades() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, owner_token) = member_session(&context, "alice@example.com").await;
-    let (_, admin_token) = admin_session(&context).await;
+    let (_, owner_token) = member_session(&context, "alice@example.com");
+    let (_, admin_token) = admin_session(&context);
     let article_id = create_article_fixture(&context, &owner_token, "Hard Deletable").await;
     let (status, body) = context
         .delete(
@@ -596,7 +591,7 @@ async fn delete_article_hard_cascades() {
 #[tokio::test]
 async fn delete_article_hard_is_forbidden_for_a_member_owner() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, owner_token) = member_session(&context, "alice@example.com").await;
+    let (_, owner_token) = member_session(&context, "alice@example.com");
     let article_id = create_article_fixture(&context, &owner_token, "Hard Denied").await;
     let (status, body) = context
         .delete(
@@ -611,8 +606,8 @@ async fn delete_article_hard_is_forbidden_for_a_member_owner() {
 #[tokio::test]
 async fn undelete_soft_article_revives_the_article_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, owner_token) = member_session(&context, "alice@example.com").await;
-    let (_, admin_token) = admin_session(&context).await;
+    let (_, owner_token) = member_session(&context, "alice@example.com");
+    let (_, admin_token) = admin_session(&context);
     let article_id = create_article_fixture(&context, &owner_token, "Restorable").await;
     let (status, body) = context
         .delete(
@@ -641,7 +636,7 @@ async fn undelete_soft_article_revives_the_article_over_http() {
 #[tokio::test]
 async fn undelete_soft_article_is_forbidden_for_a_member_owner() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, owner_token) = member_session(&context, "alice@example.com").await;
+    let (_, owner_token) = member_session(&context, "alice@example.com");
     let article_id = create_article_fixture(&context, &owner_token, "Restore Denied").await;
     let (status, _) = context
         .delete(
@@ -665,7 +660,7 @@ async fn undelete_soft_article_is_forbidden_for_a_member_owner() {
 #[tokio::test]
 async fn search_rejects_an_unknown_range() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let (status, body) = context
         .get("/articles?ranges=title,frobnicate", Some(&token))
         .await;
@@ -679,7 +674,7 @@ async fn search_rejects_an_unknown_range() {
 #[tokio::test]
 async fn search_rejects_from_greater_than_to() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let (status, body) = context
         .get("/articles?from=2024-01-16&to=2024-01-15", Some(&token))
         .await;
@@ -693,7 +688,7 @@ async fn search_rejects_from_greater_than_to() {
 #[tokio::test]
 async fn search_rejects_an_overlong_query() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let long_query = "a".repeat(513);
     let (status, body) = context
         .get(&format!("/articles?q={long_query}"), Some(&token))
@@ -708,7 +703,7 @@ async fn search_rejects_an_overlong_query() {
 #[tokio::test]
 async fn search_rejects_a_page_beyond_max_search_pages() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     let (status, body) = context.get("/articles?page=1025", Some(&token)).await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "body: {body}");
     assert_eq!(
@@ -720,7 +715,7 @@ async fn search_rejects_a_page_beyond_max_search_pages() {
 #[tokio::test]
 async fn search_returns_hits_for_a_keyword() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
     create_article_fixture(&context, &token, "Needle In A Haystack").await;
     let (status, body) = context
         .get(
@@ -741,7 +736,7 @@ async fn search_returns_hits_for_a_keyword() {
 #[tokio::test]
 async fn create_article_ignores_unknown_multipart_fields() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = member_session(&context, "alice@example.com").await;
+    let (_, token) = member_session(&context, "alice@example.com");
 
     let mut fields = article_fields("With Extra Fields", "rust");
     fields.push(("unexpected_field", "ignored value"));

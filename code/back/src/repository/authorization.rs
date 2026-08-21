@@ -1,18 +1,13 @@
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
-use agdb::DbError;
 use cedar_policy::{Entity, EntityUid, RestrictedExpression};
+use database::{Database, EdgeKind, Error, NodeKind};
 
+use crate::repository::access::GraphRead;
 use crate::repository::comment::{owner_of_comment, version_of_comment};
-use crate::repository::graph::{
-    DbHandle, incoming_edges, outgoing_edges, read_node, read_rows, resolve_node_id,
-};
 use crate::repository::role::RoleView;
-use crate::repository::schema::{
-    EDGE_ROLE_GRANT_PERMISSION, EDGE_USER_AUTHOR_ARTICLE, EDGE_USER_HOLD_ROLE, ENTITY_TYPE_ARTICLE,
-    ENTITY_TYPE_TAG, ENTITY_TYPE_USER, IdRow, PermissionRow, RoleRow,
-};
+use crate::repository::schema::{IdRow, PermissionRow, RoleRow};
 use crate::repository::version::parent_article_of;
 
 include!(concat!(env!("OUT_DIR"), "/cedar_entities.rs"));
@@ -63,60 +58,62 @@ impl std::fmt::Display for AssemblyError {
 
 impl std::error::Error for AssemblyError {}
 
-pub async fn read_user_authorization(
-    db: &DbHandle,
-    user_id: &str,
-) -> Result<UserAuthorization, DbError> {
-    let guard = db.read().await;
-    let Some(user) = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)? else {
-        return Ok(UserAuthorization::default());
-    };
-    let role_edges = outgoing_edges(&guard, user, EDGE_USER_HOLD_ROLE)?;
-    let mut authorization = UserAuthorization::default();
-    for edge in &role_edges {
-        let Some(role_name) = read_node::<RoleRow>(&guard, edge.to)?.map(|row| row.role_name)
-        else {
-            continue;
+impl From<Error> for AssemblyError {
+    fn from(error: Error) -> Self {
+        Self::Internal(error.to_string())
+    }
+}
+
+pub fn read_user_authorization(db: &Database, user_id: &str) -> Result<UserAuthorization, Error> {
+    db.read(|scope| {
+        let Some(user) = scope.resolve(NodeKind::User, user_id)? else {
+            return Ok(UserAuthorization::default());
         };
-        let mut role = RoleView {
-            role_name,
-            ..Default::default()
-        };
-        for name in read_edges::<PermissionRow>(&guard, edge.to, EDGE_ROLE_GRANT_PERMISSION)?
-            .into_iter()
-            .map(|row| row.permission_name)
-        {
-            role.permissions.push(name);
+        let role_edges = scope.outgoing(user, EdgeKind::UserHoldRole)?;
+        let mut authorization = UserAuthorization::default();
+        for role_node in role_edges {
+            let Some(row) = scope.scope_read_node::<RoleRow>(role_node)? else {
+                continue;
+            };
+            let mut role = RoleView {
+                role_name: row.role_name,
+                ..Default::default()
+            };
+            let grants = scope.outgoing(role_node, EdgeKind::RoleGrantPermission)?;
+            let permissions = scope.scope_read_nodes::<PermissionRow>(&grants)?;
+            role.permissions
+                .extend(permissions.into_iter().map(|p| p.permission_name));
+            authorization.roles.push(role);
         }
-        authorization.roles.push(role);
-    }
-    Ok(authorization)
+        Ok(authorization)
+    })
 }
 
-pub async fn read_article_authorization(
-    db: &DbHandle,
+pub fn read_article_authorization(
+    db: &Database,
     article_id: &str,
-) -> Result<Option<ArticleAuthorization>, DbError> {
-    let guard = db.read().await;
-    let Some(article) = resolve_node_id(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
-        return Ok(None);
-    };
-    let mut authorization = ArticleAuthorization::default();
-    let owner_edges = incoming_edges(&guard, article, EDGE_USER_AUTHOR_ARTICLE)?;
-    if let Some(edge) = owner_edges.first() {
-        authorization.owner_id = read_node::<IdRow>(&guard, edge.from)?
-            .map(|row| row.id)
-            .unwrap_or_default();
-    }
-    Ok(Some(authorization))
+) -> Result<Option<ArticleAuthorization>, Error> {
+    db.read(|scope| {
+        let Some(article) = scope.resolve(NodeKind::Article, article_id)? else {
+            return Ok(None);
+        };
+        let mut authorization = ArticleAuthorization::default();
+        if let Some(owner) = scope
+            .incoming(article, EdgeKind::UserAuthorArticle)?
+            .first()
+            && let Some(row) = scope.scope_read_node::<IdRow>(*owner)?
+        {
+            authorization.owner_id = row.id;
+        }
+        Ok(Some(authorization))
+    })
 }
 
-pub async fn assemble_principal(
-    db: &DbHandle,
+pub fn assemble_principal(
+    db: &Database,
     user_id: &str,
 ) -> Result<(EntityUid, Vec<Entity>), AssemblyError> {
     let authorization = read_user_authorization(db, user_id)
-        .await
         .map_err(|error| AssemblyError::Internal(error.to_string()))?;
     let principal = user_uid(user_id)?;
     let mut entities: Vec<Entity> = Vec::new();
@@ -143,14 +140,13 @@ pub async fn assemble_principal(
     Ok((principal, entities))
 }
 
-pub async fn assemble_resource(
-    db: &DbHandle,
+pub fn assemble_resource(
+    db: &Database,
     resource: Resource,
 ) -> Result<(EntityUid, Vec<Entity>), AssemblyError> {
     match resource {
         Resource::Article(article_id) => {
             let authorization = read_article_authorization(db, &article_id)
-                .await
                 .map_err(|error| AssemblyError::Internal(error.to_string()))?
                 .ok_or(AssemblyError::ResourceNotFound)?;
             let resource_uid = article_uid(&article_id)?;
@@ -164,26 +160,21 @@ pub async fn assemble_resource(
         }
         Resource::Version(version_id) => {
             let article_id = parent_article_of(db, &version_id)
-                .await
                 .map_err(|error| AssemblyError::Internal(error.to_string()))?
                 .ok_or(AssemblyError::ResourceNotFound)?;
-            assemble_version_chain(db, &article_id, &version_id).await
+            assemble_version_chain(db, &article_id, &version_id)
         }
         Resource::Comment(comment_id) => {
             let version_id = version_of_comment(db, &comment_id)
-                .await
                 .map_err(|error| AssemblyError::Internal(error.to_string()))?
                 .ok_or(AssemblyError::ResourceNotFound)?;
             let article_id = parent_article_of(db, &version_id)
-                .await
                 .map_err(|error| AssemblyError::Internal(error.to_string()))?
                 .ok_or(AssemblyError::ResourceNotFound)?;
             let authorization = read_article_authorization(db, &article_id)
-                .await
                 .map_err(|error| AssemblyError::Internal(error.to_string()))?
                 .ok_or(AssemblyError::ResourceNotFound)?;
             let comment_owner = owner_of_comment(db, &comment_id)
-                .await
                 .map_err(|error| AssemblyError::Internal(error.to_string()))?
                 .unwrap_or_default();
 
@@ -216,7 +207,6 @@ pub async fn assemble_resource(
         Resource::Role(name) => {
             let resource_uid = role_uid(&name)?;
             let view = crate::repository::role::read_role(db, &name)
-                .await
                 .map_err(|error| AssemblyError::Internal(error.to_string()))?
                 .ok_or(AssemblyError::ResourceNotFound)?;
             let action_parents: HashSet<EntityUid> = view
@@ -228,12 +218,7 @@ pub async fn assemble_resource(
             Ok((resource_uid, vec![entity]))
         }
         Resource::User(user_id) => {
-            let exists = {
-                let guard = db.read().await;
-                resolve_node_id(&guard, ENTITY_TYPE_USER, &user_id)
-                    .map_err(|error| AssemblyError::Internal(error.to_string()))?
-                    .is_some()
-            };
+            let exists = node_exists(db, NodeKind::User, &user_id)?;
             if !exists {
                 return Err(AssemblyError::ResourceNotFound);
             }
@@ -242,12 +227,7 @@ pub async fn assemble_resource(
             Ok((resource_uid, vec![entity]))
         }
         Resource::Tag(tag_id) => {
-            let exists = {
-                let guard = db.read().await;
-                resolve_node_id(&guard, ENTITY_TYPE_TAG, &tag_id)
-                    .map_err(|error| AssemblyError::Internal(error.to_string()))?
-                    .is_some()
-            };
+            let exists = node_exists(db, NodeKind::Tag, &tag_id)?;
             if !exists {
                 return Err(AssemblyError::ResourceNotFound);
             }
@@ -263,13 +243,17 @@ pub async fn assemble_resource(
     }
 }
 
-pub async fn assemble(
-    db: &DbHandle,
+fn node_exists(db: &Database, kind: NodeKind, business_id: &str) -> Result<bool, Error> {
+    db.read(|scope| Ok(scope.resolve(kind, business_id)?.is_some()))
+}
+
+pub fn assemble(
+    db: &Database,
     user_id: &str,
     resource: Resource,
 ) -> Result<AuthAssembly, AssemblyError> {
-    let (principal, mut principal_entities) = assemble_principal(db, user_id).await?;
-    let (resource_uid, resource_entities) = assemble_resource(db, resource).await?;
+    let (principal, mut principal_entities) = assemble_principal(db, user_id)?;
+    let (resource_uid, resource_entities) = assemble_resource(db, resource)?;
     let mut positions: HashMap<EntityUid, usize> = HashMap::new();
     let mut entities: Vec<Entity> =
         Vec::with_capacity(principal_entities.len() + resource_entities.len());
@@ -289,13 +273,12 @@ pub async fn assemble(
     })
 }
 
-async fn assemble_version_chain(
-    db: &DbHandle,
+fn assemble_version_chain(
+    db: &Database,
     article_id: &str,
     version_id: &str,
 ) -> Result<(EntityUid, Vec<Entity>), AssemblyError> {
     let authorization = read_article_authorization(db, article_id)
-        .await
         .map_err(|error| AssemblyError::Internal(error.to_string()))?
         .ok_or(AssemblyError::ResourceNotFound)?;
     let article_entity_uid = article_uid(article_id)?;
@@ -313,18 +296,6 @@ async fn assemble_version_chain(
     )
     .map_err(|error| AssemblyError::Internal(error.to_string()))?;
     Ok((version_entity_uid, vec![article_entity, version_entity]))
-}
-
-fn read_edges<T>(guard: &agdb::DbAny, from: agdb::DbId, edge_type: &str) -> Result<Vec<T>, DbError>
-where
-    T: agdb::DbType<ValueType = T> + agdb::DbTypeMarker,
-{
-    let edges = outgoing_edges(guard, from, edge_type)?;
-    let ids: Vec<agdb::DbId> = edges.iter().map(|edge| edge.to).collect();
-    if ids.is_empty() {
-        return Ok(Vec::new());
-    }
-    read_rows::<T>(guard, &ids)
 }
 
 fn parse_uid(text: &str) -> Result<EntityUid, AssemblyError> {

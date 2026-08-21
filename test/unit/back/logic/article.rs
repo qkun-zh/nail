@@ -4,47 +4,42 @@ use crate::repository::role::{ROLE_MEMBER, hold_role};
 
 const TEST_TAGS: &[&str] = &["rust", "backend", "frontend", "devops"];
 
-async fn member(context: &TestCtx, email: &str) -> String {
+fn member(context: &TestCtx, email: &str) -> String {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
-    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
-        .await
-        .expect("member role");
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER).expect("member role");
     user_id
 }
 
-async fn setup_article_test(context: &TestCtx, email: &str) -> String {
-    context.seed_tags(TEST_TAGS).await;
-    member(context, email).await
+fn setup_article_test(context: &TestCtx, email: &str) -> String {
+    context.seed_tags(TEST_TAGS);
+    member(context, email)
 }
 
-async fn admin(context: &TestCtx) -> String {
+fn admin(context: &TestCtx) -> String {
     crate::repository::user::read_user_by_email_address_hash(
         &context.state.database,
         &nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("lookup user zero")
     .expect("seeded user zero")
 }
 
-async fn plain(context: &TestCtx, email: &str) -> String {
+fn plain(context: &TestCtx, email: &str) -> String {
     crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user")
 }
 
 #[tokio::test]
 async fn create_article_writes_the_article_and_version() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = setup_article_test(&context, "alice@example.com").await;
+    let actor = setup_article_test(&context, "alice@example.com");
     let upload = context.upload(&valid_pdf());
 
     let (article_id, version_id) = crate::logic::article::create_article(
@@ -66,7 +61,6 @@ async fn create_article_writes_the_article_and_version() {
     assert!(!version_id.is_empty());
     assert!(
         crate::repository::article::read_article(&context.state.database, &article_id)
-            .await
             .expect("read")
             .is_some()
     );
@@ -79,7 +73,6 @@ async fn create_article_requires_article_create_permission() {
         &context.state.database,
         &nail_common::hash::hash("alice@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let error = crate::logic::article::create_article(
         &context.state,
@@ -101,7 +94,7 @@ async fn create_article_requires_article_create_permission() {
 #[tokio::test]
 async fn create_article_rejects_an_empty_title() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = setup_article_test(&context, "alice@example.com").await;
+    let actor = setup_article_test(&context, "alice@example.com");
     let error = crate::logic::article::create_article(
         &context.state,
         &actor,
@@ -122,7 +115,7 @@ async fn create_article_rejects_an_empty_title() {
 #[tokio::test]
 async fn create_article_rejects_a_duplicate_title() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = setup_article_test(&context, "alice@example.com").await;
+    let actor = setup_article_test(&context, "alice@example.com");
     let _ = crate::logic::article::create_article(
         &context.state,
         &actor,
@@ -158,7 +151,7 @@ async fn create_article_rejects_a_duplicate_title() {
 #[tokio::test]
 async fn create_article_rejects_a_duplicate_content_hash() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = setup_article_test(&context, "alice@example.com").await;
+    let actor = setup_article_test(&context, "alice@example.com");
     let pdf = valid_pdf();
     let _ = crate::logic::article::create_article(
         &context.state,
@@ -199,7 +192,7 @@ async fn create_article_rejects_a_duplicate_content_hash() {
 #[tokio::test]
 async fn read_article_returns_detail() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = setup_article_test(&context, "alice@example.com").await;
+    let actor = setup_article_test(&context, "alice@example.com");
     let (article_id, _) = crate::logic::article::create_article(
         &context.state,
         &actor,
@@ -215,9 +208,8 @@ async fn read_article_returns_detail() {
     .await
     .expect("create");
 
-    let data = crate::logic::article::read_article(&context.state, &actor, &article_id)
-        .await
-        .expect("read");
+    let data =
+        crate::logic::article::read_article(&context.state, &actor, &article_id).expect("read");
     assert_eq!(data.title, "Titled");
     assert_eq!(data.author_id, actor);
 }
@@ -225,17 +217,16 @@ async fn read_article_returns_detail() {
 #[tokio::test]
 async fn read_article_missing_is_not_found() {
     let context = TestCtx::new().await.expect("test context");
-    let reader = admin(&context).await;
-    let error = crate::logic::article::read_article(&context.state, &reader, "missing")
-        .await
-        .unwrap_err();
+    let reader = admin(&context);
+    let error =
+        crate::logic::article::read_article(&context.state, &reader, "missing").unwrap_err();
     assert_eq!(error, LogicError::not_found("article not found"));
 }
 
 #[tokio::test]
 async fn read_article_denies_a_user_without_the_grant() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = setup_article_test(&context, "alice@example.com").await;
+    let actor = setup_article_test(&context, "alice@example.com");
     let (article_id, _) = crate::logic::article::create_article(
         &context.state,
         &actor,
@@ -250,18 +241,17 @@ async fn read_article_denies_a_user_without_the_grant() {
     )
     .await
     .expect("create");
-    let outsider = plain(&context, "stranger@example.com").await;
+    let outsider = plain(&context, "stranger@example.com");
 
-    let error = crate::logic::article::read_article(&context.state, &outsider, &article_id)
-        .await
-        .unwrap_err();
+    let error =
+        crate::logic::article::read_article(&context.state, &outsider, &article_id).unwrap_err();
     assert_eq!(error, LogicError::forbidden("you are denied"));
 }
 
 #[tokio::test]
 async fn delete_article_soft_hides_the_article_and_its_versions() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = setup_article_test(&context, "alice@example.com").await;
+    let actor = setup_article_test(&context, "alice@example.com");
     let (article_id, _) = crate::logic::article::create_article(
         &context.state,
         &actor,
@@ -288,12 +278,10 @@ async fn delete_article_soft_hides_the_article_and_its_versions() {
     assert_eq!(data.article_id, article_id);
 
     let error = crate::logic::article::read_article(&context.state, &actor, &article_id)
-        .await
         .expect_err("deleted article");
     assert_eq!(error, LogicError::not_found("article not found"));
     let (versions, _) =
         crate::repository::version::versions_of(&context.state.database, &article_id, 10, 0)
-            .await
             .expect("versions");
     assert_eq!(
         versions.len(),
@@ -305,8 +293,8 @@ async fn delete_article_soft_hides_the_article_and_its_versions() {
 #[tokio::test]
 async fn delete_article_soft_is_forbidden_for_a_stranger() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = setup_article_test(&context, "alice@example.com").await;
-    let stranger = setup_article_test(&context, "bob@example.com").await;
+    let actor = setup_article_test(&context, "alice@example.com");
+    let stranger = setup_article_test(&context, "bob@example.com");
     let (article_id, _) = crate::logic::article::create_article(
         &context.state,
         &actor,
@@ -333,7 +321,6 @@ async fn delete_article_soft_is_forbidden_for_a_stranger() {
     assert!(matches!(error, LogicError::Forbidden(_)));
     assert!(
         crate::repository::article::read_article(&context.state.database, &article_id)
-            .await
             .expect("read")
             .is_some(),
         "article untouched"
@@ -343,7 +330,7 @@ async fn delete_article_soft_is_forbidden_for_a_stranger() {
 #[tokio::test]
 async fn delete_article_soft_keeps_the_title_and_content_hash_held() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = setup_article_test(&context, "alice@example.com").await;
+    let actor = setup_article_test(&context, "alice@example.com");
     let pdf = valid_pdf();
     let (article_id, _) = crate::logic::article::create_article(
         &context.state,
@@ -393,7 +380,7 @@ async fn delete_article_soft_keeps_the_title_and_content_hash_held() {
 #[tokio::test]
 async fn delete_article_soft_is_rejected_for_an_already_hidden_article() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = setup_article_test(&context, "alice@example.com").await;
+    let actor = setup_article_test(&context, "alice@example.com");
     let (article_id, _) = crate::logic::article::create_article(
         &context.state,
         &actor,
@@ -436,8 +423,8 @@ async fn delete_article_soft_is_rejected_for_an_already_hidden_article() {
 #[tokio::test]
 async fn undelete_soft_article_revives_the_article_and_its_versions() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = setup_article_test(&context, "alice@example.com").await;
-    let admin_id = admin(&context).await;
+    let actor = setup_article_test(&context, "alice@example.com");
+    let admin_id = admin(&context);
     let (article_id, _) = crate::logic::article::create_article(
         &context.state,
         &actor,
@@ -468,11 +455,9 @@ async fn undelete_soft_article_revives_the_article_and_its_versions() {
     assert_eq!(data.article_id, article_id);
 
     crate::logic::article::read_article(&context.state, &admin_id, &article_id)
-        .await
         .expect("article visible again");
     let (versions, _) =
         crate::repository::version::versions_of(&context.state.database, &article_id, 10, 0)
-            .await
             .expect("versions");
     assert_eq!(
         versions.len(),
@@ -484,7 +469,7 @@ async fn undelete_soft_article_revives_the_article_and_its_versions() {
 #[tokio::test]
 async fn undelete_soft_article_is_forbidden_for_a_member() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = setup_article_test(&context, "alice@example.com").await;
+    let actor = setup_article_test(&context, "alice@example.com");
     let (article_id, _) = crate::logic::article::create_article(
         &context.state,
         &actor,
@@ -518,8 +503,8 @@ async fn undelete_soft_article_is_forbidden_for_a_member() {
 #[tokio::test]
 async fn undelete_soft_article_is_rejected_when_the_article_is_visible() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = setup_article_test(&context, "alice@example.com").await;
-    let admin_id = admin(&context).await;
+    let actor = setup_article_test(&context, "alice@example.com");
+    let admin_id = admin(&context);
     let (article_id, _) = crate::logic::article::create_article(
         &context.state,
         &actor,
@@ -549,7 +534,7 @@ async fn undelete_soft_article_is_rejected_when_the_article_is_visible() {
 #[tokio::test]
 async fn create_article_rejects_an_empty_tag_set() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = setup_article_test(&context, "alice@example.com").await;
+    let actor = setup_article_test(&context, "alice@example.com");
     let error = crate::logic::article::create_article(
         &context.state,
         &actor,
@@ -573,7 +558,7 @@ async fn create_article_rejects_an_empty_tag_set() {
 #[tokio::test]
 async fn update_article_of_a_missing_article_is_not_found() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = setup_article_test(&context, "alice@example.com").await;
+    let actor = setup_article_test(&context, "alice@example.com");
     let error = crate::logic::article::update_article(
         &context.state,
         &actor,

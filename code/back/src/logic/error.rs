@@ -81,8 +81,8 @@ pub fn database_error(error: impl std::fmt::Display) -> LogicError {
     LogicError::internal(format!("database query failed: {error}"))
 }
 
-impl From<agdb::DbError> for LogicError {
-    fn from(error: agdb::DbError) -> Self {
+impl From<database::Error> for LogicError {
+    fn from(error: database::Error) -> Self {
         database_error(error)
     }
 }

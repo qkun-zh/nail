@@ -7,12 +7,11 @@ use cache::UserId;
 use super::context::{TestCtx, valid_pdf};
 use crate::logic::session::cache_key;
 
-async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
+fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let token = Uuid::now_v7().to_string();
     let key = cache_key(&token).expect("cache key");
@@ -24,8 +23,8 @@ async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     (user_id, token)
 }
 
-async fn admin_session(context: &TestCtx) -> (String, String) {
-    session_for(context, "user-zero@example.com").await
+fn admin_session(context: &TestCtx) -> (String, String) {
+    session_for(context, "user-zero@example.com")
 }
 
 async fn create_article_and_tag(context: &TestCtx, token: &str) -> (String, String) {
@@ -78,7 +77,7 @@ async fn create_article_and_tag(context: &TestCtx, token: &str) -> (String, Stri
 #[tokio::test]
 async fn apply_and_unapply_tag_over_http() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = admin_session(&context).await;
+    let (_, token) = admin_session(&context);
     let (article_id, tag_id) = create_article_and_tag(&context, &token).await;
 
     let (status, body) = context
@@ -110,7 +109,7 @@ async fn apply_and_unapply_tag_over_http() {
 #[tokio::test]
 async fn apply_tag_to_a_missing_article_returns_404() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = admin_session(&context).await;
+    let (_, token) = admin_session(&context);
     let (_, tag_id) = create_article_and_tag(&context, &token).await;
 
     let (status, body) = context
@@ -127,7 +126,7 @@ async fn apply_tag_to_a_missing_article_returns_404() {
 #[tokio::test]
 async fn apply_tag_to_a_missing_tag_returns_404() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = admin_session(&context).await;
+    let (_, token) = admin_session(&context);
     let (article_id, _) = create_article_and_tag(&context, &token).await;
 
     let (status, body) = context

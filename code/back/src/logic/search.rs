@@ -18,7 +18,7 @@ pub async fn search_articles(
     actor_id: &str,
     params: &ArticleSearchParams,
 ) -> Result<nail_common::response::ListPage<SearchArticleItem>, LogicError> {
-    authorize_global(state, actor_id, PERMISSION_ARTICLE_READ).await?;
+    authorize_global(state, actor_id, PERMISSION_ARTICLE_READ)?;
     let max_query_chars = state.configurator.max_search_query_chars();
 
     let query = match params.q.as_deref() {

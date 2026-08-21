@@ -15,7 +15,6 @@ pub async fn create_role(
     AppJson(payload): AppJson<CreateRoleRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     let (id, name) = crate::logic::role::create_role(&state, &principal.user_id, &payload.name)
-        .await
         .map_err(ApiError::from_logic)?;
     Ok(json_response(
         StatusCode::CREATED,
@@ -30,7 +29,6 @@ pub async fn read_roles(
     AppPaged((page, limit)): AppPaged,
 ) -> Result<impl IntoResponse, ApiError> {
     let data = crate::logic::role::read_roles(&state, &principal.user_id, page, limit)
-        .await
         .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
@@ -41,7 +39,6 @@ pub async fn read_role(
     AppPath(role_id): AppPath<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     let data = crate::logic::role::read_role(&state, &principal.user_id, &role_id)
-        .await
         .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
@@ -60,8 +57,7 @@ pub async fn update_role(
         users_add: &users.add,
         users_remove: &users.remove,
     };
-    let view = crate::logic::role::update_role(&state, &principal.user_id, &role_id, update)
-        .await
+    let view = crate::logic::role::update_role(&state, &principal.user_id, &role_id, &update)
         .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, view, "ok"))
 }
@@ -78,7 +74,6 @@ pub async fn delete_role(
         ));
     }
     let view = crate::logic::role::delete_role(&state, &principal.user_id, &role_id)
-        .await
         .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, view, "deleted"))
 }

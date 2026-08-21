@@ -7,12 +7,11 @@ use cache::UserId;
 use super::context::TestCtx;
 use crate::logic::session::cache_key;
 
-async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
+fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
     let token = Uuid::now_v7().to_string();
     let key = cache_key(&token).expect("cache key");
@@ -24,14 +23,14 @@ async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     (user_id, token)
 }
 
-async fn admin_session(context: &TestCtx) -> (String, String) {
-    session_for(context, "user-zero@example.com").await
+fn admin_session(context: &TestCtx) -> (String, String) {
+    session_for(context, "user-zero@example.com")
 }
 
 #[tokio::test]
 async fn user_read_self_returns_name_and_optional_email_hash() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = session_for(&context, "alice@example.com").await;
+    let (user_id, token) = session_for(&context, "alice@example.com");
 
     let (status, body) = context
         .get(&format!("/users/{user_id}"), Some(&token))
@@ -60,8 +59,8 @@ async fn user_read_self_returns_name_and_optional_email_hash() {
 #[tokio::test]
 async fn user_read_other_by_member_is_forbidden() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, token) = session_for(&context, "alice@example.com").await;
-    let (target, _) = session_for(&context, "bob@example.com").await;
+    let (_, token) = session_for(&context, "alice@example.com");
+    let (target, _) = session_for(&context, "bob@example.com");
 
     let (status, body) = context.get(&format!("/users/{target}"), Some(&token)).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
@@ -71,8 +70,8 @@ async fn user_read_other_by_member_is_forbidden() {
 #[tokio::test]
 async fn user_read_other_by_admin_returns_profile() {
     let context = TestCtx::new().await.expect("test context");
-    let (admin, admin_token) = admin_session(&context).await;
-    let (target, _) = session_for(&context, "alice@example.com").await;
+    let (admin, admin_token) = admin_session(&context);
+    let (target, _) = session_for(&context, "alice@example.com");
 
     let (status, body) = context
         .get(
@@ -96,10 +95,8 @@ async fn user_read_other_by_admin_returns_profile() {
 #[tokio::test]
 async fn user_read_self_after_hard_delete_is_not_found() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = session_for(&context, "alice@example.com").await;
-    crate::repository::delete::delete_user(&context.state.database, &user_id)
-        .await
-        .expect("hard delete");
+    let (user_id, token) = session_for(&context, "alice@example.com");
+    crate::repository::delete::delete_user(&context.state.database, &user_id).expect("hard delete");
 
     let (status, body) = context
         .get(&format!("/users/{user_id}"), Some(&token))
@@ -111,7 +108,7 @@ async fn user_read_self_after_hard_delete_is_not_found() {
 #[tokio::test]
 async fn user_update_self_rename_via_name() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = session_for(&context, "alice@example.com").await;
+    let (user_id, token) = session_for(&context, "alice@example.com");
 
     let (status, body) = context
         .patch(
@@ -127,8 +124,8 @@ async fn user_update_self_rename_via_name() {
 #[tokio::test]
 async fn user_update_admin_rename() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, admin_token) = admin_session(&context).await;
-    let (target, _) = session_for(&context, "alice@example.com").await;
+    let (_, admin_token) = admin_session(&context);
+    let (target, _) = session_for(&context, "alice@example.com");
 
     let (status, body) = context
         .patch(
@@ -144,8 +141,8 @@ async fn user_update_admin_rename() {
 #[tokio::test]
 async fn user_delete_hard_by_admin() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, admin_token) = admin_session(&context).await;
-    let (target, _) = session_for(&context, "alice@example.com").await;
+    let (_, admin_token) = admin_session(&context);
+    let (target, _) = session_for(&context, "alice@example.com");
 
     let (status, body) = context
         .delete(&format!("/users/{target}?mode=hard"), Some(&admin_token))
@@ -158,7 +155,7 @@ async fn user_delete_hard_by_admin() {
 #[tokio::test]
 async fn user_delete_rejects_a_missing_mode() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = session_for(&context, "alice@example.com").await;
+    let (user_id, token) = session_for(&context, "alice@example.com");
     let (status, body) = context
         .delete(&format!("/users/{user_id}"), Some(&token))
         .await;
@@ -172,7 +169,7 @@ async fn user_delete_rejects_a_missing_mode() {
 #[tokio::test]
 async fn user_delete_transfer_after_email_confirmation() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, token) = session_for(&context, "alice@example.com").await;
+    let (user_id, token) = session_for(&context, "alice@example.com");
 
     let (status, body) = context
         .post(
@@ -198,7 +195,6 @@ async fn user_delete_transfer_after_email_confirmation() {
 
     assert!(
         crate::repository::user::read_user(&context.state.database, &user_id)
-            .await
             .expect("read")
             .is_none()
     );
@@ -207,7 +203,7 @@ async fn user_delete_transfer_after_email_confirmation() {
 #[tokio::test]
 async fn email_change_two_step_flow_updates_email_and_rotates_session() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, old_session) = session_for(&context, "alice@example.com").await;
+    let (user_id, old_session) = session_for(&context, "alice@example.com");
 
     let (status, body) = context
         .post(
@@ -261,7 +257,6 @@ async fn email_change_two_step_flow_updates_email_and_rotates_session() {
     );
 
     let entry = crate::repository::user::read_user(&context.state.database, &user_id)
-        .await
         .expect("read")
         .expect("entry");
     assert_eq!(
@@ -276,7 +271,7 @@ async fn email_change_two_step_flow_updates_email_and_rotates_session() {
 #[tokio::test]
 async fn email_change_rejects_same_old_and_new_email() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, session) = session_for(&context, "alice@example.com").await;
+    let (_, session) = session_for(&context, "alice@example.com");
 
     let (status, body) = context
         .post(
@@ -299,8 +294,8 @@ async fn email_change_rejects_same_old_and_new_email() {
 #[tokio::test]
 async fn email_change_rejects_a_taken_new_email() {
     let context = TestCtx::new().await.expect("test context");
-    let (_, session) = session_for(&context, "alice@example.com").await;
-    session_for(&context, "bob@example.com").await;
+    let (_, session) = session_for(&context, "alice@example.com");
+    session_for(&context, "bob@example.com");
 
     let (status, body) = context
         .post(
@@ -323,7 +318,7 @@ async fn email_change_rejects_a_taken_new_email() {
 #[tokio::test]
 async fn email_change_rejects_an_invalid_old_token() {
     let context = TestCtx::new().await.expect("test context");
-    let (user_id, session) = session_for(&context, "alice@example.com").await;
+    let (user_id, session) = session_for(&context, "alice@example.com");
 
     let (status, _) = context
         .post(

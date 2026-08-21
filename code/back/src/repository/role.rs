@@ -1,13 +1,8 @@
-use agdb::{DbError, DbErrorType, QueryBuilder};
+use database::{Database, EdgeKind, Error, NodeKind};
 
-use crate::repository::graph::{
-    DbHandle, find_by_index, incoming_edges, insert_edge, outgoing_edges, read_node, read_rows,
-    resolve_node_id,
-};
+use crate::repository::access::GraphRead;
 use crate::repository::schema::{
-    EDGE_ROLE_GRANT_PERMISSION, EDGE_USER_HOLD_ROLE, ENTITY_TYPE_PERMISSION, ENTITY_TYPE_ROLE,
-    ENTITY_TYPE_USER, IdRow, KEY_PERMISSION_NAME, KEY_ROLE_NAME, KEY_TYPE, PermissionRow, RoleRow,
-    alias_of,
+    IdRow, KEY_PERMISSION_NAME, KEY_ROLE_NAME, PermissionRow, RoleRow,
 };
 
 include!(concat!(env!("OUT_DIR"), "/permissions.rs"));
@@ -63,140 +58,121 @@ pub const ROLE_MEMBER: &str = "member";
 
 pub const REQUIRED_ROLES: &[&str] = &[ROLE_ADMIN, ROLE_RECYCLER, ROLE_MEMBER];
 
-pub async fn create_role(db: &DbHandle, name: &str) -> Result<String, DbError> {
-    let mut guard = db.write().await;
-    if let Some(existing) = read_role_by_name_sync(&guard, name)? {
-        return Ok(existing.id);
-    }
-    let role_id = uuid::Uuid::now_v7().to_string();
-    guard.exec_mut(
-        QueryBuilder::insert()
-            .nodes()
-            .aliases([alias_of(ENTITY_TYPE_ROLE, &role_id)])
-            .values(RoleRow {
-                db_id: None,
-                entity_type: ENTITY_TYPE_ROLE.to_string(),
-                id: role_id.clone(),
-                role_name: name.to_string(),
-            })
-            .query(),
-    )?;
-    Ok(role_id)
+pub fn create_role(db: &Database, name: &str) -> Result<String, Error> {
+    db.write(|scope| {
+        if let Some(existing) = read_role_by_name_sync(scope, name)? {
+            return Ok(existing.id);
+        }
+        let role_id = uuid::Uuid::now_v7().to_string();
+        scope.insert_node(&RoleRow {
+            id: role_id.clone(),
+            role_name: name.to_string(),
+        })?;
+        Ok(role_id)
+    })
 }
 
-pub async fn create_permission(db: &DbHandle, name: &str) -> Result<(), DbError> {
-    let mut guard = db.write().await;
-    if !find_by_index(&guard, KEY_PERMISSION_NAME, name)?.is_empty() {
-        return Ok(());
-    }
-    guard.exec_mut(
-        QueryBuilder::insert()
-            .nodes()
-            .aliases([alias_of(ENTITY_TYPE_PERMISSION, name)])
-            .values(PermissionRow {
-                db_id: None,
-                entity_type: ENTITY_TYPE_PERMISSION.to_string(),
-                permission_name: name.to_string(),
-            })
-            .query(),
-    )?;
-    Ok(())
+pub fn create_permission(db: &Database, name: &str) -> Result<(), Error> {
+    db.write(|scope| {
+        if scope.find_by_key(KEY_PERMISSION_NAME, name)?.is_some() {
+            return Ok(());
+        }
+        scope.insert_node(&PermissionRow {
+            permission_name: name.to_string(),
+        })?;
+        Ok(())
+    })
 }
 
-pub async fn grant_permission_to_role(
-    db: &DbHandle,
+pub fn grant_permission_to_role(
+    db: &Database,
     role_name: &str,
     permission_name: &str,
-) -> Result<(), DbError> {
-    let mut guard = db.write().await;
-    let role_id = resolve_role_id_by_name_sync(&guard, role_name)?
-        .ok_or_else(|| not_found(ENTITY_TYPE_ROLE, role_name))?;
-    let permission_id = resolve_node_id(&guard, ENTITY_TYPE_PERMISSION, permission_name)?
-        .ok_or_else(|| not_found(ENTITY_TYPE_PERMISSION, permission_name))?;
-    let edges = outgoing_edges(&guard, role_id, EDGE_ROLE_GRANT_PERMISSION)?;
-    if !edges.iter().any(|edge| edge.to == permission_id) {
-        insert_edge(
-            &mut guard,
-            EDGE_ROLE_GRANT_PERMISSION,
-            role_id.into(),
-            permission_id.into(),
+) -> Result<(), Error> {
+    db.write(|scope| {
+        let role_id = resolve_role_id_by_name_sync(scope, role_name)?
+            .ok_or_else(|| not_found(NodeKind::Role, role_name))?;
+        let permission_id = scope
+            .resolve(NodeKind::Permission, permission_name)?
+            .ok_or_else(|| not_found(NodeKind::Permission, permission_name))?;
+        scope.insert_edge(
+            NodeKind::Role,
+            role_id,
+            EdgeKind::RoleGrantPermission,
+            NodeKind::Permission,
+            permission_id,
         )?;
-    }
-    Ok(())
+        Ok(())
+    })
 }
 
-pub async fn hold_role(db: &DbHandle, user_id: &str, role_name: &str) -> Result<(), DbError> {
-    let mut guard = db.write().await;
-    let user_db_id = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)?
-        .ok_or_else(|| not_found(ENTITY_TYPE_USER, user_id))?;
-    let role_db_id = resolve_role_id_by_name_sync(&guard, role_name)?
-        .ok_or_else(|| not_found(ENTITY_TYPE_ROLE, role_name))?;
-    let edges = outgoing_edges(&guard, user_db_id, EDGE_USER_HOLD_ROLE)?;
-    if !edges.iter().any(|edge| edge.to == role_db_id) {
-        insert_edge(
-            &mut guard,
-            EDGE_USER_HOLD_ROLE,
-            user_db_id.into(),
-            role_db_id.into(),
+pub fn hold_role(db: &Database, user_id: &str, role_name: &str) -> Result<(), Error> {
+    db.write(|scope| {
+        let user_db_id = scope
+            .resolve(NodeKind::User, user_id)?
+            .ok_or_else(|| not_found(NodeKind::User, user_id))?;
+        let role_db_id = resolve_role_id_by_name_sync(scope, role_name)?
+            .ok_or_else(|| not_found(NodeKind::Role, role_name))?;
+        scope.insert_edge(
+            NodeKind::User,
+            user_db_id,
+            EdgeKind::UserHoldRole,
+            NodeKind::Role,
+            role_db_id,
         )?;
-    }
-    Ok(())
+        Ok(())
+    })
 }
 
 #[cfg(test)]
-pub async fn user_holds_role(
-    db: &DbHandle,
-    user_id: &str,
-    role_name: &str,
-) -> Result<bool, DbError> {
-    let guard = db.read().await;
-    let Some(user_db_id) = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)? else {
-        return Ok(false);
-    };
-    let Some(role_db_id) = resolve_role_id_by_name_sync(&guard, role_name)? else {
-        return Ok(false);
-    };
-    let edges = outgoing_edges(&guard, user_db_id, EDGE_USER_HOLD_ROLE)?;
-    Ok(edges.iter().any(|edge| edge.to == role_db_id))
+pub fn user_holds_role(db: &Database, user_id: &str, role_name: &str) -> Result<bool, Error> {
+    db.read(|scope| {
+        let Some(user_db_id) = scope.resolve(NodeKind::User, user_id)? else {
+            return Ok(false);
+        };
+        let Some(role_db_id) = resolve_role_id_by_name_sync(scope, role_name)? else {
+            return Ok(false);
+        };
+        Ok(scope
+            .outgoing(user_db_id, EdgeKind::UserHoldRole)?
+            .contains(&role_db_id))
+    })
 }
 
-pub async fn users_holding_role(db: &DbHandle, role_name: &str) -> Result<Vec<String>, DbError> {
-    let guard = db.read().await;
-    let Some(role_db_id) = resolve_role_id_by_name_sync(&guard, role_name)? else {
-        return Ok(Vec::new());
-    };
-    let edges = incoming_edges(&guard, role_db_id, EDGE_USER_HOLD_ROLE)?;
-    let mut users = Vec::new();
-    for edge in &edges {
-        if let Some(row) = read_node::<IdRow>(&guard, edge.from)? {
-            users.push(row.id);
-        }
-    }
-    Ok(users)
+pub fn users_holding_role(db: &Database, role_name: &str) -> Result<Vec<String>, Error> {
+    db.read(|scope| {
+        let Some(role_db_id) = resolve_role_id_by_name_sync(scope, role_name)? else {
+            return Ok(Vec::new());
+        };
+        let holders = scope.incoming(role_db_id, EdgeKind::UserHoldRole)?;
+        let rows = scope.scope_read_nodes::<IdRow>(&holders)?;
+        Ok(rows.into_iter().map(|row| row.id).collect())
+    })
 }
 
 #[cfg(test)]
-pub async fn user_holds_permission(
-    db: &DbHandle,
+pub fn user_holds_permission(
+    db: &Database,
     user_id: &str,
     permission_name: &str,
-) -> Result<bool, DbError> {
-    let guard = db.read().await;
-    let Some(user_db_id) = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)? else {
-        return Ok(false);
-    };
-    let Some(permission_db_id) = resolve_node_id(&guard, ENTITY_TYPE_PERMISSION, permission_name)?
-    else {
-        return Ok(false);
-    };
-    let held_roles = outgoing_edges(&guard, user_db_id, EDGE_USER_HOLD_ROLE)?;
-    for role_edge in &held_roles {
-        let grants = outgoing_edges(&guard, role_edge.to, EDGE_ROLE_GRANT_PERMISSION)?;
-        if grants.iter().any(|grant| grant.to == permission_db_id) {
-            return Ok(true);
+) -> Result<bool, Error> {
+    db.read(|scope| {
+        let Some(user_db_id) = scope.resolve(NodeKind::User, user_id)? else {
+            return Ok(false);
+        };
+        let Some(permission_db_id) = scope.resolve(NodeKind::Permission, permission_name)? else {
+            return Ok(false);
+        };
+        for role in scope.outgoing(user_db_id, EdgeKind::UserHoldRole)? {
+            if scope
+                .outgoing(role, EdgeKind::RoleGrantPermission)?
+                .contains(&permission_db_id)
+            {
+                return Ok(true);
+            }
         }
-    }
-    Ok(false)
+        Ok(false)
+    })
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -206,154 +182,126 @@ pub struct RoleView {
     pub permissions: Vec<String>,
 }
 
-pub async fn read_role_by_id(db: &DbHandle, role_id: &str) -> Result<Option<RoleView>, DbError> {
-    let guard = db.read().await;
-    let Some(role_db_id) = resolve_node_id(&guard, ENTITY_TYPE_ROLE, role_id)? else {
-        return Ok(None);
-    };
-    Ok(Some(read_role_view_sync(&guard, role_db_id)?))
+pub fn read_role_by_id(db: &Database, role_id: &str) -> Result<Option<RoleView>, Error> {
+    db.read(|scope| {
+        let Some(role_db_id) = scope.resolve(NodeKind::Role, role_id)? else {
+            return Ok(None);
+        };
+        Ok(Some(read_role_view_sync(scope, role_db_id)?))
+    })
 }
 
-pub async fn read_role(db: &DbHandle, role_name: &str) -> Result<Option<RoleView>, DbError> {
-    let guard = db.read().await;
-    read_role_by_name_sync(&guard, role_name)
+pub fn read_role(db: &Database, role_name: &str) -> Result<Option<RoleView>, Error> {
+    db.read(|scope| read_role_by_name_sync(scope, role_name))
 }
 
 fn read_role_by_name_sync(
-    guard: &agdb::DbAny,
+    scope: &impl GraphRead,
     role_name: &str,
-) -> Result<Option<RoleView>, DbError> {
-    let Some(role_id) = resolve_role_id_by_name_sync(guard, role_name)? else {
+) -> Result<Option<RoleView>, Error> {
+    let Some(role_id) = resolve_role_id_by_name_sync(scope, role_name)? else {
         return Ok(None);
     };
-    Ok(Some(read_role_view_sync(guard, role_id)?))
+    Ok(Some(read_role_view_sync(scope, role_id)?))
 }
 
 fn resolve_role_id_by_name_sync(
-    guard: &agdb::DbAny,
+    scope: &impl GraphRead,
     role_name: &str,
-) -> Result<Option<agdb::DbId>, DbError> {
-    Ok(find_by_index(guard, KEY_ROLE_NAME, role_name)?
-        .first()
-        .copied())
+) -> Result<Option<database::NodeId>, Error> {
+    scope.scope_find_by_key(KEY_ROLE_NAME, role_name)
 }
 
-pub async fn read_roles(db: &DbHandle) -> Result<Vec<RoleView>, DbError> {
-    let guard = db.read().await;
-    let result = guard.exec(
-        QueryBuilder::search()
-            .elements()
-            .where_()
-            .key(KEY_TYPE)
-            .value(ENTITY_TYPE_ROLE)
-            .query(),
-    )?;
-    let mut roles = Vec::new();
-    for element in &result.elements {
-        roles.push(read_role_view_sync(&guard, element.id)?);
-    }
-    roles.sort_by(|left, right| left.role_name.cmp(&right.role_name));
-    Ok(roles)
+pub fn read_roles(db: &Database) -> Result<Vec<RoleView>, Error> {
+    db.read(|scope| {
+        let nodes = scope.all_nodes(NodeKind::Role)?;
+        let mut roles = Vec::with_capacity(nodes.len());
+        for node in nodes {
+            roles.push(read_role_view_sync(scope, node)?);
+        }
+        roles.sort_by(|left, right| left.role_name.cmp(&right.role_name));
+        Ok(roles)
+    })
 }
 
-pub async fn read_role_members(db: &DbHandle, role_name: &str) -> Result<Vec<String>, DbError> {
-    let mut members = users_holding_role(db, role_name).await?;
+pub fn read_role_members(db: &Database, role_name: &str) -> Result<Vec<String>, Error> {
+    let mut members = users_holding_role(db, role_name)?;
     members.sort();
     Ok(members)
 }
 
-pub async fn roles_of_user(db: &DbHandle, user_id: &str) -> Result<Vec<String>, DbError> {
-    let guard = db.read().await;
-    let Some(user_db_id) = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)? else {
-        return Ok(Vec::new());
-    };
-    let edges = outgoing_edges(&guard, user_db_id, EDGE_USER_HOLD_ROLE)?;
-    let mut roles = Vec::new();
-    for edge in &edges {
-        if let Some(row) = read_node::<RoleRow>(&guard, edge.to)? {
-            roles.push(row.role_name);
-        }
-    }
-    roles.sort();
-    Ok(roles)
+pub fn roles_of_user(db: &Database, user_id: &str) -> Result<Vec<String>, Error> {
+    db.read(|scope| {
+        let Some(user_db_id) = scope.resolve(NodeKind::User, user_id)? else {
+            return Ok(Vec::new());
+        };
+        let held = scope.outgoing(user_db_id, EdgeKind::UserHoldRole)?;
+        let rows = scope.scope_read_nodes::<RoleRow>(&held)?;
+        let mut roles: Vec<String> = rows.into_iter().map(|row| row.role_name).collect();
+        roles.sort();
+        Ok(roles)
+    })
 }
 
-pub async fn revoke_permission_from_role(
-    db: &DbHandle,
+pub fn revoke_permission_from_role(
+    db: &Database,
     role_name: &str,
     permission_name: &str,
-) -> Result<(), DbError> {
-    let mut guard = db.write().await;
-    let role_id = resolve_role_id_by_name_sync(&guard, role_name)?
-        .ok_or_else(|| not_found(ENTITY_TYPE_ROLE, role_name))?;
-    let permission_id = resolve_node_id(&guard, ENTITY_TYPE_PERMISSION, permission_name)?
-        .ok_or_else(|| not_found(ENTITY_TYPE_PERMISSION, permission_name))?;
-    remove_outgoing_edge(
-        &mut guard,
-        role_id,
-        permission_id,
-        EDGE_ROLE_GRANT_PERMISSION,
-    )?;
-    Ok(())
+) -> Result<(), Error> {
+    db.write(|scope| {
+        let role_id = resolve_role_id_by_name_sync(scope, role_name)?
+            .ok_or_else(|| not_found(NodeKind::Role, role_name))?;
+        let permission_id = scope
+            .resolve(NodeKind::Permission, permission_name)?
+            .ok_or_else(|| not_found(NodeKind::Permission, permission_name))?;
+        scope.remove_edge(role_id, EdgeKind::RoleGrantPermission, permission_id)?;
+        Ok(())
+    })
 }
 
-pub async fn unhold_role(db: &DbHandle, user_id: &str, role_name: &str) -> Result<(), DbError> {
-    let mut guard = db.write().await;
-    let user_db_id = resolve_node_id(&guard, ENTITY_TYPE_USER, user_id)?
-        .ok_or_else(|| not_found(ENTITY_TYPE_USER, user_id))?;
-    let role_db_id = resolve_role_id_by_name_sync(&guard, role_name)?
-        .ok_or_else(|| not_found(ENTITY_TYPE_ROLE, role_name))?;
-    remove_outgoing_edge(&mut guard, user_db_id, role_db_id, EDGE_USER_HOLD_ROLE)?;
-    Ok(())
+pub fn unhold_role(db: &Database, user_id: &str, role_name: &str) -> Result<(), Error> {
+    db.write(|scope| {
+        let user_db_id = scope
+            .resolve(NodeKind::User, user_id)?
+            .ok_or_else(|| not_found(NodeKind::User, user_id))?;
+        let role_db_id = resolve_role_id_by_name_sync(scope, role_name)?
+            .ok_or_else(|| not_found(NodeKind::Role, role_name))?;
+        scope.remove_edge(user_db_id, EdgeKind::UserHoldRole, role_db_id)?;
+        Ok(())
+    })
 }
 
-pub async fn delete_role(db: &DbHandle, role_name: &str) -> Result<(), DbError> {
-    let mut guard = db.write().await;
-    if let Some(role_id) = resolve_role_id_by_name_sync(&guard, role_name)? {
-        guard.exec_mut(QueryBuilder::remove().ids([role_id]).query())?;
-    }
-    Ok(())
+pub fn delete_role(db: &Database, role_name: &str) -> Result<(), Error> {
+    db.write(|scope| {
+        if let Some(role_id) = resolve_role_id_by_name_sync(scope, role_name)? {
+            scope.remove(&[role_id])?;
+        }
+        Ok(())
+    })
 }
 
-fn read_role_view_sync(db: &agdb::DbAny, role_id: agdb::DbId) -> Result<RoleView, DbError> {
-    let row =
-        read_node::<RoleRow>(db, role_id)?.ok_or_else(|| not_found(ENTITY_TYPE_ROLE, "row"))?;
+fn read_role_view_sync(
+    scope: &impl GraphRead,
+    role_id: database::NodeId,
+) -> Result<RoleView, Error> {
+    let row = scope
+        .scope_read_node::<RoleRow>(role_id)?
+        .ok_or_else(|| not_found(NodeKind::Role, "row"))?;
     let mut role = RoleView {
         id: row.id,
         role_name: row.role_name,
         ..Default::default()
     };
-    for permission in read_edge_rows::<PermissionRow>(db, role_id, EDGE_ROLE_GRANT_PERMISSION)? {
-        role.permissions.push(permission.permission_name);
-    }
+    let grants = scope.scope_outgoing(role_id, EdgeKind::RoleGrantPermission)?;
+    let permissions = scope.scope_read_nodes::<PermissionRow>(&grants)?;
+    role.permissions
+        .extend(permissions.into_iter().map(|p| p.permission_name));
     Ok(role)
 }
 
-fn read_edge_rows<T>(db: &agdb::DbAny, from: agdb::DbId, edge_type: &str) -> Result<Vec<T>, DbError>
-where
-    T: agdb::DbType<ValueType = T> + agdb::DbTypeMarker,
-{
-    let edges = outgoing_edges(db, from, edge_type)?;
-    let ids: Vec<agdb::DbId> = edges.iter().map(|edge| edge.to).collect();
-    if ids.is_empty() {
-        return Ok(Vec::new());
+fn not_found(kind: NodeKind, name: &str) -> Error {
+    Error::NotFound {
+        kind,
+        id: name.to_string(),
     }
-    read_rows::<T>(db, &ids)
-}
-
-fn remove_outgoing_edge(
-    db: &mut agdb::DbAny,
-    from: agdb::DbId,
-    to: agdb::DbId,
-    edge_type: &str,
-) -> Result<(), DbError> {
-    let edges = outgoing_edges(db, from, edge_type)?;
-    if let Some(edge) = edges.iter().find(|edge| edge.to == to) {
-        db.exec_mut(QueryBuilder::remove().ids([edge.id]).query())?;
-    }
-    Ok(())
-}
-
-fn not_found(kind: &str, name: &str) -> DbError {
-    DbError::query(DbErrorType::NotFound, format!("{kind} {name}"))
 }

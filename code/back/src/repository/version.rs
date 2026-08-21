@@ -1,14 +1,10 @@
-use agdb::{DbError, DbErrorType, QueryBuilder};
+use database::{Database, EdgeKind, Error, NodeKind, Value};
 use semver::Version;
 
-use crate::repository::graph::{
-    DbHandle, find_by_index, highest_version_number, incoming_edges, insert_edge, outgoing_edges,
-    read_node, read_rows, resolve_node_id,
-};
+use crate::repository::access::GraphRead;
+use crate::repository::delete::{has_soft_deleted_flag, highest_version_number};
 use crate::repository::schema::{
-    ArticleRow, EDGE_ARTICLE_HOLD_VERSION, ENTITY_TYPE_ARTICLE, ENTITY_TYPE_VERSION, IdRow,
-    KEY_CONTENT_HASH, KEY_LATEST_VERSION_ID, KEY_SOFT_DELETED, KEY_TYPE, KEY_VERSION_NOTE,
-    VersionRow, alias_of,
+    ArticleRow, IdRow, KEY_CONTENT_HASH, KEY_LATEST_VERSION_ID, KEY_VERSION_NOTE, VersionRow,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,11 +40,11 @@ pub enum CreateVersionError {
     NotGreater,
     InvalidNumber,
     ContentHashTaken,
-    Db(DbError),
+    Db(Error),
 }
 
-impl From<DbError> for CreateVersionError {
-    fn from(error: DbError) -> Self {
+impl From<Error> for CreateVersionError {
+    fn from(error: Error) -> Self {
         Self::Db(error)
     }
 }
@@ -67,223 +63,192 @@ impl std::fmt::Display for CreateVersionError {
 
 impl std::error::Error for CreateVersionError {}
 
-pub async fn create_version(
-    db: &DbHandle,
+pub fn create_version(
+    db: &Database,
     article_id: &str,
     draft: &VersionDraft,
 ) -> Result<(), CreateVersionError> {
-    let mut guard = db.write().await;
-    guard.transaction_mut(|transaction| {
-        let Some(article) = resolve_node_id(transaction, ENTITY_TYPE_ARTICLE, article_id)? else {
-            return Err(CreateVersionError::ArticleMissing);
+    db.write(|scope| {
+        let Some(article) = scope.resolve(NodeKind::Article, article_id)? else {
+            return Ok(Err(CreateVersionError::ArticleMissing));
         };
-        if crate::repository::delete::has_soft_deleted_flag(transaction, article)? {
-            return Err(CreateVersionError::ArticleMissing);
+        if has_soft_deleted_flag(scope, article)? {
+            return Ok(Err(CreateVersionError::ArticleMissing));
         }
-        if !find_by_index(transaction, KEY_CONTENT_HASH, &draft.content_hash)?.is_empty() {
-            return Err(CreateVersionError::ContentHashTaken);
+        if scope
+            .find_by_key(KEY_CONTENT_HASH, &draft.content_hash)?
+            .is_some()
+        {
+            return Ok(Err(CreateVersionError::ContentHashTaken));
         }
-        let edges = outgoing_edges(transaction, article, EDGE_ARTICLE_HOLD_VERSION)?;
-        let mut stored_rows = Vec::new();
-        for edge in &edges {
-            if let Some(row) = read_node::<VersionRow>(transaction, edge.to)? {
-                Version::parse(&row.version_number)
-                    .map_err(|_| CreateVersionError::InvalidNumber)?;
-                stored_rows.push(row);
+        let edges = scope.outgoing(article, EdgeKind::ArticleHoldVersion)?;
+        let stored_rows = scope.read_nodes::<VersionRow>(&edges)?;
+        for row in &stored_rows {
+            if Version::parse(&row.version_number).is_err() {
+                return Ok(Err(CreateVersionError::InvalidNumber));
             }
         }
-        let new_version =
-            Version::parse(&draft.version_number).map_err(|_| CreateVersionError::InvalidNumber)?;
-        if let Some(max) = highest_version_number(stored_rows)
-            && new_version
-                <= Version::parse(&max.version_number)
-                    .map_err(|_| CreateVersionError::InvalidNumber)?
-        {
-            return Err(CreateVersionError::NotGreater);
+        let Ok(new_version) = Version::parse(&draft.version_number) else {
+            return Ok(Err(CreateVersionError::InvalidNumber));
+        };
+        if let Some(max) = highest_version_number(stored_rows) {
+            let Ok(max_number) = Version::parse(&max.version_number) else {
+                return Ok(Err(CreateVersionError::InvalidNumber));
+            };
+            if new_version <= max_number {
+                return Ok(Err(CreateVersionError::NotGreater));
+            }
         }
 
-        transaction.exec_mut(
-            QueryBuilder::insert()
-                .nodes()
-                .aliases([alias_of(ENTITY_TYPE_VERSION, &draft.version_id)])
-                .values(VersionRow {
-                    db_id: None,
-                    entity_type: ENTITY_TYPE_VERSION.to_string(),
-                    id: draft.version_id.clone(),
-                    version_number: draft.version_number.clone(),
-                    content_hash: draft.content_hash.clone(),
-                    note: draft.note.clone(),
-                })
-                .query(),
+        scope.insert_node(&VersionRow {
+            id: draft.version_id.clone(),
+            version_number: draft.version_number.clone(),
+            content_hash: draft.content_hash.clone(),
+            note: draft.note.clone(),
+        })?;
+        let version_node = scope
+            .resolve(NodeKind::Version, &draft.version_id)?
+            .ok_or_else(|| Error::Invalid("inserted version missing".to_string()))?;
+        scope.insert_edge(
+            NodeKind::Article,
+            article,
+            EdgeKind::ArticleHoldVersion,
+            NodeKind::Version,
+            version_node,
         )?;
-        insert_edge(
-            transaction,
-            EDGE_ARTICLE_HOLD_VERSION,
-            article.into(),
-            alias_of(ENTITY_TYPE_VERSION, &draft.version_id).into(),
+        scope.set_key(
+            article,
+            KEY_LATEST_VERSION_ID,
+            Value::Text(draft.version_id.clone()),
         )?;
-        transaction.exec_mut(
-            QueryBuilder::insert()
-                .nodes()
-                .ids([article])
-                .values([[(KEY_LATEST_VERSION_ID, draft.version_id.as_str()).into()]])
-                .query(),
-        )?;
+        Ok(Ok(()))
+    })
+    .map_err(CreateVersionError::from)
+    .and_then(std::convert::identity)
+}
+
+pub fn read_version(db: &Database, version_id: &str) -> Result<Option<VersionEntry>, Error> {
+    db.read(|scope| {
+        let Some(id) = scope.resolve(NodeKind::Version, version_id)? else {
+            return Ok(None);
+        };
+        let row = scope.scope_read_node::<VersionRow>(id)?.ok_or_else(|| {
+            Error::Invalid(format!(
+                "version {version_id} exists but has no readable row"
+            ))
+        })?;
+        Ok(Some(VersionEntry {
+            version_number: row.version_number,
+            content_hash: row.content_hash,
+            note: row.note,
+        }))
+    })
+}
+
+pub fn update_version(db: &Database, version_id: &str, note: &str) -> Result<(), Error> {
+    db.write(|scope| {
+        let Some(id) = scope.resolve(NodeKind::Version, version_id)? else {
+            return Ok(());
+        };
+        if has_soft_deleted_flag(scope, id)? {
+            return Ok(());
+        }
+        scope.set_key(id, KEY_VERSION_NOTE, Value::Text(note.to_string()))?;
         Ok(())
     })
 }
 
-pub async fn read_version(
-    db: &DbHandle,
-    version_id: &str,
-) -> Result<Option<VersionEntry>, DbError> {
-    let guard = db.read().await;
-    let Some(id) = resolve_node_id(&guard, ENTITY_TYPE_VERSION, version_id)? else {
-        return Ok(None);
-    };
-    let row = read_rows::<VersionRow>(&guard, &[id])?
-        .into_iter()
-        .next()
-        .ok_or_else(|| DbError::query(DbErrorType::NotFound, "version row missing"))?;
-    Ok(Some(VersionEntry {
-        version_number: row.version_number,
-        content_hash: row.content_hash,
-        note: row.note,
-    }))
+pub fn count_versions_of(db: &Database, article_id: &str) -> Result<u64, Error> {
+    db.read(|scope| {
+        let Some(article) = scope.resolve(NodeKind::Article, article_id)? else {
+            return Ok(0);
+        };
+        if has_soft_deleted_flag(scope, article)? {
+            return Ok(0);
+        }
+        live_versions_of(scope, article).map(|versions| versions.len() as u64)
+    })
 }
 
-pub async fn update_version(db: &DbHandle, version_id: &str, note: &str) -> Result<(), DbError> {
-    let mut guard = db.write().await;
-    let Some(id) = resolve_node_id(&guard, ENTITY_TYPE_VERSION, version_id)? else {
-        return Ok(());
-    };
-    if crate::repository::delete::has_soft_deleted_flag(&guard, id)? {
-        return Ok(());
+fn live_versions_of(
+    scope: &impl GraphRead,
+    article: database::NodeId,
+) -> Result<Vec<VersionRow>, Error> {
+    let nodes = scope.scope_outgoing(article, EdgeKind::ArticleHoldVersion)?;
+    let rows = scope.scope_read_nodes::<VersionRow>(&nodes)?;
+    let mut live = Vec::with_capacity(rows.len());
+    for (node, row) in nodes.into_iter().zip(rows) {
+        if !has_soft_deleted_flag(scope, node)? {
+            live.push(row);
+        }
     }
-    guard.exec_mut(
-        QueryBuilder::insert()
-            .nodes()
-            .ids([id])
-            .values([[(KEY_VERSION_NOTE, note).into()]])
-            .query(),
-    )?;
-    Ok(())
+    Ok(live)
 }
 
-pub async fn count_versions_of(db: &DbHandle, article_id: &str) -> Result<u64, DbError> {
-    let guard = db.read().await;
-    let Some(article) = resolve_node_id(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
-        return Ok(0);
-    };
-    if crate::repository::delete::has_soft_deleted_flag(&guard, article)? {
-        return Ok(0);
-    }
-    let nodes = guard.exec(
-        QueryBuilder::search()
-            .from(article)
-            .where_()
-            .distance(agdb::CountComparison::Equal(2))
-            .and()
-            .node()
-            .and()
-            .key(KEY_TYPE)
-            .value(ENTITY_TYPE_VERSION)
-            .and()
-            .not()
-            .keys(KEY_SOFT_DELETED)
-            .query(),
-    )?;
-    Ok(nodes.elements.len() as u64)
-}
-
-pub async fn versions_of(
-    db: &DbHandle,
+pub fn versions_of(
+    db: &Database,
     article_id: &str,
     limit: u64,
     offset: u64,
-) -> Result<(Vec<VersionListItem>, bool), DbError> {
-    let guard = db.read().await;
-    let Some(article) = resolve_node_id(&guard, ENTITY_TYPE_ARTICLE, article_id)? else {
-        return Ok((Vec::new(), false));
-    };
-    if crate::repository::delete::has_soft_deleted_flag(&guard, article)? {
-        return Ok((Vec::new(), false));
-    }
-    let limit = usize::try_from(limit).unwrap_or(usize::MAX);
-    let nodes = guard.exec(
-        QueryBuilder::search()
-            .from(article)
-            .offset(offset)
-            .limit(limit.saturating_add(1) as u64)
-            .where_()
-            .distance(agdb::CountComparison::Equal(2))
-            .and()
-            .node()
-            .and()
-            .key(KEY_TYPE)
-            .value(ENTITY_TYPE_VERSION)
-            .and()
-            .not()
-            .keys(KEY_SOFT_DELETED)
-            .query(),
-    )?;
-    let has_next = nodes.elements.len() > limit;
-    let version_nodes: Vec<agdb::DbId> = nodes
-        .elements
-        .iter()
-        .take(limit)
-        .map(|element| element.id)
-        .collect();
-    let id_rows = read_rows::<IdRow>(&guard, &version_nodes)?;
-    let version_rows = read_rows::<VersionRow>(&guard, &version_nodes)?;
-    let list: Vec<VersionListItem> = id_rows
-        .into_iter()
-        .zip(version_rows)
-        .map(|(id_row, version_row)| VersionListItem {
-            id: id_row.id,
-            version_number: version_row.version_number,
-        })
-        .collect();
-    Ok((list, has_next))
+) -> Result<(Vec<VersionListItem>, bool), Error> {
+    db.read(|scope| {
+        let Some(article) = scope.resolve(NodeKind::Article, article_id)? else {
+            return Ok((Vec::new(), false));
+        };
+        if has_soft_deleted_flag(scope, article)? {
+            return Ok((Vec::new(), false));
+        }
+        let mut live = live_versions_of(scope, article)?;
+        let has_next = (live.len() as u64) > offset + limit;
+        let page: Vec<VersionListItem> = live
+            .drain(..)
+            .skip(usize::try_from(offset).unwrap_or(usize::MAX))
+            .take(usize::try_from(limit).unwrap_or(usize::MAX))
+            .map(|row| VersionListItem {
+                id: row.id,
+                version_number: row.version_number,
+            })
+            .collect();
+        Ok((page, has_next))
+    })
 }
 
-pub async fn content_hash_owner(
-    db: &DbHandle,
+pub fn content_hash_owner(
+    db: &Database,
     content_hash: &str,
-) -> Result<Option<ContentHashOwner>, DbError> {
-    let guard = db.read().await;
-    let ids = find_by_index(&guard, KEY_CONTENT_HASH, content_hash)?;
-    let Some(version_id) = ids.first() else {
-        return Ok(None);
-    };
-    let version_business_id = read_rows::<IdRow>(&guard, &[*version_id])?
-        .first()
-        .map(|row| row.id.clone())
-        .unwrap_or_default();
-    let edges = incoming_edges(&guard, *version_id, EDGE_ARTICLE_HOLD_VERSION)?;
-    let article_title = match edges.first() {
-        Some(edge) => read_rows::<ArticleRow>(&guard, &[edge.from])?
+) -> Result<Option<ContentHashOwner>, Error> {
+    db.read(|scope| {
+        let Some(version_node) = scope.find_by_key(KEY_CONTENT_HASH, content_hash)? else {
+            return Ok(None);
+        };
+        let version_id = scope
+            .scope_read_node::<IdRow>(version_node)?
+            .map(|row| row.id)
+            .unwrap_or_default();
+        let article_title = scope
+            .incoming(version_node, EdgeKind::ArticleHoldVersion)?
             .first()
-            .map(|row| row.title.clone())
-            .unwrap_or_default(),
-        None => String::new(),
-    };
-    Ok(Some(ContentHashOwner {
-        version_id: version_business_id,
-        article_title,
-    }))
+            .and_then(|article| scope.scope_read_node::<ArticleRow>(*article).transpose())
+            .transpose()?
+            .map(|row| row.title)
+            .unwrap_or_default();
+        Ok(Some(ContentHashOwner {
+            version_id,
+            article_title,
+        }))
+    })
 }
 
-pub async fn parent_article_of(db: &DbHandle, version_id: &str) -> Result<Option<String>, DbError> {
-    let guard = db.read().await;
-    let Some(version) = resolve_node_id(&guard, ENTITY_TYPE_VERSION, version_id)? else {
-        return Ok(None);
-    };
-    let edges = incoming_edges(&guard, version, EDGE_ARTICLE_HOLD_VERSION)?;
-    Ok(edges.first().and_then(|edge| {
-        read_rows::<IdRow>(&guard, &[edge.from])
-            .ok()
-            .and_then(|rows| rows.into_iter().next())
-            .map(|row| row.id)
-    }))
+pub fn parent_article_of(db: &Database, version_id: &str) -> Result<Option<String>, Error> {
+    db.read(|scope| {
+        let Some(version) = scope.resolve(NodeKind::Version, version_id)? else {
+            return Ok(None);
+        };
+        Ok(scope
+            .incoming(version, EdgeKind::ArticleHoldVersion)?
+            .first()
+            .and_then(|article| scope.scope_read_node::<IdRow>(*article).transpose())
+            .transpose()?
+            .map(|row| row.id))
+    })
 }

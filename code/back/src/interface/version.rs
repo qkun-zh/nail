@@ -57,7 +57,6 @@ pub async fn read_versions(
 ) -> Result<impl IntoResponse, ApiError> {
     let data =
         crate::logic::version::read_versions(&state, &principal.user_id, &article_id, page, limit)
-            .await
             .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
@@ -79,7 +78,6 @@ pub async fn read_version(
         &version_id,
         params.article_id.as_deref(),
     )
-    .await
     .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
@@ -101,7 +99,6 @@ pub async fn update_version(
         &version_id,
         &payload.note,
     )
-    .await
     .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }

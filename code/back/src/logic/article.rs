@@ -1,3 +1,4 @@
+use database::NodeKind;
 use nail_common::request::DeleteMode;
 use nail_common::response::article::{ArticleIdView, ArticleView};
 use uuid::Uuid;
@@ -48,10 +49,10 @@ pub async fn create_article(
         note: raw_note,
         upload,
     } = input;
-    authorize_global(state, actor_id, PERMISSION_ARTICLE_CREATE).await?;
+    authorize_global(state, actor_id, PERMISSION_ARTICLE_CREATE)?;
     let title = validate_title(raw_title, state.configurator.max_title_chars())?;
     let summary = validate_summary(raw_summary, state.configurator.max_summary_chars())?;
-    let tags = validate_tags(state, raw_tags, state.configurator.max_tags_per_article()).await?;
+    let tags = validate_tags(state, raw_tags, state.configurator.max_tags_per_article())?;
     let version_number = validate_version(raw_version)?;
     let note = validate_note(raw_note, state.configurator.max_version_note_chars())?;
 
@@ -75,7 +76,7 @@ pub async fn create_article(
         },
     };
 
-    match create_article_node(&state.database, &draft).await {
+    match create_article_node(&state.database, &draft) {
         Ok(()) => {
             upload.keep_final();
             sync_article_best_effort(state, &article_id).await;
@@ -88,14 +89,13 @@ pub async fn create_article(
     }
 }
 
-pub async fn read_article(
+pub fn read_article(
     state: &AppState,
     actor_id: &str,
     article_id: &str,
 ) -> Result<ArticleView, LogicError> {
-    require_entity_readable(state, actor_id, EntityRef::Article(article_id)).await?;
-    let article = read_article_node(&state.database, article_id)
-        .await?
+    require_entity_readable(state, actor_id, EntityRef::Article(article_id))?;
+    let article = read_article_node(&state.database, article_id)?
         .ok_or_else(|| LogicError::not_found("article not found"))?;
 
     let created_at = nail_common::time::uuidv7_timestamp_secs(&article.id).unwrap_or(0);
@@ -124,11 +124,10 @@ pub async fn update_article(
         actor_id,
         PERMISSION_ARTICLE_UPDATE,
         EntityRef::Article(article_id),
-    )
-    .await?;
+    )?;
     let title = validate_title(raw_title, state.configurator.max_title_chars())?;
     let summary = validate_summary(raw_summary, state.configurator.max_summary_chars())?;
-    let tags = validate_tags(state, raw_tags, state.configurator.max_tags_per_article()).await?;
+    let tags = validate_tags(state, raw_tags, state.configurator.max_tags_per_article())?;
     update_article_node(
         &state.database,
         article_id,
@@ -137,8 +136,7 @@ pub async fn update_article(
             summary,
             tags,
         },
-    )
-    .await?;
+    )?;
     sync_article_best_effort(state, article_id).await;
     Ok(ArticleIdView {
         article_id: article_id.to_string(),
@@ -158,9 +156,8 @@ pub async fn delete_article(
                 actor_id,
                 PERMISSION_ARTICLE_DELETE_TRANSFER,
                 EntityRef::Article(article_id),
-            )
-            .await?;
-            transfer_article(&state.database, article_id).await?;
+            )?;
+            transfer_article(&state.database, article_id)?;
             sync_article_best_effort(state, article_id).await;
             Ok(ArticleIdView {
                 article_id: article_id.to_string(),
@@ -172,10 +169,8 @@ pub async fn delete_article(
                 actor_id,
                 PERMISSION_ARTICLE_DELETE_HARD,
                 EntityRef::Article(article_id),
-            )
-            .await?;
-            let outcome =
-                crate::repository::delete::delete_article(&state.database, article_id).await?;
+            )?;
+            let outcome = crate::repository::delete::delete_article(&state.database, article_id)?;
             remove_orphaned_pdfs(state, &outcome.removed_pdf_hashes).await;
             sync_article_best_effort(state, article_id).await;
             Ok(ArticleIdView {
@@ -188,15 +183,16 @@ pub async fn delete_article(
                 actor_id,
                 PERMISSION_ARTICLE_DELETE_SOFT,
                 EntityRef::Article(article_id),
-            )
-            .await?;
-            let already_deleted =
-                crate::repository::delete::is_soft_deleted(&state.database, "article", article_id)
-                    .await?;
+            )?;
+            let already_deleted = crate::repository::delete::is_soft_deleted(
+                &state.database,
+                NodeKind::Article,
+                article_id,
+            )?;
             if already_deleted {
                 return Err(LogicError::bad_request("already soft-deleted"));
             }
-            crate::repository::delete::soft_delete_article(&state.database, article_id).await?;
+            crate::repository::delete::soft_delete_article(&state.database, article_id)?;
             sync_article_best_effort(state, article_id).await;
             Ok(ArticleIdView {
                 article_id: article_id.to_string(),
@@ -218,14 +214,13 @@ pub async fn undelete_soft_article(
         actor_id,
         PERMISSION_ARTICLE_UNDELETE_SOFT,
         EntityRef::Article(article_id),
-    )
-    .await?;
+    )?;
     let hidden =
-        crate::repository::delete::is_soft_deleted(&state.database, "article", article_id).await?;
+        crate::repository::delete::is_soft_deleted(&state.database, NodeKind::Article, article_id)?;
     if !hidden {
         return Err(LogicError::bad_request("not soft-deleted"));
     }
-    crate::repository::delete::clear_soft_deleted_flag(&state.database, article_id).await?;
+    crate::repository::delete::clear_soft_deleted_flag(&state.database, article_id)?;
     sync_article_best_effort(state, article_id).await;
     Ok(ArticleIdView {
         article_id: article_id.to_string(),
@@ -250,18 +245,14 @@ fn validate_summary(raw: &str, max_chars: u64) -> Result<String, LogicError> {
     .map_err(|error| LogicError::bad_request(error.to_string()))
 }
 
-async fn validate_tags(
-    state: &AppState,
-    raw: &str,
-    max_tags: usize,
-) -> Result<Vec<String>, LogicError> {
+fn validate_tags(state: &AppState, raw: &str, max_tags: usize) -> Result<Vec<String>, LogicError> {
     let tags = nail_common::tag::parse_tags(raw, max_tags)
         .map_err(|error| LogicError::bad_request(error.to_string()))?;
     if tags.is_empty() {
         return Err(LogicError::bad_request("at least one tag is required"));
     }
     for name in &tags {
-        if read_tag_by_name(&state.database, name).await?.is_none() {
+        if read_tag_by_name(&state.database, name)?.is_none() {
             return Err(LogicError::bad_request(format!(
                 "tag \"{name}\" does not exist"
             )));

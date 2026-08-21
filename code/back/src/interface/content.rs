@@ -30,7 +30,6 @@ pub async fn read_content(
             &article_id,
             &version_id,
         )
-        .await
         .map_err(ApiError::from_logic)?;
         return Ok(json_response(StatusCode::OK, MintUrl { url }, "ok"));
     }
@@ -45,7 +44,6 @@ pub async fn read_content(
         &version_id,
         token,
     )
-    .await
     .map_err(ApiError::from_logic)?;
 
     serve_pdf_file(&path).await

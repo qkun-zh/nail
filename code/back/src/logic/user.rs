@@ -1,3 +1,4 @@
+use database::NodeKind;
 use nail_common::request::{DeleteMode, UserDeleteQuery, UserUpdateRequest};
 use nail_common::response::EmptyView;
 use nail_common::response::session::SessionTokenView;
@@ -36,13 +37,12 @@ pub enum UserDeleteView {
     UserId(UserIdView),
 }
 
-pub async fn create_user(state: &AppState, raw_token: &str) -> Result<String, LogicError> {
+pub fn create_user(state: &AppState, raw_token: &str) -> Result<String, LogicError> {
     authorize_anonymous(
         state,
         PERMISSION_USER_CREATE,
         &Resource::Virtual("any".to_string()),
-    )
-    .await?;
+    )?;
     let key = hash_token(
         raw_token,
         LogicError::bad_request("invalid or expired token"),
@@ -54,8 +54,7 @@ pub async fn create_user(state: &AppState, raw_token: &str) -> Result<String, Lo
         .delete(&key)
         .ok_or_else(|| LogicError::bad_request("invalid or expired token"))?;
 
-    let user_id = match crate::repository::user::create_user(&state.database, entry.as_str()).await
-    {
+    let user_id = match crate::repository::user::create_user(&state.database, entry.as_str()) {
         Ok(user_id) => user_id,
         Err(error) => {
             state.cache.user_creation.insert(&key, entry);
@@ -63,34 +62,32 @@ pub async fn create_user(state: &AppState, raw_token: &str) -> Result<String, Lo
         }
     };
 
-    if crate::repository::delete::is_soft_deleted(&state.database, "user", &user_id).await? {
+    if crate::repository::delete::is_soft_deleted(&state.database, NodeKind::User, &user_id)? {
         return Err(LogicError::bad_request("email address is deactivated"));
     }
 
     crate::repository::role::hold_role(&state.database, &user_id, ROLE_MEMBER)
-        .await
         .map_err(|error| LogicError::internal(format!("failed to grant member role: {error}")))?;
 
     tracing::info!(user_id = %user_id, "user created from email token");
     Ok(user_id)
 }
 
-pub async fn read_user(
+pub fn read_user(
     state: &AppState,
     actor_id: &str,
     target_id: &str,
     name_requested: bool,
     email_hash_requested: bool,
 ) -> Result<UserView, LogicError> {
-    require_entity_readable(state, actor_id, EntityRef::User(target_id)).await?;
+    require_entity_readable(state, actor_id, EntityRef::User(target_id))?;
 
     let mut view = UserView {
         id: Some(target_id.to_string()),
         ..UserView::default()
     };
     if name_requested || email_hash_requested {
-        let entry = read_user_node(&state.database, target_id)
-            .await?
+        let entry = read_user_node(&state.database, target_id)?
             .ok_or_else(|| LogicError::not_found("user not found"))?;
         if name_requested {
             view.name = Some(entry.name);
@@ -99,27 +96,27 @@ pub async fn read_user(
             view.email_hash = Some(entry.email_address_hash);
         }
     }
-    let roles = crate::repository::role::roles_of_user(&state.database, target_id).await?;
+    let roles = crate::repository::role::roles_of_user(&state.database, target_id)?;
     view.roles = Some(roles);
-    let articles = crate::repository::article::articles_of_user(&state.database, target_id).await?;
+    let articles = crate::repository::article::articles_of_user(&state.database, target_id)?;
     view.articles = Some(articles);
     Ok(view)
 }
 
-pub async fn read_users(
+pub fn read_users(
     state: &AppState,
     actor_id: &str,
     page: u64,
     limit: u64,
 ) -> Result<nail_common::response::ListPage<UserListItem>, LogicError> {
-    authorize_global(state, actor_id, PERMISSION_USER_READ).await?;
-    let users = read_user_nodes(&state.database).await?;
+    authorize_global(state, actor_id, PERMISSION_USER_READ)?;
+    let users = read_user_nodes(&state.database)?;
     let total = users.len() as u64;
     let (page_users, has_next) = paginate(users, page, limit);
 
     let mut items = Vec::with_capacity(page_users.len());
     for user in &page_users {
-        let roles = crate::repository::role::roles_of_user(&state.database, &user.id).await?;
+        let roles = crate::repository::role::roles_of_user(&state.database, &user.id)?;
         items.push(UserListItem {
             id: user.id.clone(),
             name: user.name.clone(),
@@ -146,11 +143,9 @@ pub async fn update_user(
                 actor_id,
                 PERMISSION_USER_UPDATE,
                 EntityRef::User(actor_id),
-            )
-            .await?;
+            )?;
             let new_session_token =
-                crate::logic::email::update_user_email(state, actor_id, &old_token, &new_token)
-                    .await?;
+                crate::logic::email::update_user_email(state, actor_id, &old_token, &new_token)?;
             return Ok(UserUpdateView::SessionToken(SessionTokenView {
                 session_token: new_session_token,
             }));
@@ -164,7 +159,7 @@ pub async fn update_user(
     }
 
     if let Some(raw_name) = request.name {
-        let name = handle_admin_update_name(state, actor_id, target_id, &raw_name).await?;
+        let name = handle_admin_update_name(state, actor_id, target_id, &raw_name)?;
         sync_user_best_effort(state, target_id).await;
         return Ok(UserUpdateView::Name(UserNameView { name }));
     }
@@ -207,7 +202,7 @@ pub async fn delete_user(
     }
 }
 
-async fn handle_admin_update_name(
+fn handle_admin_update_name(
     state: &AppState,
     actor_id: &str,
     target_id: &str,
@@ -218,16 +213,13 @@ async fn handle_admin_update_name(
         actor_id,
         PERMISSION_USER_UPDATE,
         EntityRef::User(target_id),
-    )
-    .await?;
+    )?;
     let name = nail_common::name::validate_name(raw_name)
         .map_err(|error| LogicError::bad_request(error.to_string()))?;
-    update_user_name(&state.database, target_id, &name)
-        .await
-        .map_err(|error| match error {
-            UserWriteError::UserMissing => LogicError::not_found("user not found"),
-            other => other.into(),
-        })?;
+    update_user_name(&state.database, target_id, &name).map_err(|error| match error {
+        UserWriteError::UserMissing => LogicError::not_found("user not found"),
+        other => other.into(),
+    })?;
     Ok(name)
 }
 
@@ -241,12 +233,11 @@ async fn handle_delete_user_transfer(
         actor_id,
         PERMISSION_USER_DELETE_TRANSFER,
         EntityRef::User(actor_id),
-    )
-    .await?;
+    )?;
     let token_hash = hash_token(raw_token, LogicError::bad_request("invalid delete token"))?;
 
     let Some(entry) = state.cache.user_deletion.read(&token_hash) else {
-        let user_exists = read_user_node(&state.database, actor_id).await?.is_some();
+        let user_exists = read_user_node(&state.database, actor_id)?.is_some();
         if user_exists {
             return Err(LogicError::bad_request("invalid or expired delete token"));
         }
@@ -259,8 +250,7 @@ async fn handle_delete_user_transfer(
         ));
     }
 
-    let outcome =
-        crate::repository::transfer::transfer_account_assets(&state.database, actor_id).await?;
+    let outcome = crate::repository::transfer::transfer_account_assets(&state.database, actor_id)?;
 
     let email_address_hash = entry.email_address_hash.as_str();
     let _ = state.cache.user_deletion.delete(&token_hash);
@@ -289,12 +279,11 @@ async fn handle_delete_user_soft(
         actor_id,
         PERMISSION_USER_DELETE_SOFT,
         EntityRef::User(actor_id),
-    )
-    .await?;
+    )?;
     let token_hash = hash_token(raw_token, LogicError::bad_request("invalid delete token"))?;
 
     let Some(entry) = state.cache.user_deletion.read(&token_hash) else {
-        let user_exists = read_user_node(&state.database, actor_id).await?.is_some();
+        let user_exists = read_user_node(&state.database, actor_id)?.is_some();
         if user_exists {
             return Err(LogicError::bad_request("invalid or expired delete token"));
         }
@@ -308,7 +297,6 @@ async fn handle_delete_user_soft(
     }
 
     crate::repository::delete::soft_delete_user(&state.database, actor_id)
-        .await
         .map_err(|error| LogicError::internal(format!("failed to soft-delete user: {error}")))?;
 
     let email_address_hash = entry.email_address_hash.as_str();
@@ -336,10 +324,8 @@ pub async fn undelete_soft_user(
         actor_id,
         PERMISSION_USER_UNDELETE_SOFT,
         EntityRef::User(target_id),
-    )
-    .await?;
+    )?;
     crate::repository::delete::undelete_soft_user(&state.database, target_id)
-        .await
         .map_err(|error| LogicError::internal(format!("failed to undelete user: {error}")))?;
     sync_all_best_effort(state).await;
     Ok(())
@@ -355,10 +341,8 @@ async fn handle_delete_user_hard(
         actor_id,
         PERMISSION_USER_DELETE_HARD,
         EntityRef::User(target_id),
-    )
-    .await?;
+    )?;
     let outcome = crate::repository::delete::delete_user(&state.database, target_id)
-        .await
         .map_err(|error| LogicError::internal(format!("failed to delete user: {error}")))?;
     crate::logic::version::remove_orphaned_pdfs(state, &outcome.removed_pdf_hashes).await;
     sync_all_best_effort(state).await;

@@ -55,6 +55,10 @@ impl EdgeKind {
 
 pub(crate) const TYPE_KEY: &str = "type";
 
+/// Node key under which the business id is persisted so row projections
+/// can recover it on read.
+pub const ID_KEY: &str = "id";
+
 pub(crate) fn alias_of(kind: NodeKind, business_id: &str) -> String {
     format!("{}:{business_id}", kind.key())
 }

@@ -30,16 +30,15 @@ fn article_draft(author_id: &str, title: &str, hash: &str, tags: Vec<String>) ->
     }
 }
 
-async fn create_user(state: &crate::infrastructure::state::AppState, email: &str) -> String {
+fn create_user(state: &crate::infrastructure::state::AppState, email: &str) -> String {
     crate::repository::user::create_user(
         &state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user")
 }
 
-async fn create_article_fixture(
+fn create_article_fixture(
     state: &crate::infrastructure::state::AppState,
     author_id: &str,
     title: &str,
@@ -63,7 +62,6 @@ async fn create_article_fixture(
             },
         },
     )
-    .await
     .expect("create article");
     (article_id, version_id)
 }
@@ -71,7 +69,7 @@ async fn create_article_fixture(
 #[tokio::test]
 async fn create_article_writes_nodes_and_edges_and_reads_back() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
+    let author_id = create_user(&state, "alice@example.com");
     let article_id = uuid::Uuid::now_v7().to_string();
     let version_id = uuid::Uuid::now_v7().to_string();
 
@@ -91,11 +89,9 @@ async fn create_article_writes_nodes_and_edges_and_reads_back() {
             },
         },
     )
-    .await
     .expect("create");
 
     let detail = read_article(&state.database, &article_id)
-        .await
         .expect("read")
         .expect("article");
     assert_eq!(detail.title, "My Article");
@@ -104,7 +100,6 @@ async fn create_article_writes_nodes_and_edges_and_reads_back() {
     assert!(detail.tags.iter().any(|tag| tag.name == "rust"));
 
     let version = crate::repository::version::read_version(&state.database, &version_id)
-        .await
         .expect("version")
         .expect("version");
     assert_eq!(version.version_number, "1.0.0");
@@ -118,7 +113,6 @@ async fn create_article_rejects_a_missing_author() {
         &state.database,
         &article_draft("missing", "Title", &pdf_hash(1), vec!["go".to_string()]),
     )
-    .await
     .expect_err("missing author");
     assert!(matches!(error, CreateArticleError::AuthorMissing));
 }
@@ -126,8 +120,8 @@ async fn create_article_rejects_a_missing_author() {
 #[tokio::test]
 async fn create_article_rejects_a_duplicate_title() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    create_article_fixture(&state, &author_id, "Duplicated", &pdf_hash(1)).await;
+    let author_id = create_user(&state, "alice@example.com");
+    create_article_fixture(&state, &author_id, "Duplicated", &pdf_hash(1));
 
     let error = create_article(
         &state.database,
@@ -138,7 +132,6 @@ async fn create_article_rejects_a_duplicate_title() {
             vec!["go".to_string()],
         ),
     )
-    .await
     .expect_err("duplicate title");
     assert!(matches!(error, CreateArticleError::TitleTaken));
 }
@@ -146,14 +139,13 @@ async fn create_article_rejects_a_duplicate_title() {
 #[tokio::test]
 async fn create_article_rejects_a_duplicate_content_hash() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    create_article_fixture(&state, &author_id, "First", &pdf_hash(3)).await;
+    let author_id = create_user(&state, "alice@example.com");
+    create_article_fixture(&state, &author_id, "First", &pdf_hash(3));
 
     let error = create_article(
         &state.database,
         &article_draft(&author_id, "Second", &pdf_hash(3), vec!["go".to_string()]),
     )
-    .await
     .expect_err("duplicate content hash");
     assert!(matches!(error, CreateArticleError::ContentHashTaken));
 }
@@ -161,8 +153,8 @@ async fn create_article_rejects_a_duplicate_content_hash() {
 #[tokio::test]
 async fn update_article_changes_fields_and_reconciles_tags() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, _) = create_article_fixture(&state, &author_id, "Article", &pdf_hash(1)).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (article_id, _) = create_article_fixture(&state, &author_id, "Article", &pdf_hash(1));
 
     update_article(
         &state.database,
@@ -173,11 +165,9 @@ async fn update_article_changes_fields_and_reconciles_tags() {
             tags: vec!["go".to_string()],
         },
     )
-    .await
     .expect("update");
 
     let detail = read_article(&state.database, &article_id)
-        .await
         .expect("read")
         .expect("article");
     assert_eq!(detail.title, "Renamed");
@@ -189,9 +179,9 @@ async fn update_article_changes_fields_and_reconciles_tags() {
 #[tokio::test]
 async fn update_article_rejects_a_duplicate_title() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, _) = create_article_fixture(&state, &author_id, "First", &pdf_hash(1)).await;
-    create_article_fixture(&state, &author_id, "Second", &pdf_hash(2)).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (article_id, _) = create_article_fixture(&state, &author_id, "First", &pdf_hash(1));
+    create_article_fixture(&state, &author_id, "Second", &pdf_hash(2));
 
     let error = update_article(
         &state.database,
@@ -202,7 +192,6 @@ async fn update_article_rejects_a_duplicate_title() {
             tags: vec!["go".to_string()],
         },
     )
-    .await
     .expect_err("duplicate title");
     assert!(matches!(error, UpdateArticleError::TitleTaken));
 }
@@ -219,7 +208,6 @@ async fn update_article_returns_missing_for_an_unknown_article() {
             tags: vec!["go".to_string()],
         },
     )
-    .await
     .expect_err("missing");
     assert!(matches!(error, UpdateArticleError::Missing));
 }
@@ -227,22 +215,19 @@ async fn update_article_returns_missing_for_an_unknown_article() {
 #[tokio::test]
 async fn owner_of_returns_the_author() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, _) = create_article_fixture(&state, &author_id, "Titled", &pdf_hash(9)).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (article_id, _) = create_article_fixture(&state, &author_id, "Titled", &pdf_hash(9));
     assert_eq!(
-        owner_of(&state.database, &article_id).await.expect("owner"),
+        owner_of(&state.database, &article_id).expect("owner"),
         Some(author_id)
     );
-    assert_eq!(
-        owner_of(&state.database, "missing").await.expect("owner"),
-        None
-    );
+    assert_eq!(owner_of(&state.database, "missing").expect("owner"), None);
 }
 
 #[tokio::test]
 async fn concurrent_identical_content_hashes_are_serialized_by_the_write_lock() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
+    let author_id = create_user(&state, "alice@example.com");
     let shared_hash = pdf_hash(7);
 
     let first_draft = article_draft(
@@ -257,10 +242,8 @@ async fn concurrent_identical_content_hashes_are_serialized_by_the_write_lock() 
         &shared_hash,
         vec!["b".to_string()],
     );
-    let first = create_article(&state.database, &first_draft);
-    let second = create_article(&state.database, &second_draft);
-
-    let (left, right) = tokio::join!(first, second);
+    let left = create_article(&state.database, &first_draft);
+    let right = create_article(&state.database, &second_draft);
     let mut accepted = 0;
     let mut deduplicated = 0;
     for result in [left, right] {
@@ -280,19 +263,24 @@ async fn concurrent_identical_content_hashes_are_serialized_by_the_write_lock() 
     );
 }
 
-async fn tag_node_ids_by_name(
+fn tag_node_ids_by_name(
     state: &crate::infrastructure::state::AppState,
     name: &str,
-) -> Vec<agdb::DbId> {
-    let guard = state.database.read().await;
-    crate::repository::graph::find_by_index(&guard, crate::repository::schema::KEY_TAG_NAME, name)
+) -> Vec<database::NodeId> {
+    state
+        .database
+        .read(|scope| {
+            scope
+                .find_by_key(crate::repository::schema::KEY_TAG_NAME, name)
+                .map(|found| found.into_iter().collect::<Vec<_>>())
+        })
         .expect("tag name index lookup")
 }
 
 #[tokio::test]
 async fn update_article_removes_orphan_tags_and_keeps_shared_tags() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
+    let author_id = create_user(&state, "alice@example.com");
     let first_draft = article_draft(
         &author_id,
         "Shared First",
@@ -300,9 +288,7 @@ async fn update_article_removes_orphan_tags_and_keeps_shared_tags() {
         vec!["shared".to_string(), "one".to_string()],
     );
     let first_id = first_draft.article_id.clone();
-    create_article(&state.database, &first_draft)
-        .await
-        .expect("create first");
+    create_article(&state.database, &first_draft).expect("create first");
     let second_draft = article_draft(
         &author_id,
         "Shared Second",
@@ -310,10 +296,8 @@ async fn update_article_removes_orphan_tags_and_keeps_shared_tags() {
         vec!["shared".to_string(), "two".to_string()],
     );
     let second_id = second_draft.article_id.clone();
-    create_article(&state.database, &second_draft)
-        .await
-        .expect("create second");
-    assert_eq!(tag_node_ids_by_name(&state, "shared").await.len(), 1);
+    create_article(&state.database, &second_draft).expect("create second");
+    assert_eq!(tag_node_ids_by_name(&state, "shared").len(), 1);
 
     update_article(
         &state.database,
@@ -324,15 +308,13 @@ async fn update_article_removes_orphan_tags_and_keeps_shared_tags() {
             tags: vec!["one".to_string()],
         },
     )
-    .await
     .expect("update first");
 
     let second_view = read_article(&state.database, &second_id)
-        .await
         .expect("read second")
         .expect("second article");
     assert!(second_view.tags.iter().any(|tag| tag.name == "shared"));
-    assert_eq!(tag_node_ids_by_name(&state, "shared").await.len(), 1);
+    assert_eq!(tag_node_ids_by_name(&state, "shared").len(), 1);
 
     update_article(
         &state.database,
@@ -343,10 +325,9 @@ async fn update_article_removes_orphan_tags_and_keeps_shared_tags() {
             tags: vec!["two".to_string()],
         },
     )
-    .await
     .expect("update second");
 
-    assert!(tag_node_ids_by_name(&state, "shared").await.is_empty());
-    assert_eq!(tag_node_ids_by_name(&state, "one").await.len(), 1);
-    assert_eq!(tag_node_ids_by_name(&state, "two").await.len(), 1);
+    assert!(tag_node_ids_by_name(&state, "shared").is_empty());
+    assert_eq!(tag_node_ids_by_name(&state, "one").len(), 1);
+    assert_eq!(tag_node_ids_by_name(&state, "two").len(), 1);
 }

@@ -16,7 +16,6 @@ pub async fn create_tag(
     AppJson(payload): AppJson<CreateTagRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
     let (id, name) = crate::logic::tag::create_tag(&state, &principal.user_id, &payload.name)
-        .await
         .map_err(ApiError::from_logic)?;
     Ok(json_response(
         StatusCode::CREATED,
@@ -31,7 +30,6 @@ pub async fn read_tags(
     AppPaged((page, limit)): AppPaged,
 ) -> Result<impl IntoResponse, ApiError> {
     let data = crate::logic::tag::read_tags(&state, &principal.user_id, page, limit)
-        .await
         .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
@@ -42,7 +40,6 @@ pub async fn read_tag(
     AppPath(tag_id): AppPath<String>,
 ) -> Result<impl IntoResponse, ApiError> {
     let data = crate::logic::tag::read_tag(&state, &principal.user_id, &tag_id)
-        .await
         .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
@@ -57,7 +54,6 @@ pub async fn update_tag(
         .name
         .ok_or_else(|| ApiError::bad_request("name is required"))?;
     let (id, name) = crate::logic::tag::update_tag(&state, &principal.user_id, &tag_id, &name)
-        .await
         .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, NamedRef { id, name }, "ok"))
 }
@@ -74,7 +70,6 @@ pub async fn delete_tag(
         ));
     }
     crate::logic::tag::delete_tag(&state, &principal.user_id, &tag_id)
-        .await
         .map_err(ApiError::from_logic)?;
     Ok(json_response(
         StatusCode::OK,
@@ -89,7 +84,6 @@ pub async fn apply_tag(
     AppPath(params): AppPath<TagArticleParams>,
 ) -> Result<impl IntoResponse, ApiError> {
     crate::logic::tag::apply_tag(&state, &principal.user_id, &params.id, &params.tid)
-        .await
         .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, serde_json::json!({}), "ok"))
 }
@@ -100,7 +94,6 @@ pub async fn unapply_tag(
     AppPath(params): AppPath<TagArticleParams>,
 ) -> Result<impl IntoResponse, ApiError> {
     crate::logic::tag::unapply_tag(&state, &principal.user_id, &params.id, &params.tid)
-        .await
         .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, serde_json::json!({}), "ok"))
 }

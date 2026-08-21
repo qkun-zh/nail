@@ -170,6 +170,24 @@ fn resolve_missing_returns_none() {
 }
 
 #[test]
+fn find_by_key_matches_indexed_values() {
+    let database = Database::open_memory("nail_test_indexed", &["email_address_hash".to_string()])
+        .expect("open indexed database");
+    let row = user("018f0000-0000-7000-8000-0000000000a1", "indexed");
+    let node = database
+        .write(|w| w.insert_node(&row))
+        .expect("insert node");
+    let found = database
+        .read(|r| r.find_by_key("email_address_hash", &row.email_address_hash))
+        .expect("find by key");
+    assert_eq!(found, Some(node));
+    let missing = database
+        .read(|r| r.find_by_key("email_address_hash", "absent"))
+        .expect("find by key");
+    assert_eq!(missing, None);
+}
+
+#[test]
 fn upsert_reuses_node_and_updates_fields() {
     let database = memory_database();
     let business_id = "018f0000-0000-7000-8000-000000000003";

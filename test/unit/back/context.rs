@@ -128,15 +128,13 @@ impl TestCtx {
             .clone()
     }
 
-    pub async fn create_tag(&self, name: &str) -> String {
-        crate::repository::tag::create_tag(&self.state.database, name)
-            .await
-            .expect("create tag")
+    pub fn create_tag(&self, name: &str) -> String {
+        crate::repository::tag::create_tag(&self.state.database, name).expect("create tag")
     }
 
-    pub async fn seed_tags(&self, names: &[&str]) {
+    pub fn seed_tags(&self, names: &[&str]) {
         for name in names {
-            self.create_tag(name).await;
+            self.create_tag(name);
         }
     }
 
@@ -268,8 +266,12 @@ pub async fn build_state(
         .join(format!("nail_test_pdf_{}", uuid::Uuid::now_v7()))
         .to_string_lossy()
         .to_string();
-    let database = repository::graph::open("memory")?;
-    repository::seed::init_graph(&database, &config.server.user_zero_email).await?;
+    let indexes: Vec<String> = crate::repository::schema::INDEX_KEYS
+        .iter()
+        .map(|key| (*key).to_string())
+        .collect();
+    let database = database::Database::open_memory("nail_test_memory", &indexes)?;
+    repository::seed::init_graph(&database, &config.server.user_zero_email)?;
     let search_dir =
         std::env::temp_dir().join(format!("nail_state_search_{}", uuid::Uuid::now_v7()));
     let searcher = repository::search::SearchIndex::open_or_create_with_segments(

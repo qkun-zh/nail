@@ -18,7 +18,6 @@ pub async fn read_users(
     AppPaged((page, limit)): AppPaged,
 ) -> Result<impl IntoResponse, ApiError> {
     let data = crate::logic::user::read_users(&state, &principal.user_id, page, limit)
-        .await
         .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
@@ -27,9 +26,8 @@ pub async fn create_user(
     State(state): State<AppState>,
     AppJson(payload): AppJson<TokenRequest>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let user_id = crate::logic::user::create_user(&state, &payload.token)
-        .await
-        .map_err(ApiError::from_logic)?;
+    let user_id =
+        crate::logic::user::create_user(&state, &payload.token).map_err(ApiError::from_logic)?;
     let session_token =
         crate::logic::session::create_session(&state, &user_id).map_err(ApiError::from_logic)?;
     Ok(json_response(
@@ -60,7 +58,6 @@ pub async fn read_user(
         name_requested,
         email_hash_requested,
     )
-    .await
     .map_err(ApiError::from_logic)?;
     Ok(json_response::<UserView>(StatusCode::OK, data, "ok"))
 }

@@ -10,16 +10,15 @@ use crate::repository::version::VersionDraft;
 
 const MAX_DEPTH: usize = 64;
 
-async fn create_user(state: &crate::infrastructure::state::AppState, email: &str) -> String {
+fn create_user(state: &crate::infrastructure::state::AppState, email: &str) -> String {
     crate::repository::user::create_user(
         &state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user")
 }
 
-async fn create_version_fixture(
+fn create_version_fixture(
     state: &crate::infrastructure::state::AppState,
     author_id: &str,
 ) -> String {
@@ -41,7 +40,6 @@ async fn create_version_fixture(
             },
         },
     )
-    .await
     .expect("create article");
     version_id
 }
@@ -49,8 +47,8 @@ async fn create_version_fixture(
 #[tokio::test]
 async fn create_top_level_comment_writes_nodes_and_edges() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
     let comment_id = uuid::Uuid::now_v7().to_string();
 
     create_top_level_comment(
@@ -60,19 +58,14 @@ async fn create_top_level_comment_writes_nodes_and_edges() {
         &version_id,
         "hello",
     )
-    .await
     .expect("create");
 
     assert_eq!(
-        owner_of_comment(&state.database, &comment_id)
-            .await
-            .expect("owner"),
+        owner_of_comment(&state.database, &comment_id).expect("owner"),
         Some(author_id.clone())
     );
     assert_eq!(
-        version_of_comment(&state.database, &comment_id)
-            .await
-            .expect("version"),
+        version_of_comment(&state.database, &comment_id).expect("version"),
         Some(version_id)
     );
 }
@@ -80,7 +73,7 @@ async fn create_top_level_comment_writes_nodes_and_edges() {
 #[tokio::test]
 async fn create_top_level_comment_rejects_a_missing_version() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
+    let author_id = create_user(&state, "alice@example.com");
 
     let error = create_top_level_comment(
         &state.database,
@@ -89,7 +82,6 @@ async fn create_top_level_comment_rejects_a_missing_version() {
         "missing-version",
         "hello",
     )
-    .await
     .expect_err("missing version");
     assert!(matches!(error, CreateCommentError::TargetNotFound));
 }
@@ -97,13 +89,12 @@ async fn create_top_level_comment_rejects_a_missing_version() {
 #[tokio::test]
 async fn create_reply_links_to_the_parent_and_is_not_top_level() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
     let top_id = uuid::Uuid::now_v7().to_string();
     let reply_id = uuid::Uuid::now_v7().to_string();
 
     create_top_level_comment(&state.database, &top_id, &author_id, &version_id, "top")
-        .await
         .expect("top");
     create_reply_comment(
         &state.database,
@@ -113,28 +104,23 @@ async fn create_reply_links_to_the_parent_and_is_not_top_level() {
         "reply",
         MAX_DEPTH,
     )
-    .await
     .expect("reply");
 
     assert_eq!(
-        version_of_comment(&state.database, &reply_id)
-            .await
-            .expect("version"),
+        version_of_comment(&state.database, &reply_id).expect("version"),
         Some(version_id.clone())
     );
 
-    let (items, has_next) = read_comments_page_by_version(&state.database, &version_id, 10, 0)
-        .await
-        .expect("read");
+    let (items, has_next) =
+        read_comments_page_by_version(&state.database, &version_id, 10, 0).expect("read");
     assert!(!has_next);
     assert_eq!(items.len(), 1);
     assert_eq!(items[0].id, top_id);
     assert_eq!(items[0].parent_id, None);
     assert_eq!(items[0].child_count, 1);
 
-    let (children, children_has_next) = read_comment_children_page(&state.database, &top_id, 10, 0)
-        .await
-        .expect("children");
+    let (children, children_has_next) =
+        read_comment_children_page(&state.database, &top_id, 10, 0).expect("children");
     assert!(!children_has_next);
     assert_eq!(children.len(), 1);
     assert_eq!(children[0].id, reply_id);
@@ -142,7 +128,6 @@ async fn create_reply_links_to_the_parent_and_is_not_top_level() {
     assert_eq!(children[0].child_count, 0);
 
     let item = read_comment_item(&state.database, &reply_id)
-        .await
         .expect("item")
         .expect("exists");
     assert_eq!(item.content, "reply");
@@ -152,7 +137,7 @@ async fn create_reply_links_to_the_parent_and_is_not_top_level() {
 #[tokio::test]
 async fn create_reply_rejects_a_missing_parent() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
+    let author_id = create_user(&state, "alice@example.com");
 
     let error = create_reply_comment(
         &state.database,
@@ -162,7 +147,6 @@ async fn create_reply_rejects_a_missing_parent() {
         "reply",
         MAX_DEPTH,
     )
-    .await
     .expect_err("missing parent");
     assert!(matches!(error, CreateCommentError::TargetNotFound));
 }
@@ -170,12 +154,11 @@ async fn create_reply_rejects_a_missing_parent() {
 #[tokio::test]
 async fn create_reply_rejects_a_thread_deeper_than_the_cap() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
 
     let mut parent = uuid::Uuid::now_v7().to_string();
     create_top_level_comment(&state.database, &parent, &author_id, &version_id, "top")
-        .await
         .expect("top");
 
     for _ in 0..MAX_DEPTH {
@@ -188,7 +171,6 @@ async fn create_reply_rejects_a_thread_deeper_than_the_cap() {
             "reply",
             MAX_DEPTH,
         )
-        .await
         .expect("reply under cap");
         parent = next;
     }
@@ -201,7 +183,6 @@ async fn create_reply_rejects_a_thread_deeper_than_the_cap() {
         "too deep",
         MAX_DEPTH,
     )
-    .await
     .expect_err("too deep");
     assert!(matches!(error, CreateCommentError::CommentTreeTooDeep));
 }
@@ -209,18 +190,16 @@ async fn create_reply_rejects_a_thread_deeper_than_the_cap() {
 #[tokio::test]
 async fn read_comments_pages_top_level_comments_in_default_order() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
 
     for id in ["top-1", "top-2", "top-3"] {
         create_top_level_comment(&state.database, id, &author_id, &version_id, "content")
-            .await
             .expect("create");
     }
 
-    let (items, has_next) = read_comments_page_by_version(&state.database, &version_id, 2, 0)
-        .await
-        .expect("read");
+    let (items, has_next) =
+        read_comments_page_by_version(&state.database, &version_id, 2, 0).expect("read");
     assert_eq!(items.len(), 2);
     assert!(has_next, "a third comment exists beyond the two-item page");
     let created = ["top-1", "top-2", "top-3"];
@@ -237,8 +216,8 @@ async fn read_comments_pages_top_level_comments_in_default_order() {
 #[tokio::test]
 async fn update_comment_content_applies_the_new_text_and_reports_missing() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let version_id = create_version_fixture(&state, &author_id).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let version_id = create_version_fixture(&state, &author_id);
     let comment_id = uuid::Uuid::now_v7().to_string();
     create_top_level_comment(
         &state.database,
@@ -247,23 +226,13 @@ async fn update_comment_content_applies_the_new_text_and_reports_missing() {
         &version_id,
         "before",
     )
-    .await
     .expect("create");
 
-    assert!(
-        update_comment_content(&state.database, &comment_id, "after")
-            .await
-            .expect("update")
-    );
-    assert!(
-        !update_comment_content(&state.database, "missing", "after")
-            .await
-            .expect("missing")
-    );
+    assert!(update_comment_content(&state.database, &comment_id, "after").expect("update"));
+    assert!(!update_comment_content(&state.database, "missing", "after").expect("missing"));
 
-    let (items, _) = read_comments_page_by_version(&state.database, &version_id, 10, 0)
-        .await
-        .expect("read");
+    let (items, _) =
+        read_comments_page_by_version(&state.database, &version_id, 10, 0).expect("read");
     assert_eq!(items[0].content, "after");
 }
 

@@ -13,25 +13,18 @@ use crate::repository::role::{
     PERMISSION_USER_UNDELETE_SOFT, PERMISSION_VERSION_READ, PERMISSION_VERSION_UNDELETE_SOFT,
     PERMISSION_VERSION_UPDATE,
 };
-use crate::repository::schema::{
-    ENTITY_TYPE_ARTICLE, ENTITY_TYPE_COMMENT, ENTITY_TYPE_USER, ENTITY_TYPE_VERSION,
-};
 use crate::repository::version::VersionDraft;
+use database::NodeKind;
 
-async fn create_user(context: &TestCtx, email: &str) -> String {
+fn create_user(context: &TestCtx, email: &str) -> String {
     crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user")
 }
 
-async fn create_article_fixture(
-    context: &TestCtx,
-    author_id: &str,
-    title: &str,
-) -> (String, String) {
+fn create_article_fixture(context: &TestCtx, author_id: &str, title: &str) -> (String, String) {
     let article_id = uuid::Uuid::now_v7().to_string();
     let version_id = uuid::Uuid::now_v7().to_string();
     create_article(
@@ -50,7 +43,6 @@ async fn create_article_fixture(
             },
         },
     )
-    .await
     .expect("create article");
     (article_id, version_id)
 }
@@ -58,11 +50,10 @@ async fn create_article_fixture(
 #[tokio::test]
 async fn user_read_grants_admin_and_denies_member() {
     let context = TestCtx::new().await.expect("test context");
-    let admin = create_user(&context, "user-zero@example.com").await;
-    let member = create_user(&context, "alice@example.com").await;
-    let target = create_user(&context, "bob@example.com").await;
+    let admin = create_user(&context, "user-zero@example.com");
+    let member = create_user(&context, "alice@example.com");
+    let target = create_user(&context, "bob@example.com");
     crate::repository::role::hold_role(&context.state.database, &member, "member")
-        .await
         .expect("member role");
 
     assert!(
@@ -72,7 +63,6 @@ async fn user_read_grants_admin_and_denies_member() {
             PERMISSION_USER_READ,
             &Resource::User(target.clone()),
         )
-        .await
         .is_ok()
     );
     assert_eq!(
@@ -82,7 +72,6 @@ async fn user_read_grants_admin_and_denies_member() {
             PERMISSION_USER_READ,
             &Resource::User(target),
         )
-        .await
         .unwrap_err(),
         LogicError::forbidden("you are denied")
     );
@@ -91,11 +80,9 @@ async fn user_read_grants_admin_and_denies_member() {
 #[tokio::test]
 async fn owner_can_update_own_article_without_permission() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = create_user(&context, "alice@example.com").await;
-    crate::repository::role::hold_role(&context.state.database, &owner, "member")
-        .await
-        .expect("member");
-    let (article_id, _) = create_article_fixture(&context, &owner, "Mine").await;
+    let owner = create_user(&context, "alice@example.com");
+    crate::repository::role::hold_role(&context.state.database, &owner, "member").expect("member");
+    let (article_id, _) = create_article_fixture(&context, &owner, "Mine");
 
     assert!(
         authorize(
@@ -104,7 +91,6 @@ async fn owner_can_update_own_article_without_permission() {
             PERMISSION_ARTICLE_UPDATE,
             &Resource::Article(article_id),
         )
-        .await
         .is_ok()
     );
 }
@@ -112,12 +98,10 @@ async fn owner_can_update_own_article_without_permission() {
 #[tokio::test]
 async fn non_owner_without_permission_is_forbidden() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = create_user(&context, "alice@example.com").await;
-    let other = create_user(&context, "bob@example.com").await;
-    crate::repository::role::hold_role(&context.state.database, &other, "member")
-        .await
-        .expect("member");
-    let (article_id, _) = create_article_fixture(&context, &owner, "Mine").await;
+    let owner = create_user(&context, "alice@example.com");
+    let other = create_user(&context, "bob@example.com");
+    crate::repository::role::hold_role(&context.state.database, &other, "member").expect("member");
+    let (article_id, _) = create_article_fixture(&context, &owner, "Mine");
 
     assert_eq!(
         authorize(
@@ -126,7 +110,6 @@ async fn non_owner_without_permission_is_forbidden() {
             PERMISSION_ARTICLE_UPDATE,
             &Resource::Article(article_id),
         )
-        .await
         .unwrap_err(),
         LogicError::forbidden("you are denied")
     );
@@ -135,7 +118,7 @@ async fn non_owner_without_permission_is_forbidden() {
 #[tokio::test]
 async fn missing_article_is_not_found() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = create_user(&context, "alice@example.com").await;
+    let actor = create_user(&context, "alice@example.com");
     assert_eq!(
         authorize_or(
             &context.state,
@@ -144,7 +127,6 @@ async fn missing_article_is_not_found() {
             &Resource::Article("missing".to_string()),
             "article not found",
         )
-        .await
         .unwrap_err(),
         LogicError::not_found("article not found")
     );
@@ -153,10 +135,8 @@ async fn missing_article_is_not_found() {
 #[tokio::test]
 async fn authorize_article_create_on_the_virtual_desk_grants_a_member() {
     let context = TestCtx::new().await.expect("test context");
-    let member = create_user(&context, "alice@example.com").await;
-    crate::repository::role::hold_role(&context.state.database, &member, "member")
-        .await
-        .expect("member");
+    let member = create_user(&context, "alice@example.com");
+    crate::repository::role::hold_role(&context.state.database, &member, "member").expect("member");
 
     assert!(
         authorize(
@@ -165,7 +145,6 @@ async fn authorize_article_create_on_the_virtual_desk_grants_a_member() {
             PERMISSION_ARTICLE_CREATE,
             &Resource::Virtual("article-create".to_string()),
         )
-        .await
         .is_ok()
     );
 }
@@ -173,7 +152,7 @@ async fn authorize_article_create_on_the_virtual_desk_grants_a_member() {
 #[tokio::test]
 async fn authorize_article_create_on_the_virtual_desk_denies_a_non_holder() {
     let context = TestCtx::new().await.expect("test context");
-    let outsider = create_user(&context, "bob@example.com").await;
+    let outsider = create_user(&context, "bob@example.com");
 
     assert_eq!(
         authorize(
@@ -182,7 +161,6 @@ async fn authorize_article_create_on_the_virtual_desk_denies_a_non_holder() {
             PERMISSION_ARTICLE_CREATE,
             &Resource::Virtual("article-create".to_string()),
         )
-        .await
         .unwrap_err(),
         LogicError::forbidden("you are denied")
     );
@@ -191,14 +169,13 @@ async fn authorize_article_create_on_the_virtual_desk_denies_a_non_holder() {
 #[tokio::test]
 async fn virtual_desk_assembly_covers_the_create_and_admin_uids() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = create_user(&context, "alice@example.com").await;
+    let actor = create_user(&context, "alice@example.com");
     for name in ["article-create", "comment-create", "role-console"] {
         let assembly = crate::repository::authorization::assemble(
             &context.state.database,
             &actor,
             Resource::Virtual(name.to_string()),
         )
-        .await
         .expect("assemble");
         let expected: cedar_policy::EntityUid =
             format!("Virtual::\"{name}\"").parse().expect("uid");
@@ -209,9 +186,9 @@ async fn virtual_desk_assembly_covers_the_create_and_admin_uids() {
 #[tokio::test]
 async fn comment_author_can_update_own_comment_but_article_owner_cannot() {
     let context = TestCtx::new().await.expect("test context");
-    let article_owner = create_user(&context, "alice@example.com").await;
-    let comment_author = create_user(&context, "bob@example.com").await;
-    let (_, version_id) = create_article_fixture(&context, &article_owner, "Mine").await;
+    let article_owner = create_user(&context, "alice@example.com");
+    let comment_author = create_user(&context, "bob@example.com");
+    let (_, version_id) = create_article_fixture(&context, &article_owner, "Mine");
     let comment_id = uuid::Uuid::now_v7().to_string();
     crate::repository::comment::create_top_level_comment(
         &context.state.database,
@@ -220,7 +197,6 @@ async fn comment_author_can_update_own_comment_but_article_owner_cannot() {
         &version_id,
         "hello",
     )
-    .await
     .expect("comment");
 
     assert!(
@@ -230,7 +206,6 @@ async fn comment_author_can_update_own_comment_but_article_owner_cannot() {
             PERMISSION_COMMENT_UPDATE,
             &Resource::Comment(comment_id.clone()),
         )
-        .await
         .is_ok()
     );
     assert_eq!(
@@ -240,7 +215,6 @@ async fn comment_author_can_update_own_comment_but_article_owner_cannot() {
             PERMISSION_COMMENT_UPDATE,
             &Resource::Comment(comment_id),
         )
-        .await
         .unwrap_err(),
         LogicError::forbidden("you are denied")
     );
@@ -248,22 +222,18 @@ async fn comment_author_can_update_own_comment_but_article_owner_cannot() {
 #[tokio::test]
 async fn role_grant_authorizes_any_article() {
     let context = TestCtx::new().await.expect("test context");
-    let editor = create_user(&context, "alice@example.com").await;
-    let owner = create_user(&context, "bob@example.com").await;
-    crate::repository::role::create_role(&context.state.database, "editor")
-        .await
-        .expect("role");
+    let editor = create_user(&context, "alice@example.com");
+    let owner = create_user(&context, "bob@example.com");
+    crate::repository::role::create_role(&context.state.database, "editor").expect("role");
     crate::repository::role::grant_permission_to_role(
         &context.state.database,
         "editor",
         PERMISSION_ARTICLE_UPDATE,
     )
-    .await
     .expect("grant");
     crate::repository::role::hold_role(&context.state.database, &editor, "editor")
-        .await
         .expect("hold editor");
-    let (article_id, _) = create_article_fixture(&context, &owner, "Global").await;
+    let (article_id, _) = create_article_fixture(&context, &owner, "Global");
 
     assert!(
         authorize(
@@ -272,7 +242,6 @@ async fn role_grant_authorizes_any_article() {
             PERMISSION_ARTICLE_UPDATE,
             &Resource::Article(article_id),
         )
-        .await
         .is_ok()
     );
 }
@@ -280,10 +249,8 @@ async fn role_grant_authorizes_any_article() {
 #[tokio::test]
 async fn role_read_on_a_non_role_resource_is_denied() {
     let context = TestCtx::new().await.expect("test context");
-    let member = create_user(&context, "alice@example.com").await;
-    crate::repository::role::hold_role(&context.state.database, &member, "member")
-        .await
-        .expect("member");
+    let member = create_user(&context, "alice@example.com");
+    crate::repository::role::hold_role(&context.state.database, &member, "member").expect("member");
 
     assert_eq!(
         authorize(
@@ -292,7 +259,6 @@ async fn role_read_on_a_non_role_resource_is_denied() {
             PERMISSION_USER_READ,
             &Resource::Virtual("users".to_string()),
         )
-        .await
         .unwrap_err(),
         LogicError::forbidden("you are denied")
     );
@@ -301,14 +267,13 @@ async fn role_read_on_a_non_role_resource_is_denied() {
 #[tokio::test]
 async fn role_resource_assembly_covers_role_uids() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = create_user(&context, "alice@example.com").await;
+    let actor = create_user(&context, "alice@example.com");
     for name in ["admin", "member", "recycler"] {
         let assembly = crate::repository::authorization::assemble(
             &context.state.database,
             &actor,
             Resource::Role(name.to_string()),
         )
-        .await
         .expect("assemble");
         let expected: cedar_policy::EntityUid = format!("Role::\"{name}\"").parse().expect("uid");
         assert_eq!(assembly.resource, expected);
@@ -318,12 +283,10 @@ async fn role_resource_assembly_covers_role_uids() {
 #[tokio::test]
 async fn version_owner_is_the_article_owner() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = create_user(&context, "alice@example.com").await;
-    let other = create_user(&context, "bob@example.com").await;
-    crate::repository::role::hold_role(&context.state.database, &other, "member")
-        .await
-        .expect("member");
-    let (_, version_id) = create_article_fixture(&context, &owner, "Versioned").await;
+    let owner = create_user(&context, "alice@example.com");
+    let other = create_user(&context, "bob@example.com");
+    crate::repository::role::hold_role(&context.state.database, &other, "member").expect("member");
+    let (_, version_id) = create_article_fixture(&context, &owner, "Versioned");
 
     assert!(
         authorize(
@@ -332,7 +295,6 @@ async fn version_owner_is_the_article_owner() {
             PERMISSION_VERSION_UPDATE,
             &Resource::Version(version_id.clone()),
         )
-        .await
         .is_ok()
     );
     assert_eq!(
@@ -342,7 +304,6 @@ async fn version_owner_is_the_article_owner() {
             PERMISSION_VERSION_UPDATE,
             &Resource::Version(version_id),
         )
-        .await
         .unwrap_err(),
         LogicError::forbidden("you are denied")
     );
@@ -351,12 +312,10 @@ async fn version_owner_is_the_article_owner() {
 #[tokio::test]
 async fn member_can_read_articles_and_versions_via_role_grant() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = create_user(&context, "alice@example.com").await;
-    let member = create_user(&context, "bob@example.com").await;
-    crate::repository::role::hold_role(&context.state.database, &member, "member")
-        .await
-        .expect("member");
-    let (article_id, version_id) = create_article_fixture(&context, &owner, "Open").await;
+    let owner = create_user(&context, "alice@example.com");
+    let member = create_user(&context, "bob@example.com");
+    crate::repository::role::hold_role(&context.state.database, &member, "member").expect("member");
+    let (article_id, version_id) = create_article_fixture(&context, &owner, "Open");
 
     assert!(
         authorize(
@@ -365,7 +324,6 @@ async fn member_can_read_articles_and_versions_via_role_grant() {
             PERMISSION_ARTICLE_READ,
             &Resource::Article(article_id),
         )
-        .await
         .is_ok()
     );
     assert!(
@@ -375,7 +333,6 @@ async fn member_can_read_articles_and_versions_via_role_grant() {
             PERMISSION_VERSION_READ,
             &Resource::Version(version_id),
         )
-        .await
         .is_ok()
     );
 }
@@ -393,7 +350,7 @@ fn entity_ref_mapping_is_canonical() {
     assert_eq!(EntityRef::Article("a1").id(), "a1");
     assert_eq!(
         EntityRef::Article("a1").visibility(),
-        Some((ENTITY_TYPE_ARTICLE, PERMISSION_ARTICLE_UNDELETE_SOFT))
+        Some((NodeKind::Article, PERMISSION_ARTICLE_UNDELETE_SOFT))
     );
     assert_eq!(
         EntityRef::Article("a1").read_permission(),
@@ -410,7 +367,7 @@ fn entity_ref_mapping_is_canonical() {
     );
     assert_eq!(
         EntityRef::Version("v1").visibility(),
-        Some((ENTITY_TYPE_VERSION, PERMISSION_VERSION_UNDELETE_SOFT))
+        Some((NodeKind::Version, PERMISSION_VERSION_UNDELETE_SOFT))
     );
     assert_eq!(
         EntityRef::Version("v1").read_permission(),
@@ -427,7 +384,7 @@ fn entity_ref_mapping_is_canonical() {
     );
     assert_eq!(
         EntityRef::Comment("c1").visibility(),
-        Some((ENTITY_TYPE_COMMENT, PERMISSION_COMMENT_UNDELETE_SOFT))
+        Some((NodeKind::Comment, PERMISSION_COMMENT_UNDELETE_SOFT))
     );
     assert_eq!(
         EntityRef::Comment("c1").read_permission(),
@@ -441,7 +398,7 @@ fn entity_ref_mapping_is_canonical() {
     assert_eq!(EntityRef::User("u1").not_found_message(), "user not found");
     assert_eq!(
         EntityRef::User("u1").visibility(),
-        Some((ENTITY_TYPE_USER, PERMISSION_USER_UNDELETE_SOFT))
+        Some((NodeKind::User, PERMISSION_USER_UNDELETE_SOFT))
     );
     assert_eq!(
         EntityRef::User("u1").read_permission(),
@@ -471,21 +428,13 @@ fn entity_ref_mapping_is_canonical() {
 #[tokio::test]
 async fn authorize_global_grants_member_and_denies_outsider() {
     let context = TestCtx::new().await.expect("test context");
-    let member = create_user(&context, "alice@example.com").await;
-    let outsider = create_user(&context, "bob@example.com").await;
-    crate::repository::role::hold_role(&context.state.database, &member, "member")
-        .await
-        .expect("member");
+    let member = create_user(&context, "alice@example.com");
+    let outsider = create_user(&context, "bob@example.com");
+    crate::repository::role::hold_role(&context.state.database, &member, "member").expect("member");
 
-    assert!(
-        authorize_global(&context.state, &member, PERMISSION_ARTICLE_CREATE)
-            .await
-            .is_ok()
-    );
+    assert!(authorize_global(&context.state, &member, PERMISSION_ARTICLE_CREATE).is_ok());
     assert_eq!(
-        authorize_global(&context.state, &outsider, PERMISSION_ARTICLE_CREATE)
-            .await
-            .unwrap_err(),
+        authorize_global(&context.state, &outsider, PERMISSION_ARTICLE_CREATE).unwrap_err(),
         LogicError::forbidden("you are denied")
     );
 }
@@ -493,15 +442,11 @@ async fn authorize_global_grants_member_and_denies_outsider() {
 #[tokio::test]
 async fn authorize_entity_matches_plain_authorize() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = create_user(&context, "alice@example.com").await;
-    let other = create_user(&context, "bob@example.com").await;
-    crate::repository::role::hold_role(&context.state.database, &owner, "member")
-        .await
-        .expect("member");
-    crate::repository::role::hold_role(&context.state.database, &other, "member")
-        .await
-        .expect("member");
-    let (article_id, _) = create_article_fixture(&context, &owner, "Mine").await;
+    let owner = create_user(&context, "alice@example.com");
+    let other = create_user(&context, "bob@example.com");
+    crate::repository::role::hold_role(&context.state.database, &owner, "member").expect("member");
+    crate::repository::role::hold_role(&context.state.database, &other, "member").expect("member");
+    let (article_id, _) = create_article_fixture(&context, &owner, "Mine");
 
     assert!(
         authorize_entity(
@@ -510,7 +455,6 @@ async fn authorize_entity_matches_plain_authorize() {
             PERMISSION_ARTICLE_UPDATE,
             EntityRef::Article(&article_id),
         )
-        .await
         .is_ok()
     );
     assert_eq!(
@@ -520,7 +464,6 @@ async fn authorize_entity_matches_plain_authorize() {
             PERMISSION_ARTICLE_UPDATE,
             EntityRef::Article(&article_id),
         )
-        .await
         .unwrap_err(),
         LogicError::forbidden("you are denied")
     );
@@ -529,7 +472,7 @@ async fn authorize_entity_matches_plain_authorize() {
 #[tokio::test]
 async fn authorize_entity_or_reports_canonical_message() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = create_user(&context, "alice@example.com").await;
+    let actor = create_user(&context, "alice@example.com");
     assert_eq!(
         authorize_entity_or(
             &context.state,
@@ -537,7 +480,6 @@ async fn authorize_entity_or_reports_canonical_message() {
             PERMISSION_ARTICLE_UPDATE,
             EntityRef::Article("missing"),
         )
-        .await
         .unwrap_err(),
         LogicError::not_found("article not found")
     );
@@ -546,23 +488,17 @@ async fn authorize_entity_or_reports_canonical_message() {
 #[tokio::test]
 async fn require_entity_readable_hides_soft_deleted_article() {
     let context = TestCtx::new().await.expect("test context");
-    let owner = create_user(&context, "alice@example.com").await;
-    crate::repository::role::hold_role(&context.state.database, &owner, "member")
-        .await
-        .expect("member");
-    let (article_id, _) = create_article_fixture(&context, &owner, "Hidden").await;
+    let owner = create_user(&context, "alice@example.com");
+    crate::repository::role::hold_role(&context.state.database, &owner, "member").expect("member");
+    let (article_id, _) = create_article_fixture(&context, &owner, "Hidden");
 
     assert!(
-        require_entity_readable(&context.state, &owner, EntityRef::Article(&article_id))
-            .await
-            .is_ok()
+        require_entity_readable(&context.state, &owner, EntityRef::Article(&article_id)).is_ok()
     );
     crate::repository::delete::soft_delete_article(&context.state.database, &article_id)
-        .await
         .expect("soft delete");
     assert_eq!(
         require_entity_readable(&context.state, &owner, EntityRef::Article(&article_id))
-            .await
             .unwrap_err(),
         LogicError::not_found("article not found")
     );
@@ -570,28 +506,17 @@ async fn require_entity_readable_hides_soft_deleted_article() {
         &context.state.database,
         &nail_common::hash::hash("user-zero@example.com".as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("lookup user zero")
     .expect("seeded user zero");
     assert!(
-        require_entity_readable(&context.state, &admin, EntityRef::Article(&article_id))
-            .await
-            .is_ok()
+        require_entity_readable(&context.state, &admin, EntityRef::Article(&article_id)).is_ok()
     );
 }
 
 #[tokio::test]
 async fn require_entity_visible_is_noop_without_lifecycle() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = create_user(&context, "alice@example.com").await;
-    assert!(
-        require_entity_visible(&context.state, &actor, EntityRef::Tag("missing"))
-            .await
-            .is_ok()
-    );
-    assert!(
-        require_entity_visible(&context.state, &actor, EntityRef::Role("missing"))
-            .await
-            .is_ok()
-    );
+    let actor = create_user(&context, "alice@example.com");
+    assert!(require_entity_visible(&context.state, &actor, EntityRef::Tag("missing")).is_ok());
+    assert!(require_entity_visible(&context.state, &actor, EntityRef::Role("missing")).is_ok());
 }

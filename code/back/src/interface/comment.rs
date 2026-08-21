@@ -59,7 +59,6 @@ pub async fn read_comments(
 ) -> Result<impl IntoResponse, ApiError> {
     let data =
         crate::logic::comment::read_comments(&state, &principal.user_id, &version_id, page, limit)
-            .await
             .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
@@ -71,7 +70,6 @@ pub async fn read_comment(
 ) -> Result<impl IntoResponse, ApiError> {
     let data: CommentView =
         crate::logic::comment::read_comment(&state, &principal.user_id, &comment_id)
-            .await
             .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }
@@ -90,7 +88,6 @@ pub async fn read_comment_children(
             page,
             limit,
         )
-        .await
         .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))
 }

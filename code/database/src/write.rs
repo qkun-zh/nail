@@ -4,11 +4,11 @@ use agdb::{DbAnyTransactionMut, DbId, QueryBuilder};
 
 use crate::condition::{Condition, Order};
 use crate::error::Error;
-use crate::kinds::{EdgeKind, NodeKind, TYPE_KEY, alias_of};
+use crate::kinds::{EdgeKind, ID_KEY, NodeKind, TYPE_KEY, alias_of};
 use crate::node_id::NodeId;
 use crate::read::{
-    all_nodes, count_incoming, count_nodes, count_outgoing, incoming, is_not_found, outgoing,
-    read_nodes, read_value, resolve, scan_nodes,
+    all_nodes, count_incoming, count_nodes, count_outgoing, find_by_key, incoming, is_not_found,
+    outgoing, read_nodes, read_value, resolve, scan_nodes,
 };
 use crate::row::Row;
 use crate::value::Value;
@@ -30,8 +30,9 @@ impl<'db, 'txn> WriteScope<'db, 'txn> {
     }
 
     fn row_key_values<T: Row>(row: &T) -> Vec<agdb::DbKeyValue> {
-        let mut values = Vec::with_capacity(row.to_row().len() + 1);
+        let mut values = Vec::with_capacity(row.to_row().len() + 2);
         values.push((TYPE_KEY, T::KIND.key().to_string()).into());
+        values.push((ID_KEY, row.business_id().to_string()).into());
         for (key, value) in row.to_row() {
             values.push((key.as_str(), agdb::DbValue::from(value)).into());
         }
@@ -68,6 +69,7 @@ impl<'db, 'txn> WriteScope<'db, 'txn> {
     fn replace_row<T: Row>(&mut self, node: NodeId, row: &T) -> Result<(), Error> {
         let mut fresh_keys: HashSet<String> = HashSet::new();
         fresh_keys.insert(TYPE_KEY.to_string());
+        fresh_keys.insert(ID_KEY.to_string());
         for (key, _) in row.to_row() {
             fresh_keys.insert(key);
         }
@@ -266,6 +268,17 @@ impl<'db, 'txn> WriteScope<'db, 'txn> {
                 .query(),
         )?;
         Ok(())
+    }
+
+    /// Finds a node by an indexed key-value pair. The key must have an
+    /// index ensured at open time. Indexes are global across kinds; callers
+    /// verify the returned node by reading its row.
+    ///
+    /// # Errors
+    /// Returns [`Error::Storage`] if the key has no index or the lookup
+    /// fails.
+    pub fn find_by_key(&self, key: &str, value: &str) -> Result<Option<NodeId>, Error> {
+        find_by_key(self.reader(), key, value)
     }
 
     /// Resolves a business id to its node handle via the kind's alias.

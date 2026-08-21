@@ -4,16 +4,13 @@ use crate::repository::role::{ROLE_MEMBER, hold_role};
 
 const TEST_TAGS: &[&str] = &["rust", "backend", "frontend", "devops"];
 
-async fn member(context: &TestCtx, email: &str) -> String {
+fn member(context: &TestCtx, email: &str) -> String {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user");
-    hold_role(&context.state.database, &user_id, ROLE_MEMBER)
-        .await
-        .expect("member role");
+    hold_role(&context.state.database, &user_id, ROLE_MEMBER).expect("member role");
     user_id
 }
 
@@ -24,7 +21,7 @@ async fn create_seeded_article(
     version: &str,
     note: &str,
 ) -> (String, String) {
-    context.seed_tags(TEST_TAGS).await;
+    context.seed_tags(TEST_TAGS);
     crate::logic::article::create_article(
         &context.state,
         actor_id,
@@ -106,7 +103,7 @@ fn paginate_matches_the_legacy_offset_form_has_next() {
 #[tokio::test]
 async fn version_pages_tile_the_full_history_exactly_once() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (article_id, _) =
         create_seeded_article(&context, &actor, "Tiled Versions", "1.0.0", "one").await;
     for i in 2..=5 {
@@ -126,7 +123,6 @@ async fn version_pages_tile_the_full_history_exactly_once() {
     for page in 1..=5 {
         let result =
             crate::logic::version::read_versions(&context.state, &actor, &article_id, page, 1)
-                .await
                 .expect("page");
         assert_eq!(result.items.len(), 1, "page {page} must hold one item");
         assert_eq!(
@@ -147,7 +143,7 @@ async fn version_pages_tile_the_full_history_exactly_once() {
 #[tokio::test]
 async fn version_pages_with_limit_two_tile_exactly() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (article_id, _) =
         create_seeded_article(&context, &actor, "Tiled Two", "1.0.0", "one").await;
     for i in 2..=6 {
@@ -164,14 +160,11 @@ async fn version_pages_with_limit_two_tile_exactly() {
     }
 
     let page_one = crate::logic::version::read_versions(&context.state, &actor, &article_id, 1, 2)
-        .await
         .expect("page 1");
     let page_two = crate::logic::version::read_versions(&context.state, &actor, &article_id, 2, 2)
-        .await
         .expect("page 2");
     let page_three =
         crate::logic::version::read_versions(&context.state, &actor, &article_id, 3, 2)
-            .await
             .expect("page 3");
     assert_eq!(page_one.items.len(), 2);
     assert!(page_one.has_next);
@@ -184,12 +177,11 @@ async fn version_pages_with_limit_two_tile_exactly() {
 #[tokio::test]
 async fn version_page_beyond_the_end_is_empty() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (article_id, _) =
         create_seeded_article(&context, &actor, "Beyond End", "1.0.0", "one").await;
 
     let page = crate::logic::version::read_versions(&context.state, &actor, &article_id, 9, 10)
-        .await
         .expect("far page");
     assert!(page.items.is_empty());
     assert!(!page.has_next);
@@ -198,7 +190,7 @@ async fn version_page_beyond_the_end_is_empty() {
 #[tokio::test]
 async fn version_limit_larger_than_total_returns_everything_without_next() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (article_id, _) =
         create_seeded_article(&context, &actor, "Wide Limit", "1.0.0", "one").await;
     crate::logic::version::create_version(
@@ -213,7 +205,6 @@ async fn version_limit_larger_than_total_returns_everything_without_next() {
     .expect("create v2");
 
     let page = crate::logic::version::read_versions(&context.state, &actor, &article_id, 1, 100)
-        .await
         .expect("wide page");
     assert_eq!(page.items.len(), 2);
     assert!(!page.has_next);
@@ -222,7 +213,7 @@ async fn version_limit_larger_than_total_returns_everything_without_next() {
 #[tokio::test]
 async fn version_pages_are_stable_across_repeated_reads() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (article_id, _) =
         create_seeded_article(&context, &actor, "Stable Pages", "1.0.0", "one").await;
     for i in 2..=4 {
@@ -239,10 +230,8 @@ async fn version_pages_are_stable_across_repeated_reads() {
     }
 
     let first = crate::logic::version::read_versions(&context.state, &actor, &article_id, 1, 2)
-        .await
         .expect("first read");
     let second = crate::logic::version::read_versions(&context.state, &actor, &article_id, 1, 2)
-        .await
         .expect("second read");
     let ids = |page: &nail_common::response::ListPage<
         nail_common::response::version::VersionListItem,
@@ -254,7 +243,7 @@ async fn version_pages_are_stable_across_repeated_reads() {
 #[tokio::test]
 async fn version_pages_tile_exactly_when_a_middle_version_is_soft_deleted() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (article_id, _) =
         create_seeded_article(&context, &actor, "Gapped Versions", "1.0.0", "one").await;
     let mut middle = String::new();
@@ -286,7 +275,6 @@ async fn version_pages_tile_exactly_when_a_middle_version_is_soft_deleted() {
     for page in 1..=3 {
         let result =
             crate::logic::version::read_versions(&context.state, &actor, &article_id, page, 1)
-                .await
                 .expect("page");
         assert_eq!(result.items.len(), 1, "page {page}");
         seen.push(result.items[0].version.clone());
@@ -297,7 +285,7 @@ async fn version_pages_tile_exactly_when_a_middle_version_is_soft_deleted() {
 #[tokio::test]
 async fn version_soft_deleted_first_version_does_not_shift_later_pages() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (article_id, first_version_id) =
         create_seeded_article(&context, &actor, "Headless Version", "1.0.0", "one").await;
     crate::logic::version::create_version(
@@ -321,7 +309,6 @@ async fn version_soft_deleted_first_version_does_not_shift_later_pages() {
     .expect("soft delete first");
 
     let page = crate::logic::version::read_versions(&context.state, &actor, &article_id, 1, 10)
-        .await
         .expect("page");
     assert_eq!(page.items.len(), 1, "only the live version remains");
     assert_eq!(page.items[0].version, "2.0.0");
@@ -330,7 +317,7 @@ async fn version_soft_deleted_first_version_does_not_shift_later_pages() {
 #[tokio::test]
 async fn comment_pages_tile_all_top_level_comments_exactly_once() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (_, version_id) =
         create_seeded_article(&context, &actor, "Comment Tiling", "1.0.0", "one").await;
     let mut expected: Vec<String> = Vec::new();
@@ -350,7 +337,6 @@ async fn comment_pages_tile_all_top_level_comments_exactly_once() {
     for page in 1..=4 {
         let result =
             crate::logic::comment::read_comments(&context.state, &actor, &version_id, page, 1)
-                .await
                 .expect("page");
         assert_eq!(result.items.len(), 1, "page {page} holds one comment");
         assert_eq!(result.has_next, page < 4, "has_next on page {page}");
@@ -364,7 +350,7 @@ async fn comment_pages_tile_all_top_level_comments_exactly_once() {
 #[tokio::test]
 async fn comment_page_beyond_the_end_is_empty() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (_, version_id) =
         create_seeded_article(&context, &actor, "Empty Tail", "1.0.0", "one").await;
     crate::logic::comment::create_comment(&context.state, &actor, &version_id, "only comment")
@@ -372,7 +358,6 @@ async fn comment_page_beyond_the_end_is_empty() {
         .expect("comment");
 
     let page = crate::logic::comment::read_comments(&context.state, &actor, &version_id, 9, 10)
-        .await
         .expect("far page");
     assert!(page.items.is_empty());
     assert!(!page.has_next);
@@ -381,7 +366,7 @@ async fn comment_page_beyond_the_end_is_empty() {
 #[tokio::test]
 async fn comment_pages_tile_only_live_comments_when_one_is_soft_deleted() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (_, version_id) =
         create_seeded_article(&context, &actor, "Gapped Comments", "1.0.0", "one").await;
     let mut ids: Vec<String> = Vec::new();
@@ -409,7 +394,6 @@ async fn comment_pages_tile_only_live_comments_when_one_is_soft_deleted() {
     for page in 1..=3 {
         let result =
             crate::logic::comment::read_comments(&context.state, &actor, &version_id, page, 1)
-                .await
                 .expect("page");
         assert_eq!(result.items.len(), 1, "page {page}");
         seen.push(result.items[0].id.clone());
@@ -427,7 +411,7 @@ async fn comment_pages_tile_only_live_comments_when_one_is_soft_deleted() {
 #[tokio::test]
 async fn reply_pages_tile_the_full_thread_exactly_once() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (_, version_id) =
         create_seeded_article(&context, &actor, "Reply Tiling", "1.0.0", "one").await;
     let top = crate::logic::comment::create_comment(&context.state, &actor, &version_id, "top")
@@ -450,7 +434,6 @@ async fn reply_pages_tile_the_full_thread_exactly_once() {
     for page in 1..=4 {
         let result =
             crate::logic::comment::read_comment_children(&context.state, &actor, &top, page, 1)
-                .await
                 .expect("page");
         assert_eq!(result.items.len(), 1, "page {page}");
         assert_eq!(result.has_next, page < 4, "has_next on page {page}");
@@ -464,7 +447,7 @@ async fn reply_pages_tile_the_full_thread_exactly_once() {
 #[tokio::test]
 async fn reply_pages_beyond_the_end_are_empty() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (_, version_id) =
         create_seeded_article(&context, &actor, "Reply Tail", "1.0.0", "one").await;
     let top = crate::logic::comment::create_comment(&context.state, &actor, &version_id, "top")
@@ -475,7 +458,6 @@ async fn reply_pages_beyond_the_end_are_empty() {
         .expect("reply");
 
     let page = crate::logic::comment::read_comment_children(&context.state, &actor, &top, 9, 10)
-        .await
         .expect("far page");
     assert!(page.items.is_empty());
     assert!(!page.has_next);
@@ -484,7 +466,7 @@ async fn reply_pages_beyond_the_end_are_empty() {
 #[tokio::test]
 async fn reply_pages_reject_a_soft_deleted_parent() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (_, version_id) =
         create_seeded_article(&context, &actor, "Dead Parent", "1.0.0", "one").await;
     let top = crate::logic::comment::create_comment(&context.state, &actor, &version_id, "top")
@@ -503,7 +485,6 @@ async fn reply_pages_reject_a_soft_deleted_parent() {
     .expect("soft delete top");
 
     let error = crate::logic::comment::read_comment_children(&context.state, &actor, &top, 1, 10)
-        .await
         .expect_err("soft-deleted parent must reject children reads");
     assert!(matches!(error, LogicError::NotFound(_)));
 }
@@ -511,7 +492,7 @@ async fn reply_pages_reject_a_soft_deleted_parent() {
 #[tokio::test]
 async fn comment_pages_reject_a_soft_deleted_version() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (_, version_id) =
         create_seeded_article(&context, &actor, "Dead Version", "1.0.0", "one").await;
     crate::logic::comment::create_comment(&context.state, &actor, &version_id, "orphan comment")
@@ -527,7 +508,6 @@ async fn comment_pages_reject_a_soft_deleted_version() {
     .expect("soft delete version");
 
     let error = crate::logic::comment::read_comments(&context.state, &actor, &version_id, 1, 10)
-        .await
         .expect_err("soft-deleted version must reject comment reads");
     assert!(matches!(error, LogicError::NotFound(_)));
 }
@@ -535,7 +515,7 @@ async fn comment_pages_reject_a_soft_deleted_version() {
 #[tokio::test]
 async fn search_pages_tile_all_matches_with_limit_two() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let mut expected: Vec<String> = Vec::new();
     for i in 0..5 {
         let (article_id, _) = create_seeded_article(
@@ -581,12 +561,11 @@ async fn search_pages_tile_all_matches_with_limit_two() {
 #[tokio::test]
 async fn pagination_page_zero_is_treated_as_page_one() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     let (article_id, _) =
         create_seeded_article(&context, &actor, "Zero Page", "1.0.0", "one").await;
 
     let page = crate::logic::version::read_versions(&context.state, &actor, &article_id, 0, 10)
-        .await
         .expect("page zero");
     assert_eq!(page.items.len(), 1, "page 0 must behave like page 1");
 }
@@ -594,7 +573,7 @@ async fn pagination_page_zero_is_treated_as_page_one() {
 #[tokio::test]
 async fn search_page_zero_is_treated_as_page_one() {
     let context = TestCtx::new().await.expect("test context");
-    let actor = member(&context, "alice@example.com").await;
+    let actor = member(&context, "alice@example.com");
     create_seeded_article(&context, &actor, "Zero Search Page", "1.0.0", "one").await;
 
     let page = crate::logic::search::search_articles(

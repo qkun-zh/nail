@@ -51,6 +51,25 @@ pub(crate) fn resolve(
     }
 }
 
+pub(crate) fn find_by_key(
+    reader: &impl QueryReader,
+    key: &str,
+    value: &str,
+) -> Result<Option<NodeId>, Error> {
+    let result = reader.run(
+        QueryBuilder::select()
+            .values([key])
+            .search()
+            .index(key)
+            .value(value)
+            .query(),
+    )?;
+    Ok(result
+        .elements
+        .first()
+        .map(|element| NodeId::from_db(element.id)))
+}
+
 pub(crate) fn read_nodes<T: Row>(
     reader: &impl QueryReader,
     ids: &[NodeId],

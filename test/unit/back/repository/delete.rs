@@ -5,27 +5,23 @@ use crate::repository::delete::{
     delete_article, delete_user, delete_version, soft_delete_article, soft_delete_comment,
     soft_delete_user, soft_delete_version, undelete_soft_user,
 };
-use crate::repository::schema::{
-    CommentRow, EDGE_COMMENT_ATTACH_VERSION, EDGE_COMMENT_REPLY_COMMENT, EDGE_USER_AUTHOR_COMMENT,
-    ENTITY_TYPE_COMMENT, ENTITY_TYPE_USER, KEY_SOFT_DELETED, KEY_TYPE, alias_of,
-};
+use crate::repository::schema::CommentRow;
 use crate::repository::version::{VersionDraft, versions_of};
-use agdb::QueryBuilder;
+use database::{EdgeKind, NodeKind};
 
 fn pdf_hash(seed: u8) -> String {
     format!("{seed:x}").repeat(32)
 }
 
-async fn create_user(state: &crate::infrastructure::state::AppState, email: &str) -> String {
+fn create_user(state: &crate::infrastructure::state::AppState, email: &str) -> String {
     crate::repository::user::create_user(
         &state.database,
         &nail_common::hash::hash(email.as_bytes()).expect("hash must succeed"),
     )
-    .await
     .expect("user")
 }
 
-async fn create_article_fixture(
+fn create_article_fixture(
     state: &crate::infrastructure::state::AppState,
     author_id: &str,
     hash: &str,
@@ -48,161 +44,145 @@ async fn create_article_fixture(
             },
         },
     )
-    .await
     .expect("create article");
     (article_id, version_id)
 }
 
-async fn insert_comment_node(
-    state: &crate::infrastructure::state::AppState,
-    author_id: &str,
-) -> String {
-    let comment_id = uuid::Uuid::now_v7().to_string();
-    let mut guard = state.database.write().await;
-    guard
-        .exec_mut(
-            QueryBuilder::insert()
-                .nodes()
-                .aliases([alias_of(ENTITY_TYPE_COMMENT, &comment_id)])
-                .values(CommentRow {
-                    db_id: None,
-                    entity_type: ENTITY_TYPE_COMMENT.to_string(),
-                    id: comment_id.clone(),
-                    content: "a comment".to_string(),
-                })
-                .query(),
-        )
+fn insert_comment_node_in_scope(
+    scope: &mut database::WriteScope<'_, '_>,
+    author_node: database::NodeId,
+    comment_id: &str,
+) -> database::NodeId {
+    scope
+        .insert_node(&CommentRow {
+            id: comment_id.to_string(),
+            content: "a comment".to_string(),
+        })
         .expect("comment node");
-    guard
-        .exec_mut(
-            QueryBuilder::insert()
-                .edges()
-                .from(alias_of(ENTITY_TYPE_USER, author_id))
-                .to([alias_of(ENTITY_TYPE_COMMENT, &comment_id)])
-                .values([[(KEY_TYPE, EDGE_USER_AUTHOR_COMMENT).into()]])
-                .query(),
+    let comment_node = scope
+        .resolve(NodeKind::Comment, comment_id)
+        .expect("resolve comment")
+        .expect("comment present");
+    scope
+        .insert_edge(
+            NodeKind::User,
+            author_node,
+            EdgeKind::UserAuthorComment,
+            NodeKind::Comment,
+            comment_node,
         )
         .expect("user comment edge");
-    comment_id
+    comment_node
 }
 
-async fn insert_comment(
+fn insert_comment(
     state: &crate::infrastructure::state::AppState,
     version_id: &str,
     author_id: &str,
 ) -> String {
-    let comment_id = insert_comment_node(state, author_id).await;
-    let mut guard = state.database.write().await;
-    guard
-        .exec_mut(
-            QueryBuilder::insert()
-                .edges()
-                .from(alias_of(ENTITY_TYPE_COMMENT, &comment_id))
-                .to([alias_of("version", version_id)])
-                .values([[(KEY_TYPE, EDGE_COMMENT_ATTACH_VERSION).into()]])
-                .query(),
-        )
-        .expect("version comment edge");
+    let comment_id = uuid::Uuid::now_v7().to_string();
+    state
+        .database
+        .write(|scope| {
+            let author_node = scope
+                .resolve(NodeKind::User, author_id)?
+                .expect("author present");
+            let comment_node = insert_comment_node_in_scope(scope, author_node, &comment_id);
+            let version_node = scope
+                .resolve(NodeKind::Version, version_id)?
+                .expect("version present");
+            scope.insert_edge(
+                NodeKind::Comment,
+                comment_node,
+                EdgeKind::CommentAttachVersion,
+                NodeKind::Version,
+                version_node,
+            )
+        })
+        .expect("comment insert");
     comment_id
 }
 
-async fn insert_reply(
+fn insert_reply(
     state: &crate::infrastructure::state::AppState,
     parent_comment_id: &str,
     author_id: &str,
 ) -> String {
-    let comment_id = insert_comment_node(state, author_id).await;
-    let mut guard = state.database.write().await;
-    guard
-        .exec_mut(
-            QueryBuilder::insert()
-                .edges()
-                .from(alias_of(ENTITY_TYPE_COMMENT, &comment_id))
-                .to([alias_of(ENTITY_TYPE_COMMENT, parent_comment_id)])
-                .values([[(KEY_TYPE, EDGE_COMMENT_REPLY_COMMENT).into()]])
-                .query(),
-        )
-        .expect("parent comment edge");
+    let comment_id = uuid::Uuid::now_v7().to_string();
+    state
+        .database
+        .write(|scope| {
+            let author_node = scope
+                .resolve(NodeKind::User, author_id)?
+                .expect("author present");
+            let comment_node = insert_comment_node_in_scope(scope, author_node, &comment_id);
+            let parent_node = scope
+                .resolve(NodeKind::Comment, parent_comment_id)?
+                .expect("parent present");
+            scope.insert_edge(
+                NodeKind::Comment,
+                comment_node,
+                EdgeKind::CommentReplyComment,
+                NodeKind::Comment,
+                parent_node,
+            )
+        })
+        .expect("reply insert");
     comment_id
 }
 
-async fn insert_comment_tree(
+fn insert_comment_tree(
     state: &crate::infrastructure::state::AppState,
     version_id: &str,
     author_id: &str,
 ) {
-    let top = insert_comment(state, version_id, author_id).await;
-    let reply = insert_reply(state, &top, author_id).await;
-    insert_reply(state, &reply, author_id).await;
+    let top = insert_comment(state, version_id, author_id);
+    let reply = insert_reply(state, &top, author_id);
+    insert_reply(state, &reply, author_id);
 }
 
-fn count_by_type(guard: &agdb::DbAny, type_value: &str) -> usize {
-    guard
-        .exec(
-            QueryBuilder::search()
-                .elements()
-                .where_()
-                .key(KEY_TYPE)
-                .value(type_value)
-                .query(),
-        )
-        .expect("count by type")
-        .elements
-        .len()
-}
-
-async fn assert_no_comment_subtree_remains(state: &crate::infrastructure::state::AppState) {
-    let guard = state.database.read().await;
-    assert_eq!(count_by_type(&guard, ENTITY_TYPE_COMMENT), 0);
-    assert_eq!(count_by_type(&guard, EDGE_COMMENT_REPLY_COMMENT), 0);
-    assert_eq!(count_by_type(&guard, EDGE_COMMENT_ATTACH_VERSION), 0);
-    assert_eq!(count_by_type(&guard, EDGE_USER_AUTHOR_COMMENT), 0);
+fn assert_no_comment_subtree_remains(state: &crate::infrastructure::state::AppState) {
+    let comments = state
+        .database
+        .read(|scope| scope.count_nodes(NodeKind::Comment, None))
+        .expect("count comments");
+    assert_eq!(comments, 0, "no comment nodes remain");
 }
 
 #[tokio::test]
 async fn delete_user_removes_the_user_node() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let user_id = create_user(&state, "alice@example.com").await;
+    let user_id = create_user(&state, "alice@example.com");
 
-    delete_user(&state.database, &user_id)
-        .await
-        .expect("delete");
+    delete_user(&state.database, &user_id).expect("delete");
 
-    let entry = crate::repository::user::read_user(&state.database, &user_id)
-        .await
-        .expect("read");
+    let entry = crate::repository::user::read_user(&state.database, &user_id).expect("read");
     assert_eq!(entry, None);
 }
 
 #[tokio::test]
 async fn delete_user_is_idempotent_for_a_missing_user() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    delete_user(&state.database, "missing")
-        .await
-        .expect("delete");
+    delete_user(&state.database, "missing").expect("delete");
 }
 
 #[tokio::test]
 async fn delete_article_cascades_versions_and_comments_and_collects_hashes() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
-    insert_comment(&state, &version_id, &author_id).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1));
+    insert_comment(&state, &version_id, &author_id);
 
-    let outcome = delete_article(&state.database, &article_id)
-        .await
-        .expect("delete");
+    let outcome = delete_article(&state.database, &article_id).expect("delete");
     assert_eq!(outcome.removed_pdf_hashes, vec![pdf_hash(1)]);
 
     assert!(
         crate::repository::article::read_article(&state.database, &article_id)
-            .await
             .expect("read")
             .is_none()
     );
     assert!(
         crate::repository::version::read_version(&state.database, &version_id)
-            .await
             .expect("read")
             .is_none()
     );
@@ -211,18 +191,15 @@ async fn delete_article_cascades_versions_and_comments_and_collects_hashes() {
 #[tokio::test]
 async fn delete_article_is_idempotent_for_a_missing_article() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let outcome = delete_article(&state.database, "missing")
-        .await
-        .expect("delete");
+    let outcome = delete_article(&state.database, "missing").expect("delete");
     assert!(outcome.removed_pdf_hashes.is_empty());
 }
 
 #[tokio::test]
 async fn delete_version_removes_only_the_version_and_refreshes_latest() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, first_version) =
-        create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (article_id, first_version) = create_article_fixture(&state, &author_id, &pdf_hash(1));
     let second_version = uuid::Uuid::now_v7().to_string();
     crate::repository::version::create_version(
         &state.database,
@@ -234,17 +211,12 @@ async fn delete_version_removes_only_the_version_and_refreshes_latest() {
             note: "note".to_string(),
         },
     )
-    .await
     .expect("v2");
 
-    let outcome = delete_version(&state.database, &second_version)
-        .await
-        .expect("delete");
+    let outcome = delete_version(&state.database, &second_version).expect("delete");
     assert_eq!(outcome.removed_pdf_hashes, vec![pdf_hash(2)]);
 
-    let (remaining, _) = versions_of(&state.database, &article_id, 10, 0)
-        .await
-        .expect("versions");
+    let (remaining, _) = versions_of(&state.database, &article_id, 10, 0).expect("versions");
     assert_eq!(remaining.len(), 1);
     assert_eq!(remaining[0].id, first_version);
 }
@@ -252,156 +224,141 @@ async fn delete_version_removes_only_the_version_and_refreshes_latest() {
 #[tokio::test]
 async fn delete_version_is_idempotent_for_a_missing_version() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let outcome = delete_version(&state.database, "missing")
-        .await
-        .expect("delete");
+    let outcome = delete_version(&state.database, "missing").expect("delete");
     assert!(outcome.removed_pdf_hashes.is_empty());
 }
 
 #[tokio::test]
 async fn delete_article_removes_a_nested_comment_subtree_and_collects_the_pdf_hash() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
-    insert_comment_tree(&state, &version_id, &author_id).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1));
+    insert_comment_tree(&state, &version_id, &author_id);
 
-    let outcome = delete_article(&state.database, &article_id)
-        .await
-        .expect("delete");
+    let outcome = delete_article(&state.database, &article_id).expect("delete");
     assert_eq!(outcome.removed_pdf_hashes, vec![pdf_hash(1)]);
 
-    assert_no_comment_subtree_remains(&state).await;
+    assert_no_comment_subtree_remains(&state);
 }
 
 #[tokio::test]
 async fn delete_version_removes_a_nested_comment_subtree_and_collects_the_pdf_hash() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
-    insert_comment_tree(&state, &version_id, &author_id).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1));
+    insert_comment_tree(&state, &version_id, &author_id);
 
-    let outcome = delete_version(&state.database, &version_id)
-        .await
-        .expect("delete");
+    let outcome = delete_version(&state.database, &version_id).expect("delete");
     assert_eq!(outcome.removed_pdf_hashes, vec![pdf_hash(1)]);
 
-    assert_no_comment_subtree_remains(&state).await;
+    assert_no_comment_subtree_remains(&state);
 }
 
 #[tokio::test]
 async fn delete_user_removes_a_nested_comment_subtree_and_collects_the_pdf_hash() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
-    insert_comment_tree(&state, &version_id, &author_id).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1));
+    insert_comment_tree(&state, &version_id, &author_id);
 
-    let outcome = delete_user(&state.database, &author_id)
-        .await
-        .expect("delete");
+    let outcome = delete_user(&state.database, &author_id).expect("delete");
     assert_eq!(outcome.removed_pdf_hashes, vec![pdf_hash(1)]);
 
-    assert_no_comment_subtree_remains(&state).await;
+    assert_no_comment_subtree_remains(&state);
     assert_eq!(
-        crate::repository::user::read_user(&state.database, &author_id)
-            .await
-            .expect("read user"),
+        crate::repository::user::read_user(&state.database, &author_id).expect("read user"),
         None
     );
 }
 
-async fn has_soft_deleted_flag(
+fn has_soft_deleted_flag(
     state: &crate::infrastructure::state::AppState,
-    kind: &str,
+    kind: NodeKind,
     id: &str,
 ) -> bool {
-    let guard = state.database.read().await;
-    let Some(node) =
-        crate::repository::graph::resolve_node_id(&guard, kind, id).expect("resolve node")
-    else {
-        return false;
-    };
-    let result = guard
-        .exec(
-            QueryBuilder::search()
-                .elements()
-                .where_()
-                .ids([node])
-                .and()
-                .keys(KEY_SOFT_DELETED)
-                .query(),
-        )
-        .expect("flag search");
-    !result.elements.is_empty()
+    crate::repository::delete::is_soft_deleted(&state.database, kind, id).expect("flag read")
 }
 
 #[tokio::test]
 async fn soft_delete_user_cascades_the_flag_over_articles_comments_and_the_user() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
-    insert_comment_tree(&state, &version_id, &author_id).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1));
+    insert_comment_tree(&state, &version_id, &author_id);
 
-    soft_delete_user(&state.database, &author_id)
-        .await
-        .expect("soft delete");
+    soft_delete_user(&state.database, &author_id).expect("soft delete");
 
-    assert!(has_soft_deleted_flag(&state, ENTITY_TYPE_USER, &author_id).await);
-    assert!(has_soft_deleted_flag(&state, "article", &article_id).await);
-    assert!(has_soft_deleted_flag(&state, "version", &version_id).await);
-    let guard = state.database.read().await;
-    assert_eq!(count_by_type(&guard, ENTITY_TYPE_COMMENT), 3);
+    assert!(has_soft_deleted_flag(&state, NodeKind::User, &author_id));
+    assert!(has_soft_deleted_flag(
+        &state,
+        NodeKind::Article,
+        &article_id
+    ));
+    assert!(has_soft_deleted_flag(
+        &state,
+        NodeKind::Version,
+        &version_id
+    ));
+    let comments = state
+        .database
+        .read(|scope| scope.count_nodes(NodeKind::Comment, None))
+        .expect("count comments");
+    assert_eq!(comments, 3);
 }
 
 #[tokio::test]
 async fn undelete_soft_user_clears_the_flags_over_the_whole_subtree() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
-    insert_comment_tree(&state, &version_id, &author_id).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1));
+    insert_comment_tree(&state, &version_id, &author_id);
 
-    soft_delete_user(&state.database, &author_id)
-        .await
-        .expect("soft delete");
-    undelete_soft_user(&state.database, &author_id)
-        .await
-        .expect("undelete");
+    soft_delete_user(&state.database, &author_id).expect("soft delete");
+    undelete_soft_user(&state.database, &author_id).expect("undelete");
 
-    assert!(!has_soft_deleted_flag(&state, ENTITY_TYPE_USER, &author_id).await);
-    assert!(!has_soft_deleted_flag(&state, "article", &article_id).await);
-    assert!(!has_soft_deleted_flag(&state, "version", &version_id).await);
+    assert!(!has_soft_deleted_flag(&state, NodeKind::User, &author_id));
+    assert!(!has_soft_deleted_flag(
+        &state,
+        NodeKind::Article,
+        &article_id
+    ));
+    assert!(!has_soft_deleted_flag(
+        &state,
+        NodeKind::Version,
+        &version_id
+    ));
 }
 
 #[tokio::test]
 async fn soft_delete_user_is_idempotent_for_a_missing_user() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    soft_delete_user(&state.database, "missing")
-        .await
-        .expect("soft delete");
-    undelete_soft_user(&state.database, "missing")
-        .await
-        .expect("undelete");
+    soft_delete_user(&state.database, "missing").expect("soft delete");
+    undelete_soft_user(&state.database, "missing").expect("undelete");
 }
 
 #[tokio::test]
 async fn soft_delete_article_cascades_the_flag_over_the_subtree() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
-    insert_comment(&state, &version_id, &author_id).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1));
+    insert_comment(&state, &version_id, &author_id);
 
-    soft_delete_article(&state.database, &article_id)
-        .await
-        .expect("soft delete");
+    soft_delete_article(&state.database, &article_id).expect("soft delete");
 
-    assert!(has_soft_deleted_flag(&state, "article", &article_id).await);
-    assert!(has_soft_deleted_flag(&state, "version", &version_id).await);
-    let (remaining, _) = versions_of(&state.database, &article_id, 10, 0)
-        .await
-        .expect("versions");
+    assert!(has_soft_deleted_flag(
+        &state,
+        NodeKind::Article,
+        &article_id
+    ));
+    assert!(has_soft_deleted_flag(
+        &state,
+        NodeKind::Version,
+        &version_id
+    ));
+    let (remaining, _) = versions_of(&state.database, &article_id, 10, 0).expect("versions");
     assert_eq!(remaining.len(), 0, "versions hidden by article flag");
     assert!(
         crate::repository::version::read_version(&state.database, &version_id)
-            .await
             .expect("read version")
             .is_some(),
         "row stays available at the repository layer; visibility gating lives in logic"
@@ -411,9 +368,8 @@ async fn soft_delete_article_cascades_the_flag_over_the_subtree() {
 #[tokio::test]
 async fn soft_delete_version_cascades_the_flag_over_versions_and_comments() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, first_version) =
-        create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (article_id, first_version) = create_article_fixture(&state, &author_id, &pdf_hash(1));
     let second_version = uuid::Uuid::now_v7().to_string();
     crate::repository::version::create_version(
         &state.database,
@@ -425,24 +381,32 @@ async fn soft_delete_version_cascades_the_flag_over_versions_and_comments() {
             note: "note".to_string(),
         },
     )
-    .await
     .expect("v2");
-    insert_comment(&state, &second_version, &author_id).await;
+    insert_comment(&state, &second_version, &author_id);
 
-    soft_delete_version(&state.database, &second_version)
-        .await
-        .expect("soft delete");
+    soft_delete_version(&state.database, &second_version).expect("soft delete");
 
-    assert!(has_soft_deleted_flag(&state, "version", &second_version).await);
-    assert!(!has_soft_deleted_flag(&state, "version", &first_version).await);
-    assert!(!has_soft_deleted_flag(&state, "article", &article_id).await);
+    assert!(has_soft_deleted_flag(
+        &state,
+        NodeKind::Version,
+        &second_version
+    ));
+    assert!(!has_soft_deleted_flag(
+        &state,
+        NodeKind::Version,
+        &first_version
+    ));
+    assert!(!has_soft_deleted_flag(
+        &state,
+        NodeKind::Article,
+        &article_id
+    ));
     let (page, _) = crate::repository::comment::read_comments_page_by_version(
         &state.database,
         &second_version,
         10,
         0,
     )
-    .await
     .expect("comment page");
     assert!(
         page.is_empty(),
@@ -453,20 +417,17 @@ async fn soft_delete_version_cascades_the_flag_over_versions_and_comments() {
 #[tokio::test]
 async fn soft_delete_comment_cascades_the_flag_over_the_reply_subtree() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
-    let top = insert_comment(&state, &version_id, &author_id).await;
-    let reply = insert_reply(&state, &top, &author_id).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1));
+    let top = insert_comment(&state, &version_id, &author_id);
+    let reply = insert_reply(&state, &top, &author_id);
 
-    soft_delete_comment(&state.database, &top)
-        .await
-        .expect("soft delete");
+    soft_delete_comment(&state.database, &top).expect("soft delete");
 
-    assert!(has_soft_deleted_flag(&state, "comment", &top).await);
-    assert!(has_soft_deleted_flag(&state, "comment", &reply).await);
+    assert!(has_soft_deleted_flag(&state, NodeKind::Comment, &top));
+    assert!(has_soft_deleted_flag(&state, NodeKind::Comment, &reply));
     assert!(
         crate::repository::comment::read_comment_item(&state.database, &reply)
-            .await
             .expect("read reply")
             .is_some(),
         "reply row stays available at the repository layer"
@@ -476,90 +437,75 @@ async fn soft_delete_comment_cascades_the_flag_over_the_reply_subtree() {
 #[tokio::test]
 async fn soft_delete_is_idempotent_for_a_missing_node() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    soft_delete_article(&state.database, "missing")
-        .await
-        .expect("soft delete");
-    soft_delete_version(&state.database, "missing")
-        .await
-        .expect("soft delete");
-    soft_delete_comment(&state.database, "missing")
-        .await
-        .expect("soft delete");
+    soft_delete_article(&state.database, "missing").expect("soft delete");
+    soft_delete_version(&state.database, "missing").expect("soft delete");
+    soft_delete_comment(&state.database, "missing").expect("soft delete");
 }
 
 #[tokio::test]
 async fn clearing_the_soft_deleted_flag_revives_the_node() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
-    let top = insert_comment(&state, &version_id, &author_id).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1));
+    let top = insert_comment(&state, &version_id, &author_id);
 
-    soft_delete_article(&state.database, &article_id)
-        .await
-        .expect("soft delete article");
-    soft_delete_version(&state.database, &version_id)
-        .await
-        .expect("soft delete version");
-    soft_delete_comment(&state.database, &top)
-        .await
-        .expect("soft delete comment");
+    soft_delete_article(&state.database, &article_id).expect("soft delete article");
+    soft_delete_version(&state.database, &version_id).expect("soft delete version");
+    soft_delete_comment(&state.database, &top).expect("soft delete comment");
 
     crate::repository::delete::clear_soft_deleted_flag(&state.database, &article_id)
-        .await
         .expect("clear article");
     crate::repository::delete::clear_soft_deleted_flag(&state.database, &version_id)
-        .await
         .expect("clear version");
     crate::repository::delete::clear_soft_deleted_flag(&state.database, &top)
-        .await
         .expect("clear comment");
 
     assert!(
         crate::repository::article::read_article(&state.database, &article_id)
-            .await
             .expect("read article")
             .is_some(),
         "article revived"
     );
     assert!(
         crate::repository::version::read_version(&state.database, &version_id)
-            .await
             .expect("read version")
             .is_some(),
         "version revived"
     );
     assert!(
         crate::repository::comment::read_comment_item(&state.database, &top)
-            .await
             .expect("read comment")
             .is_some(),
         "comment revived"
     );
-    assert!(!has_soft_deleted_flag(&state, "article", &article_id).await);
-    assert!(!has_soft_deleted_flag(&state, "version", &version_id).await);
-    assert!(!has_soft_deleted_flag(&state, "comment", &top).await);
+    assert!(!has_soft_deleted_flag(
+        &state,
+        NodeKind::Article,
+        &article_id
+    ));
+    assert!(!has_soft_deleted_flag(
+        &state,
+        NodeKind::Version,
+        &version_id
+    ));
+    assert!(!has_soft_deleted_flag(&state, NodeKind::Comment, &top));
 }
 
 #[tokio::test]
 async fn soft_deleted_article_stays_available_at_repository_layer_while_versions_hide() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, _version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (article_id, _version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1));
 
-    soft_delete_article(&state.database, &article_id)
-        .await
-        .expect("soft delete");
+    soft_delete_article(&state.database, &article_id).expect("soft delete");
 
     assert!(
         crate::repository::article::read_article(&state.database, &article_id)
-            .await
             .expect("read article")
             .is_some(),
         "row stays available at the repository layer; visibility gating lives in logic"
     );
-    let (remaining, _) = versions_of(&state.database, &article_id, 10, 0)
-        .await
-        .expect("versions");
+    let (remaining, _) = versions_of(&state.database, &article_id, 10, 0).expect("versions");
     assert_eq!(
         remaining.len(),
         0,
@@ -570,9 +516,8 @@ async fn soft_deleted_article_stays_available_at_repository_layer_while_versions
 #[tokio::test]
 async fn soft_deleted_latest_version_falls_back_to_the_live_latest() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, first_version) =
-        create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (article_id, first_version) = create_article_fixture(&state, &author_id, &pdf_hash(1));
     let second_version = uuid::Uuid::now_v7().to_string();
     crate::repository::version::create_version(
         &state.database,
@@ -584,15 +529,11 @@ async fn soft_deleted_latest_version_falls_back_to_the_live_latest() {
             note: "note".to_string(),
         },
     )
-    .await
     .expect("v2");
 
-    soft_delete_version(&state.database, &second_version)
-        .await
-        .expect("soft delete v2");
+    soft_delete_version(&state.database, &second_version).expect("soft delete v2");
 
     let view = crate::repository::article::read_article(&state.database, &article_id)
-        .await
         .expect("read article")
         .expect("article");
     assert_eq!(
@@ -605,15 +546,12 @@ async fn soft_deleted_latest_version_falls_back_to_the_live_latest() {
 #[tokio::test]
 async fn soft_deleted_only_version_leaves_no_dangling_latest() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1));
 
-    soft_delete_version(&state.database, &version_id)
-        .await
-        .expect("soft delete");
+    soft_delete_version(&state.database, &version_id).expect("soft delete");
 
     let view = crate::repository::article::read_article(&state.database, &article_id)
-        .await
         .expect("read article")
         .expect("article");
     assert!(view.latest_version_id.is_empty(), "no dangling latest id");
@@ -623,9 +561,8 @@ async fn soft_deleted_only_version_leaves_no_dangling_latest() {
 #[tokio::test]
 async fn versions_of_excludes_soft_deleted_versions_and_reports_has_next() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (article_id, first_version) =
-        create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (article_id, first_version) = create_article_fixture(&state, &author_id, &pdf_hash(1));
     let second_version = uuid::Uuid::now_v7().to_string();
     crate::repository::version::create_version(
         &state.database,
@@ -637,7 +574,6 @@ async fn versions_of_excludes_soft_deleted_versions_and_reports_has_next() {
             note: "note".to_string(),
         },
     )
-    .await
     .expect("v2");
     let third_version = uuid::Uuid::now_v7().to_string();
     crate::repository::version::create_version(
@@ -650,16 +586,11 @@ async fn versions_of_excludes_soft_deleted_versions_and_reports_has_next() {
             note: "note".to_string(),
         },
     )
-    .await
     .expect("v3");
 
-    soft_delete_version(&state.database, &second_version)
-        .await
-        .expect("soft delete v2");
+    soft_delete_version(&state.database, &second_version).expect("soft delete v2");
 
-    let (page, has_next) = versions_of(&state.database, &article_id, 1, 0)
-        .await
-        .expect("page one");
+    let (page, has_next) = versions_of(&state.database, &article_id, 1, 0).expect("page one");
     assert_eq!(page.len(), 1, "page one has one live version");
     assert!(has_next, "second live version exists");
     assert!(
@@ -667,9 +598,7 @@ async fn versions_of_excludes_soft_deleted_versions_and_reports_has_next() {
         "deleted version excluded"
     );
 
-    let (page_two, has_next) = versions_of(&state.database, &article_id, 1, 1)
-        .await
-        .expect("page two");
+    let (page_two, has_next) = versions_of(&state.database, &article_id, 1, 1).expect("page two");
     assert_eq!(page_two.len(), 1);
     assert!(!has_next, "no further live versions");
     let mut seen: Vec<&str> = page
@@ -686,16 +615,13 @@ async fn versions_of_excludes_soft_deleted_versions_and_reports_has_next() {
 #[tokio::test]
 async fn read_version_stays_available_at_repository_layer_for_a_soft_deleted_version() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1));
 
-    soft_delete_version(&state.database, &version_id)
-        .await
-        .expect("soft delete");
+    soft_delete_version(&state.database, &version_id).expect("soft delete");
 
     assert!(
         crate::repository::version::read_version(&state.database, &version_id)
-            .await
             .expect("read version")
             .is_some(),
         "row stays available at the repository layer; visibility gating lives in logic"
@@ -705,14 +631,12 @@ async fn read_version_stays_available_at_repository_layer_for_a_soft_deleted_ver
 #[tokio::test]
 async fn comment_page_hides_soft_deleted_comments_and_their_replies() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
-    let top = insert_comment(&state, &version_id, &author_id).await;
-    let _reply = insert_reply(&state, &top, &author_id).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1));
+    let top = insert_comment(&state, &version_id, &author_id);
+    let _reply = insert_reply(&state, &top, &author_id);
 
-    soft_delete_comment(&state.database, &top)
-        .await
-        .expect("soft delete top");
+    soft_delete_comment(&state.database, &top).expect("soft delete top");
 
     let (page, has_next) = crate::repository::comment::read_comments_page_by_version(
         &state.database,
@@ -720,21 +644,18 @@ async fn comment_page_hides_soft_deleted_comments_and_their_replies() {
         10,
         0,
     )
-    .await
     .expect("comment page");
     assert!(page.is_empty(), "deleted top-level comment hidden");
     assert!(!has_next);
     let children_error =
         crate::repository::comment::read_comment_children_page(&state.database, &top, 10, 0)
-            .await
             .expect_err("children page hidden with deleted parent");
     assert!(
-        crate::repository::graph::is_not_found(&children_error),
+        matches!(children_error, database::Error::NotFound { .. }),
         "deleted parent surfaces as not found, got {children_error:?}"
     );
     assert!(
         crate::repository::comment::read_comment_item(&state.database, &top)
-            .await
             .expect("read top")
             .is_some(),
         "deleted comment row stays available at the repository layer; lists still hide it"
@@ -744,15 +665,13 @@ async fn comment_page_hides_soft_deleted_comments_and_their_replies() {
 #[tokio::test]
 async fn comment_page_tiles_around_soft_deleted_comments() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
-    let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1)).await;
-    let first = insert_comment(&state, &version_id, &author_id).await;
-    let second = insert_comment(&state, &version_id, &author_id).await;
-    let third = insert_comment(&state, &version_id, &author_id).await;
+    let author_id = create_user(&state, "alice@example.com");
+    let (_article_id, version_id) = create_article_fixture(&state, &author_id, &pdf_hash(1));
+    let first = insert_comment(&state, &version_id, &author_id);
+    let second = insert_comment(&state, &version_id, &author_id);
+    let third = insert_comment(&state, &version_id, &author_id);
 
-    soft_delete_comment(&state.database, &second)
-        .await
-        .expect("soft delete second");
+    soft_delete_comment(&state.database, &second).expect("soft delete second");
 
     let (page_one, has_next) = crate::repository::comment::read_comments_page_by_version(
         &state.database,
@@ -760,7 +679,6 @@ async fn comment_page_tiles_around_soft_deleted_comments() {
         1,
         0,
     )
-    .await
     .expect("page one");
     assert_eq!(page_one.len(), 1);
     assert!(has_next, "one of two live comments remains");
@@ -770,7 +688,6 @@ async fn comment_page_tiles_around_soft_deleted_comments() {
         1,
         1,
     )
-    .await
     .expect("page two");
     assert_eq!(page_two.len(), 1);
     assert!(!has_next);
@@ -788,7 +705,7 @@ async fn comment_page_tiles_around_soft_deleted_comments() {
 #[tokio::test]
 async fn delete_refresh_keeps_the_semver_latest_version() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
-    let author_id = create_user(&state, "alice@example.com").await;
+    let author_id = create_user(&state, "alice@example.com");
     let article_id = uuid::Uuid::now_v7().to_string();
     let version_1_0_0 = "ffffffff-ffff-4fff-8fff-ffffffffffff".to_string();
     let version_9_9_9 = "11111111-1111-4111-8111-111111111111".to_string();
@@ -809,7 +726,6 @@ async fn delete_refresh_keeps_the_semver_latest_version() {
             },
         },
     )
-    .await
     .expect("create article");
     for (version_id, number, hash_seed) in
         [(&version_9_9_9, "9.9.9", 2), (&version_10, "10.0.0", 3)]
@@ -824,16 +740,12 @@ async fn delete_refresh_keeps_the_semver_latest_version() {
                 note: "note".to_string(),
             },
         )
-        .await
         .expect("create version");
     }
 
-    delete_version(&state.database, &version_10)
-        .await
-        .expect("delete 10.0.0");
+    delete_version(&state.database, &version_10).expect("delete 10.0.0");
 
     let view = crate::repository::article::read_article(&state.database, &article_id)
-        .await
         .expect("read article")
         .expect("article");
     assert_eq!(
