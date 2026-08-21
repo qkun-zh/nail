@@ -26,24 +26,24 @@ pub struct CommentDoc {
     pub ts: i64,
 }
 
-pub enum IndexDoc {
+pub enum SearchDoc {
     Version(VersionDoc),
     Comment(CommentDoc),
 }
 
-impl IndexDoc {
+impl SearchDoc {
     #[must_use]
     pub fn article_id(&self) -> &str {
         match self {
-            IndexDoc::Version(document) => &document.article_id,
-            IndexDoc::Comment(document) => &document.article_id,
+            SearchDoc::Version(document) => &document.article_id,
+            SearchDoc::Comment(document) => &document.article_id,
         }
     }
 
     pub(crate) fn to_document(&self) -> Document {
         let mut document = Document::new();
         match self {
-            IndexDoc::Version(version) => {
+            SearchDoc::Version(version) => {
                 document.insert("version_id".to_string(), json!(version.version_id));
                 document.insert("article_id".to_string(), json!(version.article_id));
                 document.insert("version_number".to_string(), json!(version.version_number));
@@ -56,7 +56,7 @@ impl IndexDoc {
                 document.insert("tags".to_string(), json!(version.tags));
                 document.insert("ts".to_string(), json!(version.ts));
             }
-            IndexDoc::Comment(comment) => {
+            SearchDoc::Comment(comment) => {
                 document.insert("comment_id".to_string(), json!(comment.comment_id));
                 document.insert("version_id".to_string(), json!(comment.version_id));
                 document.insert("article_id".to_string(), json!(comment.article_id));

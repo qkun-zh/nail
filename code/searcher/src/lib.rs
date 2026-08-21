@@ -14,18 +14,18 @@
 pub mod doc;
 pub mod error;
 pub(crate) mod field;
-pub mod index;
 pub mod outcome;
 pub mod read;
 pub(crate) mod schema;
+pub mod searcher;
 
 #[cfg(test)]
 #[path = "../../../test/unit/searcher/harness.rs"]
 mod searcher_tests;
 
-pub use doc::{CommentDoc, IndexDoc, VersionDoc};
+pub use doc::{CommentDoc, SearchDoc, VersionDoc};
 pub use error::Error;
 pub use field::SearchField;
-pub use index::{Searcher, Stats};
 pub use outcome::{CommentHit, DocHit, FieldHit, SearchOutcome, VersionHit};
 pub use read::SearchRequest;
+pub use searcher::{DEFAULT_SEGMENT_NUMBER_BITS, Searcher, Stats};

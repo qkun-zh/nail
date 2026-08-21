@@ -1,8 +1,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use crate::doc::{CommentDoc, IndexDoc, VersionDoc};
-use crate::index::Searcher;
+use crate::doc::{CommentDoc, SearchDoc, VersionDoc};
+use crate::searcher::Searcher;
 
 pub fn scratch_dir(label: &str) -> PathBuf {
     let directory =
@@ -11,8 +11,8 @@ pub fn scratch_dir(label: &str) -> PathBuf {
     directory
 }
 
-pub fn version_doc(article_id: &str, version_id: &str, title: &str) -> IndexDoc {
-    IndexDoc::Version(VersionDoc {
+pub fn version_doc(article_id: &str, version_id: &str, title: &str) -> SearchDoc {
+    SearchDoc::Version(VersionDoc {
         version_id: version_id.to_string(),
         article_id: article_id.to_string(),
         version_number: "1".to_string(),
@@ -27,8 +27,8 @@ pub fn version_doc(article_id: &str, version_id: &str, title: &str) -> IndexDoc 
     })
 }
 
-pub fn comment_doc(article_id: &str, comment_id: &str, content: &str) -> IndexDoc {
-    IndexDoc::Comment(CommentDoc {
+pub fn comment_doc(article_id: &str, comment_id: &str, content: &str) -> SearchDoc {
+    SearchDoc::Comment(CommentDoc {
         comment_id: comment_id.to_string(),
         version_id: format!("v-{article_id}"),
         article_id: article_id.to_string(),

@@ -7,7 +7,7 @@ use seekstorm::index::{
 };
 use seekstorm::search::{FacetFilter, QueryRewriting, QueryType, ResultType, Search, SearchMode};
 
-use crate::doc::IndexDoc;
+use crate::doc::SearchDoc;
 use crate::error::Error;
 use crate::schema;
 
@@ -103,7 +103,7 @@ impl Searcher {
     pub async fn replace_article(
         &self,
         article_id: &str,
-        documents: Vec<IndexDoc>,
+        documents: Vec<SearchDoc>,
     ) -> Result<(), Error> {
         self.replace_articles(vec![(article_id.to_string(), documents)])
             .await?;
@@ -121,7 +121,7 @@ impl Searcher {
     /// from the key it is filed under; nothing is written in that case.
     pub async fn replace_articles(
         &self,
-        batch: Vec<(String, Vec<IndexDoc>)>,
+        batch: Vec<(String, Vec<SearchDoc>)>,
     ) -> Result<usize, Error> {
         for (article_id, documents) in &batch {
             for document in documents {
@@ -150,7 +150,7 @@ impl Searcher {
         let fresh: Vec<Document> = batch
             .iter()
             .flat_map(|(_, documents)| documents.iter())
-            .map(IndexDoc::to_document)
+            .map(SearchDoc::to_document)
             .collect();
         if !fresh.is_empty() {
             self.index.index_documents(fresh).await;
@@ -174,7 +174,7 @@ impl Searcher {
     /// from the key it is filed under; nothing is written in that case.
     pub async fn rebuild(
         &self,
-        articles: impl IntoIterator<Item = (String, Vec<IndexDoc>)>,
+        articles: impl IntoIterator<Item = (String, Vec<SearchDoc>)>,
     ) -> Result<usize, Error> {
         // WORKAROUND(#68): SeekStorm 3.3.5 clear_index doesn't reset
         // Index::docid_global (src/index.rs:4920 vs :1699/:5286), causing
@@ -196,7 +196,7 @@ impl Searcher {
         let mut chunk: Vec<Document> = Vec::new();
         for (_, documents) in articles {
             indexed_count += documents.len();
-            chunk.extend(documents.iter().map(IndexDoc::to_document));
+            chunk.extend(documents.iter().map(SearchDoc::to_document));
             if chunk.len() >= REBUILD_COMMIT_CHUNK {
                 self.index.index_documents(chunk).await;
                 self.index.commit().await;

@@ -6,8 +6,8 @@ use seekstorm::search::{FacetFilter, QueryRewriting, QueryType, ResultType, Sear
 
 use crate::error::Error;
 use crate::field::SearchField;
-use crate::index::Searcher;
 use crate::outcome::{CommentHit, DocHit, FieldHit, SearchOutcome, VersionHit};
+use crate::searcher::Searcher;
 
 const MAX_DOCS_PER_ARTICLE: usize = 32;
 const HIGHLIGHT_FRAGMENT_SIZE: usize = 4096;

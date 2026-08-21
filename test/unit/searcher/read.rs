@@ -97,12 +97,12 @@ async fn title_search_returns_version_hit_with_markup() {
 async fn summary_search_buckets_into_article_hits() {
     let (index, _path) = fresh_index("read_summary").await;
     let mut document = match version_doc("a-1", "v-1", "plain title") {
-        crate::IndexDoc::Version(inner) => inner,
-        crate::IndexDoc::Comment(_) => unreachable!(),
+        crate::SearchDoc::Version(inner) => inner,
+        crate::SearchDoc::Comment(_) => unreachable!(),
     };
     document.summary = "a needle hidden here".to_string();
     index
-        .replace_article("a-1", vec![crate::IndexDoc::Version(document)])
+        .replace_article("a-1", vec![crate::SearchDoc::Version(document)])
         .await
         .unwrap();
     let outcome = index
@@ -127,13 +127,13 @@ async fn summary_search_buckets_into_article_hits() {
 async fn note_and_version_number_bucket_into_version_level() {
     let (index, _path) = fresh_index("read_note").await;
     let mut document = match version_doc("a-1", "v-7", "plain title") {
-        crate::IndexDoc::Version(inner) => inner,
-        crate::IndexDoc::Comment(_) => unreachable!(),
+        crate::SearchDoc::Version(inner) => inner,
+        crate::SearchDoc::Comment(_) => unreachable!(),
     };
     document.note = "draft notes here".to_string();
     document.version_number = "7".to_string();
     index
-        .replace_article("a-1", vec![crate::IndexDoc::Version(document)])
+        .replace_article("a-1", vec![crate::SearchDoc::Version(document)])
         .await
         .unwrap();
     let outcome = index
@@ -190,19 +190,19 @@ async fn comment_field_discriminates_comment_documents() {
 async fn time_window_filters_by_timestamp() {
     let (index, _path) = fresh_index("read_time").await;
     let mut older = match version_doc("a-old", "v-old", "old title") {
-        crate::IndexDoc::Version(inner) => inner,
-        crate::IndexDoc::Comment(_) => unreachable!(),
+        crate::SearchDoc::Version(inner) => inner,
+        crate::SearchDoc::Comment(_) => unreachable!(),
     };
     older.ts = 100;
     let mut newer = match version_doc("a-new", "v-new", "new title") {
-        crate::IndexDoc::Version(inner) => inner,
-        crate::IndexDoc::Comment(_) => unreachable!(),
+        crate::SearchDoc::Version(inner) => inner,
+        crate::SearchDoc::Comment(_) => unreachable!(),
     };
     newer.ts = 200;
     index
         .replace_articles(vec![
-            ("a-old".to_string(), vec![crate::IndexDoc::Version(older)]),
-            ("a-new".to_string(), vec![crate::IndexDoc::Version(newer)]),
+            ("a-old".to_string(), vec![crate::SearchDoc::Version(older)]),
+            ("a-new".to_string(), vec![crate::SearchDoc::Version(newer)]),
         ])
         .await
         .unwrap();

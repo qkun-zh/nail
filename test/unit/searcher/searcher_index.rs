@@ -1,8 +1,8 @@
 use std::fs;
 
 use super::support::{comment_doc, fresh_index, version_doc};
-use crate::index::Searcher;
-use crate::{Error, IndexDoc};
+use crate::searcher::Searcher;
+use crate::{Error, SearchDoc};
 
 #[tokio::test]
 async fn fresh_open_is_not_a_recreate_and_reopen_keeps_data() {
@@ -208,7 +208,7 @@ async fn mixed_batch_with_one_bad_key_writes_nothing() {
             ),
             (
                 "a-2".to_string(),
-                vec![IndexDoc::Comment(comment_doc_inner("WRONG"))],
+                vec![SearchDoc::Comment(comment_doc_inner("WRONG"))],
             ),
         ])
         .await;

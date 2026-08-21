@@ -1,13 +1,13 @@
 use std::collections::HashSet;
 
 use database::{Database, EdgeKind, Error, NodeKind};
-use searcher::{CommentDoc, IndexDoc, VersionDoc};
+use searcher::{CommentDoc, SearchDoc, VersionDoc};
 
 use crate::repository::access::GraphRead;
 use crate::repository::delete::has_soft_deleted_flag;
 use crate::repository::schema::{ArticleRow, CommentRow, RoleRow, TagRow, UserRow, VersionRow};
 
-pub(super) fn build_documents(db: &Database, article_id: &str) -> anyhow::Result<Vec<IndexDoc>> {
+pub(super) fn build_documents(db: &Database, article_id: &str) -> anyhow::Result<Vec<SearchDoc>> {
     let mut documents = Vec::new();
     build_documents_inner(db, article_id, &mut documents)?;
     Ok(documents)
@@ -16,7 +16,7 @@ pub(super) fn build_documents(db: &Database, article_id: &str) -> anyhow::Result
 fn build_documents_inner(
     db: &Database,
     article_id: &str,
-    documents: &mut Vec<IndexDoc>,
+    documents: &mut Vec<SearchDoc>,
 ) -> anyhow::Result<()> {
     let context = db.read(|scope| {
         let Some(article) = scope.resolve(NodeKind::Article, article_id)? else {
@@ -66,7 +66,7 @@ fn build_documents_inner(
             continue;
         }
 
-        documents.push(IndexDoc::Version(VersionDoc {
+        documents.push(SearchDoc::Version(VersionDoc {
             version_id: version_id.clone(),
             article_id: article_id.to_string(),
             version_number: version_row.version_number.clone(),
@@ -100,7 +100,7 @@ fn build_documents_inner(
             let comment_ts = common::time::uuidv7_timestamp_secs(&comment_id)
                 .map_or(0, |secs| i64::try_from(secs).unwrap_or(0));
 
-            documents.push(IndexDoc::Comment(CommentDoc {
+            documents.push(SearchDoc::Comment(CommentDoc {
                 comment_id,
                 version_id: version_id.clone(),
                 article_id: article_id.to_string(),

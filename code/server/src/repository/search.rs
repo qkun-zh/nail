@@ -70,7 +70,7 @@ pub struct Searcher {
 
 impl Searcher {
     pub async fn open_or_create(path: &str) -> anyhow::Result<Self> {
-        Self::open_or_create_with_segments(path, searcher::index::DEFAULT_SEGMENT_NUMBER_BITS).await
+        Self::open_or_create_with_segments(path, searcher::DEFAULT_SEGMENT_NUMBER_BITS).await
     }
 
     pub async fn open_or_create_with_segments(
