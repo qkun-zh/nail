@@ -13,10 +13,10 @@
 
 pub mod doc;
 pub mod error;
-pub mod index;
-// Wired into the public API by the read module in an upcoming slice.
-#[allow(dead_code)]
 pub(crate) mod field;
+pub mod index;
+pub mod outcome;
+pub mod read;
 pub(crate) mod schema;
 
 #[cfg(test)]
@@ -26,3 +26,5 @@ mod searcher_tests;
 pub use doc::{CommentDoc, IndexDoc, VersionDoc};
 pub use error::Error;
 pub use field::SearchField;
+pub use outcome::{CommentHit, DocHit, FieldHit, SearchOutcome, VersionHit};
+pub use read::SearchRequest;

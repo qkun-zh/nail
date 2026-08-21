@@ -7,5 +7,8 @@ pub mod field_tests;
 #[path = "index.rs"]
 pub mod index_tests;
 
+#[path = "read.rs"]
+pub mod read_tests;
+
 #[path = "support.rs"]
 pub mod support;

@@ -23,7 +23,7 @@ pub struct Stats {
 }
 
 pub struct SearchIndex {
-    index: IndexArc,
+    pub(crate) index: IndexArc,
     recreated: bool,
 }
 
