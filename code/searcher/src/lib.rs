@@ -26,5 +26,6 @@ mod searcher_tests;
 pub use doc::{CommentDoc, IndexDoc, VersionDoc};
 pub use error::Error;
 pub use field::SearchField;
+pub use index::{SearchIndex, Stats};
 pub use outcome::{CommentHit, DocHit, FieldHit, SearchOutcome, VersionHit};
 pub use read::SearchRequest;

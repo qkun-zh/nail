@@ -11,7 +11,7 @@ use crate::doc::IndexDoc;
 use crate::error::Error;
 use crate::schema;
 
-const SEGMENT_NUMBER_BITS: usize = 11;
+pub const DEFAULT_SEGMENT_NUMBER_BITS: usize = 11;
 const REBUILD_COMMIT_CHUNK: usize = 1000;
 const ARTICLE_SCAN_LIMIT: usize = 100_000;
 
@@ -22,6 +22,7 @@ pub struct Stats {
     pub deleted: usize,
 }
 
+#[derive(Clone)]
 pub struct SearchIndex {
     pub(crate) index: IndexArc,
     recreated: bool,
@@ -39,6 +40,20 @@ impl SearchIndex {
     /// Returns [`Error::Io`] for filesystem failures and [`Error::Engine`]
     /// when the engine cannot create or open the index.
     pub async fn open_or_create(path: &str) -> Result<Self, Error> {
+        Self::open_or_create_with_segments(path, DEFAULT_SEGMENT_NUMBER_BITS).await
+    }
+
+    /// Same as [`Self::open_or_create`], with an explicit engine segment size
+    /// used at creation time (smaller values speed up tests).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Io`] for filesystem failures and [`Error::Engine`]
+    /// when the engine cannot create or open the index.
+    pub async fn open_or_create_with_segments(
+        path: &str,
+        segment_number_bits: usize,
+    ) -> Result<Self, Error> {
         let index_path = Path::new(path);
         let mut recreated = false;
         if index_path.exists() {
@@ -55,7 +70,7 @@ impl SearchIndex {
                 schema::meta(),
                 &schema::fields(),
                 &Vec::new(),
-                SEGMENT_NUMBER_BITS,
+                segment_number_bits,
                 true,
                 None,
             )

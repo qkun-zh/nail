@@ -688,7 +688,7 @@ async fn opening_a_stale_schema_recreates_the_index() {
 
     let marker_version = std::fs::read_to_string(&marker).expect("marker written");
     assert_eq!(
-        marker_version, "5",
+        marker_version, "6",
         "schema marker records the current version"
     );
 

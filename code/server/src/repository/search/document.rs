@@ -1,131 +1,13 @@
 use std::collections::HashSet;
 
-use common::search::SearchRange;
 use database::{Database, EdgeKind, Error, NodeKind};
-use seekstorm::index::Document;
+use searcher::{CommentDoc, IndexDoc, VersionDoc};
 
 use crate::repository::access::GraphRead;
 use crate::repository::delete::has_soft_deleted_flag;
 use crate::repository::schema::{ArticleRow, CommentRow, RoleRow, TagRow, UserRow, VersionRow};
 
-use super::schema::{
-    FIELD_ARTICLE_ID, FIELD_AUTHOR_ID, FIELD_AUTHOR_NAME, FIELD_COMMENT_ID, FIELD_CONTENT,
-    FIELD_DOC_TYPE, FIELD_NOTE, FIELD_ROLE, FIELD_SUMMARY, FIELD_TAGS, FIELD_TITLE, FIELD_TS,
-    FIELD_VERSION_ID, FIELD_VERSION_NUMBER,
-};
-use super::{SearchCommentOutcome, SearchHitOutcome, SearchVersionOutcome};
-
-pub(super) fn read_string_field(document: &Document, field: &str) -> String {
-    document
-        .get(field)
-        .map(|value| match value {
-            serde_json::Value::String(text) => text.clone(),
-            other => other.to_string(),
-        })
-        .unwrap_or_default()
-}
-
-fn highlight_name(field: &str) -> String {
-    format!("{field}_highlight")
-}
-
-fn read_highlighted_or_raw(document: &Document, field: &str) -> String {
-    let highlighted = read_string_field(document, &highlight_name(field));
-    if highlighted.is_empty() {
-        read_string_field(document, field)
-    } else {
-        highlighted
-    }
-}
-
-fn field_hit(document: &Document, field: &str, query_terms: &[String]) -> bool {
-    let raw = read_string_field(document, field);
-    let folded = raw.to_lowercase();
-    query_terms.iter().any(|term| folded.contains(term))
-}
-
-pub(super) fn read_version_outcome(
-    document: &Document,
-    effective_ranges: &[SearchRange],
-    query_terms: &[String],
-) -> SearchVersionOutcome {
-    let mut article_hits = Vec::new();
-    let mut version_hits = Vec::new();
-    let mut version_number_hit = false;
-    for range in effective_ranges {
-        match range {
-            SearchRange::Summary => {
-                if field_hit(document, FIELD_SUMMARY, query_terms) {
-                    article_hits.push(SearchHitOutcome {
-                        range: SearchRange::Summary,
-                        snippet: read_highlighted_or_raw(document, FIELD_SUMMARY),
-                    });
-                }
-            }
-            SearchRange::Tag => {
-                if field_hit(document, FIELD_TAGS, query_terms) {
-                    article_hits.push(SearchHitOutcome {
-                        range: SearchRange::Tag,
-                        snippet: read_highlighted_or_raw(document, FIELD_TAGS),
-                    });
-                }
-            }
-            SearchRange::Note => {
-                if field_hit(document, FIELD_NOTE, query_terms) {
-                    version_hits.push(SearchHitOutcome {
-                        range: SearchRange::Note,
-                        snippet: read_highlighted_or_raw(document, FIELD_NOTE),
-                    });
-                }
-            }
-            SearchRange::VersionNumber => {
-                version_number_hit = field_hit(document, FIELD_VERSION_NUMBER, query_terms);
-            }
-            _ => {}
-        }
-    }
-    SearchVersionOutcome {
-        article_id: read_string_field(document, FIELD_ARTICLE_ID),
-        version_id: read_string_field(document, FIELD_VERSION_ID),
-        version_number: read_highlighted_or_raw(document, FIELD_VERSION_NUMBER),
-        title: read_highlighted_or_raw(document, FIELD_TITLE),
-        author_id: read_string_field(document, FIELD_AUTHOR_ID),
-        author_name: read_highlighted_or_raw(document, FIELD_AUTHOR_NAME),
-        article_hits,
-        version_hits,
-        version_number_hit,
-    }
-}
-
-pub(super) fn read_comment_outcome(document: &Document) -> SearchCommentOutcome {
-    SearchCommentOutcome {
-        article_id: read_string_field(document, FIELD_ARTICLE_ID),
-        version_id: read_string_field(document, FIELD_VERSION_ID),
-        comment_id: read_string_field(document, FIELD_COMMENT_ID),
-        author_id: read_string_field(document, FIELD_AUTHOR_ID),
-        author_name: read_highlighted_or_raw(document, FIELD_AUTHOR_NAME),
-        content: read_highlighted_or_raw(document, FIELD_CONTENT),
-        article_title: String::new(),
-        article_author_id: String::new(),
-        article_author_name: String::new(),
-        version_number: String::new(),
-    }
-}
-
-fn read_user_roles(db: &Database, user_id: &str) -> Result<String, Error> {
-    db.read(|scope| {
-        let Some(user_db_id) = scope.resolve(NodeKind::User, user_id)? else {
-            return Ok(String::new());
-        };
-        let held = scope.outgoing(user_db_id, EdgeKind::UserHoldRole)?;
-        let rows = scope.scope_read_nodes::<RoleRow>(&held)?;
-        let mut roles: Vec<String> = rows.into_iter().map(|row| row.role_name).collect();
-        roles.sort();
-        Ok(roles.join(","))
-    })
-}
-
-pub(super) fn build_documents(db: &Database, article_id: &str) -> anyhow::Result<Vec<Document>> {
+pub(super) fn build_documents(db: &Database, article_id: &str) -> anyhow::Result<Vec<IndexDoc>> {
     let mut documents = Vec::new();
     build_documents_inner(db, article_id, &mut documents)?;
     Ok(documents)
@@ -134,7 +16,7 @@ pub(super) fn build_documents(db: &Database, article_id: &str) -> anyhow::Result
 fn build_documents_inner(
     db: &Database,
     article_id: &str,
-    documents: &mut Vec<Document>,
+    documents: &mut Vec<IndexDoc>,
 ) -> anyhow::Result<()> {
     let context = db.read(|scope| {
         let Some(article) = scope.resolve(NodeKind::Article, article_id)? else {
@@ -184,29 +66,19 @@ fn build_documents_inner(
             continue;
         }
 
-        let mut version_doc = Document::new();
-        version_doc.insert(
-            FIELD_DOC_TYPE.to_string(),
-            serde_json::json!(vec!["version"]),
-        );
-        version_doc.insert(FIELD_VERSION_ID.to_string(), serde_json::json!(version_id));
-        version_doc.insert(FIELD_ARTICLE_ID.to_string(), serde_json::json!(article_id));
-        version_doc.insert(
-            FIELD_VERSION_NUMBER.to_string(),
-            serde_json::json!(version_row.version_number),
-        );
-        version_doc.insert(FIELD_TITLE.to_string(), serde_json::json!(title));
-        version_doc.insert(FIELD_SUMMARY.to_string(), serde_json::json!(summary));
-        version_doc.insert(
-            FIELD_AUTHOR_NAME.to_string(),
-            serde_json::json!(author_name),
-        );
-        version_doc.insert(FIELD_AUTHOR_ID.to_string(), serde_json::json!(author_id));
-        version_doc.insert(FIELD_ROLE.to_string(), serde_json::json!(author_role));
-        version_doc.insert(FIELD_NOTE.to_string(), serde_json::json!(version_row.note));
-        version_doc.insert(FIELD_TAGS.to_string(), serde_json::json!(tags));
-        version_doc.insert(FIELD_TS.to_string(), serde_json::json!(version_ts));
-        documents.push(version_doc);
+        documents.push(IndexDoc::Version(VersionDoc {
+            version_id: version_id.clone(),
+            article_id: article_id.to_string(),
+            version_number: version_row.version_number.clone(),
+            title: title.clone(),
+            summary: summary.clone(),
+            author_name: author_name.clone(),
+            author_id: author_id.clone(),
+            role: author_role.clone(),
+            note: version_row.note.clone(),
+            tags: tags.clone(),
+            ts: version_ts,
+        }));
 
         for comment_node in comments_of_version(db, version_node)? {
             let Some(comment_row) =
@@ -228,35 +100,32 @@ fn build_documents_inner(
             let comment_ts = common::time::uuidv7_timestamp_secs(&comment_id)
                 .map_or(0, |secs| i64::try_from(secs).unwrap_or(0));
 
-            let mut comment_doc = Document::new();
-            comment_doc.insert(
-                FIELD_DOC_TYPE.to_string(),
-                serde_json::json!(vec!["comment"]),
-            );
-            comment_doc.insert(FIELD_COMMENT_ID.to_string(), serde_json::json!(comment_id));
-            comment_doc.insert(FIELD_VERSION_ID.to_string(), serde_json::json!(version_id));
-            comment_doc.insert(FIELD_ARTICLE_ID.to_string(), serde_json::json!(article_id));
-            comment_doc.insert(
-                FIELD_AUTHOR_NAME.to_string(),
-                serde_json::json!(comment_author),
-            );
-            comment_doc.insert(
-                FIELD_AUTHOR_ID.to_string(),
-                serde_json::json!(comment_author_id),
-            );
-            comment_doc.insert(
-                FIELD_ROLE.to_string(),
-                serde_json::json!(comment_author_role),
-            );
-            comment_doc.insert(
-                FIELD_CONTENT.to_string(),
-                serde_json::json!(comment_row.content),
-            );
-            comment_doc.insert(FIELD_TS.to_string(), serde_json::json!(comment_ts));
-            documents.push(comment_doc);
+            documents.push(IndexDoc::Comment(CommentDoc {
+                comment_id,
+                version_id: version_id.clone(),
+                article_id: article_id.to_string(),
+                author_name: comment_author,
+                author_id: comment_author_id,
+                role: comment_author_role,
+                content: comment_row.content,
+                ts: comment_ts,
+            }));
         }
     }
     Ok(())
+}
+
+fn read_user_roles(db: &Database, user_id: &str) -> Result<String, Error> {
+    db.read(|scope| {
+        let Some(user_db_id) = scope.resolve(NodeKind::User, user_id)? else {
+            return Ok(String::new());
+        };
+        let held = scope.outgoing(user_db_id, EdgeKind::UserHoldRole)?;
+        let rows = scope.scope_read_nodes::<RoleRow>(&held)?;
+        let mut roles: Vec<String> = rows.into_iter().map(|row| row.role_name).collect();
+        roles.sort();
+        Ok(roles.join(","))
+    })
 }
 
 fn comments_of_version(
