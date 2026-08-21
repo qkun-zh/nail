@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 #[cfg(test)]
 use cedar_policy::EntityUid;
 

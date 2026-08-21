@@ -14,9 +14,9 @@
 
 #### Slice 2: server wiring
 - **Goal**: server uses new crate via DB→snapshot adapter, behavior unchanged.
-- **Files**: `code/server/src/infrastructure/state.rs`, `code/server/src/repository/authorization.rs`, `code/server/src/logic/authorize.rs`, `code/server/src/infrastructure/authorizer.rs`, `code/server/build.rs`, `code/server/Cargo.toml`
-- **Status**: pending — awaiting implementation
-- **Confirmations**: snapshot API adopted (user confirmed)
+- **Files**: `code/server/src/infrastructure/authorizer.rs`, `code/server/Cargo.toml`, `code/authorizer/src/authorizer.rs`
+- **Status**: done — `cargo test -p server` 593 passed, duplicate-entity fix applied, `clippy` clean
+- **Confirmations**: snapshot API adopted; duplicate User entity dedup via merge_entities
 
 #### Slice 3: cleanup
 - **Goal**: remove legacy baggage, promote probes, zero warnings.

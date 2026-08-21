@@ -64,9 +64,9 @@ impl Authorizer {
         action: &str,
         resource: &Resource,
     ) -> Result<(), Error> {
-        let (principal_uid, mut entities) = build_principal(principal)?;
-        let (resource_uid, mut resource_entities) = build_resource(resource)?;
-        entities.append(&mut resource_entities);
+        let (principal_uid, principal_entities) = build_principal(principal)?;
+        let (resource_uid, resource_entities) = build_resource(resource)?;
+        let mut entities = merge_entities(principal_entities, resource_entities);
 
         let action_uid = action_uid(action)?;
         if !entities.iter().any(|entity| entity.uid() == action_uid) {
@@ -93,6 +93,21 @@ impl Authorizer {
             Decision::Deny => Err(Error::Denied),
         }
     }
+}
+
+fn merge_entities(mut principal: Vec<Entity>, resource: Vec<Entity>) -> Vec<Entity> {
+    let mut positions: HashMap<EntityUid, usize> = HashMap::new();
+    let mut merged: Vec<Entity> =
+        Vec::with_capacity(principal.len().saturating_add(resource.len()));
+    for entity in principal.drain(..).chain(resource) {
+        if let Some(index) = positions.get(&entity.uid()) {
+            merged[*index] = entity;
+        } else {
+            positions.insert(entity.uid().clone(), merged.len());
+            merged.push(entity);
+        }
+    }
+    merged
 }
 
 fn build_principal(principal: &Principal) -> Result<(EntityUid, Vec<Entity>), Error> {
