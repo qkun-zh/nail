@@ -36,10 +36,7 @@ async fn user_read_self_returns_name_and_optional_email_hash() {
         .get(&format!("/users/{user_id}"), Some(&token))
         .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert_eq!(
-        body["data"]["name"].as_str(),
-        Some(user_id.replace('-', "").as_str())
-    );
+    assert_eq!(body["data"]["name"].as_str(), Some("anonymous"));
     assert!(body["data"].get("email_hash").is_none());
 
     let (status, body) = context

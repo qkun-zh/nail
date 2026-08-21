@@ -55,7 +55,7 @@ pub fn create_user(db: &Database, email_address_hash: &str) -> Result<String, Er
         let row = UserRow {
             id: user_id.clone(),
             email_address_hash: email_address_hash.to_string(),
-            name: user_id.replace('-', ""),
+            name: "anonymous".to_string(),
         };
         scope.insert_node(&row)?;
         Ok(user_id)

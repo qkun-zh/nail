@@ -30,7 +30,7 @@ async fn read_user_returns_the_email_hash_and_default_name() {
         .expect("read")
         .expect("entry");
     assert_eq!(entry.email_address_hash, hash);
-    assert_eq!(entry.name, user_id.replace('-', ""));
+    assert_eq!(entry.name, "anonymous");
 }
 
 #[tokio::test]
