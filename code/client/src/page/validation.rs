@@ -17,6 +17,16 @@ pub fn validate_note(raw: &str, max_chars: u64) -> Result<String, String> {
         .map_err(|error| error.to_string())
 }
 
+pub fn validate_version_number(raw: &str) -> Result<String, String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Err("version is required (semver, e.g. 1.0.0)".to_string());
+    }
+    semver::Version::parse(trimmed)
+        .map(|version| version.to_string())
+        .map_err(|_| "invalid version: expected semver, e.g. 1.0.0".to_string())
+}
+
 pub fn validate_comment_content(raw: &str, max_chars: u64) -> Result<String, String> {
     common::text::validate_ascii_text(raw, usize::try_from(max_chars).unwrap_or(usize::MAX), true)
         .map_err(|error| error.to_string())

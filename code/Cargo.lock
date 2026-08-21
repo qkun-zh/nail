@@ -831,6 +831,7 @@ dependencies = [
  "js-sys",
  "leptos",
  "leptos_router",
+ "semver",
  "serde",
  "serde_json",
  "toml",

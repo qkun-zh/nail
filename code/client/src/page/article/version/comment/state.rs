@@ -156,6 +156,7 @@ pub fn build_submit_comment(
             posting.set(false);
             match result {
                 Ok(_) => {
+                    body.set(String::new());
                     notify_success(&notifications, "comment created");
                     load(version_id);
                 }
@@ -203,6 +204,7 @@ pub fn build_submit_reply(
             posting.set(false);
             match result {
                 Ok(_) => {
+                    reply_body.set(String::new());
                     notify_success(&notifications, "reply created");
                     load(version_id);
                 }

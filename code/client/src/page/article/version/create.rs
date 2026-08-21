@@ -7,7 +7,9 @@ use crate::infrastructure::limits::use_limits;
 use crate::page::author_gate::{denied_view, use_author_gate};
 use crate::page::draft::persist_draft;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
-use crate::page::validation::{validate_note, validate_pdf_selection, validate_uuid};
+use crate::page::validation::{
+    validate_note, validate_pdf_selection, validate_uuid, validate_version_number,
+};
 
 #[component]
 pub fn CreateVersion() -> impl IntoView {
@@ -45,11 +47,13 @@ pub fn CreateVersion() -> impl IntoView {
             notify_error(&notifications, message);
             return;
         }
-        let version_value = version.get();
-        if version_value.trim().is_empty() {
-            notify_error(&notifications, "version is required");
-            return;
-        }
+        let version_value = match validate_version_number(&version.get()) {
+            Ok(value) => value,
+            Err(error) => {
+                notify_error(&notifications, &error);
+                return;
+            }
+        };
         let limits = limits.get();
         let note_value = match validate_note(&note.get(), limits.max_version_note_chars) {
             Ok(value) => value,
@@ -104,7 +108,7 @@ pub fn CreateVersion() -> impl IntoView {
         }
         view! {
             <form on:submit=submit>
-                <div><label><input type="text" placeholder="version" prop:value=version on:input=move |event| version.set(event_target_value(&event)) /></label></div>
+                <div><label><input type="text" placeholder="version (semver, e.g. 1.0.0)" prop:value=version on:input=move |event| version.set(event_target_value(&event)) /></label></div>
                 <div><label><textarea rows="4" cols="60" placeholder="note: what changed in this version" prop:value=note on:input=move |event| note.set(event_target_value(&event))></textarea></label></div>
                 <div><label><input type="file" accept="application/pdf" node_ref=file_ref /></label></div>
                 <button type="submit" disabled=move || working.get()>

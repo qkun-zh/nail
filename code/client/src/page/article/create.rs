@@ -1,6 +1,7 @@
 use leptos::ev::SubmitEvent;
 use leptos::html::Input;
 use leptos::prelude::*;
+use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_query_map};
 
 use crate::infrastructure::limits::use_limits;
@@ -9,6 +10,7 @@ use crate::page::draft::persist_draft;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
 use crate::page::validation::{
     validate_note, validate_pdf_selection, validate_summary, validate_title,
+    validate_version_number,
 };
 
 #[component]
@@ -74,6 +76,13 @@ pub fn CreateArticle() -> impl IntoView {
                 return;
             }
         };
+        let version_value = match validate_version_number(&version.get()) {
+            Ok(value) => value,
+            Err(error) => {
+                notify_error(&notifications, &error);
+                return;
+            }
+        };
         let Some(file) = file_ref
             .get()
             .and_then(|input| input.files())
@@ -96,7 +105,7 @@ pub fn CreateArticle() -> impl IntoView {
             &title_value,
             &summary_value,
             &tags_value,
-            &version.get(),
+            &version_value,
             &note_value,
             &file,
         ) {
@@ -109,20 +118,17 @@ pub fn CreateArticle() -> impl IntoView {
 
         working.set(true);
         let notifications = notifications.clone();
+        let navigate = navigate.clone();
         leptos::task::spawn_local(async move {
             let result = crate::request::article::create_article(form).await;
             working.set(false);
             match result {
                 Ok(view) => {
-                    let message = if view.version_id.is_empty() {
-                        format!("article created: {}", view.article_id)
-                    } else {
-                        format!(
-                            "article created: {} (version {})",
-                            view.article_id, view.version_id
-                        )
-                    };
-                    notify_success(&notifications, message);
+                    notify_success(&notifications, "article created");
+                    navigate(
+                        &format!("/article/{}", view.article_id),
+                        NavigateOptions::default(),
+                    );
                 }
                 Err(error) => notify_error(&notifications, error.to_string()),
             }
@@ -137,7 +143,7 @@ pub fn CreateArticle() -> impl IntoView {
                 <label>"Tags"</label>
                 <TagPicker selected=selected_tags />
             </div>
-            <div><label><input type="text" placeholder="version" prop:value=version on:input=move |event| version.set(event_target_value(&event)) /></label></div>
+            <div><label><input type="text" placeholder="version (semver, e.g. 1.0.0)" prop:value=version on:input=move |event| version.set(event_target_value(&event)) /></label></div>
             <div><label><textarea rows="4" cols="60" placeholder="note: what changed in this version" prop:value=note on:input=move |event| note.set(event_target_value(&event))></textarea></label></div>
             <div><label><input type="file" accept="application/pdf" node_ref=file_ref /></label></div>
             <button type="submit" disabled=move || working.get()>
