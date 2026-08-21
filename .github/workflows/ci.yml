@@ -32,6 +32,9 @@ jobs:
       - name: Format client
         working-directory: code/client
         run: cargo fmt --check
+      - name: Format searcher
+        working-directory: code/searcher
+        run: cargo fmt --check
 
   clippy:
     name: Clippy
@@ -57,6 +60,9 @@ jobs:
       - name: Clippy client
         working-directory: code/client
         run: cargo clippy --all-targets -- -D warnings
+      - name: Clippy searcher
+        working-directory: code/searcher
+        run: cargo clippy --all-targets -- -D warnings
 
   test:
     name: Test
@@ -79,6 +85,9 @@ jobs:
         run: cargo test
       - name: Test client (host)
         working-directory: code/client
+        run: cargo test
+      - name: Test searcher
+        working-directory: code/searcher
         run: cargo test
 
   build:
@@ -114,4 +123,7 @@ jobs:
         run: cargo audit
       - name: Audit client
         working-directory: code/client
+        run: cargo audit
+      - name: Audit searcher
+        working-directory: code/searcher
         run: cargo audit

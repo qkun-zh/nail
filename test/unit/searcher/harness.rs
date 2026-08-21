@@ -10,5 +10,8 @@ pub mod index_tests;
 #[path = "read.rs"]
 pub mod read_tests;
 
+#[path = "schema.rs"]
+pub mod schema_tests;
+
 #[path = "support.rs"]
 pub mod support;

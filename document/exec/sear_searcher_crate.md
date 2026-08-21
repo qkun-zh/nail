@@ -163,3 +163,15 @@ never touch target/dist/data/log; one commit per slice; never discard work.
 1. Confirm schema v6 field changes (Text title/author_name, drop doc_type) — one-time rebuild?
 2. Tombstone policy threshold (e.g. rebuild when deleted > 25% of indexed): wire now or defer?
 3. sync_user fail-fast semantics change (RF13) acceptable?
+
+## 10. Progress (2026-08-21)
+
+All slices 1-5 green and pushed; sear6 cleanup completed 2026-08-21.
+
+- sear1..sear4: `searcher` crate scaffold, typed docs, lifecycle, read — `cargo test -p searcher` green.
+- sear5: server adapter (`repository/search*` → `searcher`) — `cargo test -p server 570/570` local green; CI `b6d79ce..786a0e7` failed with SeekStorm panic.
+- Root cause isolated: SeekStorm 3.3.5 `clear_index` (`src/index.rs:4920` → `clear_shard:4300`) does not reset `Index::docid_global:1699` (`:5286/:5512`), post-clear reads panic at `doc_store.rs:137` with `src_len≈262k` (`ROARING_BLOCK_SIZE:115` → `262144`). Minimal repro outside nail confirmed; filed `SeekStorm/SeekStorm#68` `https://github.com/SeekStorm/SeekStorm/issues/68`.
+- Workaround in `code/searcher/src/index.rs:rebuild()` (commit `9205a92`): delete-all via `find_all_doc_ids` + `delete_documents` + commit instead of `clear_index`; keeps tombstones `(4,2,2)` vs clear `(2,2,0)` — revert to `clear_index` when `SeekStorm>=3.3.6`. Test `test/unit/searcher/index.rs:rebuild_wipes_tombstones` updated with `WORKAROUND(#68)` marker.
+- sear6: wired orphaned `test/unit/searcher/schema.rs` (12 tests) into `harness.rs` → `searcher 36/36`; added `searcher` steps to `.github/workflows/ci.yml` (fmt/clippy/test/audit); `cargo fmt --check` / `cargo clippy -- -D warnings` clean; CI `9205a92` → `32472964763 success`.
+
+Revert path: uncomment `clear_index` block in `SearchIndex::rebuild()` and restore `(2,2,0)` assertion when upstream fixes #68.
