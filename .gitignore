@@ -21,5 +21,7 @@ code/proxy/pingap-linux-gnu-x86-full
 .idea/
 .DS_Store
 __pycache__/
-*.rs.bkcode/back/tarpaulin-report.html
-code/back/tarpaulin-report.html
+*.rs.bk
+
+# --- generated coverage reports ---
+code/server/tarpaulin-report.html
