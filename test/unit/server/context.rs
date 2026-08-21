@@ -274,7 +274,7 @@ pub async fn build_state(
     repository::seed::init_graph(&database, &config.server.user_zero_email)?;
     let search_dir =
         std::env::temp_dir().join(format!("nail_state_search_{}", uuid::Uuid::now_v7()));
-    let searcher = repository::search::SearchIndex::open_or_create_with_segments(
+    let searcher = repository::search::Searcher::open_or_create_with_segments(
         search_dir.to_str().expect("temp path"),
         2,
     )

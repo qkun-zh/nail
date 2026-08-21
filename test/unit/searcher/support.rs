@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::doc::{CommentDoc, IndexDoc, VersionDoc};
-use crate::index::SearchIndex;
+use crate::index::Searcher;
 
 pub fn scratch_dir(label: &str) -> PathBuf {
     let directory =
@@ -40,9 +40,9 @@ pub fn comment_doc(article_id: &str, comment_id: &str, content: &str) -> IndexDo
     })
 }
 
-pub async fn fresh_index(label: &str) -> (SearchIndex, PathBuf) {
+pub async fn fresh_index(label: &str) -> (Searcher, PathBuf) {
     let path = scratch_dir(label);
-    let index = SearchIndex::open_or_create(path.to_str().unwrap())
+    let index = Searcher::open_or_create(path.to_str().unwrap())
         .await
         .unwrap();
     (index, path)

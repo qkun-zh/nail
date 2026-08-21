@@ -6,7 +6,7 @@ use seekstorm::search::{FacetFilter, QueryRewriting, QueryType, ResultType, Sear
 
 use crate::error::Error;
 use crate::field::SearchField;
-use crate::index::SearchIndex;
+use crate::index::Searcher;
 use crate::outcome::{CommentHit, DocHit, FieldHit, SearchOutcome, VersionHit};
 
 const MAX_DOCS_PER_ARTICLE: usize = 32;
@@ -26,7 +26,7 @@ pub struct SearchRequest {
     pub limit: usize,
 }
 
-impl SearchIndex {
+impl Searcher {
     /// Executes a search and returns raw document hits.
     ///
     /// The hit window is sized `offset + limit * MAX_DOCS_PER_ARTICLE` so the

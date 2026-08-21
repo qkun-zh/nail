@@ -64,11 +64,11 @@ pub struct SearchOutcome {
 /// module only converts rows to documents, ranges to search fields, and hits
 /// back to the outcome types the logic layer consumes.
 #[derive(Clone)]
-pub struct SearchIndex {
-    inner: searcher::SearchIndex,
+pub struct Searcher {
+    inner: searcher::Searcher,
 }
 
-impl SearchIndex {
+impl Searcher {
     pub async fn open_or_create(path: &str) -> anyhow::Result<Self> {
         Self::open_or_create_with_segments(path, searcher::index::DEFAULT_SEGMENT_NUMBER_BITS).await
     }
@@ -77,7 +77,7 @@ impl SearchIndex {
         path: &str,
         segment_number_bits: usize,
     ) -> anyhow::Result<Self> {
-        let inner = searcher::SearchIndex::open_or_create_with_segments(path, segment_number_bits)
+        let inner = searcher::Searcher::open_or_create_with_segments(path, segment_number_bits)
             .await
             .map_err(|error| anyhow::anyhow!("open search index {path}: {error}"))?;
         Ok(Self { inner })

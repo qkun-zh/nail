@@ -23,12 +23,12 @@ pub struct Stats {
 }
 
 #[derive(Clone)]
-pub struct SearchIndex {
+pub struct Searcher {
     pub(crate) index: IndexArc,
     recreated: bool,
 }
 
-impl SearchIndex {
+impl Searcher {
     /// Opens the index at `path`, or creates it when absent.
     ///
     /// A directory with a corrupt payload or a stale schema marker is wiped

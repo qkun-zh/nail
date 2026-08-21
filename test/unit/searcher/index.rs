@@ -1,7 +1,7 @@
 use std::fs;
 
 use super::support::{comment_doc, fresh_index, version_doc};
-use crate::index::SearchIndex;
+use crate::index::Searcher;
 use crate::{Error, IndexDoc};
 
 #[tokio::test]
@@ -15,7 +15,7 @@ async fn fresh_open_is_not_a_recreate_and_reopen_keeps_data() {
     assert_eq!(index.stats().await.live, 1);
     index.close().await;
 
-    let reopened = SearchIndex::open_or_create(path.to_str().unwrap())
+    let reopened = Searcher::open_or_create(path.to_str().unwrap())
         .await
         .unwrap();
     assert!(!reopened.was_recreated(), "healthy reopen must not wipe");
@@ -143,7 +143,7 @@ async fn corrupt_directory_is_healed_and_flagged() {
     index.close().await;
     fs::write(path.join("meta.json"), "{not json").unwrap();
 
-    let healed = SearchIndex::open_or_create(path.to_str().unwrap())
+    let healed = Searcher::open_or_create(path.to_str().unwrap())
         .await
         .unwrap();
     assert!(healed.was_recreated(), "corrupt dir must be rebuilt");
@@ -166,7 +166,7 @@ async fn stale_schema_marker_forces_recreate() {
     index.close().await;
     fs::write(path.join("nail_schema_version"), "5").unwrap();
 
-    let recreated = SearchIndex::open_or_create(path.to_str().unwrap())
+    let recreated = Searcher::open_or_create(path.to_str().unwrap())
         .await
         .unwrap();
     assert!(recreated.was_recreated());

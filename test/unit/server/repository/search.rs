@@ -1,7 +1,7 @@
 use super::context::{build_state, test_config};
 
 use crate::repository::article::{ArticleDraft, create_article};
-use crate::repository::search::{SearchDocOutcome, SearchIndex, SearchRequest};
+use crate::repository::search::{SearchDocOutcome, SearchRequest, Searcher};
 use crate::repository::version::VersionDraft;
 
 fn pdf_hash(seed: u8) -> String {
@@ -78,7 +78,7 @@ async fn sync_and_read_round_trips_an_article() {
     )
     .expect("user");
     let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
-    let index = SearchIndex::open_or_create(directory.to_str().expect("path"))
+    let index = Searcher::open_or_create(directory.to_str().expect("path"))
         .await
         .expect("index");
     let article_id = create_article_fixture(&state, &author_id, "A Unique Title");
@@ -160,7 +160,7 @@ async fn keyword_read_returns_highlighted_hits() {
     )
     .expect("user");
     let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
-    let index = SearchIndex::open_or_create(directory.to_str().expect("path"))
+    let index = Searcher::open_or_create(directory.to_str().expect("path"))
         .await
         .expect("index");
     let article_id = create_article_fixture(&state, &author_id, "Rust Programming");
@@ -201,7 +201,7 @@ async fn sync_user_refreshes_the_author_name() {
     )
     .expect("user");
     let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
-    let index = SearchIndex::open_or_create(directory.to_str().expect("path"))
+    let index = Searcher::open_or_create(directory.to_str().expect("path"))
         .await
         .expect("index");
     let article_id = create_article_fixture(&state, &author_id, "Article");
@@ -249,7 +249,7 @@ async fn sync_user_refreshes_the_author_name_of_their_comments() {
         .expect("name");
 
     let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
-    let index = SearchIndex::open_or_create(directory.to_str().expect("path"))
+    let index = Searcher::open_or_create(directory.to_str().expect("path"))
         .await
         .expect("index");
 
@@ -332,7 +332,7 @@ async fn sync_removes_documents_for_a_deleted_article() {
     )
     .expect("user");
     let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
-    let index = SearchIndex::open_or_create(directory.to_str().expect("path"))
+    let index = Searcher::open_or_create(directory.to_str().expect("path"))
         .await
         .expect("index");
     let article_id = create_article_fixture(&state, &author_id, "Article");
@@ -369,7 +369,7 @@ async fn sync_excludes_a_soft_deleted_version_doc_and_its_comments() {
     )
     .expect("user");
     let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
-    let index = SearchIndex::open_or_create(directory.to_str().expect("path"))
+    let index = Searcher::open_or_create(directory.to_str().expect("path"))
         .await
         .expect("index");
 
@@ -462,7 +462,7 @@ async fn sync_excludes_a_soft_deleted_comment_doc() {
     )
     .expect("user");
     let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
-    let index = SearchIndex::open_or_create(directory.to_str().expect("path"))
+    let index = Searcher::open_or_create(directory.to_str().expect("path"))
         .await
         .expect("index");
 
@@ -552,7 +552,7 @@ async fn sync_drops_all_docs_of_a_soft_deleted_article() {
     )
     .expect("user");
     let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
-    let index = SearchIndex::open_or_create(directory.to_str().expect("path"))
+    let index = Searcher::open_or_create(directory.to_str().expect("path"))
         .await
         .expect("index");
 
@@ -680,7 +680,7 @@ async fn opening_a_stale_schema_recreates_the_index() {
     let directory = std::env::temp_dir().join(format!("nail_search_{}", uuid::Uuid::now_v7()));
     let marker = directory.join("nail_schema_version");
 
-    let first = SearchIndex::open_or_create(directory.to_str().expect("path"))
+    let first = Searcher::open_or_create(directory.to_str().expect("path"))
         .await
         .expect("create");
     assert!(!first.was_recreated(), "fresh create is not a migration");
@@ -693,7 +693,7 @@ async fn opening_a_stale_schema_recreates_the_index() {
     );
 
     std::fs::write(&marker, "1").expect("write stale marker");
-    let migrated = SearchIndex::open_or_create(directory.to_str().expect("path"))
+    let migrated = Searcher::open_or_create(directory.to_str().expect("path"))
         .await
         .expect("reopen");
     assert!(

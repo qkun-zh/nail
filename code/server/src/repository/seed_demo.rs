@@ -2,7 +2,7 @@ use anyhow::Context;
 
 use database::Database;
 
-use crate::repository::search::SearchIndex;
+use crate::repository::search::Searcher;
 
 const SAMPLE_TAG_POOL: &[&str] = &[
     "rust",
@@ -148,7 +148,7 @@ fn sample_note(rng: &mut SampleRng, index: usize) -> String {
 
 pub async fn seed_sample_articles(
     db: &Database,
-    search: &SearchIndex,
+    search: &Searcher,
     count: usize,
 ) -> anyhow::Result<()> {
     let author_count = count.clamp(2, 12);
