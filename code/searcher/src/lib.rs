@@ -11,8 +11,10 @@
 //!   panic.
 //! - Errors are typed ([`Error`]); no `unwrap`, no `expect`, no new panics.
 
+pub mod doc;
 pub mod error;
 // Wired into the public API by the index module in an upcoming slice.
+pub(crate) mod field;
 #[allow(dead_code)]
 pub(crate) mod schema;
 
@@ -20,4 +22,6 @@ pub(crate) mod schema;
 #[path = "../../../test/unit/searcher/harness.rs"]
 mod searcher_tests;
 
+pub use doc::{CommentDoc, IndexDoc, VersionDoc};
 pub use error::Error;
+pub use field::SearchField;
