@@ -7,8 +7,7 @@ compressed, this file restores all decisions and state.
 Repo: `/home/qkun/nail`. Constitution: `README.md`, `AGENTS.md`,
 `document/workflow.md`. Workflow is MANDATORY for every code change
 (baseline → pin → plan → exec doc → evidence → gate adoption → slice loop →
-handoff → final gate). Test commands use nightly + cranelift + line-tables
-(see `document/run.md`).
+handoff → final gate). Test commands follow `document/workflow.md`.
 
 ---
 

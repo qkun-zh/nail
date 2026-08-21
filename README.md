@@ -89,7 +89,7 @@ Logging: `tracing` + `tracing-subscriber` to `log/`, daily pruning.
 
 ## 8. Building & Running
 
-- **Full-stack restart**: see `document/run.md`.
+- **Full-stack restart**: see `document/workflow.md` (Running the stack).
 - **Backend alone**: `cargo run --bin nail_back` (from `code/back`); seed samples with `-- seed-samples [count]`.
 - **Frontend**: `trunk build` (from `code/front`), served by the proxy.
 

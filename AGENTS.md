@@ -21,7 +21,7 @@ You are a professional software engineer agent responsible for code implementati
 
 - **Search**: prefer scoped roots (see README §10). Repo-root `rg` needs `-g '!target' -g '!dist' -g '!data' -g '!log' -g '!*.lock' -g '!pingap-linux-gnu-x86-full'`
 - **Edit**: Read/Edit/Write
-- **Build/test**: `cargo fmt`, `cargo clippy` (zero warnings), `cargo test`; frontend also `trunk build`. Must use flags from `document/run.md`.
+- **Build/test**: `cargo fmt`, `cargo clippy` (zero warnings), `cargo test`; frontend also `trunk build`. Must use flags from `document/workflow.md`.
 
 ### Prohibited
 
