@@ -28,3 +28,5 @@ __pycache__/
 
 # --- generated coverage reports ---
 code/server/tarpaulin-report.html
+
+document/private/
