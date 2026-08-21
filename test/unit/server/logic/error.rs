@@ -2,7 +2,6 @@ use axum::http::StatusCode;
 
 use crate::logic::error::LogicError;
 use crate::repository::article::{CreateArticleError, UpdateArticleError};
-use crate::repository::authorization::AssemblyError;
 use crate::repository::comment::CreateCommentError;
 use crate::repository::transfer::{TransferError, TransferTargetError};
 use crate::repository::user::UserWriteError;
@@ -142,18 +141,6 @@ fn from_user_write_error_maps_every_variant() {
         LogicError::internal("unexpected email mismatch")
     );
     assert_eq!(LogicError::from(UserWriteError::Db(db)), expected_db);
-}
-
-#[test]
-fn from_assembly_error_maps_every_variant() {
-    assert_eq!(
-        LogicError::from(AssemblyError::ResourceNotFound),
-        LogicError::not_found("resource not found")
-    );
-    assert_eq!(
-        LogicError::from(AssemblyError::Internal("boom".to_string())),
-        LogicError::internal("boom")
-    );
 }
 
 #[test]

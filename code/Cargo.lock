@@ -4392,7 +4392,6 @@ dependencies = [
  "authorizer",
  "axum",
  "cache",
- "cedar-policy",
  "common",
  "database",
  "email_address",

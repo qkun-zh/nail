@@ -21,6 +21,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         .iter()
         .map(|action| permission_const(action))
         .collect::<String>();
+    let all_permissions = format!(
+        "pub const ALL_PERMISSIONS: &[&str] = &[{}];\n",
+        actions
+            .iter()
+            .map(|action| format!("\"{action}\""))
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
 
     let mut entities: Vec<String> = schema.entity_types().map(ToString::to_string).collect();
     entities.sort();
@@ -32,6 +40,10 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let out_dir = env::var("OUT_DIR")?;
     fs::write(Path::new(&out_dir).join("permissions.rs"), permissions)?;
+    fs::write(
+        Path::new(&out_dir).join("all_permissions.rs"),
+        all_permissions,
+    )?;
     fs::write(Path::new(&out_dir).join("cedar_entities.rs"), entity_consts)?;
     Ok(())
 }

@@ -1,7 +1,6 @@
 use axum::http::StatusCode;
 
 use crate::repository::article::{CreateArticleError, UpdateArticleError};
-use crate::repository::authorization::AssemblyError;
 use crate::repository::comment::CreateCommentError;
 use crate::repository::transfer::{TransferError, TransferTargetError};
 use crate::repository::user::UserWriteError;
@@ -174,15 +173,6 @@ impl From<UserWriteError> for LogicError {
             UserWriteError::Db(error) => {
                 LogicError::internal(format!("failed to update name: {error}"))
             }
-        }
-    }
-}
-
-impl From<AssemblyError> for LogicError {
-    fn from(error: AssemblyError) -> Self {
-        match error {
-            AssemblyError::ResourceNotFound => LogicError::not_found("resource not found"),
-            AssemblyError::Internal(message) => LogicError::internal(message),
         }
     }
 }

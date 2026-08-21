@@ -7,15 +7,6 @@ pub mod configuration_validation;
 #[path = "infrastructure/pdf.rs"]
 pub mod infrastructure_pdf;
 
-#[path = "infrastructure/cedar.rs"]
-pub mod infrastructure_cedar;
-
-#[path = "infrastructure/cedar_probe.rs"]
-pub mod infrastructure_cedar_probe;
-
-#[path = "infrastructure/probe_002_orthogonal_action_resource.rs"]
-pub mod infrastructure_probe_002;
-
 #[path = "repository/user.rs"]
 pub mod repository_user;
 
@@ -57,9 +48,6 @@ pub mod logic_user;
 
 #[path = "logic/authorize.rs"]
 pub mod logic_authorize;
-
-#[path = "logic/probe_001_read_gate_assembly_baseline.rs"]
-pub mod logic_probe_001_read_gate_assembly_baseline;
 
 #[path = "logic/article.rs"]
 pub mod logic_article;
@@ -145,17 +133,8 @@ pub mod http_envelope;
 #[path = "infrastructure/config_server.rs"]
 pub mod infrastructure_config_server;
 
-#[path = "probe_003_cedar_lifecycle.rs"]
-pub mod probe_003_cedar_lifecycle;
-
-#[path = "probe_004_entity_model.rs"]
-pub mod probe_004_entity_model;
-
 #[path = "probe_007_authorize_orchestration.rs"]
 pub mod probe_007_authorize_orchestration;
 
 #[path = "probe_008_logic_wrappers.rs"]
 pub mod probe_008_logic_wrappers;
-
-#[path = "probe_009_legacy_decoupling.rs"]
-pub mod probe_009_legacy_decoupling;

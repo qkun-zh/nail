@@ -11,8 +11,8 @@ use crate::error::Error;
 use crate::principal::Principal;
 use crate::resource::Resource;
 
-const POLICY: &str = include_str!("../cedar/policy.cedar");
-const SCHEMA: &str = include_str!("../cedar/schema.cedar");
+pub(crate) const POLICY: &str = include_str!("../cedar/policy.cedar");
+pub(crate) const SCHEMA: &str = include_str!("../cedar/schema.cedar");
 
 include!(concat!(env!("OUT_DIR"), "/cedar_entities.rs"));
 

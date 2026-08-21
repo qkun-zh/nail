@@ -167,23 +167,6 @@ async fn authorize_article_create_on_the_virtual_desk_denies_a_non_holder() {
 }
 
 #[tokio::test]
-async fn virtual_desk_assembly_covers_the_create_and_admin_uids() {
-    let context = TestCtx::new().await.expect("test context");
-    let actor = create_user(&context, "alice@example.com");
-    for name in ["article-create", "comment-create", "role-console"] {
-        let assembly = crate::repository::authorization::assemble(
-            &context.state.database,
-            &actor,
-            Resource::Virtual(name.to_string()),
-        )
-        .expect("assemble");
-        let expected: cedar_policy::EntityUid =
-            format!("Virtual::\"{name}\"").parse().expect("uid");
-        assert_eq!(assembly.resource, expected);
-    }
-}
-
-#[tokio::test]
 async fn comment_author_can_update_own_comment_but_article_owner_cannot() {
     let context = TestCtx::new().await.expect("test context");
     let article_owner = create_user(&context, "alice@example.com");
@@ -262,22 +245,6 @@ async fn role_read_on_a_non_role_resource_is_denied() {
         .unwrap_err(),
         LogicError::forbidden("you are denied")
     );
-}
-
-#[tokio::test]
-async fn role_resource_assembly_covers_role_uids() {
-    let context = TestCtx::new().await.expect("test context");
-    let actor = create_user(&context, "alice@example.com");
-    for name in ["admin", "member", "recycler"] {
-        let assembly = crate::repository::authorization::assemble(
-            &context.state.database,
-            &actor,
-            Resource::Role(name.to_string()),
-        )
-        .expect("assemble");
-        let expected: cedar_policy::EntityUid = format!("Role::\"{name}\"").parse().expect("uid");
-        assert_eq!(assembly.resource, expected);
-    }
 }
 
 #[tokio::test]

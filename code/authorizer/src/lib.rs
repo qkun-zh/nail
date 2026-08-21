@@ -15,6 +15,7 @@ pub mod principal;
 pub mod resource;
 
 include!(concat!(env!("OUT_DIR"), "/permissions.rs"));
+include!(concat!(env!("OUT_DIR"), "/all_permissions.rs"));
 include!(concat!(env!("OUT_DIR"), "/cedar_entities.rs"));
 
 #[cfg(test)]

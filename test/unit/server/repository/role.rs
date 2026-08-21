@@ -131,13 +131,9 @@ async fn every_schema_action_is_seeded_as_a_permission_and_granted_to_admin() {
         crate::repository::user::read_user_by_email_address_hash(&state.database, &hash)
             .expect("lookup")
             .expect("user zero");
-    let schema: cedar_policy::Schema = crate::infrastructure::cedar::SCHEMA
-        .parse()
-        .expect("schema");
-    for action in schema.actions() {
-        let name = action.id().unescaped().to_string();
+    for name in authorizer::ALL_PERMISSIONS {
         assert!(
-            user_holds_permission(&state.database, &user_zero, &name).expect("check"),
+            user_holds_permission(&state.database, &user_zero, name).expect("check"),
             "admin must hold every schema action: {name}"
         );
     }
@@ -180,4 +176,25 @@ async fn users_holding_role_returns_empty_for_unknown_role() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");
     let users = users_holding_role(&state.database, "NoSuchRole").expect("list");
     assert!(users.is_empty());
+}
+
+#[test]
+fn article_restore_is_renamed_to_undelete_soft() {
+    let vocabulary = crate::repository::role::permission_vocabulary();
+    assert!(vocabulary.contains(&"Article::Undelete::Soft"));
+    assert!(!vocabulary.contains(&"Article::Restore"));
+}
+
+#[test]
+fn version_restore_is_renamed_to_undelete_soft() {
+    let vocabulary = crate::repository::role::permission_vocabulary();
+    assert!(vocabulary.contains(&"Version::Undelete::Soft"));
+    assert!(!vocabulary.contains(&"Version::Restore"));
+}
+
+#[test]
+fn comment_restore_is_renamed_to_undelete_soft() {
+    let vocabulary = crate::repository::role::permission_vocabulary();
+    assert!(vocabulary.contains(&"Comment::Undelete::Soft"));
+    assert!(!vocabulary.contains(&"Comment::Restore"));
 }

@@ -1,5 +1,4 @@
 pub mod authorizer;
-pub mod cedar;
 pub mod config;
 pub mod logging;
 pub mod pdf;

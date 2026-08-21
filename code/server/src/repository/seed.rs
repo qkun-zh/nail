@@ -22,11 +22,10 @@ fn seed_roles_and_permissions(db: &Database) -> anyhow::Result<()> {
     for role_name in REQUIRED_ROLES {
         crate::repository::role::create_role(db, role_name)?;
     }
-    let actions = crate::infrastructure::cedar::schema_actions()?;
-    for permission_name in &actions {
+    for permission_name in authorizer::ALL_PERMISSIONS {
         crate::repository::role::create_permission(db, permission_name)?;
     }
-    for permission_name in &actions {
+    for permission_name in authorizer::ALL_PERMISSIONS {
         crate::repository::role::grant_permission_to_role(db, ROLE_ADMIN, permission_name)?;
     }
     crate::repository::role::grant_permission_to_role(db, ROLE_MEMBER, PERMISSION_ARTICLE_CREATE)?;
