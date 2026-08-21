@@ -151,12 +151,6 @@ pub mod probe_003_cedar_lifecycle;
 #[path = "probe_004_entity_model.rs"]
 pub mod probe_004_entity_model;
 
-#[path = "probe_005_principal_assembly.rs"]
-pub mod probe_005_principal_assembly;
-
-#[path = "probe_006_resource_assembly.rs"]
-pub mod probe_006_resource_assembly;
-
 #[path = "probe_007_authorize_orchestration.rs"]
 pub mod probe_007_authorize_orchestration;
 

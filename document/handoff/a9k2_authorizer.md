@@ -2,7 +2,7 @@
 
 **Owner**: x7K2pQ
 **Exec doc**: `document/exec/a9k2_authorizer.md`
-**Status**: Slice 1 done, Slice 2 in progress
+**Status**: Slice 1 done, Slice 2 done, Slice 3 done — ready for final gate
 
 ### Stage A: Crate extraction (searcher parity)
 
@@ -20,8 +20,8 @@
 
 #### Slice 3: cleanup
 - **Goal**: remove legacy baggage, promote probes, zero warnings.
-- **Files**: `test/unit/server/probe_*.rs`, `test/unit/authorizer/*`, `document/handoff/a9k2_authorizer.md`
-- **Status**: pending
+- **Files**: `code/server/src/infrastructure/authorizer.rs`, `code/server/src/infrastructure/cedar.rs`, `code/server/src/repository/authorization.rs`, `code/server/src/logic/error.rs`, `test/unit/server/probe_*.rs`
+- **Status**: done — removed AssemblyError From impl in authorizer wrapper, dedup probes 005/006, per-item allow in cedar.rs, 586 server tests green
 
 ### Risks
 - Duplicate EntityUid panic if seen set dropped — retained dedup.

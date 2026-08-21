@@ -1,9 +1,8 @@
-#![allow(dead_code)]
-
 #[cfg(test)]
 use cedar_policy::EntityUid;
 
 pub const SCHEMA: &str = include_str!("cedar/schema.cedar");
+#[allow(dead_code)]
 pub const POLICY: &str = include_str!("cedar/policy.cedar");
 
 pub fn schema_actions() -> anyhow::Result<Vec<String>> {

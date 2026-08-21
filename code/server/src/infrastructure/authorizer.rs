@@ -36,19 +36,6 @@ impl From<authorizer::Error> for AuthorizationError {
     }
 }
 
-impl From<crate::repository::authorization::AssemblyError> for AuthorizationError {
-    fn from(error: crate::repository::authorization::AssemblyError) -> Self {
-        match error {
-            crate::repository::authorization::AssemblyError::ResourceNotFound => {
-                Self::ResourceNotFound
-            }
-            crate::repository::authorization::AssemblyError::Internal(message) => {
-                Self::Internal(message)
-            }
-        }
-    }
-}
-
 impl Authorizer {
     pub fn new(graph: Database) -> Result<Self, AuthorizationError> {
         let inner = InnerAuthorizer::new().map_err(AuthorizationError::from)?;
