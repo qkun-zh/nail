@@ -7,55 +7,48 @@ use crate::infrastructure::state::AppState;
 use crate::interface::envelope::ApiError;
 
 pub struct AppJson<T>(pub T);
-
-impl<T, S> FromRequest<S> for AppJson<T>
-where
-    T: DeserializeOwned,
-    S: Send + Sync,
-{
-    type Rejection = ApiError;
-
-    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
-        axum::Json::<T>::from_request(req, state)
-            .await
-            .map(|json| AppJson(json.0))
-            .map_err(|_| ApiError::bad_request("invalid request body"))
-    }
-}
-
 pub struct AppQuery<T>(pub T);
-
-impl<T, S> FromRequestParts<S> for AppQuery<T>
-where
-    T: DeserializeOwned,
-    S: Send + Sync,
-{
-    type Rejection = ApiError;
-
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        axum::extract::Query::<T>::from_request_parts(parts, state)
-            .await
-            .map(|query| AppQuery(query.0))
-            .map_err(|_| ApiError::bad_request("invalid query parameters"))
-    }
-}
-
 pub struct AppPath<T>(pub T);
 
-impl<T, S> FromRequestParts<S> for AppPath<T>
-where
-    T: DeserializeOwned + Send,
-    S: Send + Sync,
-{
-    type Rejection = ApiError;
-
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
-        axum::extract::Path::<T>::from_request_parts(parts, state)
-            .await
-            .map(|path| AppPath(path.0))
-            .map_err(|_| ApiError::bad_request("invalid path parameters"))
-    }
+macro_rules! define_extractor {
+    ($name:ident, Json, $msg:literal) => {
+        impl<T, S> FromRequest<S> for $name<T>
+        where
+            T: DeserializeOwned,
+            S: Send + Sync,
+        {
+            type Rejection = ApiError;
+            async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
+                axum::Json::<T>::from_request(req, state)
+                    .await
+                    .map(|v| Self(v.0))
+                    .map_err(|_| ApiError::bad_request($msg))
+            }
+        }
+    };
+    ($name:ident, $inner:ident, $msg:literal) => {
+        impl<T, S> FromRequestParts<S> for $name<T>
+        where
+            T: DeserializeOwned + Send,
+            S: Send + Sync,
+        {
+            type Rejection = ApiError;
+            async fn from_request_parts(
+                parts: &mut Parts,
+                state: &S,
+            ) -> Result<Self, Self::Rejection> {
+                axum::extract::$inner::<T>::from_request_parts(parts, state)
+                    .await
+                    .map(|v| Self(v.0))
+                    .map_err(|_| ApiError::bad_request($msg))
+            }
+        }
+    };
 }
+
+define_extractor!(AppJson, Json, "invalid request body");
+define_extractor!(AppQuery, Query, "invalid query parameters");
+define_extractor!(AppPath, Path, "invalid path parameters");
 
 pub struct AppMultipart(pub axum::extract::Multipart);
 

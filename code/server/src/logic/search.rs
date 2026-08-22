@@ -54,8 +54,6 @@ pub async fn search_articles(
         state.config.server.search_page_size,
         state.config.server.max_search_pages,
     )?;
-    let offset = page_offset(page, limit);
-
     let outcome = state
         .searcher
         .read(
@@ -78,7 +76,11 @@ pub async fn search_articles(
     let lim = usize::try_from(limit).unwrap_or(usize::MAX);
     let has_next = total > (start as u64).saturating_add(limit);
     items = items.into_iter().skip(start).take(lim).collect();
-    Ok(common::response::ListPage { items, has_next, total })
+    Ok(common::response::ListPage {
+        items,
+        has_next,
+        total,
+    })
 }
 
 fn assemble_tree(docs: &[SearchDocOutcome]) -> Vec<SearchArticleItem> {
