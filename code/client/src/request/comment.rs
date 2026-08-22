@@ -75,10 +75,7 @@ pub async fn create_reply(parent_id: &str, content: &str) -> RequestResult<Comme
 pub async fn delete_comment(comment_id: &str, mode: DeleteMode) -> RequestResult<CommentIdView> {
     let pow = prove_pow().await?;
     let comment_id = validate_id(comment_id, "comment_id")?;
-    let path = url::build_path_with_query(
-        &["comments", &comment_id],
-        &[("mode", &serde_json::to_string(&mode).unwrap_or_default())],
-    );
+    let path = url::build_path_with_query(&["comments", &comment_id], &[("mode", mode.as_str())]);
     http::delete_json(&path, true, Some(&pow)).await
 }
 

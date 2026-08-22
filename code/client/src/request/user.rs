@@ -97,10 +97,9 @@ pub async fn deregister_self(
 ) -> RequestResult<EmptyView> {
     let pow = prove_pow().await?;
     let user_id = validate_id(user_id, "user_id")?;
-    let mode_str = serde_json::to_string(&mode).unwrap_or_default();
     let path = url::build_path_with_query(
         &["users", &user_id],
-        &[("mode", &mode_str), ("token", &delete_token)],
+        &[("mode", mode.as_str()), ("token", &delete_token)],
     );
     http::delete_json(&path, true, Some(&pow)).await
 }

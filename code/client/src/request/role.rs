@@ -59,12 +59,7 @@ pub async fn update_role(
 pub async fn delete_role(role_id: &str) -> RequestResult<NamedRef> {
     let pow = prove_pow().await?;
     let role_id = validate_id(role_id, "role_id")?;
-    let path = url::build_path_with_query(
-        &["roles", &role_id],
-        &[(
-            "mode",
-            &serde_json::to_string(&DeleteMode::Hard).unwrap_or_default(),
-        )],
-    );
+    let path =
+        url::build_path_with_query(&["roles", &role_id], &[("mode", DeleteMode::Hard.as_str())]);
     http::delete_json(&path, true, Some(&pow)).await
 }

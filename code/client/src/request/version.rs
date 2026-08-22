@@ -51,10 +51,7 @@ pub async fn update_version(version_id: &str, note: &str) -> RequestResult<Versi
 pub async fn delete_version(version_id: &str, mode: DeleteMode) -> RequestResult<VersionIdView> {
     let pow = prove_pow().await?;
     let version_id = validate_id(version_id, "version_id")?;
-    let path = url::build_path_with_query(
-        &["versions", &version_id],
-        &[("mode", &serde_json::to_string(&mode).unwrap_or_default())],
-    );
+    let path = url::build_path_with_query(&["versions", &version_id], &[("mode", mode.as_str())]);
     http::delete_json(&path, true, Some(&pow)).await
 }
 

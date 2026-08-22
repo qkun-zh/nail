@@ -8,6 +8,18 @@ pub enum DeleteMode {
     Soft,
 }
 
+impl DeleteMode {
+    /// Wire format for query parameters; matches the serde lowercase rename.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Transfer => "transfer",
+            Self::Hard => "hard",
+            Self::Soft => "soft",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TokenPurpose {

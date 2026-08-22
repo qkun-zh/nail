@@ -46,10 +46,7 @@ pub async fn update_article(
 pub async fn delete_article(article_id: &str, mode: DeleteMode) -> RequestResult<ArticleIdView> {
     let pow = prove_pow().await?;
     let article_id = validate_id(article_id, "article_id")?;
-    let path = url::build_path_with_query(
-        &["articles", &article_id],
-        &[("mode", &serde_json::to_string(&mode).unwrap_or_default())],
-    );
+    let path = url::build_path_with_query(&["articles", &article_id], &[("mode", mode.as_str())]);
     http::delete_json(&path, true, Some(&pow)).await
 }
 

@@ -58,13 +58,8 @@ pub async fn update_tag(tag_id: &str, name: &str) -> RequestResult<NamedRef> {
 pub async fn delete_tag(tag_id: &str) -> RequestResult<()> {
     let pow = prove_pow().await?;
     let tag_id = validate_id(tag_id, "tag_id")?;
-    let path = url::build_path_with_query(
-        &["tags", &tag_id],
-        &[(
-            "mode",
-            &serde_json::to_string(&DeleteMode::Hard).unwrap_or_default(),
-        )],
-    );
+    let path =
+        url::build_path_with_query(&["tags", &tag_id], &[("mode", DeleteMode::Hard.as_str())]);
     http::delete_json(&path, true, Some(&pow)).await
 }
 
