@@ -114,6 +114,31 @@ agent-browser network requests
 13. Search pagination controls were re-created on every results render, so clicks landed on
     detached nodes. `PrevNext` moved out of the reactive rows closure
     (`code/client/src/page/article/search/results.rs`).
+14. Version undelete cleared the flag but left `latest_version_id` on an older version.
+    `undelete_soft_version` now calls `refresh_live_latest_version`
+    (`code/server/src/logic/version.rs`).
+
+## 5.2 Full-database diff verification
+
+Every mutating operation was replayed against full-database snapshots
+(`dbdump <copy> | sort`, `diff` between consecutive states) — not just targeted queries:
+
+| operation | exact graph delta |
+|---|---|
+| tag create | +1 tag node |
+| tag update | tag_name in place |
+| tag delete (hard) | -1 tag node |
+| role create / update grant / update revoke / delete | +role; +2 edges (`user_hold_role`, `role_grant_permission`); -2 edges; -role |
+| article create | +article (+title/summary/latest_version_id) +version (+content_hash/note/semver) +3 edges |
+| version create | +version +hold edge, latest_version_id moves |
+| version soft delete / undelete | flag +pointer rollback / flag clear +pointer restore |
+| comment create / reply | +comment +author+attach edges / +reply edge instead of attach |
+| comment soft delete / undelete | subtree flags ±1 (parent cascades replies) |
+| article update | title in place |
+| article soft delete / restore | whole subtree flagged / unflagged |
+| article hard delete | -5 nodes and -8 edges exactly, no orphans |
+
+Non-mutations verified to produce zero DB diff: failed validations, 403s, logout.
 
 Not yet covered: deregister transfer mode (needs a second real mailbox), email change full
 happy path (needs a reachable second address), headless blob download save.
