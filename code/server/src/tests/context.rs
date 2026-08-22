@@ -83,7 +83,7 @@ impl TestCtx {
     }
 
     pub fn difficulty(&self) -> u64 {
-        self.state.configurator.pow_difficulty_iterations()
+        self.state.config.server.pow_difficulty_iterations
     }
 
     pub fn client_pow(&self) -> Pow {
@@ -113,7 +113,7 @@ impl TestCtx {
 
     pub fn upload(&self, bytes: &[u8]) -> PdfUpload {
         let hash = common::hash::pdf(bytes);
-        let temp_path = std::path::Path::new(&self.state.configurator.pdf_storage_path())
+        let temp_path = std::path::Path::new(&self.state.config.server.pdf_storage_path.as_str())
             .join(".tmp")
             .join(format!("{}.pdf", uuid::Uuid::now_v7()));
         std::fs::write(&temp_path, bytes).expect("write temp pdf");
@@ -291,7 +291,7 @@ pub async fn build_state(
         searcher,
         cache,
         emailer: emailer_instance,
-        configurator: crate::infrastructure::state::Configurator::new(config.clone()),
+        config: std::sync::Arc::new(config.clone()),
     };
     Ok((state, recorder))
 }

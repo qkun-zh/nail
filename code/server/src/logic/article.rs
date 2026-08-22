@@ -50,11 +50,11 @@ pub async fn create_article(
         upload,
     } = input;
     authorize_global(state, actor_id, PERMISSION_ARTICLE_CREATE)?;
-    let title = validate_title(raw_title, state.configurator.max_title_chars())?;
-    let summary = validate_summary(raw_summary, state.configurator.max_summary_chars())?;
-    let tags = validate_tags(state, raw_tags, state.configurator.max_tags_per_article())?;
+    let title = validate_title(raw_title, state.config.server.max_title_chars)?;
+    let summary = validate_summary(raw_summary, state.config.server.max_summary_chars)?;
+    let tags = validate_tags(state, raw_tags, state.config.server.max_tags_per_article)?;
     let version_number = validate_version(raw_version)?;
-    let note = validate_note(raw_note, state.configurator.max_version_note_chars())?;
+    let note = validate_note(raw_note, state.config.server.max_version_note_chars)?;
 
     let hash = upload.hash.clone();
     reject_duplicate_content_hash(state, &hash).await?;
@@ -125,9 +125,9 @@ pub async fn update_article(
         PERMISSION_ARTICLE_UPDATE,
         EntityRef::Article(article_id),
     )?;
-    let title = validate_title(raw_title, state.configurator.max_title_chars())?;
-    let summary = validate_summary(raw_summary, state.configurator.max_summary_chars())?;
-    let tags = validate_tags(state, raw_tags, state.configurator.max_tags_per_article())?;
+    let title = validate_title(raw_title, state.config.server.max_title_chars)?;
+    let summary = validate_summary(raw_summary, state.config.server.max_summary_chars)?;
+    let tags = validate_tags(state, raw_tags, state.config.server.max_tags_per_article)?;
     update_article_node(
         &state.database,
         article_id,

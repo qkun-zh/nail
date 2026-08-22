@@ -39,7 +39,7 @@ pub async fn place_uploaded_pdf(
     state: &AppState,
     upload: PdfUpload,
 ) -> Result<PdfUpload, LogicError> {
-    let final_path = pdf_final_path(state.configurator.pdf_storage_path(), &upload.hash)
+    let final_path = pdf_final_path(state.config.server.pdf_storage_path.as_str(), &upload.hash)
         .ok_or_else(|| LogicError::internal("invalid content hash"))?;
     if let Some(parent) = final_path.parent() {
         tokio::fs::create_dir_all(parent).await.map_err(|error| {
@@ -54,7 +54,7 @@ pub async fn place_uploaded_pdf(
 
 pub async fn remove_orphaned_pdfs(state: &AppState, hashes: &[String]) {
     for hash in hashes {
-        let Some(path) = pdf_final_path(state.configurator.pdf_storage_path(), hash) else {
+        let Some(path) = pdf_final_path(state.config.server.pdf_storage_path.as_str(), hash) else {
             continue;
         };
         if let Err(error) = tokio::fs::remove_file(&path).await
@@ -100,7 +100,7 @@ pub async fn create_version(
     )?;
 
     let version_number = validate_version(raw_version)?;
-    let note = validate_note(raw_note, state.configurator.max_version_note_chars())?;
+    let note = validate_note(raw_note, state.config.server.max_version_note_chars)?;
 
     let hash = upload.hash.clone();
     reject_duplicate_content_hash(state, &hash).await?;
@@ -203,7 +203,7 @@ pub fn update_version(
         PERMISSION_VERSION_UPDATE,
         EntityRef::Version(version_id),
     )?;
-    let note = validate_note(raw_note, state.configurator.max_version_note_chars())?;
+    let note = validate_note(raw_note, state.config.server.max_version_note_chars)?;
     update_version_node(&state.database, version_id, &note)?;
     Ok(VersionIdView {
         version_id: version_id.to_string(),
@@ -218,7 +218,6 @@ pub async fn delete_version(
 ) -> Result<VersionIdView, LogicError> {
     match mode {
         Some(DeleteMode::Soft) => {
-            let parent_article = parent_article_of(&state.database, version_id)?;
             crate::logic::delete::soft_delete_guard(
                 state,
                 actor_id,
@@ -227,6 +226,7 @@ pub async fn delete_version(
                 NodeKind::Version,
                 version_id,
             )?;
+            let parent_article = parent_article_of(&state.database, version_id)?;
             soft_delete_version(&state.database, version_id)?;
             if let Some(parent_article) = parent_article {
                 crate::repository::delete::refresh_live_latest_version(

@@ -33,7 +33,7 @@ pub const ROUTE_TAGS_ID: &str = "/tags/{id}";
 pub const ROUTE_ARTICLES_ID_TAGS_TID: &str = "/articles/{id}/tags/{tid}";
 
 pub fn build_router(state: AppState) -> Router {
-    let body_limit = state.configurator.max_request_body_bytes();
+    let body_limit = state.config.server.max_request_body_bytes();
 
     Router::new()
         .route(ROUTE_CHALLENGES, post(challenge::create_challenge))

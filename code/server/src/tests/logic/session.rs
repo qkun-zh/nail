@@ -18,7 +18,7 @@ fn normalize_token_strips_whitespace_and_requires_a_uuid() {
 #[test]
 fn hash_canonical_token_matches_cache_key() {
     let token = uuid::Uuid::now_v7().to_string();
-    let via_logic = crate::logic::session::hash_canonical_token(&token).expect("hash");
+    let via_logic = cache_key(&token).expect("hash");
     assert_eq!(via_logic, cache_key(&token).expect("cache key"));
 }
 

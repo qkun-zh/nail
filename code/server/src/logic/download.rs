@@ -30,8 +30,11 @@ pub fn resolve_version_pdf_path(
     let entry = read_version(&state.database, version_id)?
         .ok_or_else(|| LogicError::not_found("version not found"))?;
     require_entity_visible(state, actor_id, EntityRef::Version(version_id))?;
-    pdf_final_path(state.configurator.pdf_storage_path(), &entry.content_hash)
-        .ok_or_else(|| LogicError::internal("invalid content hash"))
+    pdf_final_path(
+        state.config.server.pdf_storage_path.as_str(),
+        &entry.content_hash,
+    )
+    .ok_or_else(|| LogicError::internal("invalid content hash"))
 }
 
 pub fn mint_download_token(

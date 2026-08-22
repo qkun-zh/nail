@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use crate::infrastructure::authorizer::Authorizer;
 use crate::infrastructure::config::AppConfig;
-use crate::infrastructure::state::{AppState, Configurator};
+use crate::infrastructure::state::AppState;
 use crate::interface;
 use crate::repository;
 use crate::repository::schema::INDEX_KEYS;
@@ -52,11 +52,11 @@ pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
         searcher,
         cache,
         emailer: email_sender,
-        configurator: Configurator::new(config),
+        config: std::sync::Arc::new(config),
     };
 
-    let listener = tokio::net::TcpListener::bind(state.configurator.listen_addr()).await?;
-    tracing::info!(address = %state.configurator.listen_addr(), "listening");
+    let listener = tokio::net::TcpListener::bind(state.config.server.listen_addr.as_str()).await?;
+    tracing::info!(address = %state.config.server.listen_addr.as_str(), "listening");
     let router = interface::router::build_router(state.clone()).layer(
         TraceLayer::new_for_http()
             .make_span_with(|request: &axum::extract::Request| {

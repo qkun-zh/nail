@@ -65,7 +65,7 @@ async fn mint_then_consume_round_trips_and_the_token_is_single_use() {
         )
     );
 
-    let expected_path = std::path::Path::new(&state.configurator.pdf_storage_path())
+    let expected_path = std::path::Path::new(&state.config.server.pdf_storage_path.as_str())
         .join("11/11/11111111111111111111111111111111.pdf");
     let token = token_from_url(&url);
     let path = consume_download_token(&state, &author_id, &article_id, &version_id, token)

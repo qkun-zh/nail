@@ -84,7 +84,7 @@ fn read_session_user(
 
 async fn send_create_user_email(state: &AppState, raw_email: &str) -> Result<String, LogicError> {
     let email = normalize_email(raw_email);
-    if !validate_email(&email, state.configurator.email_allowed_domains()) {
+    if !validate_email(&email, state.config.email_allowed_domains.as_slice()) {
         return Err(LogicError::bad_request("email domain not allowed"));
     }
 
@@ -126,7 +126,7 @@ pub async fn send_update_user_email(
         ));
     }
 
-    let allowed_domains = state.configurator.email_allowed_domains();
+    let allowed_domains = state.config.email_allowed_domains.as_slice();
     if !validate_email(&old_email, allowed_domains) || !validate_email(&new_email, allowed_domains)
     {
         return Err(LogicError::bad_request("email domain not allowed"));

@@ -33,7 +33,7 @@ pub async fn create_comment(
 ) -> Result<String, LogicError> {
     authorize_global(state, actor_id, PERMISSION_COMMENT_CREATE)?;
     let content =
-        validate_comment_content(raw_content, state.configurator.max_comment_body_chars())?;
+        validate_comment_content(raw_content, state.config.server.max_comment_body_chars)?;
     let comment_id = Uuid::now_v7().to_string();
     create_top_level_comment(&state.database, &comment_id, actor_id, version_id, &content)?;
     sync_article_best_effort_for_version(state, version_id).await;
@@ -48,7 +48,7 @@ pub async fn create_reply(
 ) -> Result<String, LogicError> {
     authorize_global(state, actor_id, PERMISSION_COMMENT_CREATE)?;
     let content =
-        validate_comment_content(raw_content, state.configurator.max_comment_body_chars())?;
+        validate_comment_content(raw_content, state.config.server.max_comment_body_chars)?;
     let comment_id = Uuid::now_v7().to_string();
     create_reply_comment(
         &state.database,
@@ -209,7 +209,7 @@ pub async fn update_comment(
         EntityRef::Comment(comment_id),
     )?;
     let content =
-        validate_comment_content(raw_content, state.configurator.max_comment_body_chars())?;
+        validate_comment_content(raw_content, state.config.server.max_comment_body_chars)?;
     let found = update_comment_content(&state.database, comment_id, &content)?;
     if !found {
         return Err(LogicError::not_found("comment not found"));

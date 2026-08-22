@@ -19,7 +19,7 @@ pub async fn search_articles(
     params: &ArticleSearchParams,
 ) -> Result<common::response::ListPage<SearchArticleItem>, LogicError> {
     authorize_global(state, actor_id, PERMISSION_ARTICLE_READ)?;
-    let max_query_chars = state.configurator.max_search_query_chars();
+    let max_query_chars = state.config.server.max_search_query_chars;
 
     let query = match params.q.as_deref() {
         Some(raw) => {
@@ -51,8 +51,8 @@ pub async fn search_articles(
     let (page, limit) = crate::logic::pagination::clamp_page_limit(
         params.page,
         params.limit,
-        state.configurator.search_page_size(),
-        state.configurator.max_search_pages(),
+        state.config.server.search_page_size,
+        state.config.server.max_search_pages,
     )?;
     let offset = page_offset(page, limit);
 
