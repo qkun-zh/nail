@@ -1,4 +1,5 @@
 use leptos::prelude::*;
+use leptos_router::components::A;
 use leptos_router::hooks::use_params_map;
 
 use crate::page::validation::validate_uuid;
@@ -31,8 +32,18 @@ pub fn TagDetail() -> impl IntoView {
         let Some(tag_view) = tag.get() else {
             return view! { <p>"Loading..."</p> }.into_any();
         };
+        let tag_id = tag_view.id.clone();
+        let update_href = format!("/tag/{tag_id}/update");
+        let delete_href = format!("/tag/{tag_id}/delete");
         view! {
-            <h1>"Tag: " {tag_view.name}</h1>
+            <div>
+                <h1>"Tag: " {tag_view.name}</h1>
+                <hr/>
+                <div><A href=update_href>"update"</A></div>
+                <hr/>
+                <div><A href=delete_href>"delete"</A></div>
+                <hr/>
+            </div>
         }
         .into_any()
     };

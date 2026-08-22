@@ -39,6 +39,7 @@ pub fn TagList() -> impl IntoView {
                 }).collect::<Vec<_>>()}
             </ul>
             <p>"Total: " {page.total}</p>
+            <div><A href="/tag/create">create tag</A></div>
         }
         .into_any()
     };

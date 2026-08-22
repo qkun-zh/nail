@@ -70,12 +70,13 @@ pub fn ArticleDetail() -> impl IntoView {
                 }}
                 <hr/>
                 <div>
-                    {article.tags.iter().map(|tag| {
+                    {article.tags.clone().into_iter().map(|tag| {
+                        let tag_href = format!("/tag/{}", tag.id);
                         let apply_href = format!("/article/{}/tag/{}/apply", article_id, tag.id);
                         let unapply_href = format!("/article/{}/tag/{}/unapply", article_id, tag.id);
                         view! {
                             <div>
-                                <span>{tag.name.clone()}</span>
+                                <span> <A href=tag_href>{tag.name}</A> </span>
                                 <span> <A href=apply_href>apply</A> </span>
                                 <span> <A href=unapply_href>unapply</A> </span>
                             </div>

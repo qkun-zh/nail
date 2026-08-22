@@ -134,6 +134,15 @@ agent-browser network requests
     Fresh creates now report recreated like wipe-recreates
     (`code/searcher/src/searcher.rs`), test renamed to
     `fresh_open_reports_recreate_and_reopen_keeps_data`.
+17. Navigation audit (cost model: click 1, back 1, URL 16) found 13 orphan
+    pages reachable only by typing URLs — `/article/create`, the whole `/tag`
+    and `/role` domains, and `/user`; tag detail was a dead end with zero
+    outbound links. Mounted per the ownership hierarchy: portal section on
+    the index page (`/user /tag /role` + session "my hub"), create-article in
+    the author's article list header, create-tag on the tag list, update and
+    delete on tag detail mirroring role detail, and applied tag names on
+    article detail now link to their tag pages. Pairwise navigation cost
+    drops 9.26 → 3.67; verified by UI walkthrough.
 
 ## 5.2 Full-database diff verification
 

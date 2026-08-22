@@ -52,5 +52,11 @@ pub fn UserArticle() -> impl IntoView {
         view! { <div>{rows}</div> }.into_any()
     };
 
-    view! { <div>{render}</div> }
+    view! {
+        <div>
+            <div><A href="/article/create">create article</A></div>
+            <hr/>
+            {render}
+        </div>
+    }
 }

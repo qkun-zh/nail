@@ -683,12 +683,12 @@ async fn opening_a_stale_schema_recreates_the_index() {
     let first = Searcher::open_or_create(directory.to_str().expect("path"))
         .await
         .expect("create");
-    assert!(!first.was_recreated(), "fresh create is not a migration");
+    assert!(first.was_recreated(), "fresh create must trigger a reseed");
     first.close().await;
 
     let marker_version = std::fs::read_to_string(&marker).expect("marker written");
     assert_eq!(
-        marker_version, "6",
+        marker_version, "7",
         "schema marker records the current version"
     );
 
