@@ -3,7 +3,7 @@ use std::time::Duration;
 use uuid::Uuid;
 
 use crate::{
-    Cache, CacheConfig, CacheError, CacheValue, Challenge, ChallengeId, Hash,
+    Cache, CacheConfig, CacheError, CacheValue, Challenge, Hash,
     OldAndNewEmailAddressAndTokenHashes, Table, UserId, UserIdAndEmailAddressHash, VersionId,
     VersionIdAndUserId,
 };
@@ -50,10 +50,6 @@ fn uuid_newtypes_accept_a_uuid_v7() {
     let id = uuid_v7();
     assert_eq!(UserId::new(id.clone()).expect("user id").as_str(), id);
     assert_eq!(VersionId::new(id.clone()).expect("version id").as_str(), id);
-    assert_eq!(
-        ChallengeId::new(id.clone()).expect("challenge id").as_str(),
-        id
-    );
 }
 
 #[test]
@@ -66,7 +62,6 @@ fn uuid_newtypes_reject_other_versions_and_garbage() {
         VersionId::new("not-a-uuid".to_string()),
         Err(CacheError::InvalidId)
     );
-    assert_eq!(ChallengeId::new(String::new()), Err(CacheError::InvalidId));
 }
 
 #[test]

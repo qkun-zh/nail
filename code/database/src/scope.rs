@@ -1,15 +1,12 @@
 use agdb::DbAnyTransaction;
 
-use crate::condition::{Condition, Order};
 use crate::error::Error;
 use crate::kinds::{EdgeKind, NodeKind};
 use crate::node_id::NodeId;
 use crate::read::{
-    all_nodes, count_incoming, count_nodes, count_outgoing, find_by_key, incoming, outgoing,
-    read_nodes, read_value, resolve, scan_nodes,
+    all_nodes, count_incoming, count_outgoing, find_by_key, incoming, outgoing, read_nodes, resolve,
 };
 use crate::row::Row;
-use crate::value::Value;
 
 /// Read-only view of the database inside a `Database::read` closure.
 pub struct ReadScope<'db, 'txn> {
@@ -71,30 +68,6 @@ impl<'db, 'txn> ReadScope<'db, 'txn> {
         all_nodes(self.reader(), kind)
     }
 
-    /// Scans nodes of a kind with an optional filter, deterministic order,
-    /// and offset/limit pagination applied to matching elements.
-    ///
-    /// # Errors
-    /// Returns [`Error::Storage`] if the scan fails.
-    pub fn scan_nodes(
-        &self,
-        kind: NodeKind,
-        condition: Option<&Condition>,
-        order: &Order,
-        offset: u64,
-        limit: u64,
-    ) -> Result<Vec<NodeId>, Error> {
-        scan_nodes(self.reader(), kind, condition, order, offset, limit)
-    }
-
-    /// Counts nodes of a kind matching an optional filter.
-    ///
-    /// # Errors
-    /// Returns [`Error::Storage`] if the scan fails.
-    pub fn count_nodes(&self, kind: NodeKind, condition: Option<&Condition>) -> Result<u64, Error> {
-        count_nodes(self.reader(), kind, condition)
-    }
-
     /// Lists far-endpoint nodes of outgoing edges of an edge kind.
     ///
     /// # Errors
@@ -125,17 +98,5 @@ impl<'db, 'txn> ReadScope<'db, 'txn> {
     /// Returns [`Error::Storage`] if the traversal fails.
     pub fn count_incoming(&self, to: NodeId, edge_kind: EdgeKind) -> Result<u64, Error> {
         count_incoming(self.reader(), to, edge_kind)
-    }
-
-    /// Reads one non-row metadata key from a node.
-    ///
-    /// # Errors
-    /// Returns [`Error::NotFound`] if the node does not exist and
-    /// [`Error::Invalid`] if the stored value does not convert to `T`.
-    pub fn read_value<T>(&self, kind: NodeKind, id: NodeId, key: &str) -> Result<Option<T>, Error>
-    where
-        T: std::convert::TryFrom<Value, Error = Value>,
-    {
-        read_value::<T>(self.reader(), kind, id, key)
     }
 }

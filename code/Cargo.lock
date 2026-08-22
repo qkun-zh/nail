@@ -4398,7 +4398,6 @@ dependencies = [
  "email_address",
  "emailer",
  "searcher",
- "seekstorm",
  "semver",
  "serde",
  "serde_json",

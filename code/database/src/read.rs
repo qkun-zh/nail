@@ -1,15 +1,12 @@
-use std::convert::TryFrom;
-
 use agdb::{
-    Comparison, CountComparison, DbAnyTransaction, DbError, DbErrorType, DbValue, Query,
-    QueryBuilder, QueryResult, Where, WhereLogicOperator,
+    CountComparison, DbAnyTransaction, DbError, DbErrorType, DbValue, Query, QueryBuilder,
+    QueryResult, Where, WhereLogicOperator,
 };
 
-use crate::condition::{Condition, Order};
 use crate::error::Error;
 use crate::kinds::{EdgeKind, NodeKind, TYPE_KEY, alias_of};
 use crate::node_id::NodeId;
-use crate::row::{ElementLookup, Row, ValueLookup};
+use crate::row::{ElementLookup, Row};
 use crate::value::Value;
 
 pub(crate) trait QueryReader {
@@ -101,96 +98,21 @@ pub(crate) fn read_nodes<T: Row>(
 
 pub(crate) fn all_nodes(reader: &impl QueryReader, kind: NodeKind) -> Result<Vec<NodeId>, Error> {
     let result =
-        reader.run(kind_filter(QueryBuilder::search().elements().where_(), kind, None).query())?;
+        reader.run(kind_filter(QueryBuilder::search().elements().where_(), kind).query())?;
     Ok(result
         .elements
         .iter()
         .map(|element| NodeId::from_db(element.id))
         .collect())
-}
-
-pub(crate) fn scan_nodes(
-    reader: &impl QueryReader,
-    kind: NodeKind,
-    condition: Option<&Condition>,
-    order: &Order,
-    offset: u64,
-    limit: u64,
-) -> Result<Vec<NodeId>, Error> {
-    let builder = QueryBuilder::search()
-        .elements()
-        .order_by([db_key_order(order)])
-        .offset(offset)
-        .limit(limit)
-        .where_();
-    let result = reader.run(kind_filter(builder, kind, condition).query())?;
-    Ok(result
-        .elements
-        .iter()
-        .map(|element| NodeId::from_db(element.id))
-        .collect())
-}
-
-pub(crate) fn count_nodes(
-    reader: &impl QueryReader,
-    kind: NodeKind,
-    condition: Option<&Condition>,
-) -> Result<u64, Error> {
-    let result = reader
-        .run(kind_filter(QueryBuilder::search().elements().where_(), kind, condition).query())?;
-    Ok(result.elements.len() as u64)
 }
 
 fn kind_filter(
     where_: Where<agdb::SearchQuery>,
     kind: NodeKind,
-    condition: Option<&Condition>,
 ) -> WhereLogicOperator<agdb::SearchQuery> {
-    let mut filters = vec![type_condition(kind)];
-    if let Some(condition) = condition {
-        filters.push(condition.clone());
-    }
-    apply_all(where_, &filters)
-}
-
-fn type_condition(kind: NodeKind) -> Condition {
-    Condition::KeyEquals(TYPE_KEY.to_string(), Value::Text(kind.key().to_string()))
-}
-
-fn apply_all(
-    where_: Where<agdb::SearchQuery>,
-    filters: &[Condition],
-) -> WhereLogicOperator<agdb::SearchQuery> {
-    let mut operator = apply_condition(where_, &filters[0]);
-    for filter in &filters[1..] {
-        operator = apply_condition(operator.and(), filter);
-    }
-    operator
-}
-
-fn apply_condition(
-    where_: Where<agdb::SearchQuery>,
-    condition: &Condition,
-) -> WhereLogicOperator<agdb::SearchQuery> {
-    match condition {
-        Condition::KeyEquals(key, value) => {
-            where_.key(key.clone()).value(DbValue::from(value.clone()))
-        }
-        Condition::KeyGreaterThan(key, value) => where_
-            .key(key.clone())
-            .value(Comparison::GreaterThan(DbValue::from(value.clone()))),
-        Condition::KeyNotExists(key) => where_.not().keys(key.as_str()),
-        Condition::All(items) => apply_all(where_, items),
-    }
-}
-
-fn db_key_order(order: &Order) -> agdb::DbKeyOrder {
-    let key = DbValue::from(order.key.clone());
-    if order.ascending {
-        agdb::DbKeyOrder::Asc(key)
-    } else {
-        agdb::DbKeyOrder::Desc(key)
-    }
+    where_
+        .key(TYPE_KEY.to_string())
+        .value(DbValue::from(Value::Text(kind.key().to_string())))
 }
 
 pub(crate) fn outgoing(
@@ -255,35 +177,4 @@ pub(crate) fn count_incoming(
     edge_kind: EdgeKind,
 ) -> Result<u64, Error> {
     Ok(incoming(reader, to, edge_kind)?.len() as u64)
-}
-
-pub(crate) fn read_value<T>(
-    reader: &impl QueryReader,
-    kind: NodeKind,
-    id: NodeId,
-    key: &str,
-) -> Result<Option<T>, Error>
-where
-    T: TryFrom<Value, Error = Value>,
-{
-    let result = reader
-        .run(QueryBuilder::select().ids([id.to_db()]).query())
-        .map_err(|error| {
-            if is_not_found(&error) {
-                Error::not_found(kind, id.to_string())
-            } else {
-                error.into()
-            }
-        })?;
-    let element = result
-        .elements
-        .first()
-        .ok_or_else(|| Error::not_found(kind, id.to_string()))?;
-    let lookup = ElementLookup::new(&element.values);
-    match lookup.get(key) {
-        Some(value) => T::try_from(value).map(Some).map_err(|_| {
-            Error::Invalid(format!("key {key} does not convert to the requested type"))
-        }),
-        None => Ok(None),
-    }
 }

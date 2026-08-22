@@ -1,9 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use crate::{
-    Condition, Database, EdgeKind, Error, NodeId, NodeKind, Order, Row, Value, ValueLookup,
-};
+use crate::{Database, EdgeKind, Error, NodeId, NodeKind, Row, Value, ValueLookup};
 
 fn memory_database() -> Database {
     Database::open_memory("nail_test", &[]).expect("open memory database")
@@ -97,8 +95,9 @@ fn user(id: &str, name: &str) -> UserRow {
 fn open_memory_is_ready_for_scopes() {
     let database = memory_database();
     let count = database
-        .read(|r| r.count_nodes(NodeKind::User, None))
-        .expect("count nodes");
+        .read(|r| r.all_nodes(NodeKind::User))
+        .expect("list nodes")
+        .len();
     assert_eq!(count, 0);
 }
 
@@ -136,8 +135,8 @@ fn open_mapped_creates_missing_parent_directories() {
     }
     let database = Database::open_mapped(&path, &[]).expect("open nested mapped database");
     database
-        .read(|r| r.count_nodes(NodeKind::User, None))
-        .expect("count nodes");
+        .read(|r| r.all_nodes(NodeKind::User))
+        .expect("list nodes");
     fs::remove_file(&path).expect("clean up test database file");
 }
 
@@ -218,9 +217,10 @@ fn upsert_clears_keys_absent_from_new_row() {
         .write(|w| w.insert_node(&with_latest))
         .expect("insert article");
     let stored = database
-        .read(|r| r.read_value::<String>(NodeKind::Article, node, "latest_version_id"))
-        .expect("read value");
-    assert_eq!(stored.as_deref(), Some("v1"));
+        .read(|r| r.read_node::<ArticleRow>(node))
+        .expect("read node")
+        .expect("row present");
+    assert_eq!(stored.latest_version_id.as_deref(), Some("v1"));
     let without_latest = ArticleRow {
         id: business_id.to_string(),
         title: "t".to_string(),
@@ -230,14 +230,10 @@ fn upsert_clears_keys_absent_from_new_row() {
         .write(|w| w.insert_node(&without_latest).map(|_| ()))
         .expect("upsert article");
     let cleared = database
-        .read(|r| r.read_value::<String>(NodeKind::Article, node, "latest_version_id"))
-        .expect("read value");
-    assert_eq!(cleared, None);
-    let row = database
         .read(|r| r.read_node::<ArticleRow>(node))
         .expect("read node")
         .expect("row present");
-    assert_eq!(row.latest_version_id, None);
+    assert_eq!(cleared.latest_version_id, None);
 }
 
 #[test]
@@ -397,93 +393,6 @@ fn remove_node_cascades_attached_edges() {
 }
 
 #[test]
-fn scan_orders_and_paginates_deterministically() {
-    let database = memory_database();
-    database
-        .write(|w| {
-            for (index, name) in ["n5", "n3", "n1", "n4", "n2"].iter().enumerate() {
-                let id = format!("018f0000-0000-7000-8000-0000000000{index:02}");
-                w.insert_node(&user(&id, name))?;
-            }
-            Ok(())
-        })
-        .expect("seed users");
-    let page = database
-        .read(|r| r.scan_nodes(NodeKind::User, None, &Order::ascending("name"), 1, 2))
-        .expect("scan page");
-    let rows = database
-        .read(|r| r.read_nodes::<UserRow>(&page))
-        .expect("read page rows");
-    let names: Vec<&str> = rows.iter().map(|row| row.name.as_str()).collect();
-    assert_eq!(names, vec!["n2", "n3"]);
-    let descending = database
-        .read(|r| r.scan_nodes(NodeKind::User, None, &Order::descending("name"), 0, 2))
-        .expect("scan descending");
-    let rows = database
-        .read(|r| r.read_nodes::<UserRow>(&descending))
-        .expect("read descending rows");
-    let names: Vec<&str> = rows.iter().map(|row| row.name.as_str()).collect();
-    assert_eq!(names, vec!["n5", "n4"]);
-}
-
-#[test]
-fn scan_filters_by_condition() {
-    let database = memory_database();
-    database
-        .write(|w| {
-            let alive = w.insert_node(&user("018f0000-0000-7000-8000-00000000000d", "alive"))?;
-            let deleted = w.insert_node(&user("018f0000-0000-7000-8000-00000000000e", "dead"))?;
-            w.set_key(deleted, "soft_deleted", Value::Int(1))?;
-            Ok(alive)
-        })
-        .expect("seed users");
-    let alive = database
-        .read(|r| {
-            r.scan_nodes(
-                NodeKind::User,
-                Some(&Condition::KeyNotExists("soft_deleted".to_string())),
-                &Order::ascending("name"),
-                0,
-                10,
-            )
-        })
-        .expect("scan alive");
-    let rows = database
-        .read(|r| r.read_nodes::<UserRow>(&alive))
-        .expect("read alive rows");
-    assert_eq!(rows.len(), 1);
-    assert_eq!(rows[0].name, "alive");
-
-    let dead = database
-        .read(|r| {
-            r.scan_nodes(
-                NodeKind::User,
-                Some(&Condition::All(vec![Condition::KeyEquals(
-                    "name".to_string(),
-                    Value::Text("dead".to_string()),
-                )])),
-                &Order::ascending("name"),
-                0,
-                10,
-            )
-        })
-        .expect("scan dead");
-    let count = database
-        .read(|r| {
-            r.count_nodes(
-                NodeKind::User,
-                Some(&Condition::KeyGreaterThan(
-                    "soft_deleted".to_string(),
-                    Value::Int(0),
-                )),
-            )
-        })
-        .expect("count soft-deleted");
-    assert_eq!(dead.len(), 1);
-    assert_eq!(count, 1);
-}
-
-#[test]
 fn all_nodes_isolates_kinds() {
     let database = memory_database();
     database
@@ -514,30 +423,19 @@ fn set_and_clear_key_roundtrip_values() {
         .write(|w| w.insert_node(&user("018f0000-0000-7000-8000-000000000011", "ivan")))
         .expect("insert node");
     database
-        .write(|w| w.set_key(node, "soft_deleted", Value::Int(2)))
+        .write(|w| w.set_key(node, "name", Value::Text("ivan-2".to_string())))
         .expect("set key");
-    let value = database
-        .read(|r| r.read_value::<i64>(NodeKind::User, node, "soft_deleted"))
-        .expect("read value");
-    assert_eq!(value, Some(2));
+    let renamed = database
+        .read(|r| r.read_node::<UserRow>(node))
+        .expect("read node")
+        .expect("row present");
+    assert_eq!(renamed.name, "ivan-2");
     database
-        .write(|w| w.clear_key(node, "soft_deleted"))
+        .write(|w| w.clear_key(node, "name"))
         .expect("clear key");
-    let cleared = database
-        .read(|r| r.read_value::<i64>(NodeKind::User, node, "soft_deleted"))
-        .expect("read cleared value");
-    assert_eq!(cleared, None);
-}
-
-#[test]
-fn read_value_rejects_wrong_type() {
-    let database = memory_database();
-    let node = database
-        .write(|w| w.insert_node(&user("018f0000-0000-7000-8000-000000000012", "judy")))
-        .expect("insert node");
     let error = database
-        .read(|r| r.read_value::<i64>(NodeKind::User, node, "name"))
-        .expect_err("text value must not convert to i64");
+        .read(|r| r.read_node::<UserRow>(node))
+        .expect_err("cleared required key must surface as a row error");
     assert!(matches!(error, Error::Invalid(_)));
 }
 
@@ -556,27 +454,6 @@ fn write_scope_rolls_back_on_error() {
         .read(|r| r.resolve(NodeKind::User, business_id))
         .expect("resolve after rollback");
     assert_eq!(resolved, None);
-}
-
-#[test]
-fn bulk_insert_resolves_every_row() {
-    let database = memory_database();
-    let rows: Vec<UserRow> = (0..5)
-        .map(|index| {
-            user(
-                &format!("018f0000-0000-7000-8000-0000000001{index:02}"),
-                &format!("bulk{index}"),
-            )
-        })
-        .collect();
-    let nodes = database
-        .write(|w| w.insert_nodes(&rows))
-        .expect("bulk insert");
-    assert_eq!(nodes.len(), 5);
-    let loaded = database
-        .read(|r| r.read_nodes::<UserRow>(&nodes))
-        .expect("read bulk rows");
-    assert_eq!(loaded.len(), 5);
 }
 
 #[test]
@@ -617,8 +494,9 @@ fn open_mapped_ensures_indexes_idempotently() {
     }
     let reopened = Database::open_mapped(&path, &indexes).expect("reopen with same indexes");
     let count = reopened
-        .read(|r| r.count_nodes(NodeKind::User, None))
-        .expect("count after reopen");
+        .read(|r| r.all_nodes(NodeKind::User))
+        .expect("list after reopen")
+        .len();
     assert_eq!(count, 1);
     fs::remove_file(&path).expect("clean up test database file");
 }

@@ -112,26 +112,6 @@ impl VersionId {
 
 impl CacheValue for VersionId {}
 
-/// A `UUIDv7` challenge identifier.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ChallengeId(String);
-
-impl ChallengeId {
-    /// Validates that `value` is a `UUIDv7`.
-    ///
-    /// # Errors
-    /// Returns `CacheError::InvalidId` when `value` is not a `UUIDv7`.
-    pub fn new(value: String) -> Result<Self, CacheError> {
-        validate_uuid_v7(&value)?;
-        Ok(Self(value))
-    }
-
-    #[must_use]
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
 /// A proof-of-work challenge that has no stored content.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Challenge;

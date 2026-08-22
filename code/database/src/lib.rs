@@ -2,7 +2,6 @@
 //! closure-scoped, agdb-free API: `Database::read`/`Database::write` scopes,
 //! opaque [`NodeId`] handles, typed [`Row`]s, and explicit write primitives.
 
-mod condition;
 mod database;
 mod error;
 mod kinds;
@@ -13,7 +12,6 @@ mod scope;
 mod value;
 mod write;
 
-pub use condition::{Condition, Order};
 pub use database::Database;
 pub use error::Error;
 pub use kinds::{EdgeKind, ID_KEY, NodeKind};

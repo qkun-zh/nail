@@ -28,4 +28,4 @@ pub use error::Error;
 pub use field::SearchField;
 pub use outcome::{CommentHit, DocHit, FieldHit, SearchOutcome, VersionHit};
 pub use read::SearchRequest;
-pub use searcher::{DEFAULT_SEGMENT_NUMBER_BITS, Searcher, Stats};
+pub use searcher::{DEFAULT_SEGMENT_NUMBER_BITS, Searcher};

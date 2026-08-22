@@ -16,6 +16,7 @@ const REBUILD_COMMIT_CHUNK: usize = 1000;
 const ARTICLE_SCAN_LIMIT: usize = 100_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg(test)]
 pub struct Stats {
     pub indexed: usize,
     pub live: usize,
@@ -200,6 +201,9 @@ impl Searcher {
         Ok(indexed_count)
     }
 
+    /// Engine-level document counters, visible only inside the crate's own
+    /// tests: tombstone counts are not observable through the public read API.
+    #[cfg(test)]
     pub async fn stats(&self) -> Stats {
         let guard = self.index.read().await;
         let indexed = guard.indexed_doc_count().await;

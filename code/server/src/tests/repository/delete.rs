@@ -144,9 +144,13 @@ fn insert_comment_tree(
 fn assert_no_comment_subtree_remains(state: &crate::infrastructure::state::AppState) {
     let comments = state
         .database
-        .read(|scope| scope.count_nodes(NodeKind::Comment, None))
-        .expect("count comments");
-    assert_eq!(comments, 0, "no comment nodes remain");
+        .read(|scope| scope.all_nodes(NodeKind::Comment))
+        .expect("list comments");
+    assert!(
+        comments.is_empty(),
+        "no comment nodes remain, got {}",
+        comments.len()
+    );
 }
 
 #[tokio::test]
@@ -301,9 +305,9 @@ async fn soft_delete_user_cascades_the_flag_over_articles_comments_and_the_user(
     ));
     let comments = state
         .database
-        .read(|scope| scope.count_nodes(NodeKind::Comment, None))
-        .expect("count comments");
-    assert_eq!(comments, 3);
+        .read(|scope| scope.all_nodes(NodeKind::Comment))
+        .expect("list comments");
+    assert_eq!(comments.len(), 3);
 }
 
 #[tokio::test]
