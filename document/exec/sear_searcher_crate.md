@@ -175,3 +175,7 @@ All slices 1-5 green and pushed; sear6 cleanup completed 2026-08-21.
 - sear6: wired orphaned `test/unit/searcher/schema.rs` (12 tests) into `harness.rs` → `searcher 36/36`; added `searcher` steps to `.github/workflows/ci.yml` (fmt/clippy/test/audit); `cargo fmt --check` / `cargo clippy -- -D warnings` clean; CI `9205a92` → `32472964763 success`.
 
 Revert path: uncomment `clear_index` block in `SearchIndex::rebuild()` and restore `(2,2,0)` assertion when upstream fixes #68.
+
+## 11. Revert done (2026-08-22)
+
+SeekStorm 3.3.6 released with #68 fix (`src/index.rs:4946` resets `docid_global = 0` in `clear_index:4920`). Bumped both `server` and `searcher` to `3.3.6`, restored `rebuild()` to `clear_index`, removed `find_all_doc_ids`, test assertion back to `(2,2,0)`.

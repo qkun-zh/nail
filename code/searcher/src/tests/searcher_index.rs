@@ -122,13 +122,10 @@ async fn rebuild_wipes_tombstones_and_indexes_only_the_given_set() {
         .unwrap();
     assert_eq!(indexed, 2);
     let after = index.stats().await;
-    // WORKAROUND(#68): delete-all keeps tombstones until clear_index is
-    // fixed in SeekStorm >=3.3.6. Original clear_index assertion was
-    // (2,2,0). Revert when upstream fixes #68.
     assert_eq!(
         (after.indexed, after.live, after.deleted),
-        (4, 2, 2),
-        "workaround must keep tombstones; revert to (2,2,0) when clear_index fixed"
+        (2, 2, 0),
+        "rebuild wipes tombstones and indexes only the given set"
     );
     index.close().await;
 }

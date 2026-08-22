@@ -13,7 +13,7 @@ database = { path = "../database" }
 emailer = { path = "../emailer" }
 common = { path = "../common" }
 searcher = { path = "../searcher" }
-seekstorm = { version = "3.3.5", default-features = false }
+seekstorm = { version = "3.3.6", default-features = false }
 semver = "1"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"

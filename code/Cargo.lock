@@ -4182,9 +4182,9 @@ dependencies = [
 
 [[package]]
 name = "seekstorm"
-version = "3.3.5"
+version = "3.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b8f58e4acd4eb43e92505a10e80dc30f82c6e7538410fd7a749fc45c43382ce"
+checksum = "74a5b4e3119de77709934d9ad41c960f85b8eb5cf2707a89775343772ad4a863"
 dependencies = [
  "ahash",
  "aho-corasick",
