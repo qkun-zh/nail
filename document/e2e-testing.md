@@ -201,6 +201,73 @@ Non-mutations verified to produce zero DB diff: failed validations, 403s, logout
 
 Not yet covered: headless blob download save (network-level 200 verified, file-save hangs in headless).
 
+## 5.3 Live database and cache observation (API-driven E2E)
+
+Re-verified 2026-08-22 after slices 1-5 with an offline dumper instead of ad-hoc queries.
+
+### Database: full-graph snapshots + exact diff
+
+Dumper: standalone crate linking only `agdb = { version = "0.13.2", features = ["api"] }`
+(lives at `/tmp/opencode/nail-dump`; rebuild with `cargo build --release`). One pass returns
+every node and edge with values and endpoints:
+
+```rust
+let result = db.exec(
+    QueryBuilder::select()
+        .ids(QueryBuilder::search().elements().query())
+        .query(),
+)?;
+for e in &result.elements {
+    // e.id: positive = node, negative = edge; e.from / e.to endpoints; e.values props
+}
+```
+
+Print one sorted line per element (`N <id> key=value …`, `E <id> <from>-><to> <type>`) so
+consecutive states diff cleanly. Snapshot cycle per mutation under test:
+
+```bash
+pkill -x server && sleep 1                       # never `pgrep -f server`: it self-matches
+                                                 # the driving shell's own command text
+cp <repo>/data/agdb /tmp/opencode/snapN.agdb     # running-copy is safe: mmap copy dumped
+                                                 # byte-identical to post-shutdown file
+(CONF_DIR=/tmp/opencode/nail-box-conf setsid \
+  <repo>/code/target/debug/server </dev/null >>/tmp/nail-server.log 2>&1 \
+  & echo $! > /tmp/opencode/nail-server.pid)     # detached; CONF_DIR must be in spawn env
+nail-dump snapA.agdb > A.txt; nail-dump snapB.agdb > B.txt; diff A.txt B.txt
+```
+
+Verified delta (probe): `tag create` produced exactly one added line
+(`+N 227 id=<uuid> tag_name=e2e-delta-probe type=str:tag`) and nothing else.
+
+Graph facts worth watching per value, not just counts:
+
+- `soft_deleted` on article/version/comment rows is a **counter**, not a flag: a direct
+  soft-delete adds 1, deletion of an enclosing parent adds another (v0.2.0 showed `2` after
+  its own delete plus an article-level cascade). Visible again when it reaches 0.
+- `content_hash` maps 1:1 onto `data/pdf/<h[0:2]>/<h[2:4]>/<hash>.pdf` content-addressed blobs.
+- Edge direction is canonical: reply→parent (`comment_reply_comment`), version/comment attach
+  to their version, author edges point user→artifact.
+
+### Cache: behavioral probes (no external dump possible)
+
+All six tables are in-process moka (`code/cache/src/cache.rs`): `user_creation`, `session`,
+`email_update`, `user_deletion`, `challenge`, `download`. Memory-only, per-table TTL from
+`cache.toml` (`*_ttl_seconds`), LRU-bounded by `cache_capacity`, reverse-indexed for
+invalidate-by-user. Observation is therefore probe-based:
+
+| table | probe |
+|---|---|
+| challenge | solution accepted once; replaying it is rejected |
+| session | token works until logout / TTL / process restart (401 `invalid session`) |
+| user_creation / email_update / user_deletion | emailed token single-use; resend inside ~60 s cooldown rejects with "email already sent recently" |
+| download | minted download token is short-lived (`download_ttl_seconds`) |
+
+Restart-wipe check doubles as proof the tables are memory-only: after any restart every
+session is dead — re-login before continuing authenticated calls.
+
+For test comfort raise `session_ttl_seconds` in `/tmp/opencode/nail-box-conf/cache.toml`
+(set to 86400 there) and restart the server; the value is read only at startup.
+
 ## 5.1 Verified by walkthrough (UI + database)
 
 - Login/logout for member and admin personas; soft-deleted accounts are refused at login
