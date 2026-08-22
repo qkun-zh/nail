@@ -118,7 +118,7 @@ async fn read_content_mints_a_json_url() {
     assert_eq!(body["message"].as_str(), Some("ok"));
     let url = body["data"]["url"].as_str().expect("url");
     assert!(url.starts_with(&format!(
-        "/api/article/{article_id}/version/{version_id}/content/read?token="
+        "/api/articles/{article_id}/versions/{version_id}/content?token="
     )));
     assert!(Uuid::parse_str(token_from_url(url)).is_ok());
 }

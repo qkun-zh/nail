@@ -21,10 +21,10 @@ fn rejects_relative_or_non_http_origins() {
 
 #[test]
 fn resolves_root_relative_minted_urls_against_the_window_origin() {
-    let minted = "/api/article/a/version/v/content/read?token=t";
+    let minted = "/api/articles/a/versions/v/content?token=t";
     assert_eq!(
         resolve_download_url(minted, "https://app.example.com"),
-        Some("https://app.example.com/api/article/a/version/v/content/read?token=t".to_string())
+        Some("https://app.example.com/api/articles/a/versions/v/content?token=t".to_string())
     );
 }
 

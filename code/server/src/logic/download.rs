@@ -49,7 +49,7 @@ pub fn mint_download_token(
     let user_id = UserId::new(actor_id.to_string())
         .map_err(|error| LogicError::internal(format!("invalid user id: {error}")))?;
     let download_url = format!(
-        "/api/article/{article_id}/version/{}/content/read?token={token}",
+        "/api/articles/{article_id}/versions/{}/content?token={token}",
         version_id.as_str()
     );
     state.cache.download.insert(

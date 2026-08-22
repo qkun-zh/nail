@@ -60,7 +60,7 @@ async fn mint_then_consume_round_trips_and_the_token_is_single_use() {
     assert_eq!(
         url,
         format!(
-            "/api/article/{article_id}/version/{version_id}/content/read?token={}",
+            "/api/articles/{article_id}/versions/{version_id}/content?token={}",
             token_from_url(&url)
         )
     );
