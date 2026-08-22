@@ -84,34 +84,6 @@ fn token_purpose_rejects_unknown_values() {
 }
 
 #[test]
-fn delete_body_round_trips_with_mode() -> anyhow::Result<()> {
-    let body = crate::request::DeleteBody {
-        mode: Some(DeleteMode::Transfer),
-    };
-    assert_eq!(serde_json::to_string(&body)?, r#"{"mode":"transfer"}"#);
-    let decoded: crate::request::DeleteBody = serde_json::from_str(r#"{"mode":"transfer"}"#)?;
-    assert_eq!(decoded, body);
-    Ok(())
-}
-
-#[test]
-fn delete_body_round_trips_without_mode() -> anyhow::Result<()> {
-    let body = crate::request::DeleteBody { mode: None };
-    let json = serde_json::to_string(&body)?;
-    let decoded: crate::request::DeleteBody = serde_json::from_str(&json)?;
-    assert_eq!(decoded, body);
-    let from_missing: crate::request::DeleteBody = serde_json::from_str("{}")?;
-    assert_eq!(from_missing.mode, None);
-    Ok(())
-}
-
-#[test]
-fn delete_body_rejects_invalid_mode_value() {
-    let result = serde_json::from_str::<crate::request::DeleteBody>(r#"{"mode":"shred"}"#);
-    assert!(result.is_err());
-}
-
-#[test]
 fn create_token_request_round_trips_with_email() -> anyhow::Result<()> {
     let request = crate::request::CreateTokenRequest {
         purpose: TokenPurpose::CreateUser,

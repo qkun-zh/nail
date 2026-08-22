@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::infrastructure::state::AppState;
 use crate::logic::error::LogicError;
-use crate::logic::session::{create_session, hash_canonical_token, normalize_token, read_session};
+use crate::logic::session::{cache_key, create_session, normalize_token, read_session};
 use crate::repository::user::{
     UserWriteError, read_user, read_user_by_email_address_hash,
     update_user_email as write_user_email,
@@ -93,7 +93,7 @@ async fn send_create_user_email(state: &AppState, raw_email: &str) -> Result<Str
 
     let email_address_hash = common::hash::hash(email.as_bytes())
         .map_err(|error| LogicError::internal(format!("failed to hash email: {error}")))?;
-    let key = hash_canonical_token(&token)?;
+    let key = cache_key(&token)?;
     state.cache.user_creation.insert(
         &key,
         Hash::new(email_address_hash.clone())
@@ -149,8 +149,8 @@ pub async fn send_update_user_email(
     let old_email_id = send_confirmation_email(state, &old_email, &old_token).await?;
     let new_email_id = send_confirmation_email(state, &new_email, &new_token).await?;
 
-    let token_hash_from_old_email = hash_canonical_token(&old_token)?;
-    let token_hash_from_new_email = hash_canonical_token(&new_token)?;
+    let token_hash_from_old_email = cache_key(&old_token)?;
+    let token_hash_from_new_email = cache_key(&new_token)?;
     state.cache.email_update.insert(
         user_id,
         OldAndNewEmailAddressAndTokenHashes {
@@ -194,8 +194,8 @@ pub fn update_user_email(
         .read(user_id)
         .ok_or_else(|| LogicError::bad_request("invalid or expired email update request"))?;
 
-    let old_token_hash = hash_canonical_token(&old_email_token)?;
-    let new_token_hash = hash_canonical_token(&new_email_token)?;
+    let old_token_hash = cache_key(&old_email_token)?;
+    let new_token_hash = cache_key(&new_email_token)?;
     if entry.old_email_token_hash.as_str() != old_token_hash
         || entry.new_email_token_hash.as_str() != new_token_hash
     {
@@ -260,7 +260,7 @@ pub async fn send_delete_user_email(
     let token = Uuid::now_v7().to_string();
     let email_id = send_confirmation_email(state, &email, &token).await?;
 
-    let key = hash_canonical_token(&token)?;
+    let key = cache_key(&token)?;
     state.cache.user_deletion.insert(
         &key,
         UserIdAndEmailAddressHash {

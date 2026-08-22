@@ -18,13 +18,9 @@ pub fn cache_key(token: &str) -> Result<String, LogicError> {
         .map_err(|error| LogicError::internal(format!("failed to hash token: {error}")))
 }
 
-pub fn hash_canonical_token(token: &str) -> Result<String, LogicError> {
-    cache_key(token)
-}
-
 pub fn hash_token(raw: &str, invalid: LogicError) -> Result<String, LogicError> {
     let token = normalize_token(raw).ok_or(invalid)?;
-    hash_canonical_token(&token)
+    cache_key(&token)
 }
 
 pub fn read_session(state: &AppState, raw_token: &str) -> Result<String, LogicError> {

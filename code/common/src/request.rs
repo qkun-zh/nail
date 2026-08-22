@@ -28,12 +28,6 @@ pub enum TokenPurpose {
     DeleteUser,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DeleteBody {
-    #[serde(default)]
-    pub mode: Option<DeleteMode>,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct DeleteQuery {
     #[serde(default)]
