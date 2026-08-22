@@ -140,8 +140,8 @@ Every mutating operation was replayed against full-database snapshots
 
 Non-mutations verified to produce zero DB diff: failed validations, 403s, logout.
 
-Not yet covered: deregister transfer mode (needs a second real mailbox), email change full
-happy path (needs a reachable second address), headless blob download save.
+Not yet covered: deregister transfer mode (destructive on a real account; no throwaway user
+exists since signup needs a receivable address), headless blob download save.
 
 ## 5.1 Verified by walkthrough (UI + database)
 
@@ -156,6 +156,11 @@ happy path (needs a reachable second address), headless blob download save.
   sessions and blocks login until an admin restores via `/user/{uid}/undelete-soft`.
 - Search: pagination (`page`/`limit`, 12-article fixture), ranges checkboxes, from/to time
   filter, empty-query hint, no-match "none". Index page is intentionally two links only.
+- Email change full happy path: old/new tokens both arrive in the shared inbox
+  (`qkun-zh@foxmail.com` is an alias of `qkun-zh@qq.com` — one physical mailbox, same
+  authorization code; see `document/private/email_authorization_code.txt`). DB shows exactly
+  one property change (`email_address_hash`), and login under the new address succeeds.
+  Reverted afterwards to keep fixtures stable.
 
 Tooling notes: `agent-browser` coordinate clicks on bottom-of-page buttons can be swallowed
 by overlays — dispatch `el.click()` via `eval` instead. Sessions live in server memory and do
