@@ -47,10 +47,14 @@ fn hash_meets_target(bytes: &[u8; 32], difficulty: u64) -> bool {
     if difficulty == 0 {
         return true;
     }
-    // 256-bit target comparison via first 8 bytes: hash[0..8] < u64::MAX / (difficulty * multiplier)
-    let threshold = u64::MAX / (difficulty.saturating_mul(HASH_MULTIPLIER).max(1));
-    let hash_prefix = u64::from_be_bytes(bytes[0..8].try_into().unwrap_or([0xff; 8]));
-    hash_prefix < threshold
+    let scalar = difficulty.saturating_mul(HASH_MULTIPLIER).max(1);
+    // check hash * scalar < 2^256 (full 256-bit, no u128 needed)
+    let mut carry: u64 = 0;
+    for index in (0..32).rev() {
+        let product = u64::from(bytes[index]) * scalar + carry;
+        carry = product >> 8;
+    }
+    carry == 0
 }
 
 fn cxof_bytes(challenge_id: &Uuid, nonce: u64) -> anyhow::Result<[u8; 32]> {
