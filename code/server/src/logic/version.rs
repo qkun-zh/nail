@@ -286,6 +286,7 @@ pub async fn undelete_soft_version(
     }
     clear_soft_deleted_flag(&state.database, version_id)?;
     if let Some(parent_article) = parent_article_of(&state.database, version_id)? {
+        crate::repository::delete::refresh_live_latest_version(&state.database, &parent_article)?;
         sync_article_best_effort(state, &parent_article).await;
     }
     Ok(VersionIdView {
