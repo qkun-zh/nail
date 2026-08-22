@@ -151,7 +151,7 @@ pub fn read_version(
         .ok_or_else(|| LogicError::not_found("version not found"))?;
     require_entity_visible(state, actor_id, EntityRef::Version(version_id))?;
 
-    let created_at = common::time::uuidv7_timestamp_secs(version_id).unwrap_or(0);
+    let created_at = common::time::uuidv7_secs_or_zero(version_id);
     let view = VersionView {
         id: version_id.to_string(),
         version: entry.version_number,
@@ -295,6 +295,5 @@ pub async fn undelete_soft_version(
 }
 
 pub(crate) fn validate_note(raw: &str, max_chars: u64) -> Result<String, LogicError> {
-    common::text::validate_ascii_text(raw, usize::try_from(max_chars).unwrap_or(usize::MAX), true)
-        .map_err(|error| LogicError::bad_request(error.to_string()))
+    crate::logic::error::validate_ascii_text_capped(raw, max_chars, true)
 }

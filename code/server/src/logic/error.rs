@@ -76,6 +76,20 @@ impl std::fmt::Display for LogicError {
 
 impl std::error::Error for LogicError {}
 
+#[must_use]
+pub fn usize_capped(value: u64) -> usize {
+    usize::try_from(value).unwrap_or(usize::MAX)
+}
+
+pub fn validate_ascii_text_capped(
+    raw: &str,
+    max_chars: u64,
+    allow_newline: bool,
+) -> Result<String, LogicError> {
+    common::text::validate_ascii_text(raw, usize_capped(max_chars), allow_newline)
+        .map_err(|error| LogicError::bad_request(error.to_string()))
+}
+
 pub fn database_error(error: impl std::fmt::Display) -> LogicError {
     LogicError::internal(format!("database query failed: {error}"))
 }

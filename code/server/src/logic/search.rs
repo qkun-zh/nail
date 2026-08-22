@@ -229,7 +229,7 @@ fn comment_to_response(comment: &SearchCommentOutcome) -> SearchCommentItem {
 }
 
 fn uuidv7_secs(id: &str) -> i64 {
-    common::time::uuidv7_timestamp_secs(id).map_or(0, |secs| i64::try_from(secs).unwrap_or(0))
+    i64::try_from(common::time::uuidv7_secs_or_zero(id)).unwrap_or(0)
 }
 
 fn parse_ranges(raw: Option<&str>) -> Result<Vec<SearchRange>, LogicError> {

@@ -304,8 +304,7 @@ pub async fn undelete_soft_comment(
 }
 
 fn validate_comment_content(raw: &str, max_chars: u64) -> Result<String, LogicError> {
-    common::text::validate_ascii_text(raw, usize::try_from(max_chars).unwrap_or(usize::MAX), true)
-        .map_err(|error| LogicError::bad_request(error.to_string()))
+    crate::logic::error::validate_ascii_text_capped(raw, max_chars, true)
 }
 
 async fn sync_article_best_effort_for_comment(state: &AppState, comment_id: &str) {

@@ -16,6 +16,11 @@ pub fn uuidv7_timestamp_secs(uuid_string: &str) -> Option<u64> {
     uuidv7_timestamp_ms(uuid_string).map(|millis| millis / 1000)
 }
 
+#[must_use]
+pub fn uuidv7_secs_or_zero(id: &str) -> u64 {
+    uuidv7_timestamp_secs(id).unwrap_or(0)
+}
+
 /// Returns the current time as milliseconds since the Unix epoch.
 ///
 /// # Errors
