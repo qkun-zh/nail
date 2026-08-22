@@ -84,18 +84,16 @@ pub(super) fn SearchResults(
                     })
                     .collect_view();
                 view! {
-                    <div>
-                        {rows}
-                        <PrevNext
-                            current=move || current_page.get()
-                            has_prev=has_prev
-                            has_next=move || has_next.get()
-                            on_go=on_go
-                        />
-                    </div>
+                    <div>{rows}</div>
                 }
                 .into_any()
             }}
+            <PrevNext
+                current=current_page
+                has_prev=has_prev
+                has_next=move || has_next.get()
+                on_go=on_go
+            />
         </div>
     }
     .into_any()

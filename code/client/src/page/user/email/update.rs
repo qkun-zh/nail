@@ -79,6 +79,14 @@ pub fn EmailUpdate() -> impl IntoView {
             notify_error(&confirm_notifications, "authenticate to change email");
             return;
         };
+        if params
+            .get_untracked()
+            .get("uid")
+            .is_some_and(|uid| uid != user_id)
+        {
+            notify_error(&confirm_notifications, "cannot change another user's email");
+            return;
+        }
         let old_token_value = old_token.get().trim().to_string();
         let new_token_value = new_token.get().trim().to_string();
         if old_token_value.is_empty() || new_token_value.is_empty() {

@@ -49,6 +49,14 @@ pub fn NameUpdate() -> impl IntoView {
             notify_error(&notifications, "authenticate to rename");
             return;
         };
+        if params
+            .get_untracked()
+            .get("uid")
+            .is_some_and(|uid| uid != user_id)
+        {
+            notify_error(&notifications, "cannot rename another user");
+            return;
+        }
         let new_name = match validate_name(&name.get()) {
             Ok(value) => value,
             Err(error) => {
