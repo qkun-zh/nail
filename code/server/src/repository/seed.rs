@@ -5,7 +5,7 @@ use database::Database;
 use crate::repository::role::{
     PERMISSION_ARTICLE_CREATE, PERMISSION_ARTICLE_READ, PERMISSION_COMMENT_CREATE,
     PERMISSION_COMMENT_READ, PERMISSION_TAG_APPLY, PERMISSION_TAG_CREATE, PERMISSION_TAG_READ,
-    PERMISSION_VERSION_READ, REQUIRED_ROLES, ROLE_ADMIN, ROLE_MEMBER,
+    PERMISSION_TAG_UNAPPLY, PERMISSION_VERSION_READ, REQUIRED_ROLES, ROLE_ADMIN, ROLE_MEMBER,
 };
 use crate::repository::user::create_user;
 
@@ -36,6 +36,7 @@ fn seed_roles_and_permissions(db: &Database) -> anyhow::Result<()> {
     crate::repository::role::grant_permission_to_role(db, ROLE_MEMBER, PERMISSION_COMMENT_READ)?;
     crate::repository::role::grant_permission_to_role(db, ROLE_MEMBER, PERMISSION_TAG_READ)?;
     crate::repository::role::grant_permission_to_role(db, ROLE_MEMBER, PERMISSION_TAG_APPLY)?;
+    crate::repository::role::grant_permission_to_role(db, ROLE_MEMBER, PERMISSION_TAG_UNAPPLY)?;
     crate::repository::role::grant_permission_to_role(db, ROLE_MEMBER, PERMISSION_TAG_CREATE)?;
     Ok(())
 }

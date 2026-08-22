@@ -151,11 +151,30 @@ async fn apply_tag_requires_the_apply_permission() {
 #[tokio::test]
 async fn unapply_tag_requires_the_unapply_permission() {
     let context = TestCtx::new().await.expect("test context");
+    let actor = admin(&context);
+    let article_id = article_with_tags(&context, &actor, "rust").await;
+    let tag_id = seeded_tag_id(&context, "devops");
+
+    let outsider = crate::repository::user::create_user(
+        &context.state.database,
+        &common::hash::hash("outsider-unapply@example.com".as_bytes()).expect("hash must succeed"),
+    )
+    .expect("user");
+
+    let err = crate::logic::tag::unapply_tag(&context.state, &outsider, &article_id, &tag_id)
+        .unwrap_err();
+    assert_eq!(err, LogicError::forbidden("you are denied"));
+}
+
+#[tokio::test]
+async fn member_can_unapply_a_tag_they_can_read() {
+    let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com");
     let article_id = article_with_tags(&context, &actor, "rust").await;
     let tag_id = seeded_tag_id(&context, "devops");
 
-    let err =
-        crate::logic::tag::unapply_tag(&context.state, &actor, &article_id, &tag_id).unwrap_err();
-    assert_eq!(err, LogicError::forbidden("you are denied"));
+    crate::logic::tag::apply_tag(&context.state, &actor, &article_id, &tag_id)
+        .expect("member holds the apply permission");
+    crate::logic::tag::unapply_tag(&context.state, &actor, &article_id, &tag_id)
+        .expect("member holds the unapply permission");
 }
