@@ -17,7 +17,7 @@ use uuid::Uuid;
 pub const MAX_SOLUTION_HEX_LEN: usize = 4096;
 
 /// Upper bound for VDF difficulty: keeps prove time bounded (~8s native).
-pub const MAX_DIFFICULTY: u64 = 1 << 18;
+pub const MAX_DIFFICULTY: u64 = 160_000;
 
 const VDF_OUTPUT_BYTES: usize = 48;
 const VDF_PROOF_BYTES: usize = 48;
