@@ -29,7 +29,7 @@ pub async fn read_tags(
     http::get_json(&path, true, Some(&pow)).await
 }
 
-pub async fn read_tag(tag_id: &str) -> RequestResult<NamedRef> {
+pub async fn read_tag(tag_id: &str) -> RequestResult<TagListItem> {
     let pow = prove_pow().await?;
     let tag_id = validate_id(tag_id, "tag_id")?;
     let path = url::build_path_with_query(&["tags", &tag_id], &[]);

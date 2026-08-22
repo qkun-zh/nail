@@ -3,14 +3,14 @@ use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map};
 
 use crate::page::validation::validate_uuid;
-use crate::request::tag::{self, NamedRef};
+use crate::request::tag;
 
 #[component]
 pub fn UpdateTag() -> impl IntoView {
     let params = use_params_map();
     let navigate = use_navigate();
 
-    let tag = RwSignal::new(None::<NamedRef>);
+    let tag = RwSignal::new(None::<common::response::tag::TagListItem>);
     let name = RwSignal::new(String::new());
     let submitting = RwSignal::new(false);
     let error = RwSignal::new(None::<String>);

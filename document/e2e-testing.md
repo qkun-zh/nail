@@ -143,6 +143,14 @@ agent-browser network requests
     delete on tag detail mirroring role detail, and applied tag names on
     article detail now link to their tag pages. Pairwise navigation cost
     drops 9.26 → 3.67; verified by UI walkthrough.
+18. Tag detail showed only the tag name plus update/delete links — its
+    articles (the owned content) were invisible, forcing a manual search.
+    `read_tag` now returns the full `TagListItem` (with `article_count`)
+    instead of `NamedRef` (`code/client/src/request/tag.rs`), and the detail
+    page lists articles found by searching `ranges=tag` for the tag name
+    with title/author links (`code/client/src/page/tag/detail.rs`).
+    Verified live: `/tag/{id}` shows "articles (1):" and the entry links to
+    `/article/{id}`.
 
 ## 5.2 Full-database diff verification
 
