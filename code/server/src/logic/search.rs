@@ -10,7 +10,7 @@ use crate::infrastructure::search::{SearchCommentOutcome, SearchDocOutcome, Sear
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::authorize_global;
 use crate::logic::error::LogicError;
-use crate::logic::pagination::{page_offset, paginate};
+use crate::logic::pagination::page_offset;
 use crate::repository::role::PERMISSION_ARTICLE_READ;
 
 pub async fn search_articles(
@@ -65,22 +65,20 @@ pub async fn search_articles(
                 ranges,
                 from_seconds,
                 to_seconds,
-                offset,
-                limit,
+                offset: 0,
+                limit: page.saturating_mul(limit).saturating_add(1),
             },
         )
         .await
         .map_err(|error| LogicError::internal(format!("search failed: {error}")))?;
 
-    let article_list = assemble_tree(&outcome.docs);
-    let total = article_list.len() as u64;
-    let (items, has_next) = paginate(article_list, page, limit);
-
-    Ok(common::response::ListPage {
-        items,
-        has_next,
-        total,
-    })
+    let mut items = assemble_tree(&outcome.docs);
+    let total = items.len() as u64;
+    let start = usize::try_from(page_offset(page, limit)).unwrap_or(usize::MAX);
+    let lim = usize::try_from(limit).unwrap_or(usize::MAX);
+    let has_next = total > (start as u64).saturating_add(limit);
+    items = items.into_iter().skip(start).take(lim).collect();
+    Ok(common::response::ListPage { items, has_next, total })
 }
 
 fn assemble_tree(docs: &[SearchDocOutcome]) -> Vec<SearchArticleItem> {
