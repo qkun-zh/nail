@@ -1,7 +1,7 @@
 use common::request::{DeleteMode, UserDeleteQuery, UserUpdateRequest};
 use common::response::EmptyView;
 use common::response::session::SessionTokenView;
-use common::response::user::{UserIdView, UserListItem, UserNameView, UserView};
+use common::response::user::{RoleRef, UserIdView, UserListItem, UserNameView, UserView};
 use database::NodeKind;
 
 use crate::infrastructure::state::AppState;
@@ -96,7 +96,13 @@ pub fn read_user(
             view.email_hash = Some(entry.email_address_hash);
         }
     }
-    let roles = crate::repository::role::roles_of_user(&state.database, target_id)?;
+    let roles = crate::repository::role::roles_of_user(&state.database, target_id)?
+        .into_iter()
+        .map(|row| RoleRef {
+            id: row.id,
+            name: row.role_name,
+        })
+        .collect();
     view.roles = Some(roles);
     let articles = crate::repository::article::articles_of_user(&state.database, target_id)?;
     view.articles = Some(articles);
@@ -116,7 +122,13 @@ pub fn read_users(
 
     let mut items = Vec::with_capacity(page_users.len());
     for user in &page_users {
-        let roles = crate::repository::role::roles_of_user(&state.database, &user.id)?;
+        let roles = crate::repository::role::roles_of_user(&state.database, &user.id)?
+            .into_iter()
+            .map(|row| RoleRef {
+                id: row.id,
+                name: row.role_name,
+            })
+            .collect();
         items.push(UserListItem {
             id: user.id.clone(),
             name: user.name.clone(),

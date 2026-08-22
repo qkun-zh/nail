@@ -151,6 +151,18 @@ agent-browser network requests
     with title/author links (`code/client/src/page/tag/detail.rs`).
     Verified live: `/tag/{id}` shows "articles (1):" and the entry links to
     `/article/{id}`.
+19. Same-class sweep after #18: every detail page was audited for hidden
+    owned content. One gap remained — `/user/{uid}/role` rendered role names
+    as plain text because `roles_of_user` dropped node ids, while
+    `role/detail.rs` links its members back to users (asymmetric). The
+    repository now returns full `RoleRow`s, `UserView.roles` and
+    `UserListItem.roles` carry `RoleRef {id, name}`
+    (`code/common/src/response/user.rs`,
+    `code/server/src/repository/role.rs`, `code/server/src/logic/user.rs`),
+    and the client renders each role as a link to `/role/{id}`
+    (`code/client/src/page/user/role.rs`). Verified live: member's role page
+    shows "member" linking to its role page (403 inside is the permission
+    wall, consistent with the portal link).
 
 ## 5.2 Full-database diff verification
 

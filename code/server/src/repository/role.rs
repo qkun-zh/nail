@@ -243,16 +243,15 @@ pub fn read_role_members(db: &Database, role_name: &str) -> Result<Vec<String>, 
     Ok(members)
 }
 
-pub fn roles_of_user(db: &Database, user_id: &str) -> Result<Vec<String>, Error> {
+pub fn roles_of_user(db: &Database, user_id: &str) -> Result<Vec<RoleRow>, Error> {
     db.read(|scope| {
         let Some(user_db_id) = scope.resolve(NodeKind::User, user_id)? else {
             return Ok(Vec::new());
         };
         let held = scope.outgoing(user_db_id, EdgeKind::UserHoldRole)?;
-        let rows = scope.scope_read_nodes::<RoleRow>(&held)?;
-        let mut roles: Vec<String> = rows.into_iter().map(|row| row.role_name).collect();
-        roles.sort();
-        Ok(roles)
+        let mut rows = scope.scope_read_nodes::<RoleRow>(&held)?;
+        rows.sort_by(|a, b| a.role_name.cmp(&b.role_name));
+        Ok(rows)
     })
 }
 
