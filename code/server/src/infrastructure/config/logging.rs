@@ -9,7 +9,7 @@ pub struct LoggingConfig {
 }
 
 fn default_filter() -> String {
-    "warn,server=info,common=info".to_string()
+    "warn,server=info,common=info,tower_http=info".to_string()
 }
 
 impl LoggingConfig {

@@ -163,6 +163,17 @@ agent-browser network requests
     (`code/client/src/page/user/role.rs`). Verified live: member's role page
     shows "member" linking to its role page (403 inside is the permission
     wall, consistent with the portal link).
+20. Backend logs recorded almost nothing per request: tower-http's default
+    TraceLayer emits access events at DEBUG, while the filter
+    (`warn,server=info,common=info`) dropped them before the file appender.
+    Fixed with a customized TraceLayer in `code/server/src/infrastructure/server.rs`:
+    span carries only `method` + `uri`, on_request silenced, on_response emits a
+    single line `status=<code> latency_ms=<n>` at INFO (WARN for >=400), and the
+    download token query param is redacted to `<REDACTED>` before it can reach the
+    log. Filter default gained `tower_http=info`
+    (`code/server/src/infrastructure/config/logging.rs`, `configuration/server.toml`).
+    Verified by isolated probe server: 200 → INFO line, 400 → WARN line,
+    `?token=…` never appears raw. Restart the stack to pick the change up.
 
 ## 5.2 Full-database diff verification
 

@@ -19,4 +19,4 @@ max_search_pages = 1024
 [logging]
 dir = "/home/qkun/nail/log/back"
 retention_days = 7
-filter = "warn,server=info,common=info"
+filter = "warn,server=info,common=info,tower_http=info"

@@ -4,6 +4,9 @@ pub mod context;
 #[path = "configuration/validation.rs"]
 pub mod configuration_validation;
 
+#[path = "infrastructure/access_log.rs"]
+pub mod infrastructure_access_log;
+
 #[path = "infrastructure/pdf.rs"]
 pub mod infrastructure_pdf;
 

@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::time::Duration;
 
 use crate::infrastructure::authorizer::Authorizer;
 use crate::infrastructure::config::AppConfig;
@@ -7,7 +8,11 @@ use crate::interface;
 use crate::repository;
 use crate::repository::schema::INDEX_KEYS;
 
+use axum::http::{StatusCode, Uri};
 use tower_http::trace::TraceLayer;
+use tracing::Level;
+
+const REDACTED_DOWNLOAD_TOKEN: &str = "<REDACTED>";
 
 pub(crate) fn open_database(address: &str) -> anyhow::Result<database::Database> {
     let indexes: Vec<String> = INDEX_KEYS.iter().map(|key| (*key).to_string()).collect();
@@ -53,7 +58,36 @@ pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
 
     let listener = tokio::net::TcpListener::bind(state.configurator.listen_addr()).await?;
     tracing::info!(address = %state.configurator.listen_addr(), "listening");
-    let router = interface::router::build_router(state.clone()).layer(TraceLayer::new_for_http());
+    let router = interface::router::build_router(state.clone()).layer(
+        TraceLayer::new_for_http()
+            .make_span_with(|request: &axum::extract::Request| {
+                tracing::info_span!(
+                    "request",
+                    method = %request.method(),
+                    uri = %redacted_uri(request.uri()),
+                )
+            })
+            .on_request(|_request: &axum::extract::Request, _span: &tracing::Span| {})
+            .on_response(
+                |response: &axum::response::Response, latency: Duration, _span: &tracing::Span| {
+                    let status = response.status().as_u16();
+                    let latency_ms = latency.as_secs() * 1000 + u64::from(latency.subsec_millis());
+                    if status < 400 {
+                        tracing::info!(
+                            target: "tower_http::trace::on_response",
+                            status,
+                            latency_ms,
+                        );
+                    } else {
+                        tracing::warn!(
+                            target: "tower_http::trace::on_response",
+                            status,
+                            latency_ms,
+                        );
+                    }
+                },
+            ),
+    );
 
     axum::serve(
         listener,
@@ -63,6 +97,28 @@ pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
     .await?;
     state.searcher.close().await;
     Ok(())
+}
+
+pub(crate) fn redacted_uri(uri: &Uri) -> String {
+    match uri.query() {
+        None => uri.path().to_string(),
+        Some(query) => format!("{}?{}", uri.path(), redact_token_query(query)),
+    }
+}
+
+pub(crate) fn redact_token_query(query: &str) -> String {
+    query
+        .split('&')
+        .map(|pair| {
+            let key = pair.split_once('=').map_or(pair, |(key, _)| key);
+            if key == "token" {
+                format!("token={REDACTED_DOWNLOAD_TOKEN}")
+            } else {
+                pair.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("&")
 }
 
 async fn shutdown_signal() {
