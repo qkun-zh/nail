@@ -8,9 +8,8 @@ use crate::interface;
 use crate::repository;
 use crate::repository::schema::INDEX_KEYS;
 
-use axum::http::{StatusCode, Uri};
+use axum::http::Uri;
 use tower_http::trace::TraceLayer;
-use tracing::Level;
 
 const REDACTED_DOWNLOAD_TOKEN: &str = "<REDACTED>";
 
