@@ -41,25 +41,16 @@ pub fn issue_challenge(difficulty: u64) -> Challenge {
     }
 }
 
-fn hash_bits_for_difficulty(difficulty: u64) -> u32 {
-    if difficulty == 0 {
-        return 0;
-    }
-    let log = difficulty.ilog2();
-    log + 8
-}
+const HASH_MULTIPLIER: u64 = 64;
 
-fn leading_zeros(bytes: &[u8; 32]) -> u32 {
-    let mut count = 0;
-    for byte in bytes {
-        if *byte == 0 {
-            count += 8;
-        } else {
-            count += byte.leading_zeros();
-            break;
-        }
+fn hash_meets_target(bytes: &[u8; 32], difficulty: u64) -> bool {
+    if difficulty == 0 {
+        return true;
     }
-    count
+    // 256-bit target comparison via first 8 bytes: hash[0..8] < u64::MAX / (difficulty * multiplier)
+    let threshold = u64::MAX / (difficulty.saturating_mul(HASH_MULTIPLIER).max(1));
+    let hash_prefix = u64::from_be_bytes(bytes[0..8].try_into().unwrap_or([0xff; 8]));
+    hash_prefix < threshold
 }
 
 fn cxof_bytes(challenge_id: &Uuid, nonce: u64) -> anyhow::Result<[u8; 32]> {
@@ -95,11 +86,10 @@ fn vdf_verify(raw_input: [u8; 32], difficulty: u64, output: &[u8], proof: &[u8])
 /// # Errors
 /// Returns an error if the Ascon CXOF cannot be initialized.
 pub fn prove(challenge: &Challenge) -> anyhow::Result<Pow> {
-    let target = hash_bits_for_difficulty(challenge.difficulty);
     let mut nonce = 0u64;
     let input = loop {
         let candidate = cxof_bytes(&challenge.id, nonce)?;
-        if leading_zeros(&candidate) >= target {
+        if hash_meets_target(&candidate, challenge.difficulty) {
             break candidate;
         }
         nonce = nonce.wrapping_add(1);
@@ -132,7 +122,7 @@ pub fn verify(pow: &Pow, server_difficulty: u64) -> bool {
     let Ok(input) = cxof_bytes(&pow.challenge.id, pow.nonce) else {
         return false;
     };
-    if leading_zeros(&input) < hash_bits_for_difficulty(server_difficulty) {
+    if !hash_meets_target(&input, server_difficulty) {
         return false;
     }
     vdf_verify(input, server_difficulty, &bytes[..48], &bytes[48..])
