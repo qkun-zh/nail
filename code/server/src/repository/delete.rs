@@ -84,6 +84,34 @@ pub fn soft_delete_version(db: &Database, version_id: &str) -> Result<(), Error>
     adjust_soft_delete_count(db, NodeKind::Version, version_id, 1)
 }
 
+/// Recomputes the article's stored `latest_version_id` from its live
+/// (non-soft-deleted) versions. Call after soft-deleting a version that may
+/// have been the stored latest.
+///
+/// # Errors
+/// Returns [`Error`] when storage access fails.
+pub fn refresh_live_latest_version(db: &Database, article_id: &str) -> Result<(), Error> {
+    db.write(|scope| {
+        let Some(article) = scope.resolve(NodeKind::Article, article_id)? else {
+            return Ok(());
+        };
+        let versions = scope.outgoing(article, EdgeKind::ArticleHoldVersion)?;
+        let mut live = Vec::with_capacity(versions.len());
+        for node in versions {
+            if has_soft_deleted_flag(scope, node)? {
+                continue;
+            }
+            if let Some(row) = scope.scope_read_node::<VersionRow>(node)? {
+                live.push(row);
+            }
+        }
+        match highest_version_number(live).map(|row| row.id) {
+            Some(id) => scope.set_key(article, KEY_LATEST_VERSION_ID, Value::Text(id)),
+            None => scope.clear_key(article, KEY_LATEST_VERSION_ID),
+        }
+    })
+}
+
 pub fn soft_delete_comment(db: &Database, comment_id: &str) -> Result<(), Error> {
     adjust_soft_delete_count(db, NodeKind::Comment, comment_id, 1)
 }
