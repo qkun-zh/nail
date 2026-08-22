@@ -25,6 +25,7 @@ fn pow_round_trips_on_the_wire() {
     let pow = Pow {
         challenge: sample_challenge(),
         solution: "ab".repeat(96),
+        nonce: 0,
     };
     let json = serde_json::to_string(&pow).expect("serialize");
     let decoded: Pow = serde_json::from_str(&json).expect("deserialize");
@@ -65,6 +66,7 @@ fn verify_rejects_non_hex_solution() {
     let pow = Pow {
         challenge: sample_challenge(),
         solution: "zz".repeat(96),
+        nonce: 0,
     };
     assert!(!verify(&pow, 1));
 }
@@ -75,6 +77,7 @@ fn verify_rejects_solution_with_wrong_byte_length() {
         let pow = Pow {
             challenge: sample_challenge(),
             solution: "ab".repeat(byte_count),
+            nonce: 0,
         };
         assert!(!verify(&pow, 1), "{byte_count} bytes");
     }
@@ -92,6 +95,7 @@ fn verify_rejects_random_solution_bytes() {
     let pow = Pow {
         challenge: sample_challenge(),
         solution: random_solution,
+        nonce: 0,
     };
     assert!(!verify(&pow, 1));
 }
@@ -101,6 +105,7 @@ fn verify_rejects_oversized_solution() {
     let pow = Pow {
         challenge: sample_challenge(),
         solution: "ab".repeat(2049),
+        nonce: 0,
     };
     assert!(!verify(&pow, 1));
 }
