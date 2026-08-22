@@ -29,9 +29,11 @@ The server reads config from `CONF_DIR` (`code/server/src/infrastructure/config.
 
 `emailer.toml` is filled from `document/private/email_authorization_code.txt`.
 
-The mailbox facts: `3366981949@qq.com` (user_zero_email) and `qkun-zh@qq.com` are the same
-mailbox; the authorization code works for both SMTP and IMAP (`imap.qq.com:993`). The login
-token email has the challenge UUID as subject and the token UUID as the whole body.
+The mailbox facts: `qkun-zh@foxmail.com`, `qkun-zh@qq.com`, and `3366981949@qq.com`
+are the same physical mailbox (aliases) — see `document/private/email_authorization_code.txt`.
+The single authorization code `bqlpvuknilcycjej` works for all three via SMTP+IMAP
+(`imap.qq.com:993`). The login token email has the challenge UUID as subject and the token
+UUID as the whole body.
 
 ## 3. Running the stack
 
@@ -137,11 +139,12 @@ Every mutating operation was replayed against full-database snapshots
 | article update | title in place |
 | article soft delete / restore | whole subtree flagged / unflagged |
 | article hard delete | -5 nodes and -8 edges exactly, no orphans |
+| deregister soft | `soft_deleted` flag, session cleared, login refused |
+| deregister transfer (with content) | user node removed, `user_hold_role` cleared, `user_author_article` repointed to recycler, articles preserved |
 
 Non-mutations verified to produce zero DB diff: failed validations, 403s, logout.
 
-Not yet covered: deregister transfer mode (destructive on a real account; no throwaway user
-exists since signup needs a receivable address), headless blob download save.
+Not yet covered: headless blob download save (network-level 200 verified, file-save hangs in headless).
 
 ## 5.1 Verified by walkthrough (UI + database)
 
@@ -153,7 +156,10 @@ exists since signup needs a receivable address), headless blob download save.
 - Roles: create, update grant/revoke, delete cascades edges; member update/delete are 403 by
   design (the UI still renders the links).
 - Users: list/hub/id/article/name/email/role pages; deregister(soft) sets the flag, clears
-  sessions and blocks login until an admin restores via `/user/{uid}/undelete-soft`.
+  sessions and blocks login until an admin restores via `/user/{uid}/undelete-soft`;
+  deregister(transfer) on a disposable foxmail user with one article — article repointed from
+  deleted user to recycler (`user_author_article` edge `176->175` became `90->175`), user node
+  and `user_hold_role` removed.
 - Search: pagination (`page`/`limit`, 12-article fixture), ranges checkboxes, from/to time
   filter, empty-query hint, no-match "none". Index page is intentionally two links only.
 - Email change full happy path: old/new tokens both arrive in the shared inbox
@@ -165,7 +171,8 @@ exists since signup needs a receivable address), headless blob download save.
 Tooling notes: `agent-browser` coordinate clicks on bottom-of-page buttons can be swallowed
 by overlays — dispatch `el.click()` via `eval` instead. Sessions live in server memory and do
 not survive restarts; re-login after each restart. Email sends have a ~60 s per-address
-cooldown that rejects with "email already sent recently" — sleep it out instead of retrying.
+cooldown that rejects with "email already sent recently" — poll the toast and only sleep the
+remaining window instead of a fixed 60 s.
 
 ## 6. Teardown
 
