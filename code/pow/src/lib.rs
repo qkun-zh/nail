@@ -58,10 +58,12 @@ fn hash_meets_target(bytes: &[u8; 32], difficulty: u64) -> bool {
 }
 
 fn cxof_bytes(challenge_id: &Uuid, nonce: u64) -> anyhow::Result<[u8; 32]> {
-    let mut cxof = AsconCxof128::try_new_customized(challenge_id.as_bytes())
-        .context("failed to init Ascon CXOF")?;
+    let mut nonce_custom = Vec::with_capacity(challenge_id.as_bytes().len() + 8);
+    nonce_custom.extend_from_slice(challenge_id.as_bytes());
+    nonce_custom.extend_from_slice(&nonce.to_le_bytes());
+    let mut cxof =
+        AsconCxof128::try_new_customized(&nonce_custom).context("failed to init Ascon CXOF")?;
     cxof.update(challenge_id.as_bytes());
-    cxof.update(&nonce.to_le_bytes());
     let mut output = [0u8; 32];
     cxof.finalize_xof().read(&mut output);
     Ok(output)
