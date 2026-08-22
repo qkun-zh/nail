@@ -95,8 +95,47 @@ agent-browser network requests
 6. Toast CSS was missing entirely (toasts invisible). Styles added to `code/client/search.css`.
 7. Default user name was the user_id with dashes stripped (unreadable). Now `"anonymous"`
    (`code/server/src/repository/user.rs`); tests updated.
+8. Delete requests sent `?mode=%22soft%22` — `serde_json::to_string(&DeleteMode)` double-encoded
+   the value, so every delete returned 400. Added `DeleteMode::as_str()`
+   (`code/common/src/request.rs`) and replaced all six call sites
+   (`code/client/src/request/{article,comment,version,user,tag,role}.rs`).
+9. Download mint URL used a stale route (`/api/article/…/version/…/content/read`) that 404'd.
+   Fixed to `/api/articles/{id}/versions/{vid}/content`
+   (`code/server/src/logic/download.rs`); test assertions updated.
+10. Version soft-delete left `latest_version_id` pointing at a deleted version. Added
+    `refresh_live_latest_version` (`code/server/src/repository/delete.rs`), wired into the
+    soft-delete branch of `code/server/src/logic/version.rs`.
+11. Role update returned `NamedRef` while the client parses `RoleView`, surfacing as "missing
+    field `permissions`". `update_role` now returns the full view
+    (`code/server/src/logic/role.rs`).
+12. The rename and email-change pages ignored the `:uid` route param and mutated the session
+    user — visiting another user's page renamed yourself. Both now reject mismatches with a
+    toast (`code/client/src/page/user/{name,email}/update.rs`).
+13. Search pagination controls were re-created on every results render, so clicks landed on
+    detached nodes. `PrevNext` moved out of the reactive rows closure
+    (`code/client/src/page/article/search/results.rs`).
 
-Not yet covered: pagination edges, download flow, delete/undelete/recycle, role admin UI.
+Not yet covered: deregister transfer mode (needs a second real mailbox), email change full
+happy path (needs a reachable second address), headless blob download save.
+
+## 5.1 Verified by walkthrough (UI + database)
+
+- Login/logout for member and admin personas; soft-deleted accounts are refused at login
+  ("email address is deactivated") but still receive challenge mails.
+- Article: create, update, tag apply/unapply, soft delete + admin restore; search hides
+  deleted articles. Version create/update/soft-delete with `latest_version_id` rollback.
+- Tag list/detail counts match `article_apply_tag` edge counts in the DB dump.
+- Roles: create, update grant/revoke, delete cascades edges; member update/delete are 403 by
+  design (the UI still renders the links).
+- Users: list/hub/id/article/name/email/role pages; deregister(soft) sets the flag, clears
+  sessions and blocks login until an admin restores via `/user/{uid}/undelete-soft`.
+- Search: pagination (`page`/`limit`, 12-article fixture), ranges checkboxes, from/to time
+  filter, empty-query hint, no-match "none". Index page is intentionally two links only.
+
+Tooling notes: `agent-browser` coordinate clicks on bottom-of-page buttons can be swallowed
+by overlays — dispatch `el.click()` via `eval` instead. Sessions live in server memory and do
+not survive restarts; re-login after each restart. Email sends have a ~60 s per-address
+cooldown that rejects with "email already sent recently" — sleep it out instead of retrying.
 
 ## 6. Teardown
 
