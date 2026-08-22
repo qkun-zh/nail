@@ -47,7 +47,7 @@ fn hash_meets_target(bytes: &[u8; 32], difficulty: u64) -> bool {
     if difficulty == 0 {
         return true;
     }
-    let scalar = difficulty.saturating_mul(HASH_MULTIPLIER).max(1) as u128;
+    let scalar = u128::from(difficulty.saturating_mul(HASH_MULTIPLIER).max(1));
     let hash_prefix = u128::from_be_bytes(bytes[0..16].try_into().unwrap_or([0xff; 16]));
     let threshold = u128::MAX / scalar;
     hash_prefix < threshold
@@ -88,6 +88,7 @@ fn vdf_verify(raw_input: [u8; 32], difficulty: u64, output: &[u8], proof: &[u8])
 /// # Errors
 /// Returns an error if the Ascon CXOF cannot be initialized.
 pub fn prove(challenge: &Challenge) -> anyhow::Result<Pow> {
+    anyhow::ensure!(challenge.difficulty > 0, "difficulty must be > 0");
     let mut nonce = 0u64;
     let input = loop {
         let candidate = cxof_bytes(&challenge.id, nonce)?;
