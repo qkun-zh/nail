@@ -178,20 +178,14 @@ pub async fn delete_article(
             })
         }
         Some(DeleteMode::Soft) => {
-            authorize_entity_or(
+            crate::logic::delete::soft_delete_guard(
                 state,
                 actor_id,
-                PERMISSION_ARTICLE_DELETE_SOFT,
                 EntityRef::Article(article_id),
-            )?;
-            let already_deleted = crate::repository::delete::is_soft_deleted(
-                &state.database,
+                PERMISSION_ARTICLE_DELETE_SOFT,
                 NodeKind::Article,
                 article_id,
             )?;
-            if already_deleted {
-                return Err(LogicError::bad_request("already soft-deleted"));
-            }
             crate::repository::delete::soft_delete_article(&state.database, article_id)?;
             sync_article_best_effort(state, article_id).await;
             Ok(ArticleIdView {
@@ -209,17 +203,14 @@ pub async fn undelete_soft_article(
     actor_id: &str,
     article_id: &str,
 ) -> Result<ArticleIdView, LogicError> {
-    authorize_entity_or(
+    crate::logic::delete::undelete_guard(
         state,
         actor_id,
-        PERMISSION_ARTICLE_UNDELETE_SOFT,
         EntityRef::Article(article_id),
+        PERMISSION_ARTICLE_UNDELETE_SOFT,
+        NodeKind::Article,
+        article_id,
     )?;
-    let hidden =
-        crate::repository::delete::is_soft_deleted(&state.database, NodeKind::Article, article_id)?;
-    if !hidden {
-        return Err(LogicError::bad_request("not soft-deleted"));
-    }
     crate::repository::delete::clear_soft_deleted_flag(&state.database, article_id)?;
     sync_article_best_effort(state, article_id).await;
     Ok(ArticleIdView {

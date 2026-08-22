@@ -218,21 +218,15 @@ pub async fn delete_version(
 ) -> Result<VersionIdView, LogicError> {
     match mode {
         Some(DeleteMode::Soft) => {
-            authorize_entity_or(
+            let parent_article = parent_article_of(&state.database, version_id)?;
+            crate::logic::delete::soft_delete_guard(
                 state,
                 actor_id,
-                PERMISSION_VERSION_DELETE_SOFT,
                 EntityRef::Version(version_id),
-            )?;
-            let parent_article = parent_article_of(&state.database, version_id)?;
-            let already_deleted = crate::repository::delete::is_soft_deleted(
-                &state.database,
+                PERMISSION_VERSION_DELETE_SOFT,
                 NodeKind::Version,
                 version_id,
             )?;
-            if already_deleted {
-                return Err(LogicError::bad_request("already soft-deleted"));
-            }
             soft_delete_version(&state.database, version_id)?;
             if let Some(parent_article) = parent_article {
                 crate::repository::delete::refresh_live_latest_version(
@@ -273,17 +267,14 @@ pub async fn undelete_soft_version(
     actor_id: &str,
     version_id: &str,
 ) -> Result<VersionIdView, LogicError> {
-    authorize_entity_or(
+    crate::logic::delete::undelete_guard(
         state,
         actor_id,
-        PERMISSION_VERSION_UNDELETE_SOFT,
         EntityRef::Version(version_id),
+        PERMISSION_VERSION_UNDELETE_SOFT,
+        NodeKind::Version,
+        version_id,
     )?;
-    let hidden =
-        crate::repository::delete::is_soft_deleted(&state.database, NodeKind::Version, version_id)?;
-    if !hidden {
-        return Err(LogicError::bad_request("not soft-deleted"));
-    }
     clear_soft_deleted_flag(&state.database, version_id)?;
     if let Some(parent_article) = parent_article_of(&state.database, version_id)? {
         crate::repository::delete::refresh_live_latest_version(&state.database, &parent_article)?;

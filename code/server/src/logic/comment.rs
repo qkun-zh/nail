@@ -252,20 +252,14 @@ pub async fn delete_comment(
             crate::repository::delete::delete_comment(&state.database, comment_id)?;
         }
         Some(DeleteMode::Soft) => {
-            authorize_entity_or(
+            crate::logic::delete::soft_delete_guard(
                 state,
                 actor_id,
-                PERMISSION_COMMENT_DELETE_SOFT,
                 EntityRef::Comment(comment_id),
-            )?;
-            let already_deleted = crate::repository::delete::is_soft_deleted(
-                &state.database,
+                PERMISSION_COMMENT_DELETE_SOFT,
                 NodeKind::Comment,
                 comment_id,
             )?;
-            if already_deleted {
-                return Err(LogicError::bad_request("already soft-deleted"));
-            }
             crate::repository::delete::soft_delete_comment(&state.database, comment_id)?;
         }
         None => {
@@ -285,17 +279,14 @@ pub async fn undelete_soft_comment(
     actor_id: &str,
     comment_id: &str,
 ) -> Result<CommentIdView, LogicError> {
-    authorize_entity_or(
+    crate::logic::delete::undelete_guard(
         state,
         actor_id,
-        PERMISSION_COMMENT_UNDELETE_SOFT,
         EntityRef::Comment(comment_id),
+        PERMISSION_COMMENT_UNDELETE_SOFT,
+        NodeKind::Comment,
+        comment_id,
     )?;
-    let hidden =
-        crate::repository::delete::is_soft_deleted(&state.database, NodeKind::Comment, comment_id)?;
-    if !hidden {
-        return Err(LogicError::bad_request("not soft-deleted"));
-    }
     crate::repository::delete::clear_soft_deleted_flag(&state.database, comment_id)?;
     sync_article_best_effort_for_comment(state, comment_id).await;
     Ok(CommentIdView {
