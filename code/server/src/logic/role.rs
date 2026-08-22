@@ -99,7 +99,7 @@ pub fn update_role(
     actor_id: &str,
     role_id: &str,
     update: &RoleUpdate<'_>,
-) -> Result<NamedRef, LogicError> {
+) -> Result<RoleView, LogicError> {
     let &RoleUpdate {
         permissions_add,
         permissions_remove,
@@ -163,9 +163,14 @@ pub fn update_role(
             LogicError::internal(format!("failed to unhold role for {user}: {error}"))
         })?;
     }
-    Ok(NamedRef {
-        id: role_id.to_string(),
-        name,
+    let role = read_role_node_by_id(&state.database, role_id)?
+        .ok_or_else(|| LogicError::not_found("role not found"))?;
+    let members = read_role_members(&state.database, &role.role_name)?;
+    Ok(RoleView {
+        id: role.id,
+        name: role.role_name,
+        permissions: role.permissions,
+        members,
     })
 }
 
