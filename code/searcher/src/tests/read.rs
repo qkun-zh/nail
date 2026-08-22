@@ -1,4 +1,5 @@
 use super::support::{comment_doc, fresh_index, version_doc};
+use crate::doc::{CommentDoc, SearchDoc, VersionDoc};
 use crate::field::SearchField;
 use crate::outcome::DocHit;
 use crate::read::SearchRequest;
@@ -183,6 +184,69 @@ async fn comment_field_discriminates_comment_documents() {
     assert_eq!(comment.comment_id, "c-1");
     assert_eq!(comment.version_id, "v-a-1");
     assert!(comment.content.contains("<mark>"));
+    index.close().await;
+}
+
+#[tokio::test]
+async fn dashed_id_ranges_match_exact_documents() {
+    let article_id = "01a0270b-b40e-7941-91f7-a71af30d07df";
+    let version_id = "01a0270b-b40e-7941-91f7-a724f97cf899";
+    let comment_id = "01a0270c-5f2e-7a10-b3d1-6f2a9d7c41ab";
+    let author_id = "01a0265a-3cb5-7fd1-acf3-3bdff41bb6a9";
+    let (index, _path) = fresh_index("read_dashed_ids").await;
+    index
+        .replace_article(
+            article_id,
+            vec![
+                SearchDoc::Version(VersionDoc {
+                    version_id: version_id.to_string(),
+                    article_id: article_id.to_string(),
+                    version_number: "1".to_string(),
+                    title: "alpha title".to_string(),
+                    summary: "alpha summary".to_string(),
+                    author_name: "alice".to_string(),
+                    author_id: author_id.to_string(),
+                    role: "author".to_string(),
+                    note: String::new(),
+                    tags: Vec::new(),
+                    ts: 1_700_000_000,
+                }),
+                SearchDoc::Comment(CommentDoc {
+                    comment_id: comment_id.to_string(),
+                    version_id: version_id.to_string(),
+                    article_id: article_id.to_string(),
+                    author_name: "bob".to_string(),
+                    author_id: author_id.to_string(),
+                    role: "reviewer".to_string(),
+                    content: "typo here".to_string(),
+                    ts: 1_700_000_100,
+                }),
+            ],
+        )
+        .await
+        .unwrap();
+
+    for (field, query, expected) in [
+        (SearchField::ArticleId, article_id, 2),
+        (SearchField::VersionId, version_id, 2),
+        (SearchField::CommentId, comment_id, 1),
+        (SearchField::AuthorId, author_id, 2),
+    ] {
+        let outcome = index
+            .read(SearchRequest {
+                query: Some(query.to_string()),
+                fields: vec![field],
+                limit: 10,
+                ..SearchRequest::default()
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            outcome.hits.len(),
+            expected,
+            "{field:?} must match its exact dashed id"
+        );
+    }
     index.close().await;
 }
 

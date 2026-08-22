@@ -5,7 +5,7 @@ use seekstorm::index::{FieldType, IndexMetaObject, SchemaField};
 
 use crate::error::Error;
 
-pub(crate) const SCHEMA_VERSION: &str = "6";
+pub(crate) const SCHEMA_VERSION: &str = "7";
 const MARKER_FILENAME: &str = "nail_schema_version";
 const META_FILENAME: &str = "meta.json";
 const SCHEMA_FILENAME: &str = "schema.json";
@@ -16,7 +16,7 @@ pub(crate) fn fields() -> Vec<SchemaField> {
         SchemaField::new(
             "version_id".to_string(),
             true,
-            false,
+            true,
             false,
             FieldType::String32,
             true,
@@ -28,7 +28,7 @@ pub(crate) fn fields() -> Vec<SchemaField> {
         SchemaField::new(
             "article_id".to_string(),
             true,
-            false,
+            true,
             false,
             FieldType::String32,
             true,
@@ -40,7 +40,7 @@ pub(crate) fn fields() -> Vec<SchemaField> {
         SchemaField::new(
             "comment_id".to_string(),
             true,
-            false,
+            true,
             false,
             FieldType::String32,
             true,

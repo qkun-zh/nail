@@ -5,9 +5,9 @@ use crate::searcher::Searcher;
 use crate::{Error, SearchDoc};
 
 #[tokio::test]
-async fn fresh_open_is_not_a_recreate_and_reopen_keeps_data() {
+async fn fresh_open_reports_recreate_and_reopen_keeps_data() {
     let (index, path) = fresh_index("reopen").await;
-    assert!(!index.was_recreated());
+    assert!(index.was_recreated(), "fresh create must trigger reseed");
     index
         .replace_article("a-1", vec![version_doc("a-1", "v-1", "alpha title")])
         .await

@@ -119,6 +119,21 @@ agent-browser network requests
 14. Version undelete cleared the flag but left `latest_version_id` on an older version.
     `undelete_soft_version` now calls `refresh_live_latest_version`
     (`code/server/src/logic/version.rs`).
+15. Searching `article_id`/`version_id`/`comment_id` ranges always returned zero hits —
+    quotes and dashes were irrelevant. Those schema fields were declared
+    `index_lexical=false`, so no posting lists existed; only `author_id` was indexed.
+    Flipped all three to `index_lexical=true` and bumped `SCHEMA_VERSION`
+    (`code/searcher/src/schema.rs`) so stale indexes are wiped and reseeded on boot.
+    Regression test `dashed_id_ranges_match_exact_documents`
+    (`code/searcher/src/tests/read.rs`). Note: a dashed UUID survives query tokenization
+    intact (only a *leading* `-` means exclude), so exact id lookup works unquoted;
+    prefixes do not match (exact term only).
+16. A first-ever index create (directory absent, e.g. after deleting
+    `data/search`) did not set the `recreated` flag, so the server skipped
+    `sync_all` and served an empty search index until some article was touched.
+    Fresh creates now report recreated like wipe-recreates
+    (`code/searcher/src/searcher.rs`), test renamed to
+    `fresh_open_reports_recreate_and_reopen_keeps_data`.
 
 ## 5.2 Full-database diff verification
 

@@ -32,8 +32,9 @@ impl Searcher {
     /// Opens the index at `path`, or creates it when absent.
     ///
     /// A directory with a corrupt payload or a stale schema marker is wiped
-    /// and recreated empty; [`Self::was_recreated`] then reports true so the
-    /// caller can reseed the content.
+    /// and recreated empty; a fresh create reports recreated as well, so
+    /// [`Self::was_recreated`] is true whenever the opened index is empty
+    /// relative to the source of truth and the caller must reseed content.
     ///
     /// # Errors
     ///
@@ -77,6 +78,7 @@ impl Searcher {
             .await
             .map_err(|error| Error::Engine(format!("create index failed: {error}")))?;
             schema::write_marker(index_path)?;
+            recreated = true;
             index
         } else {
             open_index(index_path)
