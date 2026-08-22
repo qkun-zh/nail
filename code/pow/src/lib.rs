@@ -16,6 +16,9 @@ use uuid::Uuid;
 
 pub const MAX_SOLUTION_HEX_LEN: usize = 4096;
 
+/// Upper bound for VDF difficulty: keeps prove time bounded (~1M iterations).
+pub const MAX_DIFFICULTY: u64 = 1 << 20;
+
 const VDF_OUTPUT_BYTES: usize = 48;
 const VDF_PROOF_BYTES: usize = 48;
 
@@ -89,6 +92,10 @@ fn vdf_verify(raw_input: [u8; 32], difficulty: u64, output: &[u8], proof: &[u8])
 /// Returns an error if the Ascon CXOF cannot be initialized.
 pub fn prove(challenge: &Challenge) -> anyhow::Result<Pow> {
     anyhow::ensure!(challenge.difficulty > 0, "difficulty must be > 0");
+    anyhow::ensure!(
+        challenge.difficulty <= MAX_DIFFICULTY,
+        "difficulty exceeds MAX_DIFFICULTY"
+    );
     let mut nonce = 0u64;
     let input = loop {
         let candidate = cxof_bytes(&challenge.id, nonce)?;
@@ -111,6 +118,9 @@ pub fn prove(challenge: &Challenge) -> anyhow::Result<Pow> {
 #[must_use]
 pub fn verify(pow: &Pow, server_difficulty: u64) -> bool {
     if pow.challenge.difficulty != server_difficulty {
+        return false;
+    }
+    if server_difficulty == 0 || server_difficulty > MAX_DIFFICULTY {
         return false;
     }
     if pow.solution.len() > MAX_SOLUTION_HEX_LEN {
