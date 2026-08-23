@@ -7,7 +7,6 @@ use crate::error::Error;
 use crate::kinds::{EdgeKind, NodeKind, TYPE_KEY, alias_of};
 use crate::node_id::NodeId;
 use crate::row::{ElementLookup, Row};
-use crate::value::Value;
 
 pub(crate) trait QueryReader {
     fn run<T: Query>(&self, query: T) -> Result<QueryResult, DbError>;
@@ -112,7 +111,7 @@ fn kind_filter(
 ) -> WhereLogicOperator<agdb::SearchQuery> {
     where_
         .key(TYPE_KEY.to_string())
-        .value(DbValue::from(Value::Text(kind.key().to_string())))
+        .value(DbValue::from(kind.key().to_string()))
 }
 
 pub(crate) fn outgoing(

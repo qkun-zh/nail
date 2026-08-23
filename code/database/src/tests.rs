@@ -1,7 +1,8 @@
 use std::fs;
 use std::path::PathBuf;
 
-use crate::{Database, EdgeKind, Error, NodeId, NodeKind, Row, Value, ValueLookup};
+use crate::{Database, EdgeKind, Error, NodeId, NodeKind, Row, ValueLookup};
+use agdb::DbValue;
 
 fn memory_database() -> Database {
     Database::open_memory("nail_test", &[]).expect("open memory database")
@@ -29,13 +30,13 @@ impl Row for UserRow {
         &self.id
     }
 
-    fn to_row(&self) -> Vec<(String, Value)> {
+    fn to_row(&self) -> Vec<(String, DbValue)> {
         vec![
-            ("id".to_string(), Value::Text(self.id.clone())),
-            ("name".to_string(), Value::Text(self.name.clone())),
+            ("id".to_string(), DbValue::from(self.id.clone())),
+            ("name".to_string(), DbValue::from(self.name.clone())),
             (
                 "email_address_hash".to_string(),
-                Value::Text(self.email_address_hash.clone()),
+                DbValue::from(self.email_address_hash.clone()),
             ),
         ]
     }
@@ -63,13 +64,16 @@ impl Row for ArticleRow {
         &self.id
     }
 
-    fn to_row(&self) -> Vec<(String, Value)> {
+    fn to_row(&self) -> Vec<(String, DbValue)> {
         let mut values = vec![
-            ("id".to_string(), Value::Text(self.id.clone())),
-            ("title".to_string(), Value::Text(self.title.clone())),
+            ("id".to_string(), DbValue::from(self.id.clone())),
+            ("title".to_string(), DbValue::from(self.title.clone())),
         ];
         if let Some(latest) = &self.latest_version_id {
-            values.push(("latest_version_id".to_string(), Value::Text(latest.clone())));
+            values.push((
+                "latest_version_id".to_string(),
+                DbValue::from(latest.clone()),
+            ));
         }
         values
     }
@@ -423,7 +427,7 @@ fn set_and_clear_key_roundtrip_values() {
         .write(|w| w.insert_node(&user("018f0000-0000-7000-8000-000000000011", "ivan")))
         .expect("insert node");
     database
-        .write(|w| w.set_key(node, "name", Value::Text("ivan-2".to_string())))
+        .write(|w| w.set_key(node, "name", DbValue::from("ivan-2".to_string())))
         .expect("set key");
     let renamed = database
         .read(|r| r.read_node::<UserRow>(node))
@@ -499,4 +503,39 @@ fn open_mapped_ensures_indexes_idempotently() {
         .len();
     assert_eq!(count, 1);
     fs::remove_file(&path).expect("clean up test database file");
+}
+
+#[test]
+fn panicking_write_returns_error_and_rolls_back() {
+    let database = memory_database();
+    let bob_id = "018f0000-0000-7000-8000-000000000015";
+    let inserted = database.write(|w| -> Result<NodeId, Error> {
+        w.insert_node(&user(bob_id, "bob"))?;
+        panic!("logic bug mid transaction");
+    });
+    match inserted {
+        Err(Error::Panic(_)) => {}
+        other => panic!("expected rolled back panic error, got {other:?}"),
+    }
+    let resolved = database
+        .read(|r| r.resolve(NodeKind::User, bob_id))
+        .expect("read after rollback");
+    assert!(resolved.is_none(), "insert must be rolled back");
+    let count = database
+        .read(|r| r.all_nodes(NodeKind::User))
+        .expect("database still usable")
+        .len();
+    assert_eq!(count, 0);
+}
+
+#[test]
+fn panicking_read_returns_error_and_keeps_lock_clean() {
+    let database = memory_database();
+    let result = database.read(|_r| -> Result<Vec<NodeId>, Error> { panic!("reader bug") });
+    assert!(matches!(result, Err(Error::Panic(_))));
+    let count = database
+        .read(|r| r.all_nodes(NodeKind::User))
+        .expect("lock must not stay poisoned")
+        .len();
+    assert_eq!(count, 0);
 }

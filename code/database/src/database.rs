@@ -1,3 +1,5 @@
+use std::any::Any;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
@@ -7,32 +9,17 @@ use crate::error::Error;
 use crate::scope::ReadScope;
 use crate::write::WriteScope;
 
-/// Handle to the graph database. Cheap to clone; share one instance per
-/// process. All access happens inside `read`/`write` closure scopes: write
-/// scopes commit on `Ok` and roll back on `Err`. Scopes are synchronous and
-/// short-lived; do not nest scope calls or hold their guards across awaits.
 #[derive(Clone)]
 pub struct Database {
     inner: Arc<RwLock<DbAny>>,
 }
 
 impl Database {
-    /// Opens an in-memory database (tests and ephemeral data).
-    ///
-    /// # Errors
-    /// Returns [`Error::Storage`] if the engine cannot start and
-    /// [`Error::Storage`] if an index cannot be ensured.
     pub fn open_memory(name: &str, indexes: &[String]) -> Result<Self, Error> {
         let database = DbAny::new_memory(name)?;
         Self::start(database, indexes)
     }
 
-    /// Opens a file-backed database with a write-ahead log. Missing parent
-    /// directories are created.
-    ///
-    /// # Errors
-    /// Returns [`Error::Invalid`] for non-utf8 paths, [`Error::Storage`] if
-    /// the engine cannot start or an index cannot be ensured.
     pub fn open_mapped(path: &Path, indexes: &[String]) -> Result<Self, Error> {
         let filename = path
             .to_str()
@@ -54,44 +41,52 @@ impl Database {
         })
     }
 
-    /// Runs a read-only scope. The closure must not outlive the call.
-    ///
-    /// # Errors
-    /// Returns whatever the closure returns.
     pub fn read<T>(
         &self,
         f: impl FnOnce(&ReadScope<'_, '_>) -> Result<T, Error>,
     ) -> Result<T, Error> {
-        let guard = self.lock_read();
-        guard.transaction(|txn| f(&ReadScope::new(txn)))
+        let guard = self.lock_read()?;
+        guard.transaction(|txn| {
+            catch_unwind(AssertUnwindSafe(|| f(&ReadScope::new(txn))))
+                .unwrap_or_else(|payload| Err(panic_error(&payload)))
+        })
     }
 
-    /// Runs a write scope: commits on `Ok`, rolls back on `Err`.
-    ///
-    /// # Errors
-    /// Returns whatever the closure returns; the write is rolled back in
-    /// that case.
     pub fn write<T>(
         &self,
         f: impl FnOnce(&mut WriteScope<'_, '_>) -> Result<T, Error>,
     ) -> Result<T, Error> {
-        let mut guard = self.lock_write();
-        guard.transaction_mut(|txn| f(&mut WriteScope::new(txn)))
+        let mut guard = self.lock_write()?;
+        guard.transaction_mut(|txn| {
+            catch_unwind(AssertUnwindSafe(|| f(&mut WriteScope::new(txn))))
+                .unwrap_or_else(|payload| Err(panic_error(&payload)))
+        })
     }
 
-    fn lock_read(&self) -> RwLockReadGuard<'_, DbAny> {
-        match self.inner.read() {
-            Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
-        }
+    fn lock_read(&self) -> Result<RwLockReadGuard<'_, DbAny>, Error> {
+        self.inner
+            .read()
+            .map_err(|_| Error::Storage("database lock poisoned by an escaped panic".into()))
     }
 
-    fn lock_write(&self) -> RwLockWriteGuard<'_, DbAny> {
-        match self.inner.write() {
-            Ok(guard) => guard,
-            Err(poisoned) => poisoned.into_inner(),
-        }
+    fn lock_write(&self) -> Result<RwLockWriteGuard<'_, DbAny>, Error> {
+        self.inner
+            .write()
+            .map_err(|_| Error::Storage("database lock poisoned by an escaped panic".into()))
     }
+}
+
+fn panic_error(payload: &Box<dyn Any + Send>) -> Error {
+    let message = if let Some(message) = payload.downcast_ref::<&str>() {
+        (*message).to_string()
+    } else if let Some(message) = payload.downcast_ref::<String>() {
+        message.clone()
+    } else {
+        "non-string panic payload".to_string()
+    };
+    Error::Panic(format!(
+        "database access panicked and was rolled back: {message}"
+    ))
 }
 
 fn ensure_indexes(database: &mut DbAny, indexes: &[String]) -> Result<(), Error> {

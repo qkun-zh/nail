@@ -10,11 +10,7 @@ use crate::read::{
     read_nodes, resolve,
 };
 use crate::row::Row;
-use crate::value::Value;
 
-/// Writable view of the database inside a `Database::write` closure. Has
-/// every read method plus the write primitives; commits on `Ok`, rolls back
-/// on `Err`.
 pub struct WriteScope<'db, 'txn> {
     txn: &'txn mut DbAnyTransactionMut<'db>,
 }
@@ -33,17 +29,11 @@ impl<'db, 'txn> WriteScope<'db, 'txn> {
         values.push((TYPE_KEY, T::KIND.key().to_string()).into());
         values.push((ID_KEY, row.business_id().to_string()).into());
         for (key, value) in row.to_row() {
-            values.push((key.as_str(), agdb::DbValue::from(value)).into());
+            values.push((key.as_str(), value).into());
         }
         values
     }
 
-    /// Inserts a node or replaces an existing one with the same business id.
-    /// Full-row replace semantics: keys present on the stored node but
-    /// absent from the new row are cleared.
-    ///
-    /// # Errors
-    /// Returns [`Error::Storage`] if the underlying queries fail.
     pub fn insert_node<T: Row>(&mut self, row: &T) -> Result<NodeId, Error> {
         let alias = alias_of(T::KIND, row.business_id());
         let existing = resolve(self.reader(), T::KIND, row.business_id())?;
@@ -109,12 +99,6 @@ impl<'db, 'txn> WriteScope<'db, 'txn> {
         Ok(())
     }
 
-    /// Inserts an edge between existing nodes; inserting an edge that
-    /// already exists is a no-op.
-    ///
-    /// # Errors
-    /// Returns [`Error::NotFound`] if either endpoint does not exist and
-    /// [`Error::Storage`] if the insert fails.
     pub fn insert_edge(
         &mut self,
         from_kind: NodeKind,
@@ -150,11 +134,6 @@ impl<'db, 'txn> WriteScope<'db, 'txn> {
         }
     }
 
-    /// Removes the edge between two nodes if present; absent edges are a
-    /// no-op.
-    ///
-    /// # Errors
-    /// Returns [`Error::Storage`] if the underlying queries fail.
     pub fn remove_edge(
         &mut self,
         from: NodeId,
@@ -198,11 +177,6 @@ impl<'db, 'txn> WriteScope<'db, 'txn> {
             .map(|element| element.id))
     }
 
-    /// Removes nodes together with their attached edges. Absent ids are a
-    /// no-op.
-    ///
-    /// # Errors
-    /// Returns [`Error::Storage`] if the removal fails.
     pub fn remove(&mut self, ids: &[NodeId]) -> Result<(), Error> {
         if ids.is_empty() {
             return Ok(());
@@ -213,24 +187,21 @@ impl<'db, 'txn> WriteScope<'db, 'txn> {
         Ok(())
     }
 
-    /// Sets one key on a node (upsert).
-    ///
-    /// # Errors
-    /// Returns [`Error::Storage`] if the write fails.
-    pub fn set_key(&mut self, id: NodeId, key: &str, value: Value) -> Result<(), Error> {
+    pub fn set_key(
+        &mut self,
+        id: NodeId,
+        key: &str,
+        value: impl Into<agdb::DbValue>,
+    ) -> Result<(), Error> {
         self.txn.exec_mut(
             QueryBuilder::insert()
-                .values([[(key, agdb::DbValue::from(value)).into()]])
+                .values([[(key, value.into()).into()]])
                 .ids([id.to_db()])
                 .query(),
         )?;
         Ok(())
     }
 
-    /// Removes one key from a node; absent keys are a no-op.
-    ///
-    /// # Errors
-    /// Returns [`Error::Storage`] if the removal fails.
     pub fn clear_key(&mut self, id: NodeId, key: &str) -> Result<(), Error> {
         self.txn.exec_mut(
             QueryBuilder::remove()
@@ -241,80 +212,38 @@ impl<'db, 'txn> WriteScope<'db, 'txn> {
         Ok(())
     }
 
-    /// Finds a node by an indexed key-value pair. The key must have an
-    /// index ensured at open time. Indexes are global across kinds; callers
-    /// verify the returned node by reading its row.
-    ///
-    /// # Errors
-    /// Returns [`Error::Storage`] if the key has no index or the lookup
-    /// fails.
     pub fn find_by_key(&self, key: &str, value: &str) -> Result<Option<NodeId>, Error> {
         find_by_key(self.reader(), key, value)
     }
 
-    /// Resolves a business id to its node handle via the kind's alias.
-    ///
-    /// # Errors
-    /// Returns [`Error::Storage`] if the alias lookup fails for a reason
-    /// other than absence.
     pub fn resolve(&self, kind: NodeKind, business_id: &str) -> Result<Option<NodeId>, Error> {
         resolve(self.reader(), kind, business_id)
     }
 
-    /// Reads one node as a typed row.
-    ///
-    /// # Errors
-    /// Returns [`Error::Invalid`] if a required row key is missing or has
-    /// the wrong value kind, and [`Error::Storage`] on lookup failure.
     pub fn read_node<T: Row>(&self, id: NodeId) -> Result<Option<T>, Error> {
         Ok(read_nodes::<T>(self.reader(), &[id])?.into_iter().next())
     }
 
-    /// Reads many nodes as typed rows in the given order.
-    ///
-    /// # Errors
-    /// Returns [`Error::NotFound`] if any id does not exist,
-    /// [`Error::Invalid`] for malformed rows, [`Error::Storage`] otherwise.
     pub fn read_nodes<T: Row>(&self, ids: &[NodeId]) -> Result<Vec<T>, Error> {
         read_nodes::<T>(self.reader(), ids)
     }
 
-    /// Lists every node of a kind.
-    ///
-    /// # Errors
-    /// Returns [`Error::Storage`] if the scan fails.
     pub fn all_nodes(&self, kind: NodeKind) -> Result<Vec<NodeId>, Error> {
         all_nodes(self.reader(), kind)
     }
 
-    /// Lists far-endpoint nodes of outgoing edges of an edge kind.
-    ///
-    /// # Errors
-    /// Returns [`Error::Storage`] if the traversal fails.
     pub fn outgoing(&self, from: NodeId, edge_kind: EdgeKind) -> Result<Vec<NodeId>, Error> {
         outgoing(self.reader(), from, edge_kind)
     }
 
-    /// Lists start-node handles of incoming edges of an edge kind.
-    ///
-    /// # Errors
-    /// Returns [`Error::Storage`] if the traversal fails.
     pub fn incoming(&self, to: NodeId, edge_kind: EdgeKind) -> Result<Vec<NodeId>, Error> {
         incoming(self.reader(), to, edge_kind)
     }
 
-    /// Counts outgoing edges of an edge kind.
-    ///
-    /// # Errors
-    /// Returns [`Error::Storage`] if the traversal fails.
     pub fn count_outgoing(&self, from: NodeId, edge_kind: EdgeKind) -> Result<u64, Error> {
         count_outgoing(self.reader(), from, edge_kind)
     }
 
-    /// Counts incoming edges of an edge kind.
-    ///
-    /// # Errors
-    /// Returns [`Error::Storage`] if the traversal fails.
     pub fn count_incoming(&self, to: NodeId, edge_kind: EdgeKind) -> Result<u64, Error> {
         count_incoming(self.reader(), to, edge_kind)
     }

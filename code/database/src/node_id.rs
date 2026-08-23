@@ -2,8 +2,6 @@ use std::fmt;
 
 use agdb::DbId;
 
-/// Opaque handle to a stored node. Valid only inside `database` calls;
-/// the domain-facing identifier is the row's business id.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct NodeId(i64);
 
