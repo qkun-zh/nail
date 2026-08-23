@@ -7,8 +7,6 @@ use crate::error::Error;
 
 pub(crate) const SCHEMA_VERSION: &str = "7";
 const MARKER_FILENAME: &str = "nail_schema_version";
-const META_FILENAME: &str = "meta.json";
-const SCHEMA_FILENAME: &str = "schema.json";
 
 #[allow(clippy::too_many_lines)]
 pub(crate) fn fields() -> Vec<SchemaField> {
@@ -200,29 +198,5 @@ pub(crate) fn read_marker(index_path: &Path) -> Option<String> {
 pub(crate) fn write_marker(index_path: &Path) -> Result<(), Error> {
     fs::create_dir_all(index_path)?;
     fs::write(index_path.join(MARKER_FILENAME), SCHEMA_VERSION)?;
-    Ok(())
-}
-
-pub(crate) fn validate_dir(index_path: &Path) -> Result<(), Error> {
-    let meta_path = index_path.join(META_FILENAME);
-    if meta_path.exists() {
-        let raw = fs::read_to_string(&meta_path)?;
-        if serde_json::from_str::<IndexMetaObject>(&raw).is_err() {
-            return Err(Error::IndexCorrupt(format!(
-                "unreadable {}",
-                meta_path.display()
-            )));
-        }
-    }
-    let schema_path = index_path.join(SCHEMA_FILENAME);
-    if schema_path.exists() {
-        let raw = fs::read_to_string(&schema_path)?;
-        if serde_json::from_str::<Vec<SchemaField>>(&raw).is_err() {
-            return Err(Error::IndexCorrupt(format!(
-                "unreadable {}",
-                schema_path.display()
-            )));
-        }
-    }
     Ok(())
 }

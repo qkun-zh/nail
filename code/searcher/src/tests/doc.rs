@@ -33,7 +33,8 @@ fn sample_comment() -> CommentDoc {
 
 #[test]
 fn version_doc_converts_with_all_fields() {
-    let value = serde_json::to_value(SearchDoc::Version(sample_version()).to_document()).unwrap();
+    let value =
+        serde_json::to_value(SearchDoc::Version(sample_version()).to_document().unwrap()).unwrap();
     assert_eq!(value["version_id"], json!("v-1"));
     assert_eq!(value["article_id"], json!("a-1"));
     assert_eq!(value["version_number"], json!("3"));
@@ -49,14 +50,16 @@ fn version_doc_converts_with_all_fields() {
 
 #[test]
 fn version_doc_has_no_discriminator_or_comment_keys() {
-    let value = serde_json::to_value(SearchDoc::Version(sample_version()).to_document()).unwrap();
+    let value =
+        serde_json::to_value(SearchDoc::Version(sample_version()).to_document().unwrap()).unwrap();
     assert!(value.get("doc_type").is_none());
     assert!(value.get("comment_id").is_none());
 }
 
 #[test]
 fn comment_doc_converts_with_all_fields() {
-    let value = serde_json::to_value(SearchDoc::Comment(sample_comment()).to_document()).unwrap();
+    let value =
+        serde_json::to_value(SearchDoc::Comment(sample_comment()).to_document().unwrap()).unwrap();
     assert_eq!(value["comment_id"], json!("c-1"));
     assert_eq!(value["version_id"], json!("v-1"));
     assert_eq!(value["article_id"], json!("a-1"));
@@ -69,7 +72,8 @@ fn comment_doc_converts_with_all_fields() {
 
 #[test]
 fn comment_doc_has_no_version_only_keys() {
-    let value = serde_json::to_value(SearchDoc::Comment(sample_comment()).to_document()).unwrap();
+    let value =
+        serde_json::to_value(SearchDoc::Comment(sample_comment()).to_document().unwrap()).unwrap();
     assert!(value.get("doc_type").is_none());
     assert!(value.get("title").is_none());
     assert!(value.get("summary").is_none());

@@ -131,29 +131,6 @@ async fn rebuild_wipes_tombstones_and_indexes_only_the_given_set() {
 }
 
 #[tokio::test]
-async fn corrupt_directory_is_healed_and_flagged() {
-    let (index, path) = fresh_index("corrupt").await;
-    index
-        .replace_article("a-1", vec![version_doc("a-1", "v-1", "alpha title")])
-        .await
-        .unwrap();
-    index.close().await;
-    fs::write(path.join("meta.json"), "{not json").unwrap();
-
-    let healed = Searcher::open_or_create(path.to_str().unwrap())
-        .await
-        .unwrap();
-    assert!(healed.was_recreated(), "corrupt dir must be rebuilt");
-    assert_eq!(healed.stats().await.live, 0);
-    healed
-        .replace_article("a-2", vec![version_doc("a-2", "v-2", "beta title")])
-        .await
-        .unwrap();
-    assert_eq!(healed.stats().await.live, 1, "healed index is usable");
-    healed.close().await;
-}
-
-#[tokio::test]
 async fn stale_schema_marker_forces_recreate() {
     let (index, path) = fresh_index("stale_marker").await;
     index

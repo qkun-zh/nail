@@ -13,7 +13,7 @@ use crate::schema;
 
 pub const DEFAULT_SEGMENT_NUMBER_BITS: usize = 11;
 const REBUILD_COMMIT_CHUNK: usize = 1000;
-const ARTICLE_SCAN_LIMIT: usize = 100_000;
+const ARTICLE_PAGE_SIZE: usize = 10_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg(test)]
@@ -30,41 +30,21 @@ pub struct Searcher {
 }
 
 impl Searcher {
-    /// Opens the index at `path`, or creates it when absent.
-    ///
-    /// A directory with a corrupt payload or a stale schema marker is wiped
-    /// and recreated empty; a fresh create reports recreated as well, so
-    /// [`Self::was_recreated`] is true whenever the opened index is empty
-    /// relative to the source of truth and the caller must reseed content.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Io`] for filesystem failures and [`Error::Engine`]
-    /// when the engine cannot create or open the index.
     pub async fn open_or_create(path: &str) -> Result<Self, Error> {
         Self::open_or_create_with_segments(path, DEFAULT_SEGMENT_NUMBER_BITS).await
     }
 
-    /// Same as [`Self::open_or_create`], with an explicit engine segment size
-    /// used at creation time (smaller values speed up tests).
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Io`] for filesystem failures and [`Error::Engine`]
-    /// when the engine cannot create or open the index.
     pub async fn open_or_create_with_segments(
         path: &str,
         segment_number_bits: usize,
     ) -> Result<Self, Error> {
         let index_path = Path::new(path);
         let mut recreated = false;
-        if index_path.exists() {
-            let healthy = schema::validate_dir(index_path).is_ok()
-                && schema::read_marker(index_path).as_deref() == Some(schema::SCHEMA_VERSION);
-            if !healthy {
-                fs::remove_dir_all(index_path)?;
-                recreated = true;
-            }
+        if index_path.exists()
+            && schema::read_marker(index_path).as_deref() != Some(schema::SCHEMA_VERSION)
+        {
+            fs::remove_dir_all(index_path)?;
+            recreated = true;
         }
         let index = if recreated || !index_path.exists() {
             let index = create_index(
@@ -94,15 +74,6 @@ impl Searcher {
         self.recreated
     }
 
-    /// Atomically swaps the complete document set of one article.
-    ///
-    /// An empty document list removes the article from the index. A no-op
-    /// (unknown article, empty list) skips deletion and commit entirely.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Engine`] when any document carries an article id
-    /// different from `article_id`; nothing is written in that case.
     pub async fn replace_article(
         &self,
         article_id: &str,
@@ -113,15 +84,6 @@ impl Searcher {
         Ok(())
     }
 
-    /// Atomically swaps the document sets of many articles with a single
-    /// commit, amortizing the per-commit cost across the whole batch.
-    ///
-    /// Returns the number of articles processed.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Engine`] when any document's own article id differs
-    /// from the key it is filed under; nothing is written in that case.
     pub async fn replace_articles(
         &self,
         batch: Vec<(String, Vec<SearchDoc>)>,
@@ -154,7 +116,7 @@ impl Searcher {
             .iter()
             .flat_map(|(_, documents)| documents.iter())
             .map(SearchDoc::to_document)
-            .collect();
+            .collect::<Result<_, _>>()?;
         if !fresh.is_empty() {
             self.index.index_documents(fresh).await;
             changed = true;
@@ -166,15 +128,6 @@ impl Searcher {
         Ok(batch.len())
     }
 
-    /// Wipes the index (including tombstones) and indexes the given article
-    /// set from scratch, committing in bounded chunks.
-    ///
-    /// Returns the number of documents indexed.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Engine`] when any document's own article id differs
-    /// from the key it is filed under; nothing is written in that case.
     pub async fn rebuild(
         &self,
         articles: impl IntoIterator<Item = (String, Vec<SearchDoc>)>,
@@ -187,7 +140,11 @@ impl Searcher {
         let mut chunk: Vec<Document> = Vec::new();
         for (_, documents) in articles {
             indexed_count += documents.len();
-            chunk.extend(documents.iter().map(SearchDoc::to_document));
+            let documents = documents
+                .iter()
+                .map(SearchDoc::to_document)
+                .collect::<Result<Vec<_>, _>>()?;
+            chunk.extend(documents);
             if chunk.len() >= REBUILD_COMMIT_CHUNK {
                 self.index.index_documents(chunk).await;
                 self.index.commit().await;
@@ -201,8 +158,6 @@ impl Searcher {
         Ok(indexed_count)
     }
 
-    /// Engine-level document counters, visible only inside the crate's own
-    /// tests: tombstone counts are not observable through the public read API.
     #[cfg(test)]
     pub async fn stats(&self) -> Stats {
         let guard = self.index.read().await;
@@ -224,25 +179,33 @@ impl Searcher {
             field: "article_id".to_string(),
             filter: vec![article_id.to_string()],
         }];
-        let result = self
-            .index
-            .search(
-                String::new(),
-                None,
-                QueryType::Union,
-                SearchMode::Lexical,
-                true,
-                0,
-                ARTICLE_SCAN_LIMIT,
-                ResultType::TopkCount,
-                false,
-                Vec::new(),
-                Vec::new(),
-                facet_filter,
-                Vec::new(),
-                QueryRewriting::SearchOnly,
-            )
-            .await;
-        result.results.into_iter().map(|hit| hit.doc_id).collect()
+        let mut doc_ids = Vec::new();
+        loop {
+            let result = self
+                .index
+                .search(
+                    String::new(),
+                    None,
+                    QueryType::Union,
+                    SearchMode::Lexical,
+                    true,
+                    doc_ids.len(),
+                    ARTICLE_PAGE_SIZE,
+                    ResultType::TopkCount,
+                    false,
+                    Vec::new(),
+                    Vec::new(),
+                    facet_filter.clone(),
+                    Vec::new(),
+                    QueryRewriting::SearchOnly,
+                )
+                .await;
+            let page: Vec<usize> = result.results.into_iter().map(|hit| hit.doc_id).collect();
+            let complete = page.len() < ARTICLE_PAGE_SIZE;
+            doc_ids.extend(page);
+            if complete {
+                return doc_ids;
+            }
+        }
     }
 }

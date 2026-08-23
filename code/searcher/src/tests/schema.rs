@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use serde_json::json;
 
-use crate::schema::{SCHEMA_VERSION, fields, meta, read_marker, validate_dir, write_marker};
+use crate::schema::{SCHEMA_VERSION, fields, meta, read_marker, write_marker};
 
 fn scratch_dir(label: &str) -> PathBuf {
     let directory =
@@ -110,56 +110,5 @@ fn marker_roundtrips_version() {
     assert_eq!(read_marker(&directory), None);
     write_marker(&directory).unwrap();
     assert_eq!(read_marker(&directory), Some(SCHEMA_VERSION.to_string()));
-    let _ = fs::remove_dir_all(&directory);
-}
-
-#[test]
-fn validate_dir_accepts_empty_directory() {
-    let directory = scratch_dir("validate_empty");
-    assert!(matches!(validate_dir(&directory), Ok(())));
-    let _ = fs::remove_dir_all(&directory);
-}
-
-#[test]
-fn validate_dir_accepts_wellformed_files() {
-    let directory = scratch_dir("validate_valid");
-    fs::write(
-        directory.join("meta.json"),
-        serde_json::to_string(&meta()).unwrap(),
-    )
-    .unwrap();
-    fs::write(
-        directory.join("schema.json"),
-        serde_json::to_string(&fields()).unwrap(),
-    )
-    .unwrap();
-    assert!(matches!(validate_dir(&directory), Ok(())));
-    let _ = fs::remove_dir_all(&directory);
-}
-
-#[test]
-fn validate_dir_rejects_corrupt_meta() {
-    let directory = scratch_dir("validate_corrupt");
-    fs::write(directory.join("meta.json"), "{not json").unwrap();
-    assert!(matches!(
-        validate_dir(&directory),
-        Err(crate::error::Error::IndexCorrupt(_))
-    ));
-    let _ = fs::remove_dir_all(&directory);
-}
-
-#[test]
-fn validate_dir_rejects_corrupt_schema() {
-    let directory = scratch_dir("validate_corrupt_schema");
-    fs::write(
-        directory.join("meta.json"),
-        serde_json::to_string(&meta()).unwrap(),
-    )
-    .unwrap();
-    fs::write(directory.join("schema.json"), "[{]").unwrap();
-    assert!(matches!(
-        validate_dir(&directory),
-        Err(crate::error::Error::IndexCorrupt(_))
-    ));
     let _ = fs::remove_dir_all(&directory);
 }

@@ -1,6 +1,8 @@
 use seekstorm::index::Document;
-use serde_json::json;
+use serde::Serialize;
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub struct VersionDoc {
     pub version_id: String,
     pub article_id: String,
@@ -15,6 +17,8 @@ pub struct VersionDoc {
     pub ts: i64,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub struct CommentDoc {
     pub comment_id: String,
     pub version_id: String,
@@ -26,6 +30,8 @@ pub struct CommentDoc {
     pub ts: i64,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SearchDoc {
     Version(VersionDoc),
     Comment(CommentDoc),
@@ -40,33 +46,12 @@ impl SearchDoc {
         }
     }
 
-    pub(crate) fn to_document(&self) -> Document {
-        let mut document = Document::new();
-        match self {
-            SearchDoc::Version(version) => {
-                document.insert("version_id".to_string(), json!(version.version_id));
-                document.insert("article_id".to_string(), json!(version.article_id));
-                document.insert("version_number".to_string(), json!(version.version_number));
-                document.insert("title".to_string(), json!(version.title));
-                document.insert("summary".to_string(), json!(version.summary));
-                document.insert("author_name".to_string(), json!(version.author_name));
-                document.insert("author_id".to_string(), json!(version.author_id));
-                document.insert("role".to_string(), json!(version.role));
-                document.insert("note".to_string(), json!(version.note));
-                document.insert("tags".to_string(), json!(version.tags));
-                document.insert("ts".to_string(), json!(version.ts));
-            }
-            SearchDoc::Comment(comment) => {
-                document.insert("comment_id".to_string(), json!(comment.comment_id));
-                document.insert("version_id".to_string(), json!(comment.version_id));
-                document.insert("article_id".to_string(), json!(comment.article_id));
-                document.insert("author_name".to_string(), json!(comment.author_name));
-                document.insert("author_id".to_string(), json!(comment.author_id));
-                document.insert("role".to_string(), json!(comment.role));
-                document.insert("content".to_string(), json!(comment.content));
-                document.insert("ts".to_string(), json!(comment.ts));
-            }
-        }
-        document
+    pub(crate) fn to_document(&self) -> Result<Document, serde_json::Error> {
+        let value = match self {
+            SearchDoc::Version(document) => serde_json::to_value(document)?,
+            SearchDoc::Comment(document) => serde_json::to_value(document)?,
+        };
+        let object = value.as_object().cloned().unwrap_or_default();
+        Ok(object.into_iter().collect())
     }
 }

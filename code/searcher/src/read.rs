@@ -12,8 +12,6 @@ use crate::searcher::Searcher;
 const MAX_DOCS_PER_ARTICLE: usize = 32;
 const HIGHLIGHT_FRAGMENT_SIZE: usize = 4096;
 
-// RF1: the fetch flag must mirror the search flag, otherwise a read racing
-// an in-flight write fails on uncommitted documents.
 const REALTIME: bool = true;
 
 #[derive(Debug, Clone, Default)]
@@ -27,15 +25,6 @@ pub struct SearchRequest {
 }
 
 impl Searcher {
-    /// Executes a search and returns raw document hits.
-    ///
-    /// The hit window is sized `offset + limit * MAX_DOCS_PER_ARTICLE` so the
-    /// caller can group hits by article afterwards; grouping and pagination
-    /// policy live outside this crate.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`Error::Engine`] when a matched document cannot be fetched.
     pub async fn read(&self, request: SearchRequest) -> Result<SearchOutcome, Error> {
         let Some(query) = request.query.filter(|query| !query.trim().is_empty()) else {
             return Ok(SearchOutcome { hits: Vec::new() });
