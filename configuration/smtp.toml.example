@@ -1,9 +1,0 @@
-host = "smtp.qq.com"
-port = 587
-username = "your-account@example.com"
-password = "PASTE_SMTP_AUTHORIZATION_CODE_HERE"
-from_email = "your-account@example.com"
-from_name = "nail"
-timeout_secs = 10
-wall_clock_timeout_secs = 30
-starttls = true

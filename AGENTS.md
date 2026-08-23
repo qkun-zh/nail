@@ -45,7 +45,6 @@ Every response: `{code, data, message}`. Errors propagate with `?`.
 ### Security
 
 - Never write credentials to files, logs, diffs, commits
-- `configuration/smtp.toml` is gitignored; template is `smtp.toml.example`
 - Never commit secrets
 
 ### Version Control

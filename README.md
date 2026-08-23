@@ -71,7 +71,6 @@ Toml under `configuration/`, never hardcoded.
 | `server.toml` | Runtime config | Read at startup |
 | `front.toml` | Compile-time config | `include_str!`, fail fast |
 | `email.toml` | Allowed domains | |
-| `smtp.toml` | Secrets | Gitignored; template `smtp.toml.example` |
 
 Backend serves `/config/read` for the frontend.
 

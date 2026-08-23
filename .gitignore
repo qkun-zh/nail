@@ -10,9 +10,6 @@ data/
 # --- runtime logs (regenerated at startup; never commit) ---
 log/
 
-# --- sensitive configuration (credentials); template: smtp.toml.example ---
-configuration/smtp.toml
-
 # --- github api token for ci log access (never commit) ---
 document/github_token.txt
 
