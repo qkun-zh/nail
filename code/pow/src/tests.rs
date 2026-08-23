@@ -88,8 +88,9 @@ fn prove_nonce_is_reasonably_small_for_low_difficulty() {
         difficulty: 1,
     };
     let pow = prove(&ch).expect("prove");
+    let expected_trials = crate::HASH_MULTIPLIER * ch.difficulty;
     assert!(
-        pow.nonce < 256,
+        pow.nonce < expected_trials * 16,
         "nonce too large for difficulty 1: {}",
         pow.nonce
     );
