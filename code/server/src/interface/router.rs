@@ -35,9 +35,11 @@ pub const ROUTE_ARTICLES_ID_TAGS_TID: &str = "/articles/{id}/tags/{tid}";
 pub fn build_router(state: AppState) -> Router {
     let body_limit = state.config.server.max_request_body_bytes();
 
-    Router::new()
+    let public = Router::new()
         .route(ROUTE_CHALLENGES, post(challenge::create_challenge))
-        .route(ROUTE_CONFIG, get(config::read_config))
+        .route(ROUTE_CONFIG, get(config::read_config));
+
+    let protected = Router::new()
         .route(ROUTE_TOKENS, post(token::create_token))
         .route(ROUTE_USER, get(session::read_session))
         .route(ROUTE_USERS, post(user::create_user))
@@ -95,12 +97,15 @@ pub fn build_router(state: AppState) -> Router {
         .route(ROUTE_TAGS_ID, delete(tag::delete_tag))
         .route(ROUTE_ARTICLES_ID_TAGS_TID, put(tag::apply_tag))
         .route(ROUTE_ARTICLES_ID_TAGS_TID, delete(tag::unapply_tag))
-        .layer(DefaultBodyLimit::max(
-            usize::try_from(body_limit).unwrap_or(usize::MAX),
-        ))
-        .layer(axum::middleware::from_fn_with_state(
+        .route_layer(axum::middleware::from_fn_with_state(
             state.clone(),
             super::pow_layer::require_pow,
+        ));
+
+    public
+        .merge(protected)
+        .layer(DefaultBodyLimit::max(
+            usize::try_from(body_limit).unwrap_or(usize::MAX),
         ))
         .with_state(state)
 }

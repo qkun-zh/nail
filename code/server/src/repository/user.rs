@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use database::{Database, Error, NodeKind, Value};
+use database::{Database, Error, NodeKind};
 
 use crate::repository::access::GraphRead;
 use crate::repository::schema::{KEY_EMAIL_ADDRESS_HASH, KEY_USER_NAME, UserRow};
@@ -119,7 +119,7 @@ pub fn update_user_name(db: &Database, user_id: &str, name: &str) -> Result<(), 
         if taken {
             return Ok(Err(UserWriteError::AlreadyTaken));
         }
-        scope.set_key(id, KEY_USER_NAME, Value::Text(name.to_string()))?;
+        scope.set_key(id, KEY_USER_NAME, name.to_string())?;
         Ok(Ok(()))
     })
     .map_err(UserWriteError::from)
@@ -152,7 +152,7 @@ pub fn update_user_email(
         scope.set_key(
             id,
             KEY_EMAIL_ADDRESS_HASH,
-            Value::Text(new_email_address_hash.to_string()),
+            new_email_address_hash.to_string(),
         )?;
         Ok(Ok(()))
     })

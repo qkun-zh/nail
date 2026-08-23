@@ -1,4 +1,4 @@
-use database::{ID_KEY, NodeKind, Row, Value};
+use database::{DbValue, ID_KEY, NodeKind, Row};
 
 pub const KEY_EMAIL_ADDRESS_HASH: &str = "email_address_hash";
 pub const KEY_USER_NAME: &str = "name";
@@ -13,7 +13,6 @@ pub const KEY_VERSION_NOTE: &str = "note";
 pub const KEY_COMMENT_CONTENT: &str = "content";
 pub const KEY_SOFT_DELETED: &str = "soft_deleted";
 
-/// Indexes ensured at open time; uniqueness lookups rely on them.
 pub const INDEX_KEYS: &[&str] = &[
     KEY_EMAIL_ADDRESS_HASH,
     KEY_USER_NAME,
@@ -24,12 +23,10 @@ pub const INDEX_KEYS: &[&str] = &[
     KEY_PERMISSION_NAME,
 ];
 
-fn text(key: &str, value: &str) -> (String, Value) {
-    (key.to_string(), Value::Text(value.to_string()))
+fn text(key: &str, value: &str) -> (String, DbValue) {
+    (key.to_string(), DbValue::from(value.to_string()))
 }
 
-/// Business-id-only projection readable from any kind. Read-only: never
-/// insert it, so [`Row::KIND`] is never exercised.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IdRow {
     pub id: String,
@@ -42,7 +39,7 @@ impl Row for IdRow {
         &self.id
     }
 
-    fn to_row(&self) -> Vec<(String, Value)> {
+    fn to_row(&self) -> Vec<(String, DbValue)> {
         Vec::new()
     }
 
@@ -67,7 +64,7 @@ impl Row for UserRow {
         &self.id
     }
 
-    fn to_row(&self) -> Vec<(String, Value)> {
+    fn to_row(&self) -> Vec<(String, DbValue)> {
         vec![
             text(KEY_EMAIL_ADDRESS_HASH, &self.email_address_hash),
             text(KEY_USER_NAME, &self.name),
@@ -96,7 +93,7 @@ impl Row for RoleRow {
         &self.id
     }
 
-    fn to_row(&self) -> Vec<(String, Value)> {
+    fn to_row(&self) -> Vec<(String, DbValue)> {
         vec![text(KEY_ROLE_NAME, &self.role_name)]
     }
 
@@ -108,7 +105,6 @@ impl Row for RoleRow {
     }
 }
 
-/// Permission nodes use the permission name as their business id.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PermissionRow {
     pub permission_name: String,
@@ -121,7 +117,7 @@ impl Row for PermissionRow {
         &self.permission_name
     }
 
-    fn to_row(&self) -> Vec<(String, Value)> {
+    fn to_row(&self) -> Vec<(String, DbValue)> {
         vec![text(KEY_PERMISSION_NAME, &self.permission_name)]
     }
 
@@ -147,7 +143,7 @@ impl Row for ArticleRow {
         &self.id
     }
 
-    fn to_row(&self) -> Vec<(String, Value)> {
+    fn to_row(&self) -> Vec<(String, DbValue)> {
         let mut row = vec![
             text(KEY_TITLE, &self.title),
             text(KEY_SUMMARY, &self.summary),
@@ -183,13 +179,13 @@ impl Row for VersionRow {
         &self.id
     }
 
-    fn to_row(&self) -> Vec<(String, Value)> {
+    fn to_row(&self) -> Vec<(String, DbValue)> {
         vec![
             text(KEY_CONTENT_HASH, &self.content_hash),
             text(KEY_VERSION_NOTE, &self.note),
             (
                 "version_number".to_string(),
-                Value::Text(self.version_number.clone()),
+                DbValue::from(self.version_number.clone()),
             ),
         ]
     }
@@ -217,7 +213,7 @@ impl Row for TagRow {
         &self.id
     }
 
-    fn to_row(&self) -> Vec<(String, Value)> {
+    fn to_row(&self) -> Vec<(String, DbValue)> {
         vec![text(KEY_TAG_NAME, &self.tag_name)]
     }
 
@@ -242,7 +238,7 @@ impl Row for CommentRow {
         &self.id
     }
 
-    fn to_row(&self) -> Vec<(String, Value)> {
+    fn to_row(&self) -> Vec<(String, DbValue)> {
         vec![text(KEY_COMMENT_CONTENT, &self.content)]
     }
 

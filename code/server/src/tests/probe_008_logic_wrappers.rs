@@ -62,7 +62,6 @@ async fn soft_deleted_visibility_gated() {
     )
     .expect("art");
     soft_delete_article(&ctx.state.database, &aid).expect("soft delete");
-    // actor without undelete perm sees not_found
     let viewer = crate::repository::user::create_user(
         &ctx.state.database,
         &common::hash::hash(b"viewer@ex.com").expect("hash"),

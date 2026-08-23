@@ -59,10 +59,6 @@ pub struct SearchOutcome {
     pub docs: Vec<SearchDocOutcome>,
 }
 
-/// Thin adapter between the server's graph-backed domain and the standalone
-/// `searcher` crate. All seekstorm knowledge lives behind `searcher`; this
-/// module only converts rows to documents, ranges to search fields, and hits
-/// back to the outcome types the logic layer consumes.
 #[derive(Clone)]
 pub struct Searcher {
     inner: searcher::Searcher,

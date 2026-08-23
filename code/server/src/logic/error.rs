@@ -8,12 +8,17 @@ use crate::repository::version::CreateVersionError;
 
 pub(crate) const MAX_COMMENT_TREE_DEPTH: usize = 64;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum LogicError {
+    #[error("{0}")]
     BadRequest(String),
+    #[error("{0}")]
     Unauthorized(String),
+    #[error("{0}")]
     Forbidden(String),
+    #[error("{0}")]
     NotFound(String),
+    #[error("{0}")]
     Internal(String),
 }
 
@@ -67,14 +72,6 @@ impl LogicError {
         (status, message)
     }
 }
-
-impl std::fmt::Display for LogicError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str(self.message())
-    }
-}
-
-impl std::error::Error for LogicError {}
 
 #[must_use]
 pub fn usize_capped(value: u64) -> usize {

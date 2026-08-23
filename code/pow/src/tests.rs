@@ -8,8 +8,6 @@ fn sample_challenge() -> Challenge {
     }
 }
 
-// ── issue_challenge ──────────────────────────────────────────────────
-
 #[test]
 fn issue_challenge_returns_requested_difficulty() {
     for d in [1, 2, 100, 1000, MAX_DIFFICULTY] {
@@ -25,8 +23,6 @@ fn issue_challenge_generates_distinct_uuids() {
     assert_eq!(a.difficulty, b.difficulty);
 }
 
-// ── Challenge serialization ──────────────────────────────────────────
-
 #[test]
 fn challenge_round_trips_on_the_wire() {
     let challenge = sample_challenge();
@@ -38,8 +34,6 @@ fn challenge_round_trips_on_the_wire() {
     let decoded: Challenge = serde_json::from_str(&json).expect("deserialize");
     assert_eq!(decoded, challenge);
 }
-
-// ── Pow serialization ────────────────────────────────────────────────
 
 #[test]
 fn pow_round_trips_on_the_wire() {
@@ -60,8 +54,6 @@ fn pow_nonce_defaults_to_zero_for_old_payloads() {
     assert_eq!(pow.nonce, 0);
 }
 
-// ── prove: error paths ───────────────────────────────────────────────
-
 #[test]
 fn prove_rejects_difficulty_zero() {
     let ch = Challenge {
@@ -81,8 +73,6 @@ fn prove_rejects_difficulty_above_max() {
     let err = prove(&ch).unwrap_err();
     assert!(err.to_string().contains("MAX_DIFFICULTY"));
 }
-
-// ── prove: happy paths ───────────────────────────────────────────────
 
 #[test]
 fn prove_solution_is_96_byte_hex() {
@@ -150,8 +140,6 @@ fn prove_works_at_max_difficulty() {
     assert_eq!(pow.solution.len(), 192);
 }
 
-// ── verify: happy path ───────────────────────────────────────────────
-
 #[test]
 fn verify_accepts_freshly_proved_pow() {
     let pow = prove(&sample_challenge()).expect("prove");
@@ -179,8 +167,6 @@ fn verify_accepts_at_max_difficulty() {
     let pow = prove(&ch).expect("prove");
     assert!(verify(&pow, MAX_DIFFICULTY));
 }
-
-// ── verify: rejection paths ──────────────────────────────────────────
 
 #[test]
 fn verify_rejects_difficulty_mismatch() {
@@ -280,8 +266,6 @@ fn verify_rejects_random_solution_bytes() {
     assert!(!verify(&pow, 1));
 }
 
-// ── hash_meets_target boundary (indirect) ────────────────────────────
-
 #[test]
 fn prove_nonce_increases_until_target_met() {
     let ch = Challenge {
@@ -308,8 +292,6 @@ fn high_difficulty_requires_higher_nonce() {
     assert!(high.nonce >= low.nonce);
 }
 
-// ── prove then verify round trip ─────────────────────────────────────
-
 #[test]
 fn full_round_trip_various_difficulties() {
     for d in [1, 3, 7, 13, 64, 255, 256, 1000] {
@@ -322,8 +304,6 @@ fn full_round_trip_various_difficulties() {
     }
 }
 
-// ── stress: different challenges, same difficulty ────────────────────
-
 #[test]
 fn ten_proves_at_same_difficulty_all_verify() {
     for _ in 0..10 {
@@ -335,8 +315,6 @@ fn ten_proves_at_same_difficulty_all_verify() {
         assert!(verify(&pow, 50));
     }
 }
-
-// ── solution length invariant ────────────────────────────────────────
 
 #[test]
 fn solution_is_always_96_bytes_hex_encoded() {

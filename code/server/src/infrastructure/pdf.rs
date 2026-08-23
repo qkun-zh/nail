@@ -4,30 +4,19 @@ const TAIL_WINDOW: usize = 1024;
 const HEADER_LEN: usize = 8;
 const MIN_PDF_BYTES: u64 = 10;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum PdfGuardError {
+    #[error("PDF too large: {size} > {max} bytes")]
     TooLarge { size: u64, max: u64 },
+    #[error("PDF too small: {size} bytes")]
     TooSmall { size: u64 },
+    #[error("Invalid PDF header: must start with %PDF-")]
     BadHeader,
+    #[error("Invalid PDF version")]
     BadVersion,
+    #[error("Invalid PDF footer: must end with %%EOF")]
     BadFooter,
 }
-
-impl std::fmt::Display for PdfGuardError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::TooLarge { size, max } => {
-                write!(formatter, "PDF too large: {size} > {max} bytes")
-            }
-            Self::TooSmall { size } => write!(formatter, "PDF too small: {size} bytes"),
-            Self::BadHeader => formatter.write_str("Invalid PDF header: must start with %PDF-"),
-            Self::BadVersion => formatter.write_str("Invalid PDF version"),
-            Self::BadFooter => formatter.write_str("Invalid PDF footer: must end with %%EOF"),
-        }
-    }
-}
-
-impl std::error::Error for PdfGuardError {}
 
 #[derive(Debug)]
 pub struct PdfStreamGuard {

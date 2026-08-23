@@ -42,7 +42,7 @@ pub async fn run_server(config: AppConfig) -> anyhow::Result<()> {
 
     let cache = cache::Cache::new(&config.cache);
 
-    let email_sender = emailer::Emailer::new(&config.emailer);
+    let email_sender = emailer::Emailer::new(&config.emailer)?;
 
     let authorizer = Authorizer::new(database.clone())?;
 

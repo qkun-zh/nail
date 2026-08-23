@@ -3,10 +3,6 @@ use crate::logic::error::LogicError;
 use crate::logic::session::{create_session, read_session};
 use crate::repository::role::ROLE_MEMBER;
 
-// Review-probe tests. Each probe encodes the *expected* correct behavior and
-// currently FAILS (red) against the reviewed source, demonstrating the bug.
-// Once a finding is fixed the probe flips to green.
-
 fn pdf_hash(seed: u8) -> String {
     format!("{seed:x}").repeat(32)
 }
@@ -31,8 +27,6 @@ fn member(context: &TestCtx, email: &str) -> String {
     user_id
 }
 
-// Finding #1 — logic/tag.rs:50-54 slices `tags[offset..offset+limit]` directly;
-// a page past the last one yields start > len and panics (index out of bounds).
 #[test]
 fn probe_1_read_tags_must_not_panic_on_a_far_page() {
     let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -50,10 +44,6 @@ fn probe_1_read_tags_must_not_panic_on_a_far_page() {
     );
 }
 
-// Finding #2 — logic/session.rs:62 keys the delete on the RAW header token,
-// while create (session.rs:32) and read (session.rs:20) key on the normalized
-// token. A token echoed with a different case is accepted by read_session but
-// its delete lookup misses, so the session survives.
 #[tokio::test]
 async fn probe_2_delete_session_with_noncanonical_token_must_remove_the_session() {
     let context = TestCtx::new().await.expect("ctx");
@@ -70,11 +60,6 @@ async fn probe_2_delete_session_with_noncanonical_token_must_remove_the_session(
     );
 }
 
-// Finding #3 — repository/search.rs:241 sizes the fetch window as
-// `offset + limit * MAX_DOCS_PER_ARTICLE` (32 docs/article), but build_documents
-// (document.rs) emits one doc per version plus one per comment with NO per-article
-// cap. A single comment-heavy article can exceed 32 docs, so the window is
-// underestimated and pagination (short pages / wrong has_next) is inaccurate.
 #[tokio::test]
 async fn probe_3_a_comment_heavy_article_exceeds_the_32_doc_per_article_assumption() {
     let context = TestCtx::new().await.expect("ctx");
@@ -119,9 +104,6 @@ async fn probe_3_a_comment_heavy_article_exceeds_the_32_doc_per_article_assumpti
     );
 }
 
-// Finding #4 — logic/download.rs:96-105 consumes the token before checking the
-// version matches the URL. A token minted for version A, mis-targeted at
-// version B, is destroyed; the legitimate version-A download then fails.
 #[tokio::test]
 async fn probe_4_token_must_survive_a_version_mismatch_attempt() {
     let (state, _) = build_state(&test_config(), 0).await.expect("state");

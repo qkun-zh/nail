@@ -1,7 +1,5 @@
 use database::{EdgeKind, Error, NodeId, NodeKind, ReadScope, Row, WriteScope};
 
-/// Uniform read access over both scope types so internal helpers work in
-/// read and write contexts alike.
 pub(crate) trait GraphRead {
     fn scope_resolve(&self, kind: NodeKind, business_id: &str) -> Result<Option<NodeId>, Error>;
 

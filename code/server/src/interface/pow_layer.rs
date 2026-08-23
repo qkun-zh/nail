@@ -1,5 +1,4 @@
 use axum::extract::{Request, State};
-use axum::http::Method;
 use axum::middleware::Next;
 use axum::response::Response;
 use common::pow::Pow;
@@ -15,9 +14,6 @@ pub async fn require_pow(
     request: Request,
     next: Next,
 ) -> Result<Response, ApiError> {
-    if request.method() == Method::POST && request.uri().path() == "/challenges" {
-        return Ok(next.run(request).await);
-    }
     let header = request
         .headers()
         .get(X_POW_HEADER)

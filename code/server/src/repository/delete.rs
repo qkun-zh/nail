@@ -1,4 +1,4 @@
-use database::{Database, EdgeKind, Error, NodeId, NodeKind, Value, WriteScope};
+use database::{Database, DbValue, EdgeKind, Error, NodeId, NodeKind, WriteScope};
 
 use crate::repository::access::GraphRead;
 use crate::repository::schema::{KEY_LATEST_VERSION_ID, KEY_SOFT_DELETED, VersionRow};
@@ -84,12 +84,6 @@ pub fn soft_delete_version(db: &Database, version_id: &str) -> Result<(), Error>
     adjust_soft_delete_count(db, NodeKind::Version, version_id, 1)
 }
 
-/// Recomputes the article's stored `latest_version_id` from its live
-/// (non-soft-deleted) versions. Call after soft-deleting a version that may
-/// have been the stored latest.
-///
-/// # Errors
-/// Returns [`Error`] when storage access fails.
 pub fn refresh_live_latest_version(db: &Database, article_id: &str) -> Result<(), Error> {
     db.write(|scope| {
         let Some(article) = scope.resolve(NodeKind::Article, article_id)? else {
@@ -106,7 +100,7 @@ pub fn refresh_live_latest_version(db: &Database, article_id: &str) -> Result<()
             }
         }
         match highest_version_number(live).map(|row| row.id) {
-            Some(id) => scope.set_key(article, KEY_LATEST_VERSION_ID, Value::Text(id)),
+            Some(id) => scope.set_key(article, KEY_LATEST_VERSION_ID, id),
             None => scope.clear_key(article, KEY_LATEST_VERSION_ID),
         }
     })
@@ -230,11 +224,10 @@ fn adjust_node_counter(
         scope.clear_key(id, KEY_SOFT_DELETED)?;
         return Ok(());
     }
-    scope.set_key(id, KEY_SOFT_DELETED, Value::Int(next))?;
+    scope.set_key(id, KEY_SOFT_DELETED, next)?;
     Ok(())
 }
 
-/// Counter-only projection; every kind carries at most this one metadata key.
 struct CounterRow {
     soft_deleted: Option<i64>,
 }
@@ -246,16 +239,15 @@ impl database::Row for CounterRow {
         ""
     }
 
-    fn to_row(&self) -> Vec<(String, Value)> {
+    fn to_row(&self) -> Vec<(String, DbValue)> {
         Vec::new()
     }
 
     fn from_lookup(lookup: &dyn database::ValueLookup) -> Result<Self, Error> {
         Ok(Self {
-            soft_deleted: lookup.get(KEY_SOFT_DELETED).map(|value| match value {
-                Value::Int(int) => int,
-                Value::Text(_) => 0,
-            }),
+            soft_deleted: lookup
+                .get(KEY_SOFT_DELETED)
+                .and_then(|value| value.to_i64().ok()),
         })
     }
 }
@@ -306,7 +298,7 @@ fn refresh_latest_version_in_scope(
     let rows = scope.scope_read_nodes::<VersionRow>(&versions)?;
     let latest = highest_version_number(rows).map(|row| row.id);
     match latest {
-        Some(id) => scope.set_key(article, KEY_LATEST_VERSION_ID, Value::Text(id)),
+        Some(id) => scope.set_key(article, KEY_LATEST_VERSION_ID, id),
         None => scope.clear_key(article, KEY_LATEST_VERSION_ID),
     }
 }

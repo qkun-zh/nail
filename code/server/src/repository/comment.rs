@@ -388,7 +388,7 @@ pub fn update_comment_content(
         scope.set_key(
             node,
             crate::repository::schema::KEY_COMMENT_CONTENT,
-            database::Value::Text(content.to_string()),
+            content.to_string(),
         )?;
         Ok(true)
     })

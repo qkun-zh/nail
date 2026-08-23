@@ -26,6 +26,8 @@ tracing-appender = "0.2.5"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 uuid = { version = "1.24.0", features = ["serde", "v7"] }
 
+thiserror = "2.0.20"
+
 [dev-dependencies]
 tokio = { version = "1.53.1", features = ["io-util"] }
 tower = { version = "0.5.3", features = ["util"] }

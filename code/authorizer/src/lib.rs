@@ -1,12 +1,7 @@
 //! Standalone authorization crate wrapping Cedar, mirroring `searcher` design.
-//!
-//! Invariants:
 //! - Cedar engine is never exposed; all authorization goes through this API.
-//! - Policy and schema are embedded via `include_str!` and validated once in
 //!   [`Authorizer::new`] with strict validation; failure is a typed error, never a panic.
 //! - Every request is authorized against an explicit `Principal` snapshot and a
-//!   rich `Resource` value; no `Database` dependency, no I/O, no global state.
-//! - Errors are typed ([`Error`]); no `unwrap`, no `expect`, no new panics.
 //! - `Authorizer` is cheaply cloneable (`Arc` inside) and `Send`/`Sync`.
 
 pub mod authorizer;

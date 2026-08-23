@@ -26,10 +26,14 @@ impl AppConfig {
 
     pub fn load_from(directory: &Path) -> Result<Self> {
         let server_content = read_config(directory, "server.toml")?;
+        let table: toml::Table = toml::from_str(&server_content)?;
         let server: ServerConfig = toml::from_str(&server_content)?;
         server.validate()?;
-        let logging_section = extract_section(&server_content, "logging");
-        let logging: LoggingConfig = toml::from_str(&logging_section)?;
+        let logging_section: toml::Value = table
+            .get("logging")
+            .cloned()
+            .context("server.toml is missing the [logging] section")?;
+        let logging: LoggingConfig = logging_section.try_into()?;
         logging.validate()?;
         let emailer = emailer::EmailerConfig::load(directory.join("emailer.toml"))?;
         let cache = cache::CacheConfig::load(directory.join("cache.toml"))?;
@@ -76,17 +80,6 @@ fn read_config(directory: &Path, name: &str) -> Result<String> {
     let path = directory.join(name);
     std::fs::read_to_string(&path)
         .with_context(|| format!("failed to read config file {}", path.display()))
-}
-
-fn extract_section(content: &str, section: &str) -> String {
-    let header = format!("[{section}]");
-    let Some(start) = content.find(&header) else {
-        return String::new();
-    };
-    let after_header = start + header.len();
-    let rest = &content[after_header..];
-    let end = rest.find("\n[").unwrap_or(rest.len());
-    format!("{}\n{}", &rest[..end], header)
 }
 
 fn config_directory() -> Result<PathBuf> {

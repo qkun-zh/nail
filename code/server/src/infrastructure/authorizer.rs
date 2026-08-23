@@ -7,24 +7,15 @@ pub struct Authorizer {
     graph: Database,
 }
 
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum AuthorizationError {
+    #[error("access denied")]
     Denied,
+    #[error("resource not found")]
     ResourceNotFound,
+    #[error("authorization error: {0}")]
     Internal(String),
 }
-
-impl std::fmt::Display for AuthorizationError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Denied => formatter.write_str("access denied"),
-            Self::ResourceNotFound => formatter.write_str("resource not found"),
-            Self::Internal(message) => write!(formatter, "authorization error: {message}"),
-        }
-    }
-}
-
-impl std::error::Error for AuthorizationError {}
 
 impl From<authorizer::Error> for AuthorizationError {
     fn from(error: authorizer::Error) -> Self {

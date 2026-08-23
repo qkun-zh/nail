@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use common::response::NamedRef;
-use database::{Database, EdgeKind, Error, NodeId, NodeKind, Value, WriteScope};
+use database::{Database, EdgeKind, Error, NodeId, NodeKind, WriteScope};
 
 use crate::repository::access::GraphRead;
 use crate::repository::delete::{has_soft_deleted_flag, highest_version_number};
@@ -197,8 +197,8 @@ pub fn update_article(
             return Ok(Err(UpdateArticleError::TitleTaken));
         }
 
-        scope.set_key(article, KEY_TITLE, Value::Text(update.title.clone()))?;
-        scope.set_key(article, KEY_SUMMARY, Value::Text(update.summary.clone()))?;
+        scope.set_key(article, KEY_TITLE, update.title.clone())?;
+        scope.set_key(article, KEY_SUMMARY, update.summary.clone())?;
 
         let old_edges = scope.outgoing(article, EdgeKind::ArticleApplyTag)?;
         let old_ids: HashSet<NodeId> = old_edges.iter().copied().collect();

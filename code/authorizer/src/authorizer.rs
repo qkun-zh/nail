@@ -23,12 +23,6 @@ pub struct Authorizer {
 }
 
 impl Authorizer {
-    /// Creates a validated authorizer. Parses the embedded policy and schema
-    /// once; strict validation failure is an `Internal` error.
-    ///
-    /// # Errors
-    /// Returns `Error::Internal` when the embedded policy or schema is malformed
-    /// or the policy does not validate against the schema.
     pub fn new() -> Result<Self, Error> {
         let policies = POLICY
             .parse::<PolicySet>()
@@ -52,12 +46,6 @@ impl Authorizer {
         })
     }
 
-    /// Authorizes `principal` performing `action` on `resource`.
-    ///
-    /// # Errors
-    /// Returns `Error::Denied` for a Cedar `Deny`, `Error::NotFound` is never
-    /// produced here (resource existence is the adapter's concern), and
-    /// `Error::Internal` for malformed UIDs or Cedar construction failures.
     pub fn authorize(
         &self,
         principal: &Principal,
@@ -225,41 +213,42 @@ fn build_resource(resource: &Resource) -> Result<(EntityUid, Vec<Entity>), Error
     }
 }
 
-fn parse_uid(text: &str) -> Result<EntityUid, Error> {
+fn parse_uid(entity_type: &str, id: &str) -> Result<EntityUid, Error> {
+    let text = format!("{entity_type}::\"{id}\"");
     text.parse::<EntityUid>()
         .map_err(|error| Error::Internal(format!("invalid entity uid {text:?}: {error}")))
 }
 
 fn user_uid(user_id: &str) -> Result<EntityUid, Error> {
-    parse_uid(&format!("{CEDAR_ENTITY_USER}::\"{user_id}\""))
+    parse_uid(CEDAR_ENTITY_USER, user_id)
 }
 
 fn role_uid(role_name: &str) -> Result<EntityUid, Error> {
-    parse_uid(&format!("{CEDAR_ENTITY_ROLE}::\"{role_name}\""))
+    parse_uid(CEDAR_ENTITY_ROLE, role_name)
 }
 
 fn action_uid(action: &str) -> Result<EntityUid, Error> {
-    parse_uid(&format!("Action::\"{action}\""))
+    parse_uid("Action", action)
 }
 
 fn article_uid(article_id: &str) -> Result<EntityUid, Error> {
-    parse_uid(&format!("{CEDAR_ENTITY_ARTICLE}::\"{article_id}\""))
+    parse_uid(CEDAR_ENTITY_ARTICLE, article_id)
 }
 
 fn version_uid(version_id: &str) -> Result<EntityUid, Error> {
-    parse_uid(&format!("{CEDAR_ENTITY_VERSION}::\"{version_id}\""))
+    parse_uid(CEDAR_ENTITY_VERSION, version_id)
 }
 
 fn comment_uid(comment_id: &str) -> Result<EntityUid, Error> {
-    parse_uid(&format!("{CEDAR_ENTITY_COMMENT}::\"{comment_id}\""))
+    parse_uid(CEDAR_ENTITY_COMMENT, comment_id)
 }
 
 fn tag_uid(tag_id: &str) -> Result<EntityUid, Error> {
-    parse_uid(&format!("{CEDAR_ENTITY_TAG}::\"{tag_id}\""))
+    parse_uid(CEDAR_ENTITY_TAG, tag_id)
 }
 
 fn virtual_uid(name: &str) -> Result<EntityUid, Error> {
-    parse_uid(&format!("{CEDAR_ENTITY_VIRTUAL}::\"{name}\""))
+    parse_uid(CEDAR_ENTITY_VIRTUAL, name)
 }
 
 fn expression(text: &str) -> Result<RestrictedExpression, Error> {

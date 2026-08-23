@@ -64,8 +64,6 @@ async fn non_owner_without_grant_deny() {
     )
     .expect("user");
     crate::repository::role::hold_role(&ctx.state.database, &outsider, "member").expect("hold");
-    // outsider has Article::Read via member? Actually member has read in seed? Need a clean member without read – create fresh role
-    // For baseline, ensure outsider holds no role that grants read: use fresh user with no roles
     let no_role = crate::repository::user::create_user(
         &ctx.state.database,
         &common::hash::hash(b"noread@ex.com").expect("hash"),

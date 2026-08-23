@@ -6,6 +6,7 @@ pub mod smtp;
 use std::future::Future;
 use std::path::Path;
 use std::pin::Pin;
+use std::str::FromStr;
 use std::sync::Arc;
 
 pub use config::EmailerConfig;
@@ -47,20 +48,14 @@ impl Clone for Emailer {
 }
 
 impl Emailer {
-    /// Load configuration from a TOML file and build an [`Emailer`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the file cannot be read, parsed, or validated.
     pub fn load(path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let config = EmailerConfig::load(path)?;
-        Ok(Self::new(&config))
+        Self::new(&config)
     }
 
-    #[must_use]
-    pub fn new(config: &EmailerConfig) -> Self {
-        let sender = Arc::new(smtp::SmtpClient::new(config.clone()));
-        Self::build(sender, config)
+    pub fn new(config: &EmailerConfig) -> anyhow::Result<Self> {
+        let sender = smtp::SmtpClient::new(config)?;
+        Ok(Self::build(Arc::new(sender), config))
     }
 
     #[must_use]
@@ -68,13 +63,6 @@ impl Emailer {
         Self::build(sender, config)
     }
 
-    /// Send an email and return its id.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`SendEmailError::RateLimited`] if global or per-recipient
-    /// rate limits are exceeded, or [`SendEmailError::Transport`] on
-    /// SMTP failure.
     pub async fn send(&self, to_where: &str, send_what: &str) -> Result<String, SendEmailError> {
         self.gc();
 
@@ -95,11 +83,6 @@ impl Emailer {
         Ok(email_id)
     }
 
-    /// Evict stale entries from the per-recipient rate limiter.
-    ///
-    /// Keys whose rate-limiting state is indistinguishable from a fresh
-    /// state (i.e. the cooldown has fully elapsed) are removed.
-    /// Call periodically to prevent unbounded memory growth.
     pub fn gc(&self) {
         if let Some(ref pr) = self.per_recipient {
             pr.retain_recent();
@@ -107,13 +90,11 @@ impl Emailer {
         }
     }
 
-    /// Return the number of live keys in the per-recipient rate limiter.
     #[must_use]
     pub fn len(&self) -> usize {
         self.per_recipient.as_ref().map_or(0, |pr| pr.len())
     }
 
-    /// Return `true` if the per-recipient rate limiter has no live keys.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.per_recipient.as_ref().is_none_or(|pr| pr.is_empty())
@@ -145,9 +126,9 @@ fn validate_email(email: &str) -> Result<(), SendEmailError> {
             trimmed.len(),
         )));
     }
-    if !trimmed.contains('@') {
+    if lettre::message::Mailbox::from_str(trimmed).is_err() {
         return Err(SendEmailError::Validation(
-            "recipient address must contain '@'".into(),
+            "recipient address is not a valid email address".into(),
         ));
     }
     Ok(())
@@ -244,8 +225,6 @@ mod tests {
         }
     }
 
-    // --- validate_email ---
-
     #[test]
     fn reject_empty_email() {
         assert!(validate_email("").is_err());
@@ -269,8 +248,6 @@ mod tests {
         assert!(validate_email(" a@b.c ").is_ok());
     }
 
-    // --- validate_body ---
-
     #[test]
     fn reject_empty_body() {
         assert!(validate_body("").is_err());
@@ -288,8 +265,6 @@ mod tests {
         assert!(validate_body(&"x".repeat(MAX_BODY_BYTES)).is_ok());
     }
 
-    // --- SendEmailError display ---
-
     #[test]
     fn error_display() {
         assert_eq!(SendEmailError::RateLimited.to_string(), "rate limited");
@@ -304,8 +279,6 @@ mod tests {
                 .contains("smtp")
         );
     }
-
-    // --- send with mock ---
 
     #[tokio::test]
     async fn send_returns_email_id() {
@@ -324,8 +297,6 @@ mod tests {
         assert!(matches!(err, SendEmailError::Transport(_)));
     }
 
-    // --- validation blocks before rate limit ---
-
     #[tokio::test]
     async fn invalid_input_does_not_consume_rate_limit() {
         let sender = Arc::new(MockSender::new());
@@ -335,8 +306,6 @@ mod tests {
         assert!(emailer.send("ok@x.com", "").await.is_err());
         assert_eq!(emailer.len(), 0);
     }
-
-    // --- rate limiting ---
 
     #[tokio::test]
     async fn per_recipient_rate_limit() {
@@ -366,8 +335,6 @@ mod tests {
         assert!(emailer.send("b@x.com", "m2").await.is_ok());
         assert_eq!(emailer.len(), 2);
     }
-
-    // --- gc ---
 
     #[tokio::test]
     async fn gc_removes_stale_entries() {
@@ -418,16 +385,12 @@ mod tests {
         assert!(emailer.is_empty());
     }
 
-    // --- len / is_empty ---
-
     #[test]
     fn len_is_zero_when_no_limiter() {
         let emailer = Emailer::with_sender(Arc::new(MockSender::new()), &test_config());
         assert_eq!(emailer.len(), 0);
         assert!(emailer.is_empty());
     }
-
-    // --- config disabled limiters ---
 
     #[tokio::test]
     async fn zero_cooldown_allows_burst() {

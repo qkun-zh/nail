@@ -25,10 +25,6 @@ pub fn build_global(max_per_minute: u32) -> Option<GlobalLimiter> {
     Some(RateLimiter::direct(Quota::per_minute(n)))
 }
 
-/// # Panics
-///
-/// Panics only if `Duration::from_secs(1)` is rejected by `Quota::with_period`,
-/// which cannot happen.
 #[must_use]
 pub fn build_per_recipient(cooldown_secs: u64) -> Option<PerRecipientLimiter> {
     if cooldown_secs == 0 {

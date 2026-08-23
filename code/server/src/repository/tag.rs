@@ -1,5 +1,5 @@
 use common::response::NamedRef;
-use database::{Database, EdgeKind, Error, NodeKind, Value};
+use database::{Database, EdgeKind, Error, NodeKind};
 
 use crate::repository::access::GraphRead;
 use crate::repository::schema::{KEY_TAG_NAME, TagRow};
@@ -102,7 +102,7 @@ pub fn update_tag(db: &Database, tag_id: &str, new_name: &str) -> Result<(), Err
         let Some(db_id) = scope.resolve(NodeKind::Tag, tag_id)? else {
             return Ok(());
         };
-        scope.set_key(db_id, KEY_TAG_NAME, Value::Text(new_name.to_string()))?;
+        scope.set_key(db_id, KEY_TAG_NAME, new_name.to_string())?;
         Ok(())
     })
 }

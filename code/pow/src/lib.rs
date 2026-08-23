@@ -1,9 +1,3 @@
-//! Proof-of-work primitives: issue challenges, produce proofs, verify them.
-//!
-//! This crate is stateless. Challenge storage (issue tracking, single-use
-//! enforcement) belongs to the caller; this crate only derives and checks
-//! VDF proofs bound to a challenge id.
-
 use anyhow::Context;
 use ascon_xof128::{AsconCxof128, ExtendableOutput, TryCustomizedInit, Update, XofReader};
 use pso_vdf::{
@@ -14,9 +8,6 @@ use pso_vdf::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub const MAX_SOLUTION_HEX_LEN: usize = 4096;
-
-/// Upper bound for VDF difficulty: keeps prove time bounded (~8s native).
 pub const MAX_DIFFICULTY: u64 = 160_000;
 
 const VDF_OUTPUT_BYTES: usize = 48;
@@ -44,25 +35,25 @@ pub fn issue_challenge(difficulty: u64) -> Challenge {
     }
 }
 
+/// Expected hash trials per proof is `HASH_MULTIPLIER * difficulty`.
+/// Tuning this only changes the parallel search layer; VDF iterations
+/// remain bound to `difficulty` alone.
 const HASH_MULTIPLIER: u64 = 64;
 
 fn hash_meets_target(bytes: &[u8; 32], difficulty: u64) -> bool {
     if difficulty == 0 {
         return true;
     }
-    let scalar = u128::from(difficulty.saturating_mul(HASH_MULTIPLIER).max(1));
+    let scalar = u128::from(difficulty) * u128::from(HASH_MULTIPLIER);
     let hash_prefix = u128::from_be_bytes(bytes[0..16].try_into().unwrap_or([0xff; 16]));
     let threshold = u128::MAX / scalar;
     hash_prefix < threshold
 }
 
 fn cxof_bytes(challenge_id: &Uuid, nonce: u64) -> anyhow::Result<[u8; 32]> {
-    let mut nonce_custom = Vec::with_capacity(challenge_id.as_bytes().len() + 8);
-    nonce_custom.extend_from_slice(challenge_id.as_bytes());
-    nonce_custom.extend_from_slice(&nonce.to_le_bytes());
-    let mut cxof =
-        AsconCxof128::try_new_customized(&nonce_custom).context("failed to init Ascon CXOF")?;
-    cxof.update(challenge_id.as_bytes());
+    let mut cxof = AsconCxof128::try_new_customized(challenge_id.as_bytes())
+        .context("failed to init Ascon CXOF")?;
+    cxof.update(&nonce.to_le_bytes());
     let mut output = [0u8; 32];
     cxof.finalize_xof().read(&mut output);
     Ok(output)
@@ -86,10 +77,6 @@ fn vdf_verify(raw_input: [u8; 32], difficulty: u64, output: &[u8], proof: &[u8])
     MinRootVdf::verify(&input, &output_obj, &proof_obj, difficulty)
 }
 
-/// Produces a proof-of-work [`Pow`] for a challenge.
-///
-/// # Errors
-/// Returns an error if the Ascon CXOF cannot be initialized.
 pub fn prove(challenge: &Challenge) -> anyhow::Result<Pow> {
     anyhow::ensure!(challenge.difficulty > 0, "difficulty must be > 0");
     anyhow::ensure!(
@@ -123,15 +110,12 @@ pub fn verify(pow: &Pow, server_difficulty: u64) -> bool {
     if server_difficulty == 0 || server_difficulty > MAX_DIFFICULTY {
         return false;
     }
-    if pow.solution.len() > MAX_SOLUTION_HEX_LEN {
+    if pow.solution.len() != 2 * (VDF_OUTPUT_BYTES + VDF_PROOF_BYTES) {
         return false;
     }
     let Ok(bytes) = hex::decode(&pow.solution) else {
         return false;
     };
-    if bytes.len() != VDF_OUTPUT_BYTES + VDF_PROOF_BYTES {
-        return false;
-    }
     let Ok(input) = cxof_bytes(&pow.challenge.id, pow.nonce) else {
         return false;
     };

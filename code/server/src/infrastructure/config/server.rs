@@ -41,7 +41,13 @@ impl ServerConfig {
         if self.max_text_field_bytes > self.max_pdf_size_bytes {
             bail!("config: max_text_field_bytes must not exceed max_pdf_size_bytes");
         }
-        if self.user_zero_email.trim().is_empty() || !self.user_zero_email.contains('@') {
+        if self.user_zero_email.trim().is_empty()
+            || email_address::EmailAddress::parse_with_options(
+                &self.user_zero_email,
+                email_address::Options::default(),
+            )
+            .is_err()
+        {
             bail!("config: user_zero_email must be a valid email address");
         }
         if !(1..=10_000).contains(&self.pow_difficulty_iterations) {

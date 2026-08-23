@@ -1,4 +1,4 @@
-use database::{Database, EdgeKind, Error, NodeKind, Value};
+use database::{Database, EdgeKind, Error, NodeKind};
 use semver::Version;
 
 use crate::repository::access::GraphRead;
@@ -116,11 +116,7 @@ pub fn create_version(
             NodeKind::Version,
             version_node,
         )?;
-        scope.set_key(
-            article,
-            KEY_LATEST_VERSION_ID,
-            Value::Text(draft.version_id.clone()),
-        )?;
+        scope.set_key(article, KEY_LATEST_VERSION_ID, draft.version_id.clone())?;
         Ok(Ok(()))
     })
     .map_err(CreateVersionError::from)
@@ -153,7 +149,7 @@ pub fn update_version(db: &Database, version_id: &str, note: &str) -> Result<(),
         if has_soft_deleted_flag(scope, id)? {
             return Ok(());
         }
-        scope.set_key(id, KEY_VERSION_NOTE, Value::Text(note.to_string()))?;
+        scope.set_key(id, KEY_VERSION_NOTE, note.to_string())?;
         Ok(())
     })
 }
