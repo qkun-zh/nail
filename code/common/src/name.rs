@@ -5,12 +5,6 @@ use std::fmt;
 
 pub const MAX_NAME_CHAR_COUNT: usize = 32;
 
-/// Validates and trims a user name.
-///
-/// # Errors
-/// Returns [`NameError::Empty`] if blank, [`NameError::TooLong`] if it exceeds
-/// [`MAX_NAME_CHAR_COUNT`], or [`NameError::ContainsForbiddenChar`] for an
-/// invalid character.
 pub fn validate_name(raw_name: &str) -> Result<String, NameError> {
     validate_with_policy::<NameError, _>(raw_name, MAX_NAME_CHAR_COUNT, &AlphanumericDashUnderscore)
 }

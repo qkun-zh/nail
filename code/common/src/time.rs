@@ -21,10 +21,6 @@ pub fn uuidv7_secs_or_zero(id: &str) -> u64 {
     uuidv7_timestamp_secs(id).unwrap_or(0)
 }
 
-/// Returns the current time as milliseconds since the Unix epoch.
-///
-/// # Errors
-/// Returns an error if the system clock predates the Unix epoch.
 pub fn now_ms() -> Result<u64, std::time::SystemTimeError> {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -51,11 +47,6 @@ fn uuidv7_for_ms(millis: u64, fill: u8) -> String {
     Uuid::from_bytes(bytes).hyphenated().to_string()
 }
 
-/// Formats a UTC-millis timestamp as RFC 3339 in a given UTC offset.
-///
-/// # Errors
-/// Returns an error if the offset is invalid, the timestamp is out of range,
-/// or formatting fails.
 pub fn format_rfc3339_with_offset(utc_ms: u64, offset_seconds: i32) -> anyhow::Result<String> {
     use time::format_description::well_known::Rfc3339;
     use time::{OffsetDateTime, UtcOffset};
@@ -65,103 +56,28 @@ pub fn format_rfc3339_with_offset(utc_ms: u64, offset_seconds: i32) -> anyhow::R
     Ok(datetime.format(&Rfc3339)?)
 }
 
-/// Formats a UTC-millis timestamp as RFC 3339 in UTC.
-///
-/// # Errors
-/// Returns an error if the timestamp is out of range or formatting fails.
 pub fn format_rfc3339_utc(utc_ms: u64) -> anyhow::Result<String> {
     format_rfc3339_with_offset(utc_ms, 0)
 }
 
 #[must_use]
 pub fn parse_iso8601_utc_secs(input: &str) -> Option<i64> {
+    use time::format_description::well_known::Iso8601;
+    use time::{Date, OffsetDateTime, PrimitiveDateTime, UtcOffset};
     let trimmed = input.trim();
     if trimmed.is_empty() {
         return None;
     }
-    let (body, offset) = split_timezone(trimmed)?;
-    let (date_part, time_part) = match body.split_once('T') {
-        Some((date, time)) => (date, Some(time)),
-        None => (body.as_str(), None),
-    };
-    let mut date_parts = date_part.split('-');
-    let year_raw = date_parts.next()?;
-    let month_raw = date_parts.next().unwrap_or("01");
-    let day_raw = date_parts.next().unwrap_or("01");
-    if year_raw.len() != 4 || month_raw.len() != 2 || day_raw.len() != 2 {
-        return None;
+    if let Ok(datetime) = OffsetDateTime::parse(trimmed, &Iso8601::DEFAULT) {
+        return Some(datetime.to_offset(UtcOffset::UTC).unix_timestamp());
     }
-    let year: i32 = year_raw.parse().ok()?;
-    let month: u8 = month_raw.parse().ok()?;
-    let day: u8 = day_raw.parse().ok()?;
-    let (hour, minute, second) = match time_part {
-        None => (0, 0, 0),
-        Some(time) => {
-            let mut time_parts = time.split(':');
-            let hour: u8 = time_parts.next()?.parse().ok()?;
-            let minute: u8 = time_parts.next().unwrap_or("0").parse().ok()?;
-            let second: u8 = time_parts.next().unwrap_or("0").parse().ok()?;
-            (hour, minute, second)
-        }
-    };
-    let month = time::Month::try_from(month).ok()?;
-    let date = time::Date::from_calendar_date(year, month, day).ok()?;
-    let time = time::Time::from_hms(hour, minute, second).ok()?;
-    let datetime = time::PrimitiveDateTime::new(date, time);
-    let utc = match offset {
-        Some(offset) => datetime
-            .assume_offset(offset)
-            .to_offset(time::UtcOffset::UTC),
-        None => datetime.assume_utc(),
-    };
-    Some(utc.unix_timestamp())
-}
-
-fn split_timezone(input: &str) -> Option<(String, Option<time::UtcOffset>)> {
-    if let Some(rest) = input.strip_suffix('Z').or_else(|| input.strip_suffix('z')) {
-        return Some((rest.to_string(), None));
+    if let Ok(datetime) = PrimitiveDateTime::parse(trimmed, &Iso8601::DEFAULT) {
+        return Some(datetime.assume_utc().unix_timestamp());
     }
-    let Some((date_part, time_part)) = input.split_once('T') else {
-        return Some((input.to_string(), None));
-    };
-    let timezone_index = time_part.rfind('+').or_else(|| time_part.rfind('-'));
-    let Some(index) = timezone_index else {
-        return Some((input.to_string(), None));
-    };
-    let sign = if time_part.as_bytes()[index] == b'+' {
-        1
-    } else {
-        -1
-    };
-    let tail = &time_part[index + 1..];
-    let (hours, minutes) = parse_offset_parts(tail)?;
-    if !(0..=23).contains(&hours) || !(0..=59).contains(&minutes) {
-        return None;
+    if let Ok(date) = Date::parse(trimmed, &Iso8601::DEFAULT) {
+        return Some(date.midnight().assume_utc().unix_timestamp());
     }
-    let offset = time::UtcOffset::from_hms(sign * hours, sign * minutes, 0).ok()?;
-    let body = format!("{}T{}", date_part, &time_part[..index]);
-    Some((body, Some(offset)))
-}
-
-fn parse_offset_parts(tail: &str) -> Option<(i8, i8)> {
-    match tail.len() {
-        2 => {
-            let hours = tail.parse::<i8>().ok()?;
-            Some((hours, 0))
-        }
-        4 => {
-            let hours = tail[..2].parse::<i8>().ok()?;
-            let minutes = tail[2..].parse::<i8>().ok()?;
-            Some((hours, minutes))
-        }
-        5 => {
-            let (hour_part, minute_part) = tail.split_once(':')?;
-            let hours = hour_part.parse::<i8>().ok()?;
-            let minutes = minute_part.parse::<i8>().ok()?;
-            Some((hours, minutes))
-        }
-        _ => None,
-    }
+    None
 }
 
 #[cfg(test)]

@@ -3,11 +3,6 @@ use crate::validate::ValidationError;
 use crate::validate::validate_with_policy;
 use std::fmt;
 
-/// Validates and trims printable-ASCII text.
-///
-/// # Errors
-/// Returns [`TextError::Empty`] if blank, [`TextError::TooLong`] if it exceeds
-/// `max_chars`, or [`TextError::ContainsForbiddenChar`] for a forbidden character.
 pub fn validate_ascii_text(
     raw: &str,
     max_chars: usize,

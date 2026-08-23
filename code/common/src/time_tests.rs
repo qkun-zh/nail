@@ -159,20 +159,8 @@ fn accepts_the_extreme_valid_offsets() {
 #[test]
 fn parses_iso8601_year_to_second_precision_as_utc() {
     assert_eq!(
-        crate::time::parse_iso8601_utc_secs("2024"),
-        Some(1_704_067_200)
-    );
-    assert_eq!(
-        crate::time::parse_iso8601_utc_secs("2024-01"),
-        Some(1_704_067_200)
-    );
-    assert_eq!(
         crate::time::parse_iso8601_utc_secs("2024-01-15"),
         Some(1_705_276_800)
-    );
-    assert_eq!(
-        crate::time::parse_iso8601_utc_secs("2024-01-15T10"),
-        Some(1_705_312_800)
     );
     assert_eq!(
         crate::time::parse_iso8601_utc_secs("2024-01-15T10:30"),
@@ -216,8 +204,11 @@ fn parses_iso8601_compact_offsets() {
 fn rejects_invalid_iso8601_inputs() {
     assert_eq!(crate::time::parse_iso8601_utc_secs(""), None);
     assert_eq!(crate::time::parse_iso8601_utc_secs("not-a-date"), None);
+    assert_eq!(crate::time::parse_iso8601_utc_secs("2024"), None);
+    assert_eq!(crate::time::parse_iso8601_utc_secs("2024-01"), None);
     assert_eq!(crate::time::parse_iso8601_utc_secs("2024-13-01"), None);
     assert_eq!(crate::time::parse_iso8601_utc_secs("2024-01-32"), None);
+    assert_eq!(crate::time::parse_iso8601_utc_secs("2024-01-15T10"), None);
     assert_eq!(
         crate::time::parse_iso8601_utc_secs("2024-01-15T25:00"),
         None

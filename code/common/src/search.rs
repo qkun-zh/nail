@@ -1,9 +1,7 @@
-use serde::de::{self, Deserializer, Visitor};
-use serde::{Deserialize, Serialize, Serializer};
-use std::fmt;
 use std::str::FromStr;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SearchRange {
     Title,
     Summary,
@@ -20,6 +18,21 @@ pub enum SearchRange {
 }
 
 impl SearchRange {
+    pub const ALL: [SearchRange; 12] = [
+        SearchRange::Title,
+        SearchRange::Summary,
+        SearchRange::AuthorName,
+        SearchRange::Comment,
+        SearchRange::Note,
+        SearchRange::Tag,
+        SearchRange::VersionNumber,
+        SearchRange::ArticleId,
+        SearchRange::VersionId,
+        SearchRange::CommentId,
+        SearchRange::AuthorId,
+        SearchRange::Role,
+    ];
+
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
@@ -61,47 +74,10 @@ impl FromStr for SearchRange {
     type Err = String;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value {
-            "title" => Ok(SearchRange::Title),
-            "summary" => Ok(SearchRange::Summary),
-            "author_name" => Ok(SearchRange::AuthorName),
-            "comment" => Ok(SearchRange::Comment),
-            "note" => Ok(SearchRange::Note),
-            "tag" => Ok(SearchRange::Tag),
-            "version_number" => Ok(SearchRange::VersionNumber),
-            "article_id" => Ok(SearchRange::ArticleId),
-            "version_id" => Ok(SearchRange::VersionId),
-            "comment_id" => Ok(SearchRange::CommentId),
-            "author_id" => Ok(SearchRange::AuthorId),
-            "role" => Ok(SearchRange::Role),
-            _ => Err(format!("unknown search range: {value}")),
-        }
-    }
-}
-
-impl Serialize for SearchRange {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(self.as_str())
-    }
-}
-
-impl<'de> Deserialize<'de> for SearchRange {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        struct SearchRangeVisitor;
-
-        impl Visitor<'_> for SearchRangeVisitor {
-            type Value = SearchRange;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("a search range string")
-            }
-
-            fn visit_str<E: de::Error>(self, value: &str) -> Result<Self::Value, E> {
-                value.parse().map_err(E::custom)
-            }
-        }
-
-        deserializer.deserialize_str(SearchRangeVisitor)
+        Self::ALL
+            .into_iter()
+            .find(|range| range.as_str() == value)
+            .ok_or_else(|| format!("unknown search range: {value}"))
     }
 }
 

@@ -5,12 +5,6 @@ use std::fmt;
 
 pub const MAX_TAG_NAME_CHAR_COUNT: usize = 32;
 
-/// Validates and trims a single tag name.
-///
-/// # Errors
-/// Returns [`TagNameError::Empty`] if blank, [`TagNameError::TooLong`] if it
-/// exceeds [`MAX_TAG_NAME_CHAR_COUNT`], or
-/// [`TagNameError::ContainsForbiddenChar`] for an invalid character.
 pub fn validate_tag_name(raw_name: &str) -> Result<String, TagNameError> {
     validate_with_policy::<TagNameError, _>(
         raw_name,
@@ -19,11 +13,6 @@ pub fn validate_tag_name(raw_name: &str) -> Result<String, TagNameError> {
     )
 }
 
-/// Parses whitespace-separated tags, deduplicating them.
-///
-/// # Errors
-/// Returns [`TagNamesError::Name`] for an invalid tag or
-/// [`TagNamesError::TooManyTags`] when more than `max_count` tags are given.
 pub fn parse_tags(raw: &str, max_count: usize) -> Result<Vec<String>, TagNamesError> {
     let mut seen = std::collections::HashSet::new();
     let mut tags = Vec::new();

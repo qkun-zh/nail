@@ -1,10 +1,5 @@
 use ascon_xof128::{AsconXof128, ExtendableOutput, Update, XofReader};
 
-/// Computes a deterministic 128-bit digest of a value, using the value itself
-/// as the salt so the same value always hashes identically.
-///
-/// # Errors
-/// Returns an error if the ascon CXOF cannot be initialized with the value salt.
 pub fn hash(value: &[u8]) -> anyhow::Result<String> {
     use ascon_xof128::{AsconCxof128, TryCustomizedInit};
     let mut cxof = AsconCxof128::try_new_customized(value)?;
@@ -47,9 +42,7 @@ impl PdfHasher {
 #[must_use]
 pub fn pdf(data: &[u8]) -> String {
     let mut hasher = PdfHasher::new();
-    for chunk in data.chunks(64 * 1024) {
-        hasher.update(chunk);
-    }
+    hasher.update(data);
     hasher.finalize()
 }
 

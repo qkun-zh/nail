@@ -9,7 +9,6 @@ pub enum DeleteMode {
 }
 
 impl DeleteMode {
-    /// Wire format for query parameters; matches the serde lowercase rename.
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
