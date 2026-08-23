@@ -1,20 +1,19 @@
 use common::request::DeleteMode;
 use leptos::prelude::*;
-use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
+use leptos_router::hooks::{use_params_map, use_query_map};
 
 use crate::page::author_gate::{denied_view, use_author_gate};
+use crate::page::confirm::{ConfirmButton, use_confirm_action};
 use crate::page::delete_mode::{ALL_MODES, DeleteModePicker, mode_from_str, mode_to_str};
-use crate::page::notify::{notify_error, notify_success, use_notifications};
-use crate::page::validation::validate_uuid;
+use crate::page::fetch::require_id;
+use crate::page::notify::{notify_success, use_notifications};
 
 #[component]
 pub fn DeleteArticle() -> impl IntoView {
     let params = use_params_map();
     let query = use_query_map();
-    let navigate = use_navigate();
     let notifications = use_notifications();
 
-    let working = RwSignal::new(false);
     let mode = RwSignal::new(
         query
             .get_untracked()
@@ -26,38 +25,17 @@ pub fn DeleteArticle() -> impl IntoView {
     let article_id = move || params.get().get("article_id");
     let (denied, checked) = use_author_gate(article_id);
 
-    crate::page::draft::sync_url_on_change(navigate.clone(), move || {
-        let _ = mode.get();
-        let id = params.get().get("article_id")?;
-        Some(format!(
-            "/article/{id}/delete?mode={}",
-            mode_to_str(mode.get())
-        ))
-    });
+    crate::page::draft::mirror_param("mode", move || Some(mode_to_str(mode.get()).to_string()));
 
-    let delete_notifications = notifications.clone();
-    let on_delete = Callback::new(move |()| {
-        if working.get() {
-            return;
+    let confirm = use_confirm_action(move || {
+        let id = article_id().unwrap_or_default();
+        let notifications = notifications.clone();
+        async move {
+            require_id(&id)?;
+            crate::request::article::delete_article(&id, mode.get()).await?;
+            notify_success(&notifications, "article deleted");
+            Ok(())
         }
-        let Some(id) = params.get().get("article_id") else {
-            return;
-        };
-        if let Err(message) = validate_uuid(&id) {
-            notify_error(&delete_notifications, message);
-            working.set(false);
-            return;
-        }
-        working.set(true);
-        let notifications = delete_notifications.clone();
-        leptos::task::spawn_local(async move {
-            let result = crate::request::article::delete_article(&id, mode.get()).await;
-            working.set(false);
-            match result {
-                Ok(_) => notify_success(&notifications, "article deleted"),
-                Err(error) => notify_error(&notifications, error.to_string()),
-            }
-        });
     });
 
     let render = move || {
@@ -70,11 +48,7 @@ pub fn DeleteArticle() -> impl IntoView {
         view! {
             <div>
                 <DeleteModePicker mode=mode name="delete_mode" allowed=&ALL_MODES/>
-                <div>
-                    <button on:click=move |_| on_delete.run(()) disabled=move || working.get()>
-                        {move || if working.get() { "deleting..." } else { "delete" }}
-                    </button>
-                </div>
+                <ConfirmButton handle=confirm label="delete" busy_label="deleting..."/>
             </div>
         }
         .into_any()

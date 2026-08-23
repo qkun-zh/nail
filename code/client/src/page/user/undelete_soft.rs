@@ -2,8 +2,9 @@ use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map};
 
-use crate::page::notify::{notify_error, notify_success, use_notifications};
-use crate::page::validation::validate_uuid;
+use crate::page::confirm::{ConfirmButton, use_confirm_action};
+use crate::page::fetch::require_id;
+use crate::page::notify::{notify_success, use_notifications};
 
 #[component]
 pub fn UndeleteSoftUser() -> impl IntoView {
@@ -11,46 +12,22 @@ pub fn UndeleteSoftUser() -> impl IntoView {
     let navigate = use_navigate();
     let notifications = use_notifications();
 
-    let working = RwSignal::new(false);
-    let error = RwSignal::new(None::<String>);
-
-    let on_confirm = move |_| {
-        if working.get() {
-            return;
-        }
-        working.set(true);
-        error.set(None);
-
+    let confirm = use_confirm_action(move || {
         let uid = params.get().get("uid").unwrap_or_default();
-        let navigate = navigate.clone();
         let notifications = notifications.clone();
-        if let Err(message) = validate_uuid(&uid) {
-            notify_error(&notifications, message.clone());
-            error.set(Some(message));
-            working.set(false);
-            return;
+        let navigate = navigate.clone();
+        async move {
+            require_id(&uid)?;
+            crate::request::user::undelete_soft_user(&uid).await?;
+            notify_success(&notifications, "user restored");
+            navigate(&format!("/user/{uid}"), NavigateOptions::default());
+            Ok(())
         }
-        leptos::task::spawn_local(async move {
-            match crate::request::user::undelete_soft_user(&uid).await {
-                Ok(_) => {
-                    notify_success(&notifications, "user restored");
-                    navigate(&format!("/user/{uid}"), NavigateOptions::default());
-                }
-                Err(err) => {
-                    notify_error(&notifications, err.to_string());
-                    error.set(Some(err.to_string()));
-                    working.set(false);
-                }
-            }
-        });
-    };
+    });
 
     view! {
         <h1>"Undelete User"</h1>
         <p class="warning">"Restore the soft-deleted user account?"</p>
-        {move || error.get().map(|err| view! { <p class="error">{err}</p> })}
-        <button on:click=on_confirm disabled=working>
-            {move || if working.get() { "Restoring..." } else { "Restore" }}
-        </button>
+        <ConfirmButton handle=confirm label="Restore" busy_label="Restoring..."/>
     }
 }

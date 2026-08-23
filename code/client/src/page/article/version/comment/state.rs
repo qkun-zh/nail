@@ -3,375 +3,200 @@ use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 
 use common::request::DeleteMode;
-use common::response::ListPage;
 use common::response::RuntimeLimits;
-use common::response::comment::CommentView;
 
 use crate::page::notify::{Notifications, notify_error, notify_success};
 use crate::page::validation::validate_comment_content;
 
-use super::pagination::COMMENTS_PER_PAGE;
-use super::url::{CommentLevel, comment_id_from_level, comment_level_from_path};
+use super::url::{CommentLevel, comment_id_from_level};
 
-#[derive(Clone, Copy)]
-pub struct CommentSignals {
-    pub loading: RwSignal<bool>,
-    pub roots: RwSignal<Option<ListPage<CommentView>>>,
-    pub target: RwSignal<Option<CommentView>>,
-    pub children: RwSignal<Option<ListPage<CommentView>>>,
-    pub error: RwSignal<Option<String>>,
+/// Everything the comment submit builders share.
+#[derive(Clone)]
+pub struct CommentSubmit {
+    pub notifications: Notifications,
+    pub posting: RwSignal<bool>,
+    pub limits: RwSignal<RuntimeLimits>,
 }
 
-pub fn build_load(
-    notifications: Notifications,
-    signals: CommentSignals,
-    comment_path: impl Fn() -> String + Clone + 'static,
-    page: impl Fn() -> u64 + Clone + 'static,
-) -> impl Fn(String) + Clone + 'static {
-    let CommentSignals {
-        loading,
-        roots,
-        target,
-        children,
-        error,
-    } = signals;
-    move |version_id: String| {
-        let current_mode = comment_level_from_path(&comment_path());
-        let page_value = page();
-        let notifications = notifications.clone();
-        match current_mode {
-            CommentLevel::VersionComments => {
-                loading.set(true);
-                leptos::task::spawn_local(async move {
-                    match crate::request::comment::read_comments(
-                        &version_id,
-                        page_value,
-                        COMMENTS_PER_PAGE,
-                    )
-                    .await
-                    {
-                        Ok(view) => {
-                            roots.set(Some(view));
-                            error.set(None);
-                        }
-                        Err(request_error) => {
-                            notify_error(&notifications, request_error.to_string());
-                            error.set(Some(request_error.to_string()));
-                        }
-                    }
-                    loading.set(false);
-                });
-            }
-            CommentLevel::Comment(comment_id) => {
-                loading.set(true);
-                let comment_id = comment_id.clone();
-                let notifications = notifications.clone();
-                let pending = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(2));
-                let done_loading = {
-                    let pending = pending.clone();
-                    move || {
-                        if pending.fetch_sub(1, std::sync::atomic::Ordering::SeqCst) == 1 {
-                            loading.set(false);
-                        }
-                    }
-                };
-                leptos::task::spawn_local({
-                    let comment_id = comment_id.clone();
-                    let notifications = notifications.clone();
-                    let done_loading = done_loading.clone();
-                    async move {
-                        match crate::request::comment::read_comment(&comment_id).await {
-                            Ok(view) => target.set(Some(view)),
-                            Err(request_error) => {
-                                notify_error(&notifications, request_error.to_string());
-                                error.set(Some(request_error.to_string()));
-                            }
-                        }
-                        done_loading();
-                    }
-                });
-                leptos::task::spawn_local({
-                    let comment_id = comment_id.clone();
-                    let notifications = notifications.clone();
-                    let done_loading = done_loading.clone();
-                    async move {
-                        match crate::request::comment::read_comment_children(
-                            &comment_id,
-                            page_value,
-                            COMMENTS_PER_PAGE,
-                        )
-                        .await
-                        {
-                            Ok(view) => children.set(Some(view)),
-                            Err(request_error) => {
-                                notify_error(&notifications, request_error.to_string());
-                                error.set(Some(request_error.to_string()));
-                            }
-                        }
-                        done_loading();
-                    }
-                });
-            }
-            CommentLevel::DeleteComment(_)
-            | CommentLevel::UpdateComment(_)
-            | CommentLevel::UndeleteComment(_) => {
-                loading.set(false);
-                error.set(None);
-            }
-            CommentLevel::Invalid => {
-                error.set(Some("comment not found".to_string()));
-                loading.set(false);
-            }
+fn refresh_options() -> NavigateOptions {
+    NavigateOptions {
+        replace: true,
+        resolve: false,
+        ..Default::default()
+    }
+}
+
+/// Run one comment mutation with the shared guard/toast/refresh protocol.
+pub fn run_comment_action<T, A, S>(submit: &CommentSubmit, action: A, on_success: S)
+where
+    T: 'static,
+    A: Future<Output = Result<T, crate::request::error::RequestError>> + 'static,
+    S: FnOnce(&Notifications) + 'static,
+{
+    let posting = submit.posting;
+    let notifications = submit.notifications.clone();
+    leptos::task::spawn_local(async move {
+        let result = action.await;
+        posting.set(false);
+        match result {
+            Ok(_) => on_success(&notifications),
+            Err(error) => notify_error(&notifications, error.to_string()),
+        }
+    });
+}
+
+/// Guard + content validation shared by the text-adding comment forms.
+fn checked_content(event: &SubmitEvent, submit: &CommentSubmit, raw: &str) -> Option<String> {
+    event.prevent_default();
+    if submit.posting.get() {
+        return None;
+    }
+    match validate_comment_content(raw, submit.limits.get().max_comment_body_chars) {
+        Ok(content) => Some(content),
+        Err(error) => {
+            notify_error(&submit.notifications, &error);
+            None
         }
     }
 }
 
+fn current_comment_id(mode: &dyn Fn() -> CommentLevel) -> Option<String> {
+    comment_id_from_level(&mode()).map(str::to_string)
+}
+
 pub fn build_submit_comment(
-    notifications: Notifications,
-    posting: RwSignal<bool>,
+    submit: CommentSubmit,
     body: RwSignal<String>,
-    limits: RwSignal<RuntimeLimits>,
     version_id: impl Fn() -> String + Clone + 'static,
-    load: impl Fn(String) + Clone + 'static,
+    load: impl Fn() + Clone + 'static,
 ) -> impl Fn(SubmitEvent) + Clone + 'static {
     move |event: SubmitEvent| {
-        event.prevent_default();
-        if posting.get() {
+        let Some(content) = checked_content(&event, &submit, &body.get()) else {
             return;
-        }
-        let content =
-            match validate_comment_content(&body.get(), limits.get().max_comment_body_chars) {
-                Ok(value) => value,
-                Err(error) => {
-                    notify_error(&notifications, &error);
-                    return;
-                }
-            };
-        let version_id = version_id();
-        posting.set(true);
-        let notifications = notifications.clone();
+        };
         let load = load.clone();
-        leptos::task::spawn_local(async move {
-            let result = crate::request::comment::create_comment(&version_id, &content).await;
-            posting.set(false);
-            match result {
-                Ok(_) => {
-                    body.set(String::new());
-                    notify_success(&notifications, "comment created");
-                    load(version_id);
-                }
-                Err(error) => notify_error(&notifications, error.to_string()),
-            }
-        });
+        let id = version_id();
+        run_comment_action(
+            &submit,
+            async move { crate::request::comment::create_comment(&id, &content).await },
+            move |notifications| {
+                body.set(String::new());
+                notify_success(notifications, "comment created");
+                load();
+            },
+        );
     }
 }
 
 pub fn build_submit_reply(
-    notifications: Notifications,
-    posting: RwSignal<bool>,
+    submit: CommentSubmit,
     reply_body: RwSignal<String>,
-    limits: RwSignal<RuntimeLimits>,
     mode: impl Fn() -> CommentLevel + Clone + 'static,
-    version_id: impl Fn() -> String + Clone + 'static,
-    load: impl Fn(String) + Clone + 'static,
+    load: impl Fn() + Clone + 'static,
 ) -> impl Fn(SubmitEvent) + Clone + 'static {
     move |event: SubmitEvent| {
-        event.prevent_default();
-        if posting.get() {
-            return;
-        }
-        let binding = mode();
-        let Some(comment_id) = comment_id_from_level(&binding) else {
+        let Some(comment_id) = current_comment_id(&mode) else {
             return;
         };
-        let content = match validate_comment_content(
-            &reply_body.get(),
-            limits.get().max_comment_body_chars,
-        ) {
-            Ok(value) => value,
-            Err(error) => {
-                notify_error(&notifications, &error);
-                return;
-            }
+        let Some(content) = checked_content(&event, &submit, &reply_body.get()) else {
+            return;
         };
-        let comment_id = comment_id.to_string();
-        posting.set(true);
-        let notifications = notifications.clone();
         let load = load.clone();
-        let version_id = version_id();
-        leptos::task::spawn_local(async move {
-            let result = crate::request::comment::create_reply(&comment_id, &content).await;
-            posting.set(false);
-            match result {
-                Ok(_) => {
-                    reply_body.set(String::new());
-                    notify_success(&notifications, "reply created");
-                    load(version_id);
-                }
-                Err(error) => notify_error(&notifications, error.to_string()),
-            }
-        });
+        run_comment_action(
+            &submit,
+            async move { crate::request::comment::create_reply(&comment_id, &content).await },
+            move |notifications| {
+                reply_body.set(String::new());
+                notify_success(notifications, "reply created");
+                load();
+            },
+        );
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn build_submit_update(
-    notifications: Notifications,
-    posting: RwSignal<bool>,
+    submit: CommentSubmit,
     update_body: RwSignal<String>,
-    limits: RwSignal<RuntimeLimits>,
     mode: impl Fn() -> CommentLevel + Clone + 'static,
-    version_id: impl Fn() -> String + Clone + 'static,
     base: impl Fn() -> String + Clone + 'static,
     navigate: impl Fn(&str, NavigateOptions) + Clone + 'static,
-    load: impl Fn(String) + Clone + 'static,
+    load: impl Fn() + Clone + 'static,
 ) -> impl Fn(SubmitEvent) + Clone + 'static {
     move |event: SubmitEvent| {
-        event.prevent_default();
-        if posting.get() {
-            return;
-        }
-        let binding = mode();
-        let Some(comment_id) = comment_id_from_level(&binding) else {
+        let Some(comment_id) = current_comment_id(&mode) else {
             return;
         };
-        let content =
-            match validate_comment_content(&update_body.get(), limits.get().max_comment_body_chars)
-            {
-                Ok(value) => value,
-                Err(error) => {
-                    notify_error(&notifications, &error);
-                    return;
-                }
-            };
-        let comment_id = comment_id.to_string();
-        let version_id = version_id();
-        let base_path = base();
-        posting.set(true);
-        let notifications = notifications.clone();
-        let load = load.clone();
+        let Some(content) = checked_content(&event, &submit, &update_body.get()) else {
+            return;
+        };
+        let target = format!("{}/comment/{comment_id}", base());
         let navigate = navigate.clone();
-        leptos::task::spawn_local(async move {
-            let result = crate::request::comment::update_comment(&comment_id, &content).await;
-            posting.set(false);
-            match result {
-                Ok(_) => {
-                    notify_success(&notifications, "comment updated");
-                    navigate(
-                        &crate::page::draft::draft_url(
-                            &format!("{base_path}/comment/{comment_id}"),
-                            &[],
-                        ),
-                        leptos_router::NavigateOptions {
-                            replace: true,
-                            resolve: false,
-                            ..Default::default()
-                        },
-                    );
-                    load(version_id);
-                }
-                Err(error) => notify_error(&notifications, error.to_string()),
-            }
-        });
+        let load = load.clone();
+        run_comment_action(
+            &submit,
+            async move { crate::request::comment::update_comment(&comment_id, &content).await },
+            move |notifications| {
+                notify_success(notifications, "comment updated");
+                navigate(&target, refresh_options());
+                load();
+            },
+        );
     }
 }
 
 pub fn build_submit_undelete(
-    notifications: Notifications,
-    posting: RwSignal<bool>,
+    submit: CommentSubmit,
     mode: impl Fn() -> CommentLevel + Clone + 'static,
-    version_id: impl Fn() -> String + Clone + 'static,
     base: impl Fn() -> String + Clone + 'static,
     navigate: impl Fn(&str, NavigateOptions) + Clone + 'static,
-    load: impl Fn(String) + Clone + 'static,
+    load: impl Fn() + Clone + 'static,
 ) -> impl Fn() + Clone + 'static {
     move || {
-        if posting.get() {
-            return;
-        }
-        let binding = mode();
-        let Some(comment_id) = comment_id_from_level(&binding) else {
+        let Some(comment_id) = current_comment_id(&mode) else {
             return;
         };
-        let comment_id = comment_id.to_string();
-        let version_id = version_id();
-        let base_path = base();
-        posting.set(true);
-        let notifications = notifications.clone();
-        let load = load.clone();
+        let target = format!("{}/comment/{comment_id}", base());
         let navigate = navigate.clone();
-        leptos::task::spawn_local(async move {
-            let result = crate::request::comment::undelete_soft_comment(&comment_id).await;
-            posting.set(false);
-            match result {
-                Ok(_) => {
-                    notify_success(&notifications, "comment restored");
-                    navigate(
-                        &crate::page::draft::draft_url(
-                            &format!("{base_path}/comment/{comment_id}"),
-                            &[],
-                        ),
-                        leptos_router::NavigateOptions {
-                            replace: true,
-                            resolve: false,
-                            ..Default::default()
-                        },
-                    );
-                    load(version_id);
-                }
-                Err(error) => notify_error(&notifications, error.to_string()),
-            }
-        });
+        let load = load.clone();
+        run_comment_action(
+            &submit,
+            async move { crate::request::comment::undelete_soft_comment(&comment_id).await },
+            move |notifications| {
+                notify_success(notifications, "comment restored");
+                navigate(&target, refresh_options());
+                load();
+            },
+        );
     }
 }
 
 pub fn build_submit_delete(
-    notifications: Notifications,
-    posting: RwSignal<bool>,
+    submit: CommentSubmit,
     mode: impl Fn() -> CommentLevel + Clone + 'static,
-    version_id: impl Fn() -> String + Clone + 'static,
     base: impl Fn() -> String + Clone + 'static,
     navigate: impl Fn(&str, NavigateOptions) + Clone + 'static,
-    load: impl Fn(String) + Clone + 'static,
+    load: impl Fn() + Clone + 'static,
 ) -> impl Fn(DeleteMode) + Clone + 'static {
     move |delete_mode: DeleteMode| {
-        if posting.get() {
-            return;
-        }
-        let binding = mode();
-        let Some(comment_id) = comment_id_from_level(&binding) else {
+        let Some(comment_id) = current_comment_id(&mode) else {
             return;
         };
-        let comment_id = comment_id.to_string();
-        let version_id = version_id();
-        let base_path = base();
-        posting.set(true);
-        let notifications = notifications.clone();
-        let load = load.clone();
+        let target = format!("{}/comment", base());
         let navigate = navigate.clone();
-        leptos::task::spawn_local(async move {
-            let result = crate::request::comment::delete_comment(&comment_id, delete_mode).await;
-            posting.set(false);
-            match result {
-                Ok(_) => {
-                    let message = match delete_mode {
-                        DeleteMode::Transfer => "comment transferred to recycler",
-                        DeleteMode::Hard => "comment deleted",
-                        DeleteMode::Soft => "comment soft-deleted",
-                    };
-                    notify_success(&notifications, message);
-                    navigate(
-                        &crate::page::draft::draft_url(&format!("{base_path}/comment"), &[]),
-                        leptos_router::NavigateOptions {
-                            replace: true,
-                            resolve: false,
-                            ..Default::default()
-                        },
-                    );
-                    load(version_id);
-                }
-                Err(error) => notify_error(&notifications, error.to_string()),
-            }
-        });
+        let load = load.clone();
+        run_comment_action(
+            &submit,
+            async move { crate::request::comment::delete_comment(&comment_id, delete_mode).await },
+            move |notifications| {
+                let message = match delete_mode {
+                    DeleteMode::Transfer => "comment transferred to recycler",
+                    DeleteMode::Hard => "comment deleted",
+                    DeleteMode::Soft => "comment soft-deleted",
+                };
+                notify_success(notifications, message);
+                navigate(&target, refresh_options());
+                load();
+            },
+        );
     }
 }

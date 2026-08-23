@@ -1,67 +1,23 @@
 use leptos::prelude::*;
-use leptos_router::NavigateOptions;
+use leptos_router::hooks::query_signal;
 
-use crate::request::url::encode_component;
-
-pub fn build_draft_query(fields: &[(&str, &str)]) -> String {
-    fields
-        .iter()
-        .filter(|(_, value)| !value.is_empty())
-        .map(|(key, value)| format!("{}={}", encode_component(key), encode_component(value)))
-        .collect::<Vec<_>>()
-        .join("&")
+/// Keep a router-owned `?key=` param in step with a text field; an empty value
+/// drops the param.
+pub fn mirror_text_param(key: &'static str, source: impl Fn() -> String + Copy + 'static) {
+    let (_, set_param) = query_signal::<String>(key);
+    Effect::new(move |_| {
+        let value = source();
+        set_param.set((!value.is_empty()).then_some(value));
+    });
 }
 
-pub fn draft_url(pathname: &str, fields: &[(&str, &str)]) -> String {
-    let query = build_draft_query(fields);
-    if query.is_empty() {
-        pathname.to_string()
-    } else {
-        format!("{pathname}?{query}")
-    }
-}
-
-pub fn sync_url_on_change<Navigate, Build>(navigate: Navigate, build: Build)
+/// Keep a router-owned `?key=` param in step with any computed option.
+pub fn mirror_param<T>(key: &'static str, source: impl Fn() -> Option<T> + Copy + 'static)
 where
-    Navigate: Fn(&str, NavigateOptions) + Clone + 'static,
-    Build: Fn() -> Option<String> + 'static,
+    T: Clone + PartialEq + Send + Sync + std::str::FromStr + std::fmt::Display + 'static,
 {
-    Effect::new(move |previous: Option<()>| {
-        let url = build();
-        if previous.is_none() {
-            return;
-        }
-        let Some(url) = url else {
-            return;
-        };
-        navigate(
-            &url,
-            NavigateOptions {
-                replace: true,
-                resolve: false,
-                ..Default::default()
-            },
-        );
+    let (_, set_param) = query_signal::<T>(key);
+    Effect::new(move |_| {
+        set_param.set(source());
     });
 }
-
-pub fn persist_draft<Navigate>(
-    navigate: Navigate,
-    pathname: String,
-    fields: impl Fn() -> Vec<(&'static str, String)> + 'static,
-) where
-    Navigate: Fn(&str, NavigateOptions) + Clone + 'static,
-{
-    sync_url_on_change(navigate, move || {
-        let captured = fields();
-        let pairs: Vec<(&str, &str)> = captured
-            .iter()
-            .map(|(key, value)| (*key, value.as_str()))
-            .collect();
-        Some(draft_url(&pathname, &pairs))
-    });
-}
-
-#[cfg(test)]
-#[path = "draft_tests.rs"]
-mod tests;

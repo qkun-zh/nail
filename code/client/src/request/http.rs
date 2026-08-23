@@ -87,24 +87,50 @@ async fn unwrap_json<T: DeserializeOwned>(
     unwrap_envelope(envelope)
 }
 
-pub async fn get_json<T: DeserializeOwned>(
+async fn send<B: Serialize, T: DeserializeOwned>(
     path_and_query: &str,
+    make_request: impl FnOnce(&str) -> gloo_net::http::RequestBuilder,
+    body: Option<&B>,
+    form: Option<web_sys::FormData>,
     authenticated: bool,
     pow: Option<&Pow>,
 ) -> RequestResult<T> {
     let (signal, timer) = timeout_signal()?;
-    let mut request = Request::get(&build_absolute_url(path_and_query))
+    let mut request = make_request(&build_absolute_url(path_and_query))
         .header("Accept", "application/json")
         .abort_signal(Some(&signal));
     if authenticated && let Some(token) = session_header()? {
         request = request.header("session-token", &token);
     }
     request = attach_pow(request, pow)?;
+    let request = match body {
+        Some(json) => request.json(json).map_err(|error| {
+            RequestError::network(format!("failed to serialize request body: {error}"))
+        })?,
+        None => match form {
+            Some(form) => request.body(form).map_err(|error| {
+                RequestError::network(format!("failed to build multipart request: {error}"))
+            })?,
+            None => request
+                .body(wasm_bindgen::JsValue::UNDEFINED)
+                .map_err(|error| {
+                    RequestError::network(format!("failed to build request: {error}"))
+                })?,
+        },
+    };
     let result = request.send().await;
     timer.cancel();
     let response =
         result.map_err(|error| RequestError::network(format!("request failed: {error}")))?;
     unwrap_json(response, authenticated).await
+}
+
+pub async fn get_json<T: DeserializeOwned>(
+    path_and_query: &str,
+    authenticated: bool,
+    pow: Option<&Pow>,
+) -> RequestResult<T> {
+    send::<(), T>(path_and_query, Request::get, None, None, authenticated, pow).await
 }
 
 pub async fn post_json<B: Serialize, T: DeserializeOwned>(
@@ -113,23 +139,15 @@ pub async fn post_json<B: Serialize, T: DeserializeOwned>(
     authenticated: bool,
     pow: Option<&Pow>,
 ) -> RequestResult<T> {
-    let (signal, timer) = timeout_signal()?;
-    let mut request = Request::post(&build_absolute_url(path_and_query))
-        .header("Accept", "application/json")
-        .header("Content-Type", "application/json")
-        .abort_signal(Some(&signal));
-    if authenticated && let Some(token) = session_header()? {
-        request = request.header("session-token", &token);
-    }
-    request = attach_pow(request, pow)?;
-    let request = request.json(body).map_err(|error| {
-        RequestError::network(format!("failed to serialize request body: {error}"))
-    })?;
-    let result = request.send().await;
-    timer.cancel();
-    let response =
-        result.map_err(|error| RequestError::network(format!("request failed: {error}")))?;
-    unwrap_json(response, authenticated).await
+    send::<B, T>(
+        path_and_query,
+        Request::post,
+        Some(body),
+        None,
+        authenticated,
+        pow,
+    )
+    .await
 }
 
 pub async fn post_form<T: DeserializeOwned>(
@@ -138,22 +156,15 @@ pub async fn post_form<T: DeserializeOwned>(
     authenticated: bool,
     pow: Option<&Pow>,
 ) -> RequestResult<T> {
-    let (signal, timer) = timeout_signal()?;
-    let mut request = Request::post(&build_absolute_url(path_and_query))
-        .header("Accept", "application/json")
-        .abort_signal(Some(&signal));
-    if authenticated && let Some(token) = session_header()? {
-        request = request.header("session-token", &token);
-    }
-    request = attach_pow(request, pow)?;
-    let request = request.body(form).map_err(|error| {
-        RequestError::network(format!("failed to build multipart request: {error}"))
-    })?;
-    let result = request.send().await;
-    timer.cancel();
-    let response =
-        result.map_err(|error| RequestError::network(format!("request failed: {error}")))?;
-    unwrap_json(response, authenticated).await
+    send::<(), T>(
+        path_and_query,
+        Request::post,
+        None,
+        Some(form),
+        authenticated,
+        pow,
+    )
+    .await
 }
 
 pub async fn patch_json<B: Serialize, T: DeserializeOwned>(
@@ -162,23 +173,15 @@ pub async fn patch_json<B: Serialize, T: DeserializeOwned>(
     authenticated: bool,
     pow: Option<&Pow>,
 ) -> RequestResult<T> {
-    let (signal, timer) = timeout_signal()?;
-    let mut request = Request::patch(&build_absolute_url(path_and_query))
-        .header("Accept", "application/json")
-        .header("Content-Type", "application/json")
-        .abort_signal(Some(&signal));
-    if authenticated && let Some(token) = session_header()? {
-        request = request.header("session-token", &token);
-    }
-    request = attach_pow(request, pow)?;
-    let request = request.json(body).map_err(|error| {
-        RequestError::network(format!("failed to serialize request body: {error}"))
-    })?;
-    let result = request.send().await;
-    timer.cancel();
-    let response =
-        result.map_err(|error| RequestError::network(format!("request failed: {error}")))?;
-    unwrap_json(response, authenticated).await
+    send::<B, T>(
+        path_and_query,
+        Request::patch,
+        Some(body),
+        None,
+        authenticated,
+        pow,
+    )
+    .await
 }
 
 pub async fn put_json<B: Serialize, T: DeserializeOwned>(
@@ -187,23 +190,15 @@ pub async fn put_json<B: Serialize, T: DeserializeOwned>(
     authenticated: bool,
     pow: Option<&Pow>,
 ) -> RequestResult<T> {
-    let (signal, timer) = timeout_signal()?;
-    let mut request = Request::put(&build_absolute_url(path_and_query))
-        .header("Accept", "application/json")
-        .header("Content-Type", "application/json")
-        .abort_signal(Some(&signal));
-    if authenticated && let Some(token) = session_header()? {
-        request = request.header("session-token", &token);
-    }
-    request = attach_pow(request, pow)?;
-    let request = request.json(body).map_err(|error| {
-        RequestError::network(format!("failed to serialize request body: {error}"))
-    })?;
-    let result = request.send().await;
-    timer.cancel();
-    let response =
-        result.map_err(|error| RequestError::network(format!("request failed: {error}")))?;
-    unwrap_json(response, authenticated).await
+    send::<B, T>(
+        path_and_query,
+        Request::put,
+        Some(body),
+        None,
+        authenticated,
+        pow,
+    )
+    .await
 }
 
 pub async fn delete_json<T: DeserializeOwned>(
@@ -211,17 +206,13 @@ pub async fn delete_json<T: DeserializeOwned>(
     authenticated: bool,
     pow: Option<&Pow>,
 ) -> RequestResult<T> {
-    let (signal, timer) = timeout_signal()?;
-    let mut request = Request::delete(&build_absolute_url(path_and_query))
-        .header("Accept", "application/json")
-        .abort_signal(Some(&signal));
-    if authenticated && let Some(token) = session_header()? {
-        request = request.header("session-token", &token);
-    }
-    request = attach_pow(request, pow)?;
-    let result = request.send().await;
-    timer.cancel();
-    let response =
-        result.map_err(|error| RequestError::network(format!("request failed: {error}")))?;
-    unwrap_json(response, authenticated).await
+    send::<(), T>(
+        path_and_query,
+        Request::delete,
+        None,
+        None,
+        authenticated,
+        pow,
+    )
+    .await
 }

@@ -5,21 +5,11 @@ pub const ALL_MODES: [DeleteMode; 3] = [DeleteMode::Transfer, DeleteMode::Soft, 
 pub const SOFT_AND_HARD: [DeleteMode; 2] = [DeleteMode::Soft, DeleteMode::Hard];
 
 pub fn mode_to_str(mode: DeleteMode) -> &'static str {
-    match mode {
-        DeleteMode::Transfer => "transfer",
-        DeleteMode::Hard => "hard",
-        DeleteMode::Soft => "soft",
-    }
+    mode.as_str()
 }
 
 pub fn mode_from_str(value: &str, allowed: &[DeleteMode]) -> Option<DeleteMode> {
-    let mode = match value {
-        "transfer" => DeleteMode::Transfer,
-        "hard" => DeleteMode::Hard,
-        "soft" => DeleteMode::Soft,
-        _ => return None,
-    };
-    allowed.contains(&mode).then_some(mode)
+    allowed.iter().copied().find(|&mode| mode.as_str() == value)
 }
 
 #[component]

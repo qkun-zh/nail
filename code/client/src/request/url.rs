@@ -1,25 +1,33 @@
-const HEX_UPPER: &[u8; 16] = b"0123456789ABCDEF";
+use percent_encoding::{AsciiSet, CONTROLS, utf8_percent_encode};
+
+const COMPONENT_SET: &AsciiSet = &CONTROLS
+    .add(b' ')
+    .add(b'"')
+    .add(b'#')
+    .add(b'$')
+    .add(b'%')
+    .add(b'&')
+    .add(b'+')
+    .add(b',')
+    .add(b'/')
+    .add(b':')
+    .add(b';')
+    .add(b'<')
+    .add(b'=')
+    .add(b'>')
+    .add(b'?')
+    .add(b'@')
+    .add(b'[')
+    .add(b'\\')
+    .add(b']')
+    .add(b'^')
+    .add(b'`')
+    .add(b'{')
+    .add(b'|')
+    .add(b'}');
 
 pub fn encode_component(value: &str) -> String {
-    let mut output = String::with_capacity(value.len());
-    for byte in value.as_bytes() {
-        if is_encode_uri_component_safe(*byte) {
-            output.push(*byte as char);
-        } else {
-            output.push('%');
-            output.push(HEX_UPPER[(byte >> 4) as usize] as char);
-            output.push(HEX_UPPER[(byte & 0x0f) as usize] as char);
-        }
-    }
-    output
-}
-
-fn is_encode_uri_component_safe(byte: u8) -> bool {
-    byte.is_ascii_alphanumeric()
-        || matches!(
-            byte,
-            b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')'
-        )
+    utf8_percent_encode(value, COMPONENT_SET).to_string()
 }
 
 pub fn build_path_with_query(path_segments: &[&str], query: &[(&str, &str)]) -> String {

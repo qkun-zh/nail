@@ -10,17 +10,14 @@ use super::render::{CommentViewContext, comment_form, comment_rows};
 use crate::page::pagination::LevelPagination;
 
 pub fn comment_list_view(
-    roots: RwSignal<Option<ListPage<CommentView>>>,
+    roots: &ListPage<CommentView>,
     comment_view_context: &CommentViewContext,
     body: RwSignal<String>,
     on_submit_comment: impl Fn(SubmitEvent) + Clone + 'static,
 ) -> impl IntoView {
-    let Some(list) = roots.get() else {
-        return ().into_any();
-    };
-    let has_next = list.has_next;
+    let has_next = roots.has_next;
     let rows = comment_rows(
-        &list.items,
+        &roots.items,
         &comment_view_context.base_path,
         (comment_view_context.current_page - 1) * COMMENTS_PER_PAGE,
     );

@@ -1,9 +1,5 @@
-use common::response::{ResponseEnvelope, RuntimeLimits};
+use common::response::RuntimeLimits;
 use leptos::prelude::*;
-
-use crate::infrastructure::config::api_base_url;
-
-const REQUEST_TIMEOUT_MS: u32 = 30_000;
 
 pub fn compile_time_defaults() -> RuntimeLimits {
     RuntimeLimits {
@@ -58,10 +54,11 @@ fn nonzero_or(value: u64, fallback: u64) -> u64 {
 pub fn provide_limits() -> RwSignal<RuntimeLimits> {
     let limits = RwSignal::new(compile_time_defaults());
     provide_context(limits);
-    let for_fetch = limits;
     leptos::task::spawn_local(async move {
-        if let Ok(server) = fetch_runtime_limits(api_base_url()).await {
-            for_fetch.set(apply_fallbacks(&server));
+        if let Ok(server) =
+            crate::request::http::get_json::<RuntimeLimits>("/config/read", false, None).await
+        {
+            limits.set(apply_fallbacks(&server));
         }
     });
     limits
@@ -70,41 +67,6 @@ pub fn provide_limits() -> RwSignal<RuntimeLimits> {
 pub fn use_limits() -> RwSignal<RuntimeLimits> {
     use_context::<RwSignal<RuntimeLimits>>()
         .unwrap_or_else(|| RwSignal::new(compile_time_defaults()))
-}
-
-async fn fetch_runtime_limits(base: &str) -> Result<RuntimeLimits, String> {
-    let url = format!("{base}/api/config/read");
-    let controller = web_sys::AbortController::new()
-        .map_err(|error| format!("failed to create AbortController: {error:?}"))?;
-    let signal = controller.signal();
-    let timer = gloo_timers::callback::Timeout::new(REQUEST_TIMEOUT_MS, move || controller.abort());
-
-    let response = gloo_net::http::Request::get(&url)
-        .abort_signal(Some(&signal))
-        .send()
-        .await
-        .map_err(|error| format!("failed to fetch runtime limits: {error}"));
-    timer.cancel();
-
-    let response = response?;
-    if !(200..300).contains(&response.status()) {
-        return Err(format!(
-            "runtime limits request failed with HTTP {}",
-            response.status()
-        ));
-    }
-    let text = response
-        .text()
-        .await
-        .map_err(|error| format!("failed to read runtime limits body: {error}"))?;
-    let envelope: ResponseEnvelope<RuntimeLimits> = serde_json::from_str(&text)
-        .map_err(|error| format!("invalid runtime limits envelope: {error}"))?;
-    if !(200..300).contains(&envelope.code) {
-        return Err(envelope.message);
-    }
-    envelope
-        .data
-        .ok_or_else(|| "empty runtime limits payload".to_string())
 }
 
 #[cfg(test)]

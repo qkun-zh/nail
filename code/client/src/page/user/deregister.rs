@@ -1,32 +1,24 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
-use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
+use leptos_router::hooks::use_query_map;
 
 use common::request::DeleteMode;
 
-use crate::page::draft::persist_draft;
+use crate::page::draft::mirror_text_param;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
 use crate::page::session_gate::{authenticated_user_id, mark_session_invalid};
 
 #[component]
 pub fn Deregister() -> impl IntoView {
-    let navigate = use_navigate();
     let notifications = use_notifications();
     let query = use_query_map();
-    let params = use_params_map();
     let email = RwSignal::new(query.get_untracked().get("email").unwrap_or_default());
     let token = RwSignal::new(query.get_untracked().get("token").unwrap_or_default());
     let mode = RwSignal::new(DeleteMode::Transfer);
     let working = RwSignal::new(false);
 
-    persist_draft(
-        navigate.clone(),
-        format!(
-            "/user/{}/deregister",
-            params.get_untracked().get("uid").unwrap_or_default()
-        ),
-        move || vec![("email", email.get()), ("token", token.get())],
-    );
+    mirror_text_param("email", move || email.get());
+    mirror_text_param("token", move || token.get());
 
     let send_notifications = notifications.clone();
     let send_confirmation = move |event: SubmitEvent| {

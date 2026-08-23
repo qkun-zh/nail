@@ -2,11 +2,11 @@ use common::response::search::SearchArticleItem;
 use common::search::SearchRange;
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
-use leptos_router::hooks::{use_navigate, use_query_map};
+use leptos_router::hooks::{query_signal, use_query_map};
 
 use crate::infrastructure::limits::use_limits;
+use crate::page::fetch::{LoadError, Loaded};
 use crate::page::notify::{notify_error, use_notifications};
-use crate::request::url::encode_component;
 
 mod comments;
 mod form;
@@ -16,69 +16,24 @@ mod versions;
 use form::SearchForm;
 use results::SearchResults;
 
-struct RangeSpec {
-    range: SearchRange,
-    label: &'static str,
+fn range_label(range: SearchRange) -> &'static str {
+    match range {
+        SearchRange::AuthorName => "author name",
+        SearchRange::Note => "version note",
+        SearchRange::VersionNumber => "version number",
+        SearchRange::ArticleId => "article id",
+        SearchRange::VersionId => "version id",
+        SearchRange::CommentId => "comment id",
+        SearchRange::AuthorId => "author id",
+        _ => range.label(),
+    }
 }
-
-const RANGE_SPECS: [RangeSpec; 12] = [
-    RangeSpec {
-        range: SearchRange::Title,
-        label: "title",
-    },
-    RangeSpec {
-        range: SearchRange::Summary,
-        label: "summary",
-    },
-    RangeSpec {
-        range: SearchRange::AuthorName,
-        label: "author name",
-    },
-    RangeSpec {
-        range: SearchRange::Comment,
-        label: "comment",
-    },
-    RangeSpec {
-        range: SearchRange::Note,
-        label: "version note",
-    },
-    RangeSpec {
-        range: SearchRange::Tag,
-        label: "tag",
-    },
-    RangeSpec {
-        range: SearchRange::VersionNumber,
-        label: "version number",
-    },
-    RangeSpec {
-        range: SearchRange::ArticleId,
-        label: "article id",
-    },
-    RangeSpec {
-        range: SearchRange::VersionId,
-        label: "version id",
-    },
-    RangeSpec {
-        range: SearchRange::CommentId,
-        label: "comment id",
-    },
-    RangeSpec {
-        range: SearchRange::AuthorId,
-        label: "author id",
-    },
-    RangeSpec {
-        range: SearchRange::Role,
-        label: "role",
-    },
-];
-const SEARCH_PATHNAME: &str = "/search";
-
 fn checked_range_subset(checked: &[bool]) -> String {
-    RANGE_SPECS
+    SearchRange::ALL
         .iter()
         .enumerate()
         .filter(|(index, _)| checked[*index])
-        .map(|(_, spec)| spec.range.as_str())
+        .map(|(_, range)| range.as_str())
         .collect::<Vec<_>>()
         .join(",")
 }
@@ -103,10 +58,17 @@ fn normalize_iso8601(value: &str) -> Option<String> {
     Some(normalized)
 }
 
+/// Latest successfully rendered search result set.
+#[derive(Clone)]
+struct SearchOutcome {
+    items: Vec<SearchArticleItem>,
+    has_next: bool,
+    page: u64,
+}
+
 #[component]
 pub fn Search() -> impl IntoView {
     let notifications = use_notifications();
-    let navigate = use_navigate();
     let query = use_query_map();
     let limits = use_limits();
 
@@ -127,11 +89,8 @@ pub fn Search() -> impl IntoView {
     if let Some(ranges_param) = params.get("ranges") {
         let mut checked = vec![false; 12];
         if !ranges_param.is_empty() {
-            for (index, spec) in RANGE_SPECS.iter().enumerate() {
-                if ranges_param
-                    .split(',')
-                    .any(|piece| piece == spec.range.as_str())
-                {
+            for (index, range) in SearchRange::ALL.iter().enumerate() {
+                if ranges_param.split(',').any(|piece| piece == range.as_str()) {
                     checked[index] = true;
                 }
             }
@@ -153,66 +112,24 @@ pub fn Search() -> impl IntoView {
         per_page.set(limit);
     }
 
-    let request_seq = StoredValue::new(0u64);
-    let last_good_page = StoredValue::new(1u64);
-    let search_notifications = notifications.clone();
-    let run_search = move |pairs: Vec<(String, String)>, requested_page: u64| {
-        let my_seq = request_seq.get_value() + 1;
-        request_seq.set_value(my_seq);
-        fetching.set(true);
-        let notifications = search_notifications.clone();
-        leptos::task::spawn_local(async move {
-            let borrows: Vec<(&str, &str)> = pairs
-                .iter()
-                .map(|(key, value)| (key.as_str(), value.as_str()))
-                .collect();
-            match crate::request::article::search_articles(&borrows).await {
-                Ok(page) => {
-                    if request_seq.get_value() != my_seq {
-                        return;
-                    }
-                    search_list.set(page.items);
-                    has_next.set(page.has_next);
-                    current_page.set(requested_page);
-                    last_good_page.set_value(requested_page);
-                }
-                Err(error) => {
-                    if request_seq.get_value() == my_seq {
-                        notify_error(&notifications, error.to_string());
-                        loaded.set(true);
-                        fetching.set(false);
-                        current_page.set(last_good_page.get_value());
-                    }
-                    return;
-                }
-            }
-            loaded.set(true);
-            fetching.set(false);
-        });
-    };
+    // Explicit triggers bump the epoch; field signals are read untracked at fetch
+    // time so typing alone never fires a request. The resource itself serializes
+    // concurrent runs, replacing the hand-rolled sequence counter.
+    let epoch = RwSignal::new(0u64);
+    let requested_page = RwSignal::new(current_page.get_untracked());
 
-    let do_search = {
-        let run_search = run_search.clone();
-        move |page: u64| {
-            let mut pairs: Vec<(String, String)> = vec![
-                ("page".to_string(), page.to_string()),
-                ("limit".to_string(), per_page.get_untracked().to_string()),
-            ];
-            let q = q_filter.get_untracked().trim().to_string();
-            if q.is_empty() {
-                let my_seq = request_seq.get_value() + 1;
-                request_seq.set_value(my_seq);
-                search_list.set(Vec::new());
-                has_next.set(false);
-                current_page.set(1);
-                loaded.set(true);
-                fetching.set(false);
-                return;
-            }
-            pairs.push(("q".to_string(), q));
+    let results: LocalResource<Loaded<Option<SearchOutcome>>> = LocalResource::new(move || {
+        let _token = epoch.get();
+        let requested = requested_page.get();
+        let mut pairs: Vec<(String, String)> = vec![
+            ("page".to_string(), requested.to_string()),
+            ("limit".to_string(), per_page.get_untracked().to_string()),
+        ];
+        let q = q_filter.get_untracked().trim().to_string();
+        if !q.is_empty() {
+            pairs.push(("q".to_string(), q.clone()));
             let checked = ranges.get_untracked();
-            let subset = checked_range_subset(&checked);
-            pairs.push(("ranges".to_string(), subset));
+            pairs.push(("ranges".to_string(), checked_range_subset(&checked)));
             let from = from_time.get_untracked();
             if !from.trim().is_empty() {
                 pairs.push(("from".to_string(), from.trim().to_string()));
@@ -221,33 +138,95 @@ pub fn Search() -> impl IntoView {
             if !to.trim().is_empty() {
                 pairs.push(("to".to_string(), to.trim().to_string()));
             }
-            run_search(pairs, page);
         }
+        async move {
+            if q.is_empty() {
+                return Ok(None);
+            }
+            let borrows: Vec<(&str, &str)> = pairs
+                .iter()
+                .map(|(key, value)| (key.as_str(), value.as_str()))
+                .collect();
+            let page = crate::request::article::search_articles(&borrows)
+                .await
+                .map_err(LoadError::from)?;
+            Ok(Some(SearchOutcome {
+                items: page.items,
+                has_next: page.has_next,
+                page: requested,
+            }))
+        }
+    });
+
+    // Mirror the newest resolved run into the view signals; failures keep the
+    // previous result set visible and only toast.
+    let bridge_notifications = notifications.clone();
+    Effect::new(move |_| match results.get() {
+        None => fetching.set(true),
+        Some(Ok(Some(outcome))) => {
+            fetching.set(false);
+            loaded.set(true);
+            search_list.set(outcome.items);
+            has_next.set(outcome.has_next);
+            current_page.set(outcome.page);
+        }
+        Some(Ok(None)) => {
+            fetching.set(false);
+            loaded.set(true);
+            search_list.set(Vec::new());
+            has_next.set(false);
+            current_page.set(1);
+        }
+        Some(Err(error)) => {
+            fetching.set(false);
+            loaded.set(true);
+            notify_error(&bridge_notifications, error.to_string());
+        }
+    });
+
+    let trigger_search = move || {
+        requested_page.set(1);
+        epoch.update(|token| *token += 1);
     };
 
-    let trigger_search = {
-        let do_search = do_search.clone();
-        move || {
-            current_page.set(1);
-            do_search(1);
-        }
-    };
+    // Router-owned URL state for every field.
+    let (_, set_q) = query_signal::<String>("q");
+    Effect::new(move |_| {
+        let value = q_filter.get();
+        set_q.set((!value.trim().is_empty()).then_some(value));
+    });
+    let (_, set_ranges) = query_signal::<String>("ranges");
+    Effect::new(move |_| {
+        let checked = ranges.get();
+        set_ranges.set(Some(checked_range_subset(&checked)));
+    });
+    let (_, set_from) = query_signal::<String>("from");
+    Effect::new(move |_| {
+        let value = from_time.get();
+        set_from.set((!value.trim().is_empty()).then_some(value));
+    });
+    let (_, set_to) = query_signal::<String>("to");
+    Effect::new(move |_| {
+        let value = to_time.get();
+        set_to.set((!value.trim().is_empty()).then_some(value));
+    });
+    let (_, set_page_param) = query_signal::<u64>("page");
+    Effect::new(move |_| {
+        set_page_param.set(Some(current_page.get()));
+    });
     let on_submit = Callback::new({
-        let trigger_search = trigger_search.clone();
         move |event: SubmitEvent| {
             event.prevent_default();
             trigger_search();
         }
     });
     let on_range_change = Callback::new({
-        let trigger_search = trigger_search.clone();
         move |(index, event): (usize, web_sys::Event)| {
             ranges.update(|checked| checked[index] = event_target_checked(&event));
             trigger_search();
         }
     });
     let on_from_change = Callback::new({
-        let trigger_search = trigger_search.clone();
         let notifications = notifications.clone();
         move |event: web_sys::Event| {
             let value = event_target_value(&event);
@@ -263,7 +242,6 @@ pub fn Search() -> impl IntoView {
         }
     });
     let on_to_change = Callback::new({
-        let trigger_search = trigger_search.clone();
         let notifications = notifications.clone();
         move |event: web_sys::Event| {
             let value = event_target_value(&event);
@@ -279,40 +257,13 @@ pub fn Search() -> impl IntoView {
         }
     });
 
-    let on_go = Callback::new({
-        let do_search = do_search.clone();
-        move |target: u64| {
-            if target == current_page.get() {
-                return;
-            }
-            current_page.set(target);
-            do_search(target);
+    let on_go = Callback::new(move |target: u64| {
+        if target == current_page.get() {
+            return;
         }
+        requested_page.set(target);
+        epoch.update(|token| *token += 1);
     });
-
-    crate::page::draft::sync_url_on_change(navigate.clone(), move || {
-        let mut pairs: Vec<String> = Vec::new();
-        let q = q_filter.get();
-        if !q.trim().is_empty() {
-            pairs.push(format!("q={}", encode_component(q.trim())));
-        }
-        let checked = ranges.get();
-        let subset = checked_range_subset(&checked);
-        pairs.push(format!("ranges={}", encode_component(&subset)));
-        let from = from_time.get();
-        if !from.trim().is_empty() {
-            pairs.push(format!("from={}", encode_component(from.trim())));
-        }
-        let to = to_time.get();
-        if !to.trim().is_empty() {
-            pairs.push(format!("to={}", encode_component(to.trim())));
-        }
-        pairs.push(format!("page={}", current_page.get()));
-        let query_string = pairs.join("&");
-        Some(format!("{SEARCH_PATHNAME}?{query_string}"))
-    });
-
-    do_search.clone()(page);
 
     view! {
         <SearchForm

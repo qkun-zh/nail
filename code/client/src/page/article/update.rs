@@ -1,18 +1,17 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
-use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
+use leptos_router::hooks::{use_params_map, use_query_map};
 
 use crate::infrastructure::limits::use_limits;
 use crate::page::article::tag_picker::TagPicker;
 use crate::page::author_gate::{denied_view, use_author_gate};
-use crate::page::draft::persist_draft;
+use crate::page::draft::mirror_text_param;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
 use crate::page::validation::{validate_summary, validate_title, validate_uuid};
 
 #[component]
 pub fn UpdateArticle() -> impl IntoView {
     let params = use_params_map();
-    let navigate = use_navigate();
     let notifications = use_notifications();
     let limits = use_limits();
     let query = use_query_map();
@@ -26,20 +25,10 @@ pub fn UpdateArticle() -> impl IntoView {
     let article_id = move || params.get().get("article_id");
     let (denied, checked) = use_author_gate(article_id);
 
-    persist_draft(
-        navigate.clone(),
-        format!(
-            "/article/{}/update",
-            params.get_untracked().get("article_id").unwrap_or_default()
-        ),
-        move || {
-            vec![
-                ("title", title.get()),
-                ("summary", summary.get()),
-                ("tags", selected_tags.get().join(" ")),
-            ]
-        },
-    );
+    let tags_wire = Memo::new(move |_| selected_tags.get().join(" "));
+    mirror_text_param("title", move || title.get());
+    mirror_text_param("summary", move || summary.get());
+    mirror_text_param("tags", move || tags_wire.get());
 
     let effect_notifications = notifications.clone();
     Effect::new(move |_| {

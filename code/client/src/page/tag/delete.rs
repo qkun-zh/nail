@@ -2,7 +2,8 @@ use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map};
 
-use crate::page::validation::validate_uuid;
+use crate::page::confirm::{ConfirmButton, use_confirm_action};
+use crate::page::fetch::{Loaded, notify_load_failures, require_id};
 use crate::request::tag;
 
 #[component]
@@ -10,57 +11,38 @@ pub fn DeleteTag() -> impl IntoView {
     let params = use_params_map();
     let navigate = use_navigate();
 
-    let tag = RwSignal::new(None::<common::response::tag::TagListItem>);
-    let submitting = RwSignal::new(false);
-    let error = RwSignal::new(None::<String>);
+    let tag_id = move || params.get().get("tag_id").unwrap_or_default();
 
-    Effect::new(move |_| {
-        let tag_id = params.get().get("tag_id").unwrap_or_default();
-        if let Err(message) = validate_uuid(&tag_id) {
-            error.set(Some(message));
-            return;
+    let tag_name: LocalResource<Loaded<String>> = LocalResource::new(move || {
+        let id = tag_id();
+        async move {
+            require_id(&id)?;
+            Ok(tag::read_tag(&id).await?.name)
         }
-        leptos::task::spawn_local(async move {
-            match tag::read_tag(&tag_id).await {
-                Ok(tag_view) => tag.set(Some(tag_view)),
-                Err(err) => error.set(Some(err.to_string())),
-            }
-        });
     });
+    notify_load_failures(tag_name);
 
-    let on_confirm = move |_| {
-        submitting.set(true);
-        error.set(None);
-
-        let tag_id = params.get().get("tag_id").unwrap_or_default();
+    let confirm = use_confirm_action(move || {
+        let id = tag_id();
         let navigate = navigate.clone();
-        if let Err(message) = validate_uuid(&tag_id) {
-            error.set(Some(message));
-            submitting.set(false);
-            return;
+        async move {
+            require_id(&id)?;
+            tag::delete_tag(&id).await?;
+            navigate("/tag", NavigateOptions::default());
+            Ok(())
         }
-        leptos::task::spawn_local(async move {
-            match tag::delete_tag(&tag_id).await {
-                Ok(()) => {
-                    navigate("/tag", NavigateOptions::default());
-                }
-                Err(err) => {
-                    error.set(Some(err.to_string()));
-                    submitting.set(false);
-                }
-            }
-        });
-    };
+    });
 
     view! {
         <h1>"Delete Tag"</h1>
-        {move || tag.get().map(|tag_view| view! {
-            <p>"Are you sure you want to delete tag \"" {tag_view.name} "\"?"</p>
-            <p class="warning">"This will remove the tag from all articles."</p>
-        })}
-        {move || error.get().map(|err| view! { <p class="error">{err}</p> })}
-        <button on:click=on_confirm disabled=submitting>
-            {move || if submitting.get() { "Deleting..." } else { "Delete" }}
-        </button>
+        {move || match tag_name.get() {
+            Some(Ok(name)) => view! {
+                <p>"Are you sure you want to delete tag \"" {name} "\"?"</p>
+                <p class="warning">"This will remove the tag from all articles."</p>
+            }
+            .into_any(),
+            _ => ().into_any(),
+        }}
+        <ConfirmButton handle=confirm label="Delete" busy_label="Deleting..."/>
     }
 }

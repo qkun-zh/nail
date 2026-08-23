@@ -1,8 +1,10 @@
 pub mod article;
 pub mod authenticate;
 pub mod author_gate;
+pub mod confirm;
 pub mod delete_mode;
 pub mod draft;
+pub mod fetch;
 pub mod index;
 pub mod not_found;
 pub mod notify;

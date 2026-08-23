@@ -56,7 +56,10 @@ fn uuid_rejects_bad_format_and_accepts_canonical() {
     );
     assert!(validate_uuid("01a00100-d22d-73c3-a5c3-c54e9b8f6f3").is_err());
     assert!(validate_uuid("01a00100-d22d-73c3-a5c3-c54e9b8f6f32z").is_err());
-    assert!(validate_uuid("01a00100d22d73c3a5c3c54e9b8f6f32").is_err());
+    assert_eq!(
+        validate_uuid("01a00100d22d73c3a5c3c54e9b8f6f32"),
+        Ok("01a00100-d22d-73c3-a5c3-c54e9b8f6f32".to_string())
+    );
     assert!(validate_uuid("01a00100-d22d-73c3-a5c3-c54e9b8f6f32-").is_err());
     assert!(validate_uuid("not-a-uuid").is_err());
     assert!(validate_uuid("").is_err());

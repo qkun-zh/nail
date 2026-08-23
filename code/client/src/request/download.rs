@@ -9,18 +9,11 @@ use crate::request::validate::validate_id;
 const FALLBACK_FILENAME: &str = "article.pdf";
 
 pub fn origin_of(url: &str) -> Option<String> {
-    let scheme_end = url.find("://")?;
-    let scheme = &url[..scheme_end];
-    if scheme != "http" && scheme != "https" {
+    let parsed = url::Url::parse(url).ok()?;
+    if !matches!(parsed.scheme(), "http" | "https") {
         return None;
     }
-    let rest = &url[scheme_end + 3..];
-    let authority_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
-    let authority = &rest[..authority_end];
-    if authority.is_empty() {
-        return None;
-    }
-    Some(format!("{scheme}://{authority}"))
+    Some(parsed.origin().ascii_serialization())
 }
 
 pub fn resolve_download_url(minted: &str, window_origin: &str) -> Option<String> {

@@ -10,16 +10,13 @@ use super::render::{CommentViewContext, comment_form, comment_rows, context_card
 use crate::page::pagination::LevelPagination;
 
 pub fn comment_detail_view(
-    target: RwSignal<Option<CommentView>>,
-    children: RwSignal<Option<ListPage<CommentView>>>,
+    target: &CommentView,
+    children: &ListPage<CommentView>,
     comment_id: &str,
     comment_view_context: &CommentViewContext,
     reply_body: RwSignal<String>,
     on_submit_reply: impl Fn(SubmitEvent) + Clone + 'static,
 ) -> impl IntoView {
-    let Some(comment) = target.get() else {
-        return view! { <p class="cmt-empty">comment not found</p> }.into_any();
-    };
     let base_path = comment_view_context.base_path.clone();
     let links = super::render::CommentLinks {
         update: Some(format!("{base_path}/comment/{comment_id}/update")),
@@ -39,18 +36,12 @@ pub fn comment_detail_view(
     } else {
         who_are_you()
     };
-    let child_list = children.get();
-    let rows = child_list
-        .as_ref()
-        .map(|list| {
-            comment_rows(
-                &list.items,
-                &comment_view_context.base_path,
-                (comment_view_context.current_page - 1) * COMMENTS_PER_PAGE,
-            )
-        })
-        .unwrap_or_default();
-    let has_next = child_list.as_ref().is_some_and(|list| list.has_next);
+    let rows = comment_rows(
+        &children.items,
+        &comment_view_context.base_path,
+        (comment_view_context.current_page - 1) * COMMENTS_PER_PAGE,
+    );
+    let has_next = children.has_next;
     let children_view = if rows.is_empty() {
         view! { <p class="cmt-empty">no replies yet</p> }.into_any()
     } else {
@@ -58,7 +49,7 @@ pub fn comment_detail_view(
     };
     view! {
         <div>
-            {context_card(&comment, links)}
+            {context_card(target, links)}
             {form}
             {children_view}
             <LevelPagination

@@ -33,27 +33,7 @@ pub fn validate_comment_content(raw: &str, max_chars: u64) -> Result<String, Str
 }
 
 pub fn validate_uuid(raw: &str) -> Result<String, String> {
-    let value = raw.trim();
-    let bytes = value.as_bytes();
-    let valid = value.len() == 36
-        && bytes.get(8) == Some(&b'-')
-        && bytes.get(13) == Some(&b'-')
-        && bytes.get(18) == Some(&b'-')
-        && bytes.get(23) == Some(&b'-')
-        && is_uuid_hex(&value[0..8])
-        && is_uuid_hex(&value[9..13])
-        && is_uuid_hex(&value[14..18])
-        && is_uuid_hex(&value[19..23])
-        && is_uuid_hex(&value[24..36]);
-    if valid {
-        Ok(value.to_string())
-    } else {
-        Err("invalid id: expected a UUID".to_string())
-    }
-}
-
-fn is_uuid_hex(value: &str) -> bool {
-    value.bytes().all(|byte| byte.is_ascii_hexdigit())
+    crate::request::validate::validate_id(raw, "id").map_err(|error| error.to_string())
 }
 
 pub fn looks_like_pdf(mime_type: &str, file_name: &str) -> bool {

@@ -1,8 +1,8 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
-use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
+use leptos_router::hooks::{use_params_map, use_query_map};
 
-use crate::page::draft::persist_draft;
+use crate::page::draft::mirror_text_param;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
 use crate::page::session_gate::{
     SessionStatus, authenticated_user_id, refresh_session, use_session_status,
@@ -11,7 +11,6 @@ use crate::page::validation::validate_name;
 
 #[component]
 pub fn NameUpdate() -> impl IntoView {
-    let navigate = use_navigate();
     let notifications = use_notifications();
     let query = use_query_map();
     let params = use_params_map();
@@ -19,14 +18,7 @@ pub fn NameUpdate() -> impl IntoView {
     let name = RwSignal::new(query.get_untracked().get("name").unwrap_or_default());
     let working = RwSignal::new(false);
 
-    persist_draft(
-        navigate.clone(),
-        format!(
-            "/user/{}/name/update",
-            params.get_untracked().get("uid").unwrap_or_default()
-        ),
-        move || vec![("name", name.get())],
-    );
+    mirror_text_param("name", move || name.get());
 
     Effect::new(move |_| {
         let SessionStatus::Authenticated(view) = status.get() else {

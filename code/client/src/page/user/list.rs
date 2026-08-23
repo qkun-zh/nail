@@ -4,45 +4,38 @@ use leptos_router::components::A;
 use common::response::ListPage;
 use common::response::user::UserListItem;
 
+use crate::page::fetch::{LoadError, Loaded, notify_load_failures};
 use crate::request::user;
 
 #[component]
 pub fn UserList() -> impl IntoView {
-    let users = RwSignal::new(None::<ListPage<UserListItem>>);
-    let error = RwSignal::new(None::<String>);
+    let users: LocalResource<Loaded<ListPage<UserListItem>>> =
+        LocalResource::new(
+            || async move { user::read_users(1, 200).await.map_err(LoadError::from) },
+        );
+    notify_load_failures(users);
 
-    Effect::new(move |_| {
-        leptos::task::spawn_local(async move {
-            match user::read_users(1, 200).await {
-                Ok(page) => users.set(Some(page)),
-                Err(err) => error.set(Some(err.to_string())),
-            }
-        });
-    });
-
-    let render = move || {
-        if let Some(message) = error.get() {
-            return view! { <p>{message}</p> }.into_any();
-        }
-        let Some(page) = users.get() else {
-            return view! { <p>"Loading..."</p> }.into_any();
-        };
-        view! {
-            <h1>"Users"</h1>
-            <ul>
-                {page.items.into_iter().map(|item| view! {
-                    <li>
-                        <A href={format!("/user/{}", item.id)}>
-                            {item.name}
-                        </A>
-                        <span>" (" {item.roles.len()} " roles)"</span>
-                    </li>
-                }).collect::<Vec<_>>()}
-            </ul>
-            <p>"Total: " {page.total}</p>
-        }
-        .into_any()
-    };
-
-    view! { {render} }
+    view! {
+        <Suspense fallback=|| view! { <p>"Loading..."</p> }>
+            {move || match users.get() {
+                Some(Ok(page)) => view! {
+                    <h1>"Users"</h1>
+                    <ul>
+                        {page.items.into_iter().map(|item| view! {
+                            <li>
+                                <A href={format!("/user/{}", item.id)}>
+                                    {item.name}
+                                </A>
+                                <span>" (" {item.roles.len()} " roles)"</span>
+                            </li>
+                        }).collect::<Vec<_>>()}
+                    </ul>
+                    <p>"Total: " {page.total}</p>
+                }
+                .into_any(),
+                Some(Err(message)) => view! { <p>{message.to_string()}</p> }.into_any(),
+                None => view! { <p>"Loading..."</p> }.into_any(),
+            }}
+        </Suspense>
+    }
 }

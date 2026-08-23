@@ -1,11 +1,11 @@
 use leptos::ev::SubmitEvent;
 use leptos::html::Input;
 use leptos::prelude::*;
-use leptos_router::hooks::{use_navigate, use_params_map, use_query_map};
+use leptos_router::hooks::{use_params_map, use_query_map};
 
 use crate::infrastructure::limits::use_limits;
 use crate::page::author_gate::{denied_view, use_author_gate};
-use crate::page::draft::persist_draft;
+use crate::page::draft::mirror_text_param;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
 use crate::page::validation::{
     validate_note, validate_pdf_selection, validate_uuid, validate_version_number,
@@ -14,7 +14,6 @@ use crate::page::validation::{
 #[component]
 pub fn CreateVersion() -> impl IntoView {
     let params = use_params_map();
-    let navigate = use_navigate();
     let query = use_query_map();
     let notifications = use_notifications();
     let limits = use_limits();
@@ -27,13 +26,8 @@ pub fn CreateVersion() -> impl IntoView {
     let article_id = move || params.get().get("article_id");
     let (denied, checked) = use_author_gate(article_id);
 
-    let pathname = format!(
-        "/article/{}/version/create",
-        params.get_untracked().get("article_id").unwrap_or_default()
-    );
-    persist_draft(navigate.clone(), pathname, move || {
-        vec![("version", version.get()), ("note", note.get())]
-    });
+    mirror_text_param("version", move || version.get());
+    mirror_text_param("note", move || note.get());
 
     let submit = move |event: SubmitEvent| {
         event.prevent_default();

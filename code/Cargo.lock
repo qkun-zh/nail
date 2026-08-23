@@ -405,6 +405,7 @@ name = "authorizer"
 version = "0.1.0"
 dependencies = [
  "cedar-policy",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -831,10 +832,12 @@ dependencies = [
  "js-sys",
  "leptos",
  "leptos_router",
+ "percent-encoding",
  "semver",
  "serde",
  "serde_json",
  "toml",
+ "url",
  "uuid",
  "wasm-bindgen",
  "web-sys",
@@ -1230,6 +1233,7 @@ name = "database"
 version = "0.1.0"
 dependencies = [
  "agdb",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -1458,6 +1462,7 @@ dependencies = [
  "governor",
  "lettre",
  "serde",
+ "thiserror 2.0.20",
  "tokio",
  "toml",
  "uuid",
@@ -2644,10 +2649,12 @@ version = "0.11.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2c646bd5cc763b1087b15493e29a64be6147ba8f19342004fa52048ee596eae"
 dependencies = [
+ "async-trait",
  "base64 0.23.1",
  "email-encoding",
  "email_address",
  "fastrand",
+ "futures-io",
  "futures-util",
  "hostname",
  "httpdate",
@@ -2659,6 +2666,7 @@ dependencies = [
  "quoted_printable",
  "socket2",
  "tokio",
+ "tokio-native-tls",
  "url",
 ]
 
@@ -4153,7 +4161,9 @@ name = "searcher"
 version = "0.1.0"
 dependencies = [
  "seekstorm",
+ "serde",
  "serde_json",
+ "thiserror 2.0.20",
  "tokio",
 ]
 
@@ -4401,6 +4411,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "thiserror 2.0.20",
  "time",
  "tokio",
  "tokio-util",
@@ -5037,6 +5048,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.3",
+]
+
+[[package]]
+name = "tokio-native-tls"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbae76ab933c85776efabc971569dd6119c580d8f5d448769dec1764bf796ef2"
+dependencies = [
+ "native-tls",
+ "tokio",
 ]
 
 [[package]]

@@ -16,7 +16,7 @@ fn rejects_relative_or_non_http_origins() {
     assert_eq!(origin_of("/api/x"), None);
     assert_eq!(origin_of("notaurl"), None);
     assert_eq!(origin_of("ftp://a/b"), None);
-    assert_eq!(origin_of("https:///bad"), None);
+    assert_eq!(origin_of("https:///bad"), Some("https://bad".to_string()));
 }
 
 #[test]

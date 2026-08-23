@@ -4,33 +4,33 @@ use leptos::prelude::*;
 use leptos_router::components::{A, Outlet};
 use leptos_router::hooks::use_params_map;
 
-use crate::page::notify::{notify_error, use_notifications};
-use crate::page::validation::validate_uuid;
+use crate::page::fetch::{Loaded, notify_load_failures, require_id};
 
 #[component]
 pub fn Name() -> impl IntoView {
     let params = use_params_map();
-    let notifications = use_notifications();
     let uid = move || params.get().get("uid").unwrap_or_default();
-    let name = RwSignal::new(None::<String>);
 
-    Effect::new(move |_| {
+    let name: LocalResource<Loaded<String>> = LocalResource::new(move || {
         let id = uid();
-        let notifications = notifications.clone();
-        if let Err(error) = validate_uuid(&id) {
-            notify_error(&notifications, error);
-            return;
+        async move {
+            require_id(&id)?;
+            Ok(crate::request::user::read_user(&id)
+                .await?
+                .name
+                .unwrap_or_default())
         }
-        leptos::task::spawn_local(async move {
-            match crate::request::user::read_user(&id).await {
-                Ok(view) => name.set(view.name),
-                Err(error) => notify_error(&notifications, error.to_string()),
-            }
-        });
     });
+    notify_load_failures(name);
 
     view! {
-        <p>{move || name.get().unwrap_or_default()}</p>
+        <Suspense fallback=|| view! { <p>loading...</p> }>
+            {move || match name.get() {
+                Some(Ok(name)) => view! { <p>{name}</p> }.into_any(),
+                Some(Err(message)) => view! { <p>{message.to_string()}</p> }.into_any(),
+                None => view! { <p>loading...</p> }.into_any(),
+            }}
+        </Suspense>
         <div><A href={format!("/user/{}/name/update", uid())}>update</A></div>
         <Outlet/>
     }

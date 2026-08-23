@@ -1,14 +1,13 @@
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
-use leptos_router::hooks::{use_navigate, use_query_map};
+use leptos_router::hooks::use_query_map;
 
-use crate::page::draft::persist_draft;
+use crate::page::draft::mirror_text_param;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
 use crate::page::session_gate::refresh_session;
 
 #[component]
 pub fn Authenticate() -> impl IntoView {
-    let navigate = use_navigate();
     let notifications = use_notifications();
     let query = use_query_map();
 
@@ -16,9 +15,8 @@ pub fn Authenticate() -> impl IntoView {
     let token = RwSignal::new(query.get_untracked().get("token").unwrap_or_default());
     let working = RwSignal::new(false);
 
-    persist_draft(navigate.clone(), "/authenticate".to_string(), move || {
-        vec![("email", email.get()), ("token", token.get())]
-    });
+    mirror_text_param("email", move || email.get());
+    mirror_text_param("token", move || token.get());
 
     let send_notifications = notifications.clone();
     let send_email = move |event: SubmitEvent| {

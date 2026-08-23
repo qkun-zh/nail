@@ -6,7 +6,7 @@ use leptos_router::hooks::{use_navigate, use_query_map};
 
 use crate::infrastructure::limits::use_limits;
 use crate::page::article::tag_picker::TagPicker;
-use crate::page::draft::persist_draft;
+use crate::page::draft::mirror_text_param;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
 use crate::page::validation::{
     validate_note, validate_pdf_selection, validate_summary, validate_title,
@@ -34,15 +34,12 @@ pub fn CreateArticle() -> impl IntoView {
     let file_ref = NodeRef::<Input>::new();
     let working = RwSignal::new(false);
 
-    persist_draft(navigate.clone(), "/article/create".to_string(), move || {
-        vec![
-            ("title", title.get()),
-            ("summary", summary.get()),
-            ("tags", selected_tags.get().join(" ")),
-            ("version", version.get()),
-            ("note", note.get()),
-        ]
-    });
+    let tags_wire = Memo::new(move |_| selected_tags.get().join(" "));
+    mirror_text_param("title", move || title.get());
+    mirror_text_param("summary", move || summary.get());
+    mirror_text_param("tags", move || tags_wire.get());
+    mirror_text_param("version", move || version.get());
+    mirror_text_param("note", move || note.get());
 
     let submit = move |event: SubmitEvent| {
         event.prevent_default();
