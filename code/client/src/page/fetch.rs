@@ -25,6 +25,12 @@ impl From<String> for LoadError {
     }
 }
 
+impl From<&str> for LoadError {
+    fn from(message: &str) -> Self {
+        Self(message.to_string())
+    }
+}
+
 impl From<RequestError> for LoadError {
     fn from(error: RequestError) -> Self {
         Self(error.to_string())

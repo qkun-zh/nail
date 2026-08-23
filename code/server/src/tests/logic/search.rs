@@ -571,7 +571,7 @@ async fn bare_tag_search_matches_tag_field() {
 }
 
 #[tokio::test]
-async fn single_char_query_reports_field_hits() {
+async fn single_char_query_finds_article_without_field_cards() {
     let context = TestCtx::new().await.expect("test context");
     let actor = member(&context, "alice@example.com");
     let _ = crate::logic::article::create_article(
@@ -603,8 +603,8 @@ async fn single_char_query_reports_field_hits() {
         .find(|item| item.title == "Sample 9 for scheduler")
         .expect("article present");
     assert!(
-        item.article_hits.iter().any(|hit| hit.label == "summary"),
-        "single-char query must report a summary hit, got: {:?}",
+        item.article_hits.is_empty(),
+        "the engine marks nothing for a bare digit, so no field cards are fabricated: {:?}",
         item.article_hits
     );
     assert!(

@@ -1,9 +1,10 @@
-use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
 use leptos_router::hooks::{use_params_map, use_query_map};
 
+use crate::page::confirm::use_confirm_action;
 use crate::page::draft::mirror_text_param;
-use crate::page::notify::{notify_error, notify_success, use_notifications};
+use crate::page::fetch::LoadError;
+use crate::page::notify::{notify_success, use_notifications};
 use crate::page::session_gate::{authenticated_user_id, refresh_session};
 
 #[component]
@@ -15,8 +16,6 @@ pub fn EmailUpdate() -> impl IntoView {
     let new_email = RwSignal::new(query.get_untracked().get("new_email").unwrap_or_default());
     let old_token = RwSignal::new(query.get_untracked().get("old_token").unwrap_or_default());
     let new_token = RwSignal::new(query.get_untracked().get("new_token").unwrap_or_default());
-    let sending = RwSignal::new(false);
-    let confirming = RwSignal::new(false);
 
     mirror_text_param("old_email", move || old_email.get());
     mirror_text_param("new_email", move || new_email.get());
@@ -24,102 +23,80 @@ pub fn EmailUpdate() -> impl IntoView {
     mirror_text_param("new_token", move || new_token.get());
 
     let send_notifications = notifications.clone();
-    let send = move |event: SubmitEvent| {
-        event.prevent_default();
-        if sending.get() || confirming.get() {
-            return;
-        }
-        let old_email_value = old_email.get();
-        let new_email_value = new_email.get();
-        if old_email_value.trim().is_empty() || new_email_value.trim().is_empty() {
-            notify_error(&send_notifications, "enter both the old and the new email");
-            return;
-        }
-        if old_email_value == new_email_value {
-            notify_error(
-                &send_notifications,
-                "the new email must differ from the old one",
-            );
-            return;
-        }
-        sending.set(true);
+    let send = use_confirm_action(move || {
+        let old_email_value = old_email.get_untracked();
+        let new_email_value = new_email.get_untracked();
         let notifications = send_notifications.clone();
-        leptos::task::spawn_local(async move {
-            let result = async {
-                crate::request::user::send_change_email(old_email_value, new_email_value).await
+        async move {
+            if old_email_value.trim().is_empty() || new_email_value.trim().is_empty() {
+                return Err(LoadError::from("enter both the old and the new email"));
             }
-            .await;
-            match result {
-                Ok(_) => notify_success(&notifications, "confirmation emails sent"),
-                Err(error) => notify_error(&notifications, error.to_string()),
+            if old_email_value == new_email_value {
+                return Err(LoadError::from(
+                    "the new email must differ from the old one",
+                ));
             }
-            sending.set(false);
-        });
-    };
+            crate::request::user::send_change_email(old_email_value, new_email_value).await?;
+            notify_success(&notifications, "confirmation emails sent");
+            Ok(())
+        }
+    });
 
     let confirm_notifications = notifications.clone();
-    let confirm = move |event: SubmitEvent| {
-        event.prevent_default();
-        if confirming.get() || sending.get() {
-            return;
-        }
-        let Some(user_id) = authenticated_user_id() else {
-            notify_error(&confirm_notifications, "authenticate to change email");
-            return;
-        };
-        if params
-            .get_untracked()
-            .get("uid")
-            .is_some_and(|uid| uid != user_id)
-        {
-            notify_error(&confirm_notifications, "cannot change another user's email");
-            return;
-        }
-        let old_token_value = old_token.get().trim().to_string();
-        let new_token_value = new_token.get().trim().to_string();
-        if old_token_value.is_empty() || new_token_value.is_empty() {
-            notify_error(&confirm_notifications, "paste both emailed tokens");
-            return;
-        }
-        if old_token_value == new_token_value {
-            notify_error(&confirm_notifications, "the two tokens must differ");
-            return;
-        }
-        confirming.set(true);
+    let confirm = use_confirm_action(move || {
+        let user_id = authenticated_user_id();
+        let route_uid = params.get_untracked().get("uid");
+        let old_token_value = old_token.get_untracked().trim().to_string();
+        let new_token_value = new_token.get_untracked().trim().to_string();
         let notifications = confirm_notifications.clone();
-        leptos::task::spawn_local(async move {
-            let result = crate::request::user::confirm_email_change(
+        async move {
+            let Some(user_id) = user_id else {
+                return Err(LoadError::from("authenticate to change email"));
+            };
+            if route_uid.is_some_and(|uid| uid != user_id) {
+                return Err(LoadError::from("cannot change another user's email"));
+            }
+            if old_token_value.is_empty() || new_token_value.is_empty() {
+                return Err(LoadError::from("paste both emailed tokens"));
+            }
+            if old_token_value == new_token_value {
+                return Err(LoadError::from("the two tokens must differ"));
+            }
+            let view = crate::request::user::confirm_email_change(
                 &user_id,
                 &old_token_value,
                 &new_token_value,
             )
-            .await;
-            match result {
-                Ok(view) => {
-                    crate::request::session::store_session_token(&view.session_token);
-                    refresh_session();
-                    notify_success(&notifications, "email changed");
-                }
-                Err(error) => notify_error(&notifications, error.to_string()),
-            }
-            confirming.set(false);
-        });
-    };
+            .await?;
+            crate::request::session::store_session_token(&view.session_token);
+            refresh_session();
+            notify_success(&notifications, "email changed");
+            Ok(())
+        }
+    });
 
     view! {
-        <form on:submit=send>
+        <form on:submit=move |event| {
+            event.prevent_default();
+            send.submit.run(());
+        }>
             <input type="text" prop:value=old_email on:input=move |event| old_email.set(event_target_value(&event)) placeholder="email(old)"/>
             <input type="text" prop:value=new_email on:input=move |event| new_email.set(event_target_value(&event)) placeholder="email(new)"/>
-            <button type="submit" disabled=move || sending.get()>
-                {move || if sending.get() { "sending..." } else { "send" }}
+            <button type="submit" disabled=send.working>
+                {move || if send.working.get() { "sending..." } else { "send" }}
             </button>
         </form>
-        <form on:submit=confirm>
+        {move || send.error.get().map(|error| view! { <p class="error">{error}</p> })}
+        <form on:submit=move |event| {
+            event.prevent_default();
+            confirm.submit.run(());
+        }>
             <input type="text" prop:value=old_token on:input=move |event| old_token.set(event_target_value(&event)) placeholder="token(old)"/>
             <input type="text" prop:value=new_token on:input=move |event| new_token.set(event_target_value(&event)) placeholder="token(new)"/>
-            <button type="submit" disabled=move || confirming.get()>
-                {move || if confirming.get() { "updating..." } else { "update" }}
+            <button type="submit" disabled=confirm.working>
+                {move || if confirm.working.get() { "updating..." } else { "update" }}
             </button>
         </form>
+        {move || confirm.error.get().map(|error| view! { <p class="error">{error}</p> })}
     }
 }
