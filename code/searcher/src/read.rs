@@ -117,11 +117,7 @@ impl Searcher {
             if document.contains_key("comment_id") {
                 hits.push(DocHit::Comment(comment_hit(&document)));
             } else {
-                hits.push(DocHit::Version(version_hit(
-                    &document,
-                    &request.fields,
-                    &query_terms,
-                )));
+                hits.push(DocHit::Version(version_hit(&document, &request.fields)));
             }
         }
         Ok(SearchOutcome { hits })
@@ -151,12 +147,12 @@ fn read_highlighted_or_raw(document: &Document, field: &str) -> String {
     }
 }
 
-fn field_hit(document: &Document, field: &str, query_terms: &[String]) -> bool {
-    let folded = read_string_field(document, field).to_lowercase();
-    query_terms.iter().any(|term| folded.contains(term))
+/// Every field verdict comes from the engine's own highlight markup.
+fn engine_marked_hit(document: &Document, field: &str) -> bool {
+    read_string_field(document, &highlight_name(field)).contains("<mark>")
 }
 
-fn version_hit(document: &Document, fields: &[SearchField], query_terms: &[String]) -> VersionHit {
+fn version_hit(document: &Document, fields: &[SearchField]) -> VersionHit {
     let mut article_hits = Vec::new();
     let mut version_hits = Vec::new();
     let mut version_number_hit = false;
@@ -164,7 +160,7 @@ fn version_hit(document: &Document, fields: &[SearchField], query_terms: &[Strin
         let engine_field = field.as_engine_field();
         match field {
             SearchField::Summary | SearchField::Tag => {
-                if field_hit(document, engine_field, query_terms) {
+                if engine_marked_hit(document, engine_field) {
                     article_hits.push(FieldHit {
                         field: *field,
                         snippet: read_highlighted_or_raw(document, engine_field),
@@ -172,7 +168,7 @@ fn version_hit(document: &Document, fields: &[SearchField], query_terms: &[Strin
                 }
             }
             SearchField::Note => {
-                if field_hit(document, engine_field, query_terms) {
+                if engine_marked_hit(document, engine_field) {
                     version_hits.push(FieldHit {
                         field: *field,
                         snippet: read_highlighted_or_raw(document, engine_field),
@@ -180,7 +176,7 @@ fn version_hit(document: &Document, fields: &[SearchField], query_terms: &[Strin
                 }
             }
             SearchField::VersionNumber => {
-                version_number_hit = field_hit(document, engine_field, query_terms);
+                version_number_hit = engine_marked_hit(document, engine_field);
             }
             _ => {}
         }

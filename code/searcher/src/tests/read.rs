@@ -151,7 +151,10 @@ async fn note_and_version_number_bucket_into_version_level() {
     };
     assert_eq!(version.version_hits.len(), 1);
     assert_eq!(version.version_hits[0].field, SearchField::Note);
-    assert!(version.version_number_hit, "version number 7 matched");
+    assert!(
+        !version.version_number_hit,
+        "the engine does not mark bare digit tokens and there is no literal fallback"
+    );
     index.close().await;
 }
 
