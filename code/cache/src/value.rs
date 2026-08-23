@@ -20,30 +20,19 @@ impl fmt::Display for CacheError {
 impl std::error::Error for CacheError {}
 
 pub trait CacheValue: Clone + Send + Sync + 'static {
-    /// The entity this value belongs to, used to invalidate the whole batch of
-    /// a user's entries at once.
     fn reverse_key(&self) -> Option<&str> {
         None
     }
 
-    /// Validates the value's stored content.
-    ///
-    /// # Errors
-    /// Returns `CacheError` when the content does not match the expected shape.
     fn validate(&self) -> Result<(), CacheError> {
         Ok(())
     }
 }
 
-/// A 32-character hex digest of a credential or identifier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Hash(String);
 
 impl Hash {
-    /// Validates that `value` is a 32-character hex string.
-    ///
-    /// # Errors
-    /// Returns `CacheError::InvalidHash` when `value` is not 32 hex characters.
     pub fn new(value: String) -> Result<Self, CacheError> {
         if value.len() == 32 && value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
             Ok(Self(value))
@@ -64,15 +53,10 @@ impl CacheValue for Hash {
     }
 }
 
-/// A `UUIDv7` user identifier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UserId(String);
 
 impl UserId {
-    /// Validates that `value` is a `UUIDv7`.
-    ///
-    /// # Errors
-    /// Returns `CacheError::InvalidId` when `value` is not a `UUIDv7`.
     pub fn new(value: String) -> Result<Self, CacheError> {
         validate_uuid_v7(&value)?;
         Ok(Self(value))
@@ -90,15 +74,10 @@ impl CacheValue for UserId {
     }
 }
 
-/// A `UUIDv7` version identifier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VersionId(String);
 
 impl VersionId {
-    /// Validates that `value` is a `UUIDv7`.
-    ///
-    /// # Errors
-    /// Returns `CacheError::InvalidId` when `value` is not a `UUIDv7`.
     pub fn new(value: String) -> Result<Self, CacheError> {
         validate_uuid_v7(&value)?;
         Ok(Self(value))
@@ -112,13 +91,11 @@ impl VersionId {
 
 impl CacheValue for VersionId {}
 
-/// A proof-of-work challenge that has no stored content.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Challenge;
 
 impl CacheValue for Challenge {}
 
-/// The four hashes exchanged during an email address change.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OldAndNewEmailAddressAndTokenHashes {
     pub old_email_address_hash: Hash,
@@ -129,7 +106,6 @@ pub struct OldAndNewEmailAddressAndTokenHashes {
 
 impl CacheValue for OldAndNewEmailAddressAndTokenHashes {}
 
-/// The identity behind a user-deletion token.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UserIdAndEmailAddressHash {
     pub user_id: UserId,
@@ -142,7 +118,6 @@ impl CacheValue for UserIdAndEmailAddressHash {
     }
 }
 
-/// The identity behind a download token.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VersionIdAndUserId {
     pub version_id: VersionId,
