@@ -30,7 +30,6 @@ execute(R):
 
 ```
 cargo test -j 1 -p {server|common|emailer|client}
-cargo test -j 1 -p pow --all-targets
 ```
 
 - One crate per invocation, `-j 1` mandatory.

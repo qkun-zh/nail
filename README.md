@@ -35,7 +35,8 @@ page/request → infrastructure
 
 **Common** (`code/common/`):
 - Shared data structures/methods (hash, PoW, name, tag, text, search, time, request/response).
-- Both depend on it; it depends on nothing internal.
+- PoW lives inside common — no separate `pow` crate.
+- Both depend on it; it depends on nothing internal — zero workspace-crate dependencies.
 
 **Module org**: never `mod.rs`; module = same-named `.rs` + folder; deepen if dir > 16 files.
 

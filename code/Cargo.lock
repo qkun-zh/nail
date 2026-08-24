@@ -882,7 +882,7 @@ dependencies = [
  "anyhow",
  "ascon-xof128",
  "hex",
- "pow",
+ "pso-vdf",
  "serde",
  "serde_json",
  "time",
@@ -3480,19 +3480,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d83eb9bc6d8e5cf568e7a1101d60ee05e81ed50ea106026f3d18deeb046d7661"
 dependencies = [
  "zerovec",
-]
-
-[[package]]
-name = "pow"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "ascon-xof128",
- "hex",
- "pso-vdf",
- "serde",
- "serde_json",
- "uuid",
 ]
 
 [[package]]

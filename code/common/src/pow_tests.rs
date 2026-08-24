@@ -1,4 +1,4 @@
-use crate::{Challenge, MAX_DIFFICULTY, Pow, issue_challenge, prove, verify};
+use super::{Challenge, HASH_MULTIPLIER, MAX_DIFFICULTY, Pow, issue_challenge, prove, verify};
 use uuid::Uuid;
 
 fn sample_challenge() -> Challenge {
@@ -49,7 +49,7 @@ fn pow_round_trips_on_the_wire() {
 
 #[test]
 fn pow_nonce_defaults_to_zero_for_old_payloads() {
-    let json = r#"{"challenge":{"id":"0197c0b0-1234-7000-8000-000000000001","difficulty":1},"solution":"ababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab"}"#;
+    let json = r#"{"challenge":{"id":"0197c0b0-1234-7000-8000-000000000001","difficulty":1},"solution":"ababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab"}"#;
     let pow: Pow = serde_json::from_str(json).expect("deserialize old payload");
     assert_eq!(pow.nonce, 0);
 }
@@ -88,7 +88,7 @@ fn prove_nonce_is_reasonably_small_for_low_difficulty() {
         difficulty: 1,
     };
     let pow = prove(&ch).expect("prove");
-    let expected_trials = crate::HASH_MULTIPLIER * ch.difficulty;
+    let expected_trials = HASH_MULTIPLIER * ch.difficulty;
     assert!(
         pow.nonce < expected_trials * 16,
         "nonce too large for difficulty 1: {}",
