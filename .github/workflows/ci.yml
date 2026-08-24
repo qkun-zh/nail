@@ -3,7 +3,11 @@ name: CI
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "document/**"
   pull_request:
+    paths-ignore:
+      - "document/**"
 
 env:
   CARGO_TERM_COLOR: always
