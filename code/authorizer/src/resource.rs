@@ -18,7 +18,6 @@ pub enum Resource {
     },
     Role {
         name: String,
-        permissions: Vec<String>,
     },
     User(String),
     Tag(String),

@@ -6,6 +6,8 @@ pub enum Error {
     Denied,
     #[error("resource not found")]
     NotFound,
+    #[error("invalid authorization request: {0}")]
+    InvalidRequest(String),
     #[error("authorization error: {0}")]
     Internal(String),
 }

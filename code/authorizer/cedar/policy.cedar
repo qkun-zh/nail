@@ -1,6 +1,8 @@
-// Authorization policies (Cedar): the single handwritten policy set. Changing
-// permissions is done through role/permission edges in data, never by editing
-// these policies.
+// Authorization policies (Cedar): the handwritten static half of the policy
+// set. Role permissions are NOT written here: at startup each schema action
+// becomes a policy template and each role/permission edge in data becomes a
+// template link, so granting or revoking stays a data operation while every
+// effective rule remains an ordinary inspectable Cedar policy.
 
 // 1. Owner bypass: the resource owner may read/update, create new versions,
 //    and transfer (soft-delete) their own content. Published content is a
@@ -20,7 +22,7 @@ permit (principal, action in [Action::"Article::Read", Action::"Version::Read",
                               Action::"Version::Delete::Soft",
                               Action::"Comment::Update"],
         resource)
-  when { resource.owner == principal };
+  when { resource has owner && resource.owner == principal };
 
 // 1b. User self-service: a user may always read, update and deregister their
 //     own account (soft or transfer mode). The User entity carries no
@@ -38,14 +40,12 @@ permit (principal, action in [Action::"User::Read",
 // 2 was the read-open rule, removed in B1: reads now flow through policy 1
 // (owner) or the role grant in policy 3.
 
-// 3. Role permission: the principal's role ancestor closure contains the
-//    action. Roles are pure sets of users; the scope axis was removed (D1).
-//    This single rule covers both concrete instances (Article/Version/Comment
-//    with an owner, User/Role instances) and Virtual Create resources, so no
-//    admin-console meta-resource is needed: instance authorization matches the
-//    concrete entity, and admins hold every action through this rule.
-permit (principal, action, resource)
-  when { principal in action };
+// 2. Role permissions: for every schema action, a template of the shape
+//    "permit (principal in ?principal, action == that action, resource);" is
+//    generated at startup and linked once per role/permission edge, so the
+//    scope is always populated and the engine can index every rule. This
+//    replaces the former unconstrained mega-permit
+//    (permit principal/action/resource when principal in action).
 
 // 4. was the admin-console meta-permission rule, removed in S7: User::Update/
 //    Delete::Hard now ride the concrete User resource (self-service through
