@@ -17,9 +17,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - name: Format pow
-        working-directory: code/pow
-        run: cargo fmt --check
       - name: Format cache
         working-directory: code/cache
         run: cargo fmt --check
@@ -45,9 +42,6 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - name: Clippy pow
-        working-directory: code/pow
-        run: cargo clippy --all-targets -- -D warnings
       - name: Clippy cache
         working-directory: code/cache
         run: cargo clippy --all-targets -- -D warnings
@@ -71,9 +65,6 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Test pow
-        working-directory: code/pow
-        run: cargo test --all-targets
       - name: Test cache
         working-directory: code/cache
         run: cargo test --all-targets
