@@ -58,7 +58,7 @@ Write one precise, testable requirement. Ambiguity → ask. `R₀` provisional.
 
 **Input:** `R₀` | **Output:** research report
 
-**File:** `document/research/<4-char>_<slug>.md` (≤300 lines, deleted §10)
+**File:** `document/research/<4-char>_<slug>.md` (≤300 lines; lifecycle §10)
 
 **Update:** after each unknown resolved (source + probe complete).
 
@@ -117,7 +117,7 @@ Unknowns → flag in exec doc, don't block.
 
 **Input:** `R`, plan | **Output:** exec doc
 
-**File:** `document/exec/<4-char>_<slug>.md` (≤300 lines, deleted §10)
+**File:** `document/exec/<4-char>_<slug>.md` (≤300 lines; lifecycle §10)
 
 **Update:** after each slice complete.
 
@@ -175,7 +175,13 @@ handoff: exec doc + handoff doc sync
 
 Full CI pass. Fail → §9.
 
-Cleanup: delete research report + exec doc.
+Cleanup: delete research report + exec doc + handoff task file.
+
+**Unified artifact lifecycle:** the three per-task artifacts — research
+report (`document/research/`), exec doc (`document/exec/`) and handoff task
+file (`document/handoff/`) — share one naming scheme, `<4-char code>_<slug>.md`,
+and one cleanup rule: each is deleted automatically as soon as this gate
+completes with a green CI run. Keep none past gate-final.
 
 ---
 

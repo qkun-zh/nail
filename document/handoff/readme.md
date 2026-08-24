@@ -8,8 +8,9 @@
    - task is numbered with Roman numerals (e.g. `I.`, `II.`)
    - stage is numbered with capital letters (e.g. `A.`, `B.`)
    - slice is numbered with Arabic numerals (e.g. `1.`, `2.`)
-2. A task, once fully complete, must be promptly removed from the handoff to
-   prevent entropy explosion — keep only incomplete and in-progress entries.
+2. A task, once its final gate passes with a green CI run (workflow §10), must
+   have its handoff task file deleted — same unified artifact lifecycle as the
+   research report and exec doc. Keep only incomplete and in-progress entries.
 3. Every slice must record its status, any information requiring the user's
    confirmation, and the user's decisions/choices.
 4. Each task must have a clear boundary in the handoff (partitioned by task,
@@ -29,6 +30,7 @@
    **Status**: {one-line progress summary}
    ```
 9. Handoff lives in this directory (`document/handoff/`). One task per file,
-   named with a 4-character random code and a short slug, like exec docs:
-   `document/handoff/{4-char code}_{slug}.md`. This file (`readme.md`) holds
-   these rules.
+   following the shared `<4-char code>_<slug>.md` naming of research reports
+   and exec docs: `document/handoff/{4-char code}_{slug}.md`. Cleanup follows
+   workflow §10 (delete on green CI). This file (`readme.md`) holds these
+   rules.
