@@ -5,9 +5,15 @@ on:
     branches: [main]
     paths-ignore:
       - "document/**"
+      - "**/*.md"
+      - "**/*.markdown"
+      - "**/LICENSE*"
   pull_request:
     paths-ignore:
       - "document/**"
+      - "**/*.md"
+      - "**/*.markdown"
+      - "**/LICENSE*"
 
 env:
   CARGO_TERM_COLOR: always
