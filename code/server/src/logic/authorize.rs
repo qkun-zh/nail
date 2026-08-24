@@ -16,6 +16,9 @@ impl From<AuthorizationError> for LogicError {
         match error {
             AuthorizationError::Denied => LogicError::forbidden("you are denied"),
             AuthorizationError::ResourceNotFound => LogicError::not_found("resource not found"),
+            AuthorizationError::BadRequest(_) => {
+                LogicError::bad_request("invalid authorization request")
+            }
             AuthorizationError::Internal(msg) => LogicError::internal(msg),
         }
     }

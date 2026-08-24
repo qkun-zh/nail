@@ -3,6 +3,7 @@ use database::{Database, EdgeKind, Error, NodeKind};
 use crate::repository::access::GraphRead;
 use crate::repository::role::RoleView;
 use crate::repository::schema::{IdRow, PermissionRow, RoleRow};
+use authorizer::{ALL_PERMISSIONS, Grant};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Resource {
@@ -67,5 +68,29 @@ pub fn read_article_authorization(
             authorization.owner_id = row.id;
         }
         Ok(Some(authorization))
+    })
+}
+
+/// Reads every role-to-permission edge as a Cedar [`Grant`]. Permission nodes
+/// form a closed vocabulary seeded from the schema actions, so iterating the
+/// vocabulary and pulling incoming grant edges covers all grants.
+pub fn read_all_role_grants(db: &Database) -> Result<Vec<Grant>, Error> {
+    db.read(|scope| {
+        let mut grants = Vec::new();
+        for permission in ALL_PERMISSIONS {
+            let Some(node) = scope.resolve(NodeKind::Permission, permission)? else {
+                continue;
+            };
+            for role_node in scope.incoming(node, EdgeKind::RoleGrantPermission)? {
+                let Some(row) = scope.scope_read_node::<RoleRow>(role_node)? else {
+                    continue;
+                };
+                grants.push(Grant {
+                    role: row.role_name,
+                    permission: (*permission).to_string(),
+                });
+            }
+        }
+        Ok(grants)
     })
 }

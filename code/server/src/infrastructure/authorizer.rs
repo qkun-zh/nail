@@ -1,4 +1,4 @@
-use authorizer::{Authorizer as InnerAuthorizer, Principal, Resource as AuthResource, Role};
+use authorizer::{Authorizer as InnerAuthorizer, Principal, Resource as AuthResource};
 use database::Database;
 
 #[derive(Clone)]
@@ -13,6 +13,8 @@ pub enum AuthorizationError {
     Denied,
     #[error("resource not found")]
     ResourceNotFound,
+    #[error("invalid authorization request: {0}")]
+    BadRequest(String),
     #[error("authorization error: {0}")]
     Internal(String),
 }
@@ -22,6 +24,7 @@ impl From<authorizer::Error> for AuthorizationError {
         match error {
             authorizer::Error::Denied => Self::Denied,
             authorizer::Error::NotFound => Self::ResourceNotFound,
+            authorizer::Error::InvalidRequest(message) => Self::BadRequest(message),
             authorizer::Error::Internal(message) => Self::Internal(message),
         }
     }
@@ -29,8 +32,18 @@ impl From<authorizer::Error> for AuthorizationError {
 
 impl Authorizer {
     pub fn new(graph: Database) -> Result<Self, AuthorizationError> {
-        let inner = InnerAuthorizer::new().map_err(AuthorizationError::from)?;
+        let grants = crate::repository::authorization::read_all_role_grants(&graph)
+            .map_err(|error| AuthorizationError::Internal(error.to_string()))?;
+        let inner = InnerAuthorizer::new(&grants).map_err(AuthorizationError::from)?;
         Ok(Self { inner, graph })
+    }
+
+    /// Re-projects every durable role/permission edge into the active policy
+    /// set. Called after administrative grant/revoke/delete mutations.
+    pub fn reload(&self) -> Result<(), AuthorizationError> {
+        let grants = crate::repository::authorization::read_all_role_grants(&self.graph)
+            .map_err(|error| AuthorizationError::Internal(error.to_string()))?;
+        self.inner.reload(&grants).map_err(AuthorizationError::from)
     }
 
     pub fn authorize(
@@ -51,17 +64,13 @@ fn build_principal(database: &Database, user_id: &str) -> Result<Principal, Auth
     let authorization =
         crate::repository::authorization::read_user_authorization(database, user_id)
             .map_err(|error| AuthorizationError::Internal(error.to_string()))?;
-    let roles = authorization
-        .roles
-        .into_iter()
-        .map(|view| Role {
-            name: view.role_name,
-            permissions: view.permissions,
-        })
-        .collect();
     Ok(Principal {
         id: user_id.to_string(),
-        roles,
+        roles: authorization
+            .roles
+            .into_iter()
+            .map(|view| view.role_name)
+            .collect(),
     })
 }
 
@@ -121,8 +130,7 @@ fn build_resource(
                 .map_err(|error| AuthorizationError::Internal(error.to_string()))?
                 .ok_or(AuthorizationError::ResourceNotFound)?;
             Ok(AuthResource::Role {
-                name: name.clone(),
-                permissions: view.permissions,
+                name: view.role_name,
             })
         }
         crate::repository::authorization::Resource::User(user_id) => {

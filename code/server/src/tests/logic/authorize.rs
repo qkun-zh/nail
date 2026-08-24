@@ -216,6 +216,7 @@ async fn role_grant_authorizes_any_article() {
     .expect("grant");
     crate::repository::role::hold_role(&context.state.database, &editor, "editor")
         .expect("hold editor");
+    context.state.authorizer.reload().expect("reload links");
     let (article_id, _) = create_article_fixture(&context, &owner, "Global");
 
     assert!(

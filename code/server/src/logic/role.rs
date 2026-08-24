@@ -163,6 +163,12 @@ pub fn update_role(
             LogicError::internal(format!("failed to unhold role for {user}: {error}"))
         })?;
     }
+    if has_adds || has_removes {
+        let permissions_changed = !permissions_add.is_empty() || !permissions_remove.is_empty();
+        if permissions_changed {
+            state.authorizer.reload().map_err(LogicError::from)?;
+        }
+    }
     let role = read_role_node_by_id(&state.database, role_id)?
         .ok_or_else(|| LogicError::not_found("role not found"))?;
     let members = read_role_members(&state.database, &role.role_name)?;
@@ -195,6 +201,7 @@ pub fn delete_role(
     }
     delete_role_node(&state.database, &name)
         .map_err(|error| LogicError::internal(format!("failed to delete role: {error}")))?;
+    state.authorizer.reload().map_err(LogicError::from)?;
     Ok(NamedRef {
         id: role_id.to_string(),
         name,
