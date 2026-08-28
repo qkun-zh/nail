@@ -18,7 +18,10 @@ use common::request::DeleteMode;
 use common::response::ListPage;
 use common::response::comment::CommentView;
 use leptos::prelude::*;
-use leptos_router::hooks::{query_signal, use_navigate, use_params_map, use_query_map};
+use leptos_router::NavigateOptions;
+use leptos_router::hooks::{
+    query_signal, query_signal_with_options, use_navigate, use_params_map, use_query_map,
+};
 
 use crate::infrastructure::limits::use_limits;
 use crate::page::fetch::{LoadError, Loaded};
@@ -69,7 +72,11 @@ pub fn CommentSection() -> impl IntoView {
         ("reply", reply_body),
         ("update", update_body),
     ] {
-        let (_, set_param) = query_signal::<String>(key);
+        let options = NavigateOptions {
+            replace: true,
+            ..Default::default()
+        };
+        let (_, set_param) = query_signal_with_options::<String>(key, options);
         Effect::new(move |_| {
             let value = source.get();
             set_param.set((!value.trim().is_empty()).then_some(value));

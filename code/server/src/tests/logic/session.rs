@@ -128,5 +128,5 @@ async fn read_user_name_returns_the_account_name() {
         .insert(&key, UserId::new(user_id.clone()).expect("user id"));
 
     let name = crate::logic::session::read_user_name(&context.state, &token).expect("name");
-    assert_eq!(name, "anonymous");
+    assert_eq!(name, user_id.replace('-', ""));
 }

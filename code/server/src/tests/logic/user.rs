@@ -32,7 +32,8 @@ async fn read_user_self_returns_name_and_optional_email_hash() {
     let (user_id, _) = session_for(&context, "alice@example.com");
     let data = crate::logic::user::read_user(&context.state, &user_id, &user_id, true, false)
         .expect("read");
-    assert_eq!(data.name.as_deref(), Some("anonymous"),);
+    let default_name = user_id.replace('-', "");
+    assert_eq!(data.name.as_deref(), Some(default_name.as_str()));
     assert!(data.email_hash.is_none());
 
     let data = crate::logic::user::read_user(&context.state, &user_id, &user_id, true, true)

@@ -13,7 +13,6 @@ pub fn UpdateVersion() -> impl IntoView {
 
     let note = RwSignal::new(String::new());
     let submitting = RwSignal::new(false);
-    let error = RwSignal::new(None::<String>);
 
     let on_submit = move |ev: leptos::ev::SubmitEvent| {
         ev.prevent_default();
@@ -21,7 +20,6 @@ pub fn UpdateVersion() -> impl IntoView {
             return;
         }
         submitting.set(true);
-        error.set(None);
 
         let version_id = params.get().get("version_id").unwrap_or_default();
         let article_id = params.get().get("article_id").unwrap_or_default();
@@ -29,8 +27,7 @@ pub fn UpdateVersion() -> impl IntoView {
         let navigate = navigate.clone();
         let notifications = notifications.clone();
         if let Err(message) = validate_uuid(&version_id).and_then(|_| validate_uuid(&article_id)) {
-            notify_error(&notifications, message.clone());
-            error.set(Some(message));
+            notify_error(&notifications, message);
             submitting.set(false);
             return;
         }
@@ -45,7 +42,6 @@ pub fn UpdateVersion() -> impl IntoView {
                 }
                 Err(err) => {
                     notify_error(&notifications, err.to_string());
-                    error.set(Some(err.to_string()));
                     submitting.set(false);
                 }
             }
@@ -54,7 +50,6 @@ pub fn UpdateVersion() -> impl IntoView {
 
     view! {
         <h1>"Update Version"</h1>
-        {move || error.get().map(|err| view! { <p class="error">{err}</p> })}
         <form on:submit=on_submit>
             <label>
                 "Note"

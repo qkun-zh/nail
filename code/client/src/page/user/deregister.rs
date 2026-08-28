@@ -65,7 +65,6 @@ pub fn Deregister() -> impl IntoView {
                 {move || if send.working.get() { "sending..." } else { "send" }}
             </button>
         </form>
-        {move || send.error.get().map(|error| view! { <p class="error">{error}</p> })}
         <form on:submit=move |event| {
             event.prevent_default();
             confirm.submit.run(());
@@ -77,6 +76,5 @@ pub fn Deregister() -> impl IntoView {
                 {move || if confirm.working.get() { "deregistering..." } else { "deregister" }}
             </button>
         </form>
-        {move || confirm.error.get().map(|error| view! { <p class="error">{error}</p> })}
     }
 }

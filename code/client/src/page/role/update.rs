@@ -25,7 +25,6 @@ pub fn UpdateRole() -> impl IntoView {
     let users_add = RwSignal::new(String::new());
     let users_remove = RwSignal::new(String::new());
     let submitting = RwSignal::new(false);
-    let error = RwSignal::new(None::<String>);
 
     let on_submit = move |ev: leptos::ev::SubmitEvent| {
         ev.prevent_default();
@@ -33,12 +32,10 @@ pub fn UpdateRole() -> impl IntoView {
             return;
         }
         submitting.set(true);
-        error.set(None);
 
         let role_id = params.get().get("role_id").unwrap_or_default();
         if let Err(message) = validate_uuid(&role_id) {
-            notify_error(&notifications, message.clone());
-            error.set(Some(message));
+            notify_error(&notifications, message);
             submitting.set(false);
             return;
         }
@@ -65,7 +62,6 @@ pub fn UpdateRole() -> impl IntoView {
                 }
                 Err(err) => {
                     notify_error(&notifications, err.to_string());
-                    error.set(Some(err.to_string()));
                 }
             }
         });
@@ -73,7 +69,6 @@ pub fn UpdateRole() -> impl IntoView {
 
     view! {
         <h1>"Update Role"</h1>
-        {move || error.get().map(|err| view! { <p class="error">{err}</p> })}
         <form on:submit=on_submit>
             <label>
                 "Permissions to add (comma separated)"

@@ -70,6 +70,25 @@ impl<E: CacheValue> Table<E> {
         }
         count
     }
+
+    /// TEMPORARY instrumentation: print every live entry as key -> value.
+    /// Removed after observation is complete.
+    pub fn dump(&self, name: &str)
+    where
+        E: std::fmt::Debug,
+    {
+        let mut keys: Vec<String> = self
+            .entries
+            .iter()
+            .map(|(key, _)| key.as_ref().clone())
+            .collect();
+        keys.sort();
+        eprintln!("[CACHE:{name}] {} entry(ies)", keys.len());
+        for key in keys {
+            let value = self.entries.get(&key);
+            eprintln!("[CACHE:{name}]   key={key} value={value:?}");
+        }
+    }
 }
 
 #[derive(Clone)]

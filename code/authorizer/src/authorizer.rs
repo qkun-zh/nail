@@ -68,6 +68,7 @@ impl Authorizer {
     ) -> Result<(), Error> {
         let principal_entity = build_principal(principal)?;
         let (resource_uid, resource_entities) = build_resource(resource)?;
+        let resource_uid_for_log = resource_uid.clone();
 
         let mut positions: HashMap<EntityUid, usize> = HashMap::new();
         let mut merged: Vec<Entity> = Vec::new();
@@ -101,11 +102,14 @@ impl Authorizer {
             .map_err(|_| Error::Internal("policy lock poisoned".to_string()))?
             .clone();
 
-        match self
-            .cedar
-            .is_authorized(&request, &policies, &entities)
-            .decision()
-        {
+        let response = self.cedar.is_authorized(&request, &policies, &entities);
+        // TEMPORARY instrumentation: log the raw Cedar decision for the request.
+        let decision = response.decision();
+        eprintln!(
+            "[AUTHZ] principal={:?} action={action} resource_uid={:?} decision={:?}",
+            principal.id, resource_uid_for_log, decision
+        );
+        match decision {
             Decision::Allow => Ok(()),
             Decision::Deny => Err(Error::Denied),
         }

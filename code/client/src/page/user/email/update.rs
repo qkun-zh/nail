@@ -76,27 +76,40 @@ pub fn EmailUpdate() -> impl IntoView {
     });
 
     view! {
-        <form on:submit=move |event| {
-            event.prevent_default();
-            send.submit.run(());
-        }>
-            <input type="text" prop:value=old_email on:input=move |event| old_email.set(event_target_value(&event)) placeholder="email(old)"/>
-            <input type="text" prop:value=new_email on:input=move |event| new_email.set(event_target_value(&event)) placeholder="email(new)"/>
-            <button type="submit" disabled=send.working>
-                {move || if send.working.get() { "sending..." } else { "send" }}
-            </button>
-        </form>
-        {move || send.error.get().map(|error| view! { <p class="error">{error}</p> })}
-        <form on:submit=move |event| {
-            event.prevent_default();
-            confirm.submit.run(());
-        }>
-            <input type="text" prop:value=old_token on:input=move |event| old_token.set(event_target_value(&event)) placeholder="token(old)"/>
-            <input type="text" prop:value=new_token on:input=move |event| new_token.set(event_target_value(&event)) placeholder="token(new)"/>
-            <button type="submit" disabled=confirm.working>
-                {move || if confirm.working.get() { "updating..." } else { "update" }}
-            </button>
-        </form>
-        {move || confirm.error.get().map(|error| view! { <p class="error">{error}</p> })}
+        <div class="panel-page">
+            <div class="panel-frame panel-frame--wide">
+                <div class="panel-inner">
+                    <h1 class="panel-title">"EMAIL UPDATE"</h1>
+                    <form class="panel-form panel-form--pair" on:submit=move |event| {
+                        event.prevent_default();
+                        send.submit.run(());
+                    }>
+                        <div class="panel-field">
+                            <input class="panel-input" type="text" prop:value=old_email on:input=move |event| old_email.set(event_target_value(&event)) placeholder="email(old)" autocomplete="email" spellcheck="false" />
+                        </div>
+                        <div class="panel-field">
+                            <input class="panel-input" type="text" prop:value=new_email on:input=move |event| new_email.set(event_target_value(&event)) placeholder="email(new)" autocomplete="email" spellcheck="false" />
+                        </div>
+                        <button class="panel-submit" type="submit" disabled=send.working>
+                            {move || if send.working.get() { "sending..." } else { "send" }}
+                        </button>
+                    </form>
+                    <form class="panel-form panel-form--pair" on:submit=move |event| {
+                        event.prevent_default();
+                        confirm.submit.run(());
+                    }>
+                        <div class="panel-field">
+                            <input class="panel-input" type="text" prop:value=old_token on:input=move |event| old_token.set(event_target_value(&event)) placeholder="token(old)" spellcheck="false" />
+                        </div>
+                        <div class="panel-field">
+                            <input class="panel-input" type="text" prop:value=new_token on:input=move |event| new_token.set(event_target_value(&event)) placeholder="token(new)" spellcheck="false" />
+                        </div>
+                        <button class="panel-submit" type="submit" disabled=confirm.working>
+                            {move || if confirm.working.get() { "updating..." } else { "update" }}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
     }
 }

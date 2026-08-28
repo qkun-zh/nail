@@ -2,7 +2,8 @@ use common::response::search::SearchArticleItem;
 use common::search::SearchRange;
 use leptos::ev::SubmitEvent;
 use leptos::prelude::*;
-use leptos_router::hooks::{query_signal, use_query_map};
+use leptos_router::NavigateOptions;
+use leptos_router::hooks::{query_signal_with_options, use_query_map};
 
 use crate::infrastructure::limits::use_limits;
 use crate::page::fetch::{LoadError, Loaded};
@@ -189,28 +190,32 @@ pub fn Search() -> impl IntoView {
         epoch.update(|token| *token += 1);
     };
 
-    // Router-owned URL state for every field.
-    let (_, set_q) = query_signal::<String>("q");
+    // Router-owned URL state for every field. Use replaceState to avoid polluting history.
+    let replace = NavigateOptions {
+        replace: true,
+        ..Default::default()
+    };
+    let (_, set_q) = query_signal_with_options::<String>("q", replace.clone());
     Effect::new(move |_| {
         let value = q_filter.get();
         set_q.set((!value.trim().is_empty()).then_some(value));
     });
-    let (_, set_ranges) = query_signal::<String>("ranges");
+    let (_, set_ranges) = query_signal_with_options::<String>("ranges", replace.clone());
     Effect::new(move |_| {
         let checked = ranges.get();
         set_ranges.set(Some(checked_range_subset(&checked)));
     });
-    let (_, set_from) = query_signal::<String>("from");
+    let (_, set_from) = query_signal_with_options::<String>("from", replace.clone());
     Effect::new(move |_| {
         let value = from_time.get();
         set_from.set((!value.trim().is_empty()).then_some(value));
     });
-    let (_, set_to) = query_signal::<String>("to");
+    let (_, set_to) = query_signal_with_options::<String>("to", replace.clone());
     Effect::new(move |_| {
         let value = to_time.get();
         set_to.set((!value.trim().is_empty()).then_some(value));
     });
-    let (_, set_page_param) = query_signal::<u64>("page");
+    let (_, set_page_param) = query_signal_with_options::<u64>("page", replace);
     Effect::new(move |_| {
         set_page_param.set(Some(current_page.get()));
     });

@@ -43,8 +43,7 @@ pub fn TagPicker(selected: RwSignal<Vec<String>>) -> impl IntoView {
                     </div>
                 }
                 .into_any(),
-                Some(Err(message)) => view! { <p class="error">{message.to_string()}</p> }.into_any(),
-                None => ().into_any(),
+                Some(Err(_)) | None => ().into_any(),
             }}
         </Suspense>
     }

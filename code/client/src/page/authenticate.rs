@@ -52,25 +52,34 @@ pub fn Authenticate() -> impl IntoView {
     });
 
     view! {
-        <form on:submit=move |event| {
-            event.prevent_default();
-            send.submit.run(());
-        }>
-            <input type="text" prop:value=email on:input=move |event| email.set(event_target_value(&event)) placeholder="email"/>
-            <button type="submit" disabled=send.working>
-                {move || if send.working.get() { "sending..." } else { "send" }}
-            </button>
-        </form>
-        {move || send.error.get().map(|error| view! { <p class="error">{error}</p> })}
-        <form on:submit=move |event| {
-            event.prevent_default();
-            redeem.submit.run(());
-        }>
-            <input type="text" prop:value=token on:input=move |event| token.set(event_target_value(&event)) placeholder="token"/>
-            <button type="submit" disabled=redeem.working>
-                {move || if redeem.working.get() { "authenticating..." } else { "authenticate" }}
-            </button>
-        </form>
-        {move || redeem.error.get().map(|error| view! { <p class="error">{error}</p> })}
+        <div class="panel-page">
+            <div class="panel-frame">
+                <div class="panel-inner">
+                    <h1 class="panel-title">"Authenticate"</h1>
+                    <form class="panel-form" on:submit=move |event| {
+                        event.prevent_default();
+                        send.submit.run(());
+                    }>
+                        <div class="panel-field">
+                            <input class="panel-input" type="text" prop:value=email on:input=move |event| email.set(event_target_value(&event)) placeholder="email" autocomplete="email" spellcheck="false" />
+                        </div>
+                        <button class="panel-submit" type="submit" disabled=send.working>
+                            {move || if send.working.get() { "sending..." } else { "send" }}
+                        </button>
+                    </form>
+                    <form class="panel-form" on:submit=move |event| {
+                        event.prevent_default();
+                        redeem.submit.run(());
+                    }>
+                        <div class="panel-field">
+                            <input class="panel-input" type="text" prop:value=token on:input=move |event| token.set(event_target_value(&event)) placeholder="token" spellcheck="false" />
+                        </div>
+                        <button class="panel-submit" type="submit" disabled=redeem.working>
+                            {move || if redeem.working.get() { "authenticating..." } else { "authenticate" }}
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
     }
 }

@@ -1,25 +1,9 @@
 :root {
-  --bg: #f2f4f7;
-  --card: #ffffff;
-  --ink: #1a1d21;
-  --muted: #6b7280;
-  --faint: #9aa1ab;
-  --line: #e5e7eb;
-  --line-strong: #d1d5db;
-  --accent: #2563eb;
-  --accent-soft: #eff6ff;
   --mark-bg: #fde047;
   --mark-fg: #422006;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-* { box-sizing: border-box; }
-
 body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--ink);
-  font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   padding: 0 0 80px;
 }
 

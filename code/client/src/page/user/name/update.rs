@@ -72,13 +72,20 @@ pub fn NameUpdate() -> impl IntoView {
     };
 
     view! {
-            <div>
-                <form on:submit=submit>
-                    <input type="text" prop:value=name on:input=move |event| name.set(event_target_value(&event)) placeholder="name"/>
-                    <button type="submit" disabled=move || working.get()>
-                        {move || if working.get() { "updating..." } else { "update name" }}
-                    </button>
-                </form>
+        <div class="panel-page">
+            <div class="panel-frame">
+                <div class="panel-inner">
+                    <h1 class="panel-title">"NAME UPDATE"</h1>
+                    <form class="panel-form" on:submit=submit>
+                        <div class="panel-field">
+                            <input class="panel-input" type="text" prop:value=name on:input=move |event| name.set(event_target_value(&event)) placeholder="name" spellcheck="false" />
+                        </div>
+                        <button class="panel-submit" type="submit" disabled=move || working.get()>
+                            {move || if working.get() { "updating..." } else { "update" }}
+                        </button>
+                    </form>
+                </div>
             </div>
+        </div>
     }
 }

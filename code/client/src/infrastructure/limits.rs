@@ -56,7 +56,7 @@ pub fn provide_limits() -> RwSignal<RuntimeLimits> {
     provide_context(limits);
     leptos::task::spawn_local(async move {
         if let Ok(server) =
-            crate::request::http::get_json::<RuntimeLimits>("/config/read", false, None).await
+            crate::request::http::get_json::<RuntimeLimits>("/config", false, None).await
         {
             limits.set(apply_fallbacks(&server));
         }

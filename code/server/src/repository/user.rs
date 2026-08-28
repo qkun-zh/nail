@@ -55,11 +55,15 @@ pub fn create_user(db: &Database, email_address_hash: &str) -> Result<String, Er
         let row = UserRow {
             id: user_id.clone(),
             email_address_hash: email_address_hash.to_string(),
-            name: "anonymous".to_string(),
+            name: default_user_name(&user_id),
         };
         scope.insert_node(&row)?;
         Ok(user_id)
     })
+}
+
+fn default_user_name(user_id: &str) -> String {
+    user_id.replace('-', "")
 }
 
 pub fn read_user_by_email_address_hash(

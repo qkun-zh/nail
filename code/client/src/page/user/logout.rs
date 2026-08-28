@@ -29,8 +29,17 @@ pub fn Logout() -> impl IntoView {
     };
 
     view! {
-        <button on:click=move |_| logout() disabled=move || working.get()>
-            {move || if working.get() { "logout..." } else { "logout" }}
-        </button>
+        <div class="panel-page">
+            <div class="panel-frame">
+                <div class="panel-inner">
+                    <h1 class="panel-title">"LOGOUT"</h1>
+                    <div class="panel-form panel-form--center">
+                        <button class="panel-submit" on:click=move |_| logout() disabled=move || working.get()>
+                            {move || if working.get() { "logout..." } else { "logout" }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     }
 }

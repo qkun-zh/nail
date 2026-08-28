@@ -141,3 +141,6 @@ pub mod probe_007_authorize_orchestration;
 
 #[path = "probe_008_logic_wrappers.rs"]
 pub mod probe_008_logic_wrappers;
+
+#[path = "probe_011_e2e_auth_instrument.rs"]
+pub mod probe_011_e2e_auth_instrument;
