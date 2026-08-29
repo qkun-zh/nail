@@ -20,9 +20,9 @@ fn schema_entity_types_are_fixed_set() {
 }
 
 #[test]
-fn action_count_is_39() {
+fn action_count_is_40() {
     let schema: cedar_policy::Schema = SCHEMA.parse().expect("schema");
-    assert_eq!(schema.actions().count(), 39);
+    assert_eq!(schema.actions().count(), 40);
 }
 
 #[test]

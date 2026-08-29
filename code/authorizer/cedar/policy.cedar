@@ -25,15 +25,28 @@ permit (principal, action in [Action::"Article::Read", Action::"Version::Read",
   when { resource has owner && resource.owner == principal };
 
 // 1b. User self-service: a user may always read, update and deregister their
-//     own account (soft or transfer mode). The User entity carries no
-//     attributes (schema `entity User in [Role];`), so self-service is
-//     expressed directly as `principal == resource` instead of an owner
+//     own account. Deregister is a dedicated action (soft delete gated by an
+//     email-confirmed token in application logic); the User::Delete variants
+//     are grant-only and never apply to yourself, see 1c. The User entity
+//     carries no attributes (schema `entity User in [Role];`), so self-service
+//     is expressed directly as `principal == resource` instead of an owner
 //     attribute — User stays attribute-less in both the principal and the
 //     resource position.
 permit (principal, action in [Action::"User::Read",
                               Action::"User::Update",
-                              Action::"User::Delete::Soft",
-                              Action::"User::Delete::Transfer"],
+                              Action::"User::Deregister"],
+        resource)
+  when { principal == resource };
+
+// 1c. Deleting an account is not a self-service operation: the Delete actions
+//     ride role grants only (see policy 3), and nobody — not even an admin
+//     with a grant — may delete their own account through them. The sole
+//     self-delete path is deregister (1b plus its email-confirmed token).
+//     Forbid beats the admin grant, so this also closes the member
+//     "delete page with mode=soft on myself" bypass of the email challenge.
+forbid (principal, action in [Action::"User::Delete::Hard",
+                              Action::"User::Delete::Transfer",
+                              Action::"User::Delete::Soft"],
         resource)
   when { principal == resource };
 
