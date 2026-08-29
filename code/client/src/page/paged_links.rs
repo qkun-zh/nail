@@ -6,7 +6,7 @@ use leptos_router::NavigateOptions;
 use leptos_router::hooks::query_signal_with_options;
 
 use crate::page::fetch::{LoadError, notify_load_failures};
-use crate::page::panel::{FORM, INPUT, SUBMIT};
+use crate::page::panel::{FORM, SUBMIT};
 
 pub fn total_pages(total: u64, per_page: u64) -> u64 {
     total.div_ceil(per_page).max(1)
@@ -161,17 +161,15 @@ fn PagedControls(
                 on:click=move |_| on_go.run(current.get().saturating_sub(1).max(1))
                 disabled=move || !has_prev.get()
             >"prev"</button>
-            <div class="w-24">
-                <input
-                    class=INPUT
-                    type="text"
-                    inputmode="numeric"
-                    pattern="[0-9]*"
-                    prop:value=page_input
-                    on:input=on_input
-                    on:change=on_change
-                />
-            </div>
+            <input
+                class="w-16 rounded-md border border-line-strong bg-card px-1 py-1 text-center text-sm text-ink outline-none focus:border-ink"
+                type="text"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                prop:value=page_input
+                on:input=on_input
+                on:change=on_change
+            />
             <span class="text-muted">{move || format!("/ {}", pages.get())}</span>
             <button
                 type="button"
