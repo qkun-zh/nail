@@ -39,7 +39,7 @@ pub fn CreateTag() -> impl IntoView {
         <PanelPage>
             <PanelFrame>
                 <PanelInner>
-                    <PanelTitle>"New Tag"</PanelTitle>
+                    <PanelTitle>"TAG CREATE"</PanelTitle>
                     <PanelForm>
                         <form class="contents" on:submit=on_submit>
                             <PanelField>
