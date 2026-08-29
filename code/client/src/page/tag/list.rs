@@ -1,41 +1,46 @@
+use common::response::ListPage;
 use leptos::prelude::*;
 use leptos_router::components::A;
 
-use common::response::ListPage;
-
-use crate::page::fetch::{LoadError, Loaded, notify_load_failures};
+use crate::infrastructure::limits::use_limits;
+use crate::page::fetch::LoadError;
+use crate::page::paged_links::PagedLinks;
 use crate::request::tag::{self, TagListItem};
+
+async fn load_tags(page: u64, limit: u64) -> Result<ListPage<TagListItem>, LoadError> {
+    tag::read_tags(Some(page), Some(limit))
+        .await
+        .map_err(LoadError::from)
+}
 
 #[component]
 pub fn TagList() -> impl IntoView {
-    let tags: LocalResource<Loaded<ListPage<TagListItem>>> =
-        LocalResource::new(
-            || async move { tag::read_tags(None, None).await.map_err(LoadError::from) },
-        );
-    notify_load_failures(tags);
-
+    let limits = use_limits();
+    let per_page = Signal::derive(move || limits.get().tag_page_size);
     view! {
-        <Suspense fallback=|| view! { <p>"Loading..."</p> }>
-            {move || match tags.get() {
-                Some(Ok(page)) => view! {
-                    <h1>"Tags"</h1>
-                    <ul>
-                        {page.items.into_iter().map(|tag| view! {
-                            <li>
-                                <A href={format!("/tag/{}", tag.id)}>
-                                    {tag.name}
-                                </A>
-                                <span>" (" {tag.article_count} " articles)"</span>
-                            </li>
-                        }).collect::<Vec<_>>()}
-                    </ul>
-                    <p>"Total: " {page.total}</p>
-                    <div><A href="/tag/create">create tag</A></div>
+        <PagedLinks
+            per_page=per_page
+            label="tags"
+            empty_message="no tags yet"
+            load=load_tags
+            render=move |tag: &TagListItem| {
+                let href = format!("/tag/{}", tag.id);
+                let name = tag.name.clone();
+                let count = tag.article_count;
+                view! {
+                    <div class="flex items-baseline justify-between gap-4">
+                        <A
+                            href=href
+                            attr:class="text-ink decoration-ink/50 underline-offset-4 hover:decoration-ink"
+                        >{name}</A>
+                        <span class="text-sm text-muted">{format!("{count} articles")}</span>
+                    </div>
                 }
-                .into_any(),
-                Some(Err(message)) => view! { <p>{message.to_string()}</p> }.into_any(),
-                None => view! { <p>"Loading..."</p> }.into_any(),
-            }}
-        </Suspense>
+                .into_any()
+            }
+        />
+        <div class="mt-6 text-center">
+            <A href="/tag/create">create tag</A>
+        </div>
     }
 }

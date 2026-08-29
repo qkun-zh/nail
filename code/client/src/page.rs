@@ -8,6 +8,7 @@ pub mod fetch;
 pub mod index;
 pub mod not_found;
 pub mod notify;
+pub mod paged_links;
 pub mod pagination;
 pub mod panel;
 pub mod role;
