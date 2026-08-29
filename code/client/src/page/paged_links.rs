@@ -84,10 +84,16 @@ where
                             view! { <p class="rounded-xl border border-line bg-card px-5 py-6 text-center text-muted">{empty_message}</p> }
                                 .into_any()
                         } else {
+                            let filler = usize::try_from(per_page.get().max(1))
+                                .unwrap_or(usize::MAX)
+                                .saturating_sub(list.items.len());
                             view! { <ul class="divide-y divide-line overflow-hidden rounded-xl border border-line-strong bg-card shadow-sm">
                                 {list.items.iter().map(|item| {
                                     let inner = render(item);
                                     view! { <li class="px-5 py-3">{inner}</li> }
+                                }).collect_view()}
+                                {(0..filler).map(|_| {
+                                    view! { <li class="px-5 py-3" aria-hidden="true">{"\u{00a0}"}</li> }
                                 }).collect_view()}
                             </ul> }
                                 .into_any()
