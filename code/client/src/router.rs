@@ -67,7 +67,7 @@ pub fn AppRouter() -> impl IntoView {
                     <Route path=path!("/article") view=UserArticle/>
                     <Route path=path!("/logout") view=Logout/>
                     <Route path=path!("/deregister") view=Deregister/>
-                    <Route path=path!("/undelete-soft") view=UndeleteSoftUser/>
+                    <Route path=path!("/undelete") view=UndeleteSoftUser/>
                 </ParentRoute>
                 <Route path=path!("/article/create") view=CreateArticle/>
                 <ParentRoute path=path!("/article/:article_id") view=Outlet>
