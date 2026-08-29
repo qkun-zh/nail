@@ -20,7 +20,6 @@ pub fn TagList() -> impl IntoView {
     view! {
         <PagedLinks
             per_page=per_page
-            label="tags"
             empty_message="no tags yet"
             load=load_tags
             render=move |tag: &TagListItem| {

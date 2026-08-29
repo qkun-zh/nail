@@ -23,7 +23,6 @@ pub fn clamp_page(target: u64, pages: u64) -> u64 {
 #[component]
 pub fn PagedLinks<T, L, R, LF>(
     per_page: Signal<u64>,
-    label: &'static str,
     empty_message: &'static str,
     load: L,
     render: R,
@@ -73,11 +72,6 @@ where
             <Suspense fallback=|| view! { <p class="text-muted">"Loading..."</p> }>
                 {move || match results.get() {
                     Some(Ok(list)) => {
-                        let header = view! {
-                            <h1 class="mb-5 text-2xl font-semibold tracking-tight text-ink">
-                                {format!("{} {}", list.total, label)}
-                            </h1>
-                        };
                         let body = if list.items.is_empty() {
                             view! { <p class="rounded-xl border border-line bg-card px-5 py-6 text-center text-muted">{empty_message}</p> }
                                 .into_any()
@@ -96,7 +90,7 @@ where
                             </ul> }
                                 .into_any()
                         };
-                        view! { {header} {body} <PagedControls current=current pages=pages has_prev=has_prev has_next=has_next on_go=on_go /> }
+                        view! { {body} <PagedControls current=current pages=pages has_prev=has_prev has_next=has_next on_go=on_go /> }
                             .into_any()
                     }
                     Some(Err(message)) => view! { <p class="rounded-xl border border-line bg-card px-5 py-6 text-center text-muted">{message.to_string()}</p> }
