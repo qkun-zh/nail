@@ -9,19 +9,17 @@ pub fn Index() -> impl IntoView {
     let hub_link = move || match session.get() {
         SessionStatus::Authenticated(view) => {
             let href = format!("/user/{}", view.id.unwrap_or_default());
-            view! { <div><A href=href>"my hub"</A></div> }.into_any()
+            view! { <div><A href=href>"me"</A></div> }.into_any()
         }
         _ => ().into_any(),
     };
     view! {
-        <div><A href="/search">search</A></div>
+        <div><A href="/search">article</A></div>
         <div><A href="/authenticate">authenticate</A></div>
-        <hr/>
-        <h1>"manage"</h1>
-        <div><A href="/tag">tags</A></div>
-        <div><A href="/role">roles</A></div>
-        <div><A href="/user">users</A></div>
-        <hr/>
-        {hub_link}
+        <div>{hub_link}</div>
+        <div><A href="/role">role</A></div>
+        <div><A href="/search">search</A></div>
+        <div><A href="/tag">tag</A></div>
+        <div><A href="/user">user</A></div>
     }
 }
