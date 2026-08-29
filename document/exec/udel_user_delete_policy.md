@@ -69,16 +69,24 @@ Acceptance criteria:
 1. **s1 authorizer** — schema + policy + authorizer context input
    (`RequestContext { delete_token_confirmed }`, serialized to Cedar Context),
    probe promoted into `tests/`. Exit: `cargo test -p authorizer`.
+   **DONE** (`fbc701f`, pushed, authorizer local green).
 2. **s2 server core** — infrastructure + logic authorize variants; `delete_user`
    rewrite (deregister/soft; admin hard/transfer/soft with per-target
    authorize + caches). Exit: `cargo test -p server`
-   (updated tests must pass).
+   (updated tests must pass). **DONE** (`a6dc198`, pushed with s3).
 3. **s3 server tests** — rewrite `tests/logic/user.rs`, `http/user.rs`,
    `delete_verify.rs` user cases; add admin-mode and self-denial cases.
-   Exit: `cargo test -p server -p authorizer`.
+   Exit: `cargo test -p server -p authorizer`. **DONE** (`bc62191`,
+   pushed with s2; run #71 all jobs green).
 4. **s4 client** — deregister no-mode; new `/user/:uid/delete` page; route;
    hub link; drop `SOFT_TRANSFER_HARD`. Exit: `cargo test -p client`,
-   `trunk build`.
+   `trunk build`. **PENDING.**
+
+Execution note (merge): s2 semantics inherently break the s3-era tests, so
+s2+s3 were pushed as one coherent change (two commits, one push, single CI
+run). The then-failing `probe_011_e2e_auth_instrument.rs` clippy lint
+(four `needless_borrow`, pre-existing on main) was fixed in the s3 commit to
+restore the Clippy job.
 
 Each slice: fmt + clippy clean, one commit, push, CI green.
 
@@ -121,3 +129,5 @@ Each slice: fmt + clippy clean, one commit, push, CI green.
 - 2026-08-29: rewritten from the discarded new-action design to the
   request-context design after user direction (permission system must own the
   distinction; no new action).
+- 2026-08-29: s1-s3 done and CI-green (run #71); s4 remains. s2+s3 were
+  pushed as one coherent change with the merge rationale recorded in §4.
