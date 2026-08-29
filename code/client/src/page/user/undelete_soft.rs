@@ -2,9 +2,10 @@ use leptos::prelude::*;
 use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map};
 
-use crate::page::confirm::{ConfirmButton, use_confirm_action};
+use crate::page::confirm::use_confirm_action;
 use crate::page::fetch::require_id;
 use crate::page::notify::{notify_success, use_notifications};
+use crate::page::panel::{PanelForm, PanelFrame, PanelInner, PanelPage, PanelSubmit, PanelTitle};
 
 #[component]
 pub fn UndeleteSoftUser() -> impl IntoView {
@@ -26,8 +27,20 @@ pub fn UndeleteSoftUser() -> impl IntoView {
     });
 
     view! {
-        <h1>"Undelete User"</h1>
-        <p class="warning">"Restore the soft-deleted user account?"</p>
-        <ConfirmButton handle=confirm label="Restore" busy_label="Restoring..."/>
+        <PanelPage>
+            <PanelFrame>
+                <PanelInner>
+                    <PanelTitle>"USER UNDELETE"</PanelTitle>
+                    <PanelForm center=true>
+                        <PanelSubmit
+                            disabled=confirm.working
+                            on_click=Callback::new(move |()| confirm.submit.run(()))
+                        >
+                            {move || if confirm.working.get() { "undeleting..." } else { "undelete" }}
+                        </PanelSubmit>
+                    </PanelForm>
+                </PanelInner>
+            </PanelFrame>
+        </PanelPage>
     }
 }

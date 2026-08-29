@@ -4,9 +4,13 @@ use leptos_router::hooks::use_query_map;
 use common::request::DeleteMode;
 
 use crate::page::confirm::use_confirm_action;
+use crate::page::delete_mode::{DeleteModePicker, SOFT_TRANSFER_HARD};
 use crate::page::draft::mirror_text_param;
 use crate::page::fetch::LoadError;
 use crate::page::notify::{notify_success, use_notifications};
+use crate::page::panel::{
+    PanelField, PanelForm, PanelFrame, PanelInner, PanelInput, PanelPage, PanelSubmit, PanelTitle,
+};
 use crate::page::session_gate::{authenticated_user_id, mark_session_invalid};
 
 #[component]
@@ -56,25 +60,41 @@ pub fn Deregister() -> impl IntoView {
     });
 
     view! {
-        <form on:submit=move |event| {
-            event.prevent_default();
-            send.submit.run(());
-        }>
-            <input type="text" prop:value=email on:input=move |event| email.set(event_target_value(&event)) placeholder="email"/>
-            <button type="submit" disabled=send.working>
-                {move || if send.working.get() { "sending..." } else { "send" }}
-            </button>
-        </form>
-        <form on:submit=move |event| {
-            event.prevent_default();
-            confirm.submit.run(());
-        }>
-            <input type="text" prop:value=token on:input=move |event| token.set(event_target_value(&event)) placeholder="token"/>
-            <label><input type="radio" name="mode" value="transfer" prop:checked=true on:change=move |_| mode.set(DeleteMode::Transfer)/> Transfer (content moves to platform)</label>
-            <label><input type="radio" name="mode" value="soft" on:change=move |_| mode.set(DeleteMode::Soft)/> Soft (data preserved, admin can restore)</label>
-            <button type="submit" disabled=confirm.working>
-                {move || if confirm.working.get() { "deregistering..." } else { "deregister" }}
-            </button>
-        </form>
+        <PanelPage>
+            <PanelFrame>
+                <PanelInner>
+                    <PanelTitle>"DEREGISTER"</PanelTitle>
+                    <PanelForm>
+                        <form class="contents" on:submit=move |event| {
+                            event.prevent_default();
+                            send.submit.run(());
+                        }>
+                            <PanelField>
+                                <PanelInput value=email on_input=move |v| email.set(v) placeholder="email" autocomplete="email" />
+                            </PanelField>
+                            <PanelSubmit disabled=send.working>
+                                {move || if send.working.get() { "sending..." } else { "send" }}
+                            </PanelSubmit>
+                        </form>
+                    </PanelForm>
+                    <div class="flex w-full justify-center">
+                        <DeleteModePicker mode=mode name="mode" allowed=&SOFT_TRANSFER_HARD/>
+                    </div>
+                    <PanelForm next=true>
+                        <form class="contents" on:submit=move |event| {
+                            event.prevent_default();
+                            confirm.submit.run(());
+                        }>
+                            <PanelField>
+                                <PanelInput value=token on_input=move |v| token.set(v) placeholder="token" />
+                            </PanelField>
+                            <PanelSubmit disabled=confirm.working>
+                                {move || if confirm.working.get() { "deregistering..." } else { "deregister" }}
+                            </PanelSubmit>
+                        </form>
+                    </PanelForm>
+                </PanelInner>
+            </PanelFrame>
+        </PanelPage>
     }
 }

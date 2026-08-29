@@ -24,8 +24,11 @@ pub fn EmailIndex() -> impl IntoView {
     view! {
         <Suspense fallback=|| view! { <p>loading...</p> }>
             {move || match email.get() {
-                Some(Ok(email_hash)) => view! { <p>{email_hash.unwrap_or_default()}</p> }.into_any(),
-                Some(Err(message)) => view! { <p>{message.to_string()}</p> }.into_any(),
+                Some(Ok(email_hash)) => view! {
+                    <p class="inline-block rounded-md border-4 border-ridge border-ink px-3 py-2 font-bold text-ink">{email_hash.unwrap_or_default()}</p>
+                }
+                .into_any(),
+                Some(Err(message)) => view! { <p class="font-bold text-ink">{message.to_string()}</p> }.into_any(),
                 None => view! { <p>loading...</p> }.into_any(),
             }}
         </Suspense>

@@ -23,11 +23,12 @@
   --mono: "Intel One Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-html, body { margin: 0; padding: 0; overflow: hidden; height: 100%; }
+html, body { margin: 0; padding: 0; }
 * { box-sizing: border-box; }
 
 body {
-  background: linear-gradient(180deg, #fbf1c7 0%, #decda8 100%);
+  min-height: 100vh;
+  background: linear-gradient(180deg, #fbf1c7 0%, #decda8 100%) fixed no-repeat;
   color: var(--ink);
   font: 23px/1.6 var(--mono);
   -webkit-font-smoothing: antialiased;

@@ -5,6 +5,9 @@ use crate::page::confirm::use_confirm_action;
 use crate::page::draft::mirror_text_param;
 use crate::page::fetch::LoadError;
 use crate::page::notify::{notify_success, use_notifications};
+use crate::page::panel::{
+    PanelField, PanelForm, PanelFrame, PanelInner, PanelInput, PanelPage, PanelSubmit, PanelTitle,
+};
 use crate::page::session_gate::refresh_session;
 
 #[component]
@@ -52,34 +55,38 @@ pub fn Authenticate() -> impl IntoView {
     });
 
     view! {
-        <div class="panel-page">
-            <div class="panel-frame">
-                <div class="panel-inner">
-                    <h1 class="panel-title">"Authenticate"</h1>
-                    <form class="panel-form" on:submit=move |event| {
-                        event.prevent_default();
-                        send.submit.run(());
-                    }>
-                        <div class="panel-field">
-                            <input class="panel-input" type="text" prop:value=email on:input=move |event| email.set(event_target_value(&event)) placeholder="email" autocomplete="email" spellcheck="false" />
-                        </div>
-                        <button class="panel-submit" type="submit" disabled=send.working>
-                            {move || if send.working.get() { "sending..." } else { "send" }}
-                        </button>
-                    </form>
-                    <form class="panel-form" on:submit=move |event| {
-                        event.prevent_default();
-                        redeem.submit.run(());
-                    }>
-                        <div class="panel-field">
-                            <input class="panel-input" type="text" prop:value=token on:input=move |event| token.set(event_target_value(&event)) placeholder="token" spellcheck="false" />
-                        </div>
-                        <button class="panel-submit" type="submit" disabled=redeem.working>
-                            {move || if redeem.working.get() { "authenticating..." } else { "authenticate" }}
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
+        <PanelPage>
+            <PanelFrame>
+                <PanelInner>
+                    <PanelTitle>"Authenticate"</PanelTitle>
+                    <PanelForm>
+                        <form class="contents" on:submit=move |event| {
+                            event.prevent_default();
+                            send.submit.run(());
+                        }>
+                            <PanelField>
+                                <PanelInput value=email on_input=move |v| email.set(v) placeholder="email" autocomplete="email" />
+                            </PanelField>
+                            <PanelSubmit disabled=send.working>
+                                {move || if send.working.get() { "sending..." } else { "send" }}
+                            </PanelSubmit>
+                        </form>
+                    </PanelForm>
+                    <PanelForm next=true>
+                        <form class="contents" on:submit=move |event| {
+                            event.prevent_default();
+                            redeem.submit.run(());
+                        }>
+                            <PanelField>
+                                <PanelInput value=token on_input=move |v| token.set(v) placeholder="token" />
+                            </PanelField>
+                            <PanelSubmit disabled=redeem.working>
+                                {move || if redeem.working.get() { "authenticating..." } else { "authenticate" }}
+                            </PanelSubmit>
+                        </form>
+                    </PanelForm>
+                </PanelInner>
+            </PanelFrame>
+        </PanelPage>
     }
 }

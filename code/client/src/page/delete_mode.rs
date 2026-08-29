@@ -2,6 +2,8 @@ use common::request::DeleteMode;
 use leptos::prelude::*;
 
 pub const ALL_MODES: [DeleteMode; 3] = [DeleteMode::Transfer, DeleteMode::Soft, DeleteMode::Hard];
+pub const SOFT_TRANSFER_HARD: [DeleteMode; 3] =
+    [DeleteMode::Soft, DeleteMode::Transfer, DeleteMode::Hard];
 pub const SOFT_AND_HARD: [DeleteMode; 2] = [DeleteMode::Soft, DeleteMode::Hard];
 
 pub fn mode_to_str(mode: DeleteMode) -> &'static str {
@@ -18,25 +20,37 @@ pub fn DeleteModePicker(
     name: &'static str,
     allowed: &'static [DeleteMode],
 ) -> impl IntoView {
-    allowed
-        .iter()
-        .map(|&allowed_mode| {
-            let is_selected = move || mode.get() == allowed_mode;
-            view! {
-                <div>
-                    <label>
-                        <input
-                            type="radio"
-                            name=name
-                            prop:checked=is_selected
-                            on:change=move |_| mode.set(allowed_mode)
-                        />
-                        {mode_to_str(allowed_mode)}
-                    </label>
-                </div>
-            }
-        })
-        .collect_view()
+    view! {
+        <div class="mt-4 flex w-auto flex-wrap items-center gap-2">
+            {allowed
+                .iter()
+                .map(|&allowed_mode| {
+                    let is_selected = move || mode.get() == allowed_mode;
+                    let state_class = move || {
+                        if is_selected() {
+                            " border-brick bg-primary/70 font-bold shadow-sm"
+                        } else {
+                            " border-line bg-card hover:border-brick-soft hover:bg-bg-soft"
+                        }
+                    };
+                    view! {
+                        <label class=move || {
+                            let base = "flex cursor-pointer items-center gap-2 rounded-md border px-4 py-2 font-mono text-[20px] leading-normal text-ink shadow-sm transition-none active:scale-95";
+                            format!("{base}{}", state_class())
+                        }>
+                            <input
+                                type="radio"
+                                name=name
+                                prop:checked=is_selected
+                                on:change=move |_| mode.set(allowed_mode)
+                            />
+                            {mode_to_str(allowed_mode)}
+                        </label>
+                    }
+                })
+                .collect_view()}
+        </div>
+    }
 }
 
 #[cfg(test)]

@@ -5,6 +5,9 @@ use crate::page::confirm::use_confirm_action;
 use crate::page::draft::mirror_text_param;
 use crate::page::fetch::LoadError;
 use crate::page::notify::{notify_success, use_notifications};
+use crate::page::panel::{
+    PanelField, PanelForm, PanelFrame, PanelInner, PanelInput, PanelPage, PanelSubmit, PanelTitle,
+};
 use crate::page::session_gate::{authenticated_user_id, refresh_session};
 
 #[component]
@@ -76,40 +79,44 @@ pub fn EmailUpdate() -> impl IntoView {
     });
 
     view! {
-        <div class="panel-page">
-            <div class="panel-frame panel-frame--wide">
-                <div class="panel-inner">
-                    <h1 class="panel-title">"EMAIL UPDATE"</h1>
-                    <form class="panel-form panel-form--pair" on:submit=move |event| {
-                        event.prevent_default();
-                        send.submit.run(());
-                    }>
-                        <div class="panel-field">
-                            <input class="panel-input" type="text" prop:value=old_email on:input=move |event| old_email.set(event_target_value(&event)) placeholder="email(old)" autocomplete="email" spellcheck="false" />
-                        </div>
-                        <div class="panel-field">
-                            <input class="panel-input" type="text" prop:value=new_email on:input=move |event| new_email.set(event_target_value(&event)) placeholder="email(new)" autocomplete="email" spellcheck="false" />
-                        </div>
-                        <button class="panel-submit" type="submit" disabled=send.working>
-                            {move || if send.working.get() { "sending..." } else { "send" }}
-                        </button>
-                    </form>
-                    <form class="panel-form panel-form--pair" on:submit=move |event| {
-                        event.prevent_default();
-                        confirm.submit.run(());
-                    }>
-                        <div class="panel-field">
-                            <input class="panel-input" type="text" prop:value=old_token on:input=move |event| old_token.set(event_target_value(&event)) placeholder="token(old)" spellcheck="false" />
-                        </div>
-                        <div class="panel-field">
-                            <input class="panel-input" type="text" prop:value=new_token on:input=move |event| new_token.set(event_target_value(&event)) placeholder="token(new)" spellcheck="false" />
-                        </div>
-                        <button class="panel-submit" type="submit" disabled=confirm.working>
-                            {move || if confirm.working.get() { "updating..." } else { "update" }}
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
+        <PanelPage>
+            <PanelFrame wide=true>
+                <PanelInner>
+                    <PanelTitle>"EMAIL UPDATE"</PanelTitle>
+                    <PanelForm pair=true>
+                        <form class="contents" on:submit=move |event| {
+                            event.prevent_default();
+                            send.submit.run(());
+                        }>
+                            <PanelField>
+                                <PanelInput value=old_email on_input=move |v| old_email.set(v) placeholder="email(old)" autocomplete="email" />
+                            </PanelField>
+                            <PanelField>
+                                <PanelInput value=new_email on_input=move |v| new_email.set(v) placeholder="email(new)" autocomplete="email" />
+                            </PanelField>
+                            <PanelSubmit disabled=send.working>
+                                {move || if send.working.get() { "sending..." } else { "send" }}
+                            </PanelSubmit>
+                        </form>
+                    </PanelForm>
+                    <PanelForm pair=true next=true>
+                        <form class="contents" on:submit=move |event| {
+                            event.prevent_default();
+                            confirm.submit.run(());
+                        }>
+                            <PanelField>
+                                <PanelInput value=old_token on_input=move |v| old_token.set(v) placeholder="token(old)" />
+                            </PanelField>
+                            <PanelField>
+                                <PanelInput value=new_token on_input=move |v| new_token.set(v) placeholder="token(new)" />
+                            </PanelField>
+                            <PanelSubmit disabled=confirm.working>
+                                {move || if confirm.working.get() { "updating..." } else { "update" }}
+                            </PanelSubmit>
+                        </form>
+                    </PanelForm>
+                </PanelInner>
+            </PanelFrame>
+        </PanelPage>
     }
 }

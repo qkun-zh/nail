@@ -1,6 +1,7 @@
 use leptos::prelude::*;
 
 use crate::page::notify::{notify_error, notify_success, use_notifications};
+use crate::page::panel::{PanelForm, PanelFrame, PanelInner, PanelPage, PanelSubmit, PanelTitle};
 use crate::page::session_gate::mark_session_invalid;
 
 #[component]
@@ -29,17 +30,17 @@ pub fn Logout() -> impl IntoView {
     };
 
     view! {
-        <div class="panel-page">
-            <div class="panel-frame">
-                <div class="panel-inner">
-                    <h1 class="panel-title">"LOGOUT"</h1>
-                    <div class="panel-form panel-form--center">
-                        <button class="panel-submit" on:click=move |_| logout() disabled=move || working.get()>
+        <PanelPage>
+            <PanelFrame>
+                <PanelInner>
+                    <PanelTitle>"LOGOUT"</PanelTitle>
+                    <PanelForm center=true>
+                        <PanelSubmit on_click=move |()| logout() disabled=move || working.get()>
                             {move || if working.get() { "logout..." } else { "logout" }}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
+                        </PanelSubmit>
+                    </PanelForm>
+                </PanelInner>
+            </PanelFrame>
+        </PanelPage>
     }
 }

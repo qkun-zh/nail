@@ -4,6 +4,9 @@ use leptos_router::hooks::{use_params_map, use_query_map};
 
 use crate::page::draft::mirror_text_param;
 use crate::page::notify::{notify_error, notify_success, use_notifications};
+use crate::page::panel::{
+    PanelField, PanelForm, PanelFrame, PanelInner, PanelInput, PanelPage, PanelSubmit, PanelTitle,
+};
 use crate::page::session_gate::{
     SessionStatus, authenticated_user_id, refresh_session, use_session_status,
 };
@@ -72,20 +75,22 @@ pub fn NameUpdate() -> impl IntoView {
     };
 
     view! {
-        <div class="panel-page">
-            <div class="panel-frame">
-                <div class="panel-inner">
-                    <h1 class="panel-title">"NAME UPDATE"</h1>
-                    <form class="panel-form" on:submit=submit>
-                        <div class="panel-field">
-                            <input class="panel-input" type="text" prop:value=name on:input=move |event| name.set(event_target_value(&event)) placeholder="name" spellcheck="false" />
-                        </div>
-                        <button class="panel-submit" type="submit" disabled=move || working.get()>
-                            {move || if working.get() { "updating..." } else { "update" }}
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
+        <PanelPage>
+            <PanelFrame>
+                <PanelInner>
+                    <PanelTitle>"NAME UPDATE"</PanelTitle>
+                    <PanelForm>
+                        <form class="contents" on:submit=submit>
+                            <PanelField>
+                                <PanelInput value=name on_input=move |v| name.set(v) placeholder="name" />
+                            </PanelField>
+                            <PanelSubmit disabled=move || working.get()>
+                                {move || if working.get() { "updating..." } else { "update" }}
+                            </PanelSubmit>
+                        </form>
+                    </PanelForm>
+                </PanelInner>
+            </PanelFrame>
+        </PanelPage>
     }
 }

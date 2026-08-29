@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #1a1a1a;
+  --color-muted: #8a8a8a;
+  --color-faint: #bdbdbd;
+  --color-line: #e8e0c8;
+  --color-line-strong: #d6ccb0;
+  --color-bg: #fbf1c7;
+  --color-bg-soft: #fdf8eb;
+  --color-card: #ffffff;
+  --color-primary: #ecddb4;
+  --color-secondary: #decda8;
+  --color-tertiary: #fbf1c7;
+
+  --color-brick: #b45c40;
+  --color-brick-soft: #c9744f;
+  --color-brick-deep: #6f3526;
+
+  --font-mono: "Intel One Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --breakpoint-narrow: 1100px;
+  --breakpoint-compact: 800px;
+  --breakpoint-tight: 480px;
+
+  --animate-char-in: char-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  --animate-nf-fade: nf-fade 1.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+
+  @keyframes char-in {
+    0% {
+      opacity: 0;
+      transform: translateY(20px) rotate(10deg) scale(0.8);
+      filter: blur(4px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) rotate(0) scale(1);
+      filter: blur(0);
+    }
+  }
+
+  @keyframes nf-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
+@layer base {
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    min-height: 100vh;
+    background: linear-gradient(180deg, #fbf1c7 0%, #decda8 100%) fixed no-repeat;
+    color: var(--color-ink);
+    font: 23px/1.6 var(--font-mono);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a {
+    color: #3d7a4e;
+    text-decoration: underline;
+    text-underline-offset: 0.12em;
+    text-decoration-thickness: 0.08em;
+    outline: 0 solid transparent;
+  }
+
+  a:hover {
+    outline: 1px solid #3d7a4e;
+    outline-offset: 1px;
+  }
+
+  a:active {
+    color: #244a2e;
+    font-weight: 700;
+  }
+}

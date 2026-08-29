@@ -26,8 +26,11 @@ pub fn Name() -> impl IntoView {
     view! {
         <Suspense fallback=|| view! { <p>loading...</p> }>
             {move || match name.get() {
-                Some(Ok(name)) => view! { <p>{name}</p> }.into_any(),
-                Some(Err(message)) => view! { <p>{message.to_string()}</p> }.into_any(),
+                Some(Ok(name)) => view! {
+                    <p class="inline-block rounded-md border-4 border-ridge border-ink px-3 py-2 font-bold text-ink">{name}</p>
+                }
+                .into_any(),
+                Some(Err(message)) => view! { <p class="font-bold text-ink">{message.to_string()}</p> }.into_any(),
                 None => view! { <p>loading...</p> }.into_any(),
             }}
         </Suspense>
