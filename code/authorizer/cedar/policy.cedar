@@ -24,18 +24,25 @@ permit (principal, action in [Action::"Article::Read", Action::"Version::Read",
         resource)
   when { resource has owner && resource.owner == principal };
 
-// 1b. User self-service: a user may always read, update and deregister their
-//     own account (soft or transfer mode). The User entity carries no
-//     attributes (schema `entity User in [Role];`), so self-service is
-//     expressed directly as `principal == resource` instead of an owner
-//     attribute — User stays attribute-less in both the principal and the
-//     resource position.
-permit (principal, action in [Action::"User::Read",
-                              Action::"User::Update",
-                              Action::"User::Delete::Soft",
-                              Action::"User::Delete::Transfer"],
+// 1b. User self-service: a user may always read and update their own account.
+//     Self-service account deletion is the email-confirmed deregistration
+//     flow, so self `User::Delete::Soft` requires the request context flag
+//     the application sets only on that path. Transfer of one's own account
+//     was removed in B-batch: deregistration is soft-only and account transfer
+//     rides the admin grant. The User entity carries no attributes (schema
+//     `entity User in [Role];`), so self-service is expressed directly as
+//     `principal == resource` instead of an owner attribute — User stays
+//     attribute-less in both the principal and the resource position.
+permit (principal, action in [Action::"User::Read", Action::"User::Update"],
         resource)
   when { principal == resource };
+
+permit (principal, action == Action::"User::Delete::Soft", resource)
+  when {
+    principal == resource
+    && context has delete_token_confirmed
+    && context.delete_token_confirmed == true
+  };
 
 // 2 was the read-open rule, removed in B1: reads now flow through policy 1
 // (owner) or the role grant in policy 3.

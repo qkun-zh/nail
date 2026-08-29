@@ -11,6 +11,7 @@
 pub mod authorizer;
 pub mod error;
 pub mod principal;
+pub mod request_context;
 pub mod resource;
 
 include!(concat!(env!("OUT_DIR"), "/permissions.rs"));
@@ -24,4 +25,5 @@ mod authorizer_tests;
 pub use authorizer::{Authorizer, Grant};
 pub use error::Error;
 pub use principal::Principal;
+pub use request_context::RequestContext;
 pub use resource::Resource;

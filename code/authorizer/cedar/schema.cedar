@@ -43,7 +43,7 @@ action "User::Read"                 appliesTo { principal: [User], resource: [Us
 action "User::Update"               appliesTo { principal: [User], resource: [User] };
 action "User::Delete::Hard"         appliesTo { principal: [User], resource: [User] };
 action "User::Delete::Transfer"     appliesTo { principal: [User], resource: [User] };
-action "User::Delete::Soft"         appliesTo { principal: [User], resource: [User] };
+action "User::Delete::Soft"         appliesTo { principal: [User], resource: [User], context: { delete_token_confirmed?: Bool } };
 action "User::Undelete::Soft"       appliesTo { principal: [User], resource: [User] };
 action "Role::Create"               appliesTo { principal: [User], resource: [Virtual] };
 action "Role::Read"                 appliesTo { principal: [User], resource: [Role, Virtual] };

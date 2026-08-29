@@ -10,6 +10,7 @@ use cedar_policy::{
 
 use crate::error::Error;
 use crate::principal::Principal;
+use crate::request_context::RequestContext;
 use crate::resource::Resource;
 
 pub(crate) const POLICY: &str = include_str!("../cedar/policy.cedar");
@@ -66,6 +67,19 @@ impl Authorizer {
         action: &str,
         resource: &Resource,
     ) -> Result<(), Error> {
+        self.authorize_ctx(principal, action, resource, &RequestContext::default())
+    }
+
+    /// Variant that surfaces application-vouched request metadata to Cedar.
+    /// Only `User::Delete::Soft` declares the `delete_token_confirmed`
+    /// context attribute; every other action passes an empty context.
+    pub fn authorize_ctx(
+        &self,
+        principal: &Principal,
+        action: &str,
+        resource: &Resource,
+        request_context: &RequestContext,
+    ) -> Result<(), Error> {
         let principal_entity = build_principal(principal)?;
         let (resource_uid, resource_entities) = build_resource(resource)?;
         let resource_uid_for_log = resource_uid.clone();
@@ -73,12 +87,14 @@ impl Authorizer {
         let mut positions: HashMap<EntityUid, usize> = HashMap::new();
         let mut merged: Vec<Entity> = Vec::new();
         for entity in std::iter::once(principal_entity).chain(resource_entities) {
-            if let Some(index) = positions.get(&entity.uid()) {
-                merged[*index] = entity;
-            } else {
-                positions.insert(entity.uid(), merged.len());
-                merged.push(entity);
+            if positions.contains_key(&entity.uid()) {
+                // The principal and the resource can share an entity uid (a
+                // self-service request). The User resource carries no attributes
+                // or parents, so keeping the principal copy keeps its role edges.
+                continue;
             }
+            positions.insert(entity.uid(), merged.len());
+            merged.push(entity);
         }
 
         let entities = Entities::from_entities(merged, Some(&self.schema)).map_err(|error| {
@@ -87,11 +103,23 @@ impl Authorizer {
 
         let action_uid =
             action_uid(action).map_err(|error| Error::InvalidRequest(error.to_string()))?;
+        let context = if action == RequestContext::DELETE_TOKEN_CONFIRMED_ACTION {
+            cedar_policy::Context::from_json_str(
+                &format!(
+                    r#"{{"delete_token_confirmed": {}}}"#,
+                    request_context.delete_token_confirmed
+                ),
+                None,
+            )
+            .map_err(|error| Error::InvalidRequest(format!("invalid context: {error}")))?
+        } else {
+            cedar_policy::Context::empty()
+        };
         let request = Request::new(
             user_uid(&principal.id)?,
             action_uid,
             resource_uid,
-            cedar_policy::Context::empty(),
+            context,
             Some(&self.schema),
         )
         .map_err(|error| Error::InvalidRequest(error.to_string()))?;
