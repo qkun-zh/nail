@@ -13,17 +13,17 @@ const INNER: &str = "relative px-10 pb-11 pt-12 max-tight:px-6 max-tight:pb-8 ma
 const TITLE: &str = "m-0 text-center font-mono text-[37px] font-medium uppercase leading-none \
     tracking-[0.14em] text-ink max-tight:text-[29px]";
 
-const FORM: &str = "flex items-center gap-2.5";
-const FORM_FIRST: &str = "mt-9";
-const FORM_NEXT: &str = "mt-4";
+pub(crate) const FORM: &str = "flex items-center gap-2.5";
+pub(crate) const FORM_FIRST: &str = "mt-9";
+pub(crate) const FORM_NEXT: &str = "mt-4";
 
-const FIELD: &str = "min-w-0 flex-1";
+pub(crate) const FIELD: &str = "min-w-0 flex-1";
 
-const INPUT: &str = "w-full rounded-md border border-line-strong bg-card px-3.5 py-3 font-mono \
+pub(crate) const INPUT: &str = "w-full rounded-md border border-line-strong bg-card px-3.5 py-3 font-mono \
     text-[23px] leading-normal text-ink outline-none transition-[border-color,background-color] \
     duration-200 placeholder:text-muted focus:border-ink focus:bg-bg-soft";
 
-const SUBMIT: &str = "shrink-0 cursor-pointer whitespace-nowrap rounded-lg border border-brick-deep \
+pub(crate) const SUBMIT: &str = "shrink-0 cursor-pointer whitespace-nowrap rounded-lg border border-brick-deep \
     bg-linear-to-b from-brick-soft to-brick px-5 py-2.5 \
     font-mono text-[23px] leading-normal text-white \
     shadow-[inset_0_1px_0_rgba(255,255,255,0.28),0_3px_0_#6f3526] \

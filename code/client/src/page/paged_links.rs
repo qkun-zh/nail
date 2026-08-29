@@ -6,6 +6,7 @@ use leptos_router::NavigateOptions;
 use leptos_router::hooks::query_signal_with_options;
 
 use crate::page::fetch::{LoadError, notify_load_failures};
+use crate::page::panel::{FORM, INPUT, SUBMIT};
 
 pub fn total_pages(total: u64, per_page: u64) -> u64 {
     total.div_ceil(per_page).max(1)
@@ -153,26 +154,28 @@ fn PagedControls(
     };
 
     view! {
-        <form class="mt-6 flex items-center justify-center gap-2" on:submit=on_submit>
+        <form class=format!("{FORM} mt-6 justify-center") on:submit=on_submit>
             <button
                 type="button"
-                class="panel-submit"
+                class=SUBMIT
                 on:click=move |_| on_go.run(current.get().saturating_sub(1).max(1))
                 disabled=move || !has_prev.get()
             >"prev"</button>
-            <input
-                type="text"
-                inputmode="numeric"
-                pattern="[0-9]*"
-                class="w-20 rounded-md border border-line-strong bg-card px-2 py-2 text-center text-ink outline-none focus:border-ink focus:bg-bg-soft"
-                prop:value=page_input
-                on:input=on_input
-                on:change=on_change
-            />
+            <div class="w-24">
+                <input
+                    class=INPUT
+                    type="text"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    prop:value=page_input
+                    on:input=on_input
+                    on:change=on_change
+                />
+            </div>
             <span class="text-muted">{move || format!("/ {}", pages.get())}</span>
             <button
                 type="button"
-                class="panel-submit"
+                class=SUBMIT
                 on:click=move |_| on_go.run((current.get() + 1).min(pages.get().max(1)))
                 disabled=move || !has_next.get()
             >"next"</button>
