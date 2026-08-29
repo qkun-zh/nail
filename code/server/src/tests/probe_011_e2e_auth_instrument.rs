@@ -154,7 +154,7 @@ async fn instrument_auth_email_name_flows() {
             .state
             .cache
             .user_creation
-            .read(&creation_key.as_str()),
+            .read(creation_key.as_str()),
     );
     dump_cache(&context, "after create-user email send");
     dump_graph(&context, "after create-user email send");
@@ -181,7 +181,7 @@ async fn instrument_auth_email_name_flows() {
             .state
             .cache
             .user_creation
-            .read(&creation_key.as_str()),
+            .read(creation_key.as_str()),
     );
     eprintln!("[OBSERVE] session table now holds the new session");
     dump_cache(&context, "after redeem (authenticate)");
@@ -255,7 +255,7 @@ async fn instrument_auth_email_name_flows() {
     );
     eprintln!(
         "[OBSERVE] old session key should be deleted: {:?}",
-        context.state.cache.session.read(&session_key.as_str()),
+        context.state.cache.session.read(session_key.as_str()),
     );
     eprintln!(
         "[OBSERVE] new session key present: {:?}",
@@ -263,7 +263,7 @@ async fn instrument_auth_email_name_flows() {
             .state
             .cache
             .session
-            .read(&cache_key_of(&new_session_token).as_str()),
+            .read(cache_key_of(&new_session_token).as_str()),
     );
     dump_cache(&context, "after email-update confirm");
     dump_graph(&context, "after email-update confirm");

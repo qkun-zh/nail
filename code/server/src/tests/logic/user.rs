@@ -177,7 +177,7 @@ async fn delete_user_rejects_a_missing_mode() {
         &user_id,
         UserDeleteQuery {
             mode: None,
-            token: Some(uuid::Uuid::now_v7().to_string()),
+            token: None,
         },
     )
     .await
@@ -201,7 +201,7 @@ async fn delete_user_hard_by_admin_removes_the_user() {
         &target,
         UserDeleteQuery {
             mode: Some(common::request::DeleteMode::Hard),
-            token: Some(uuid::Uuid::now_v7().to_string()),
+            token: None,
         },
     )
     .await
@@ -218,7 +218,7 @@ async fn delete_user_hard_by_admin_removes_the_user() {
 }
 
 #[tokio::test]
-async fn delete_user_transfer_after_email_confirmation() {
+async fn deregistration_ignores_the_requested_mode_and_soft_deletes() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = session_for(&context, "alice@example.com");
 
@@ -240,24 +240,171 @@ async fn delete_user_transfer_after_email_confirmation() {
     assert_eq!(messages.len(), 1);
     let confirmation_token = messages[0].2.clone();
 
-    let delete_token = confirmation_token.clone();
+    // The mode column requests transfer, the email binds the deletion to soft.
     let data = crate::logic::user::delete_user(
         &context.state,
         &user_id,
         &user_id,
         UserDeleteQuery {
             mode: Some(common::request::DeleteMode::Transfer),
-            token: Some(delete_token),
+            token: Some(confirmation_token),
+        },
+    )
+    .await
+    .expect("deregister delete");
+    assert!(matches!(data, UserDeleteView::Empty(_)));
+    assert!(
+        crate::repository::delete::is_soft_deleted(
+            &context.state.database,
+            database::NodeKind::User,
+            &user_id
+        )
+        .expect("soft-deleted check"),
+        "deregistration must always soft-delete"
+    );
+}
+
+#[tokio::test]
+async fn member_self_soft_delete_via_admin_endpoint_is_forbidden() {
+    let context = TestCtx::new().await.expect("test context");
+    let (user_id, _) = session_for(&context, "alice@example.com");
+    let error = crate::logic::user::delete_user(
+        &context.state,
+        &user_id,
+        &user_id,
+        UserDeleteQuery {
+            mode: Some(common::request::DeleteMode::Soft),
+            token: None,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(error, LogicError::Forbidden(_)));
+    assert!(
+        crate::repository::user::read_user(&context.state.database, &user_id)
+            .expect("read")
+            .is_some(),
+        "member must survive the forbidden attempt"
+    );
+}
+
+#[tokio::test]
+async fn member_delete_of_another_user_is_forbidden_in_every_mode() {
+    let context = TestCtx::new().await.expect("test context");
+    let (member, _) = session_for(&context, "alice@example.com");
+    let (target, _) = session_for(&context, "bob@example.com");
+    for mode in [
+        common::request::DeleteMode::Transfer,
+        common::request::DeleteMode::Soft,
+        common::request::DeleteMode::Hard,
+    ] {
+        let error = crate::logic::user::delete_user(
+            &context.state,
+            &member,
+            &target,
+            UserDeleteQuery {
+                mode: Some(mode),
+                token: None,
+            },
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(error, LogicError::Forbidden(_)), "mode: {mode:?}");
+        assert!(
+            crate::repository::user::read_user(&context.state.database, &target)
+                .expect("read")
+                .is_some(),
+            "target must survive mode {mode:?}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn admin_soft_delete_of_another_user_soft_deletes() {
+    let context = TestCtx::new().await.expect("test context");
+    let (admin, _) = admin_session(&context);
+    let (target, _) = session_for(&context, "alice@example.com");
+    let data = crate::logic::user::delete_user(
+        &context.state,
+        &admin,
+        &target,
+        UserDeleteQuery {
+            mode: Some(common::request::DeleteMode::Soft),
+            token: None,
+        },
+    )
+    .await
+    .expect("soft delete");
+    let UserDeleteView::UserId(view) = data else {
+        panic!("unexpected empty delete");
+    };
+    assert_eq!(view.user_id, target);
+    assert!(
+        crate::repository::delete::is_soft_deleted(
+            &context.state.database,
+            database::NodeKind::User,
+            &target
+        )
+        .expect("soft-deleted check")
+    );
+}
+
+#[tokio::test]
+async fn admin_transfer_delete_of_another_user_moves_content_and_removes_the_account() {
+    let context = TestCtx::new().await.expect("test context");
+    let (admin, _) = admin_session(&context);
+    let (target, _) = session_for(&context, "alice@example.com");
+    let data = crate::logic::user::delete_user(
+        &context.state,
+        &admin,
+        &target,
+        UserDeleteQuery {
+            mode: Some(common::request::DeleteMode::Transfer),
+            token: None,
         },
     )
     .await
     .expect("transfer delete");
-    assert!(matches!(data, UserDeleteView::Empty(_)));
+    let UserDeleteView::UserId(view) = data else {
+        panic!("unexpected empty delete");
+    };
+    assert_eq!(view.user_id, target);
     assert!(
-        crate::repository::user::read_user(&context.state.database, &user_id)
+        crate::repository::user::read_user(&context.state.database, &target)
             .expect("read")
-            .is_none()
+            .is_none(),
+        "transfer delete removes the account node"
     );
+}
+
+#[tokio::test]
+async fn admin_soft_delete_of_an_already_soft_deleted_user_is_a_bad_request() {
+    let context = TestCtx::new().await.expect("test context");
+    let (admin, _) = admin_session(&context);
+    let (target, _) = session_for(&context, "alice@example.com");
+    crate::logic::user::delete_user(
+        &context.state,
+        &admin,
+        &target,
+        UserDeleteQuery {
+            mode: Some(common::request::DeleteMode::Soft),
+            token: None,
+        },
+    )
+    .await
+    .expect("first soft delete");
+    let error = crate::logic::user::delete_user(
+        &context.state,
+        &admin,
+        &target,
+        UserDeleteQuery {
+            mode: Some(common::request::DeleteMode::Soft),
+            token: None,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(error, LogicError::BadRequest(_)));
 }
 
 #[tokio::test]

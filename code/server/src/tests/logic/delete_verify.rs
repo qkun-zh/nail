@@ -576,7 +576,7 @@ async fn hard_delete_user_removes_content_and_search_docs() {
         &owner,
         UserDeleteQuery {
             mode: Some(common::request::DeleteMode::Hard),
-            token: Some(uuid::Uuid::now_v7().to_string()),
+            token: None,
         },
     )
     .await

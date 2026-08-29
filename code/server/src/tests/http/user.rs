@@ -165,7 +165,7 @@ async fn user_delete_rejects_a_missing_mode() {
 }
 
 #[tokio::test]
-async fn user_delete_transfer_after_email_confirmation() {
+async fn deregistration_soft_deletes_regardless_of_the_requested_mode() {
     let context = TestCtx::new().await.expect("test context");
     let (user_id, token) = session_for(&context, "alice@example.com");
 
@@ -192,9 +192,86 @@ async fn user_delete_transfer_after_email_confirmation() {
     assert_eq!(body["message"].as_str(), Some("deleted"));
 
     assert!(
-        crate::repository::user::read_user(&context.state.database, &user_id)
+        crate::repository::delete::is_soft_deleted(
+            &context.state.database,
+            database::NodeKind::User,
+            &user_id
+        )
+        .expect("soft-deleted check"),
+        "deregistration must always soft-delete"
+    );
+}
+
+#[tokio::test]
+async fn user_delete_soft_by_admin_soft_deletes() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, admin_token) = admin_session(&context);
+    let (target, _) = session_for(&context, "alice@example.com");
+
+    let (status, body) = context
+        .delete(&format!("/users/{target}?mode=soft"), Some(&admin_token))
+        .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["data"]["user_id"].as_str(), Some(target.as_str()));
+    assert_eq!(body["message"].as_str(), Some("deleted"));
+    assert!(
+        crate::repository::delete::is_soft_deleted(
+            &context.state.database,
+            database::NodeKind::User,
+            &target
+        )
+        .expect("soft-deleted check")
+    );
+}
+
+#[tokio::test]
+async fn user_delete_transfer_by_admin_removes_the_account() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, admin_token) = admin_session(&context);
+    let (target, _) = session_for(&context, "alice@example.com");
+
+    let (status, body) = context
+        .delete(
+            &format!("/users/{target}?mode=transfer"),
+            Some(&admin_token),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["data"]["user_id"].as_str(), Some(target.as_str()));
+    assert_eq!(body["message"].as_str(), Some("deleted"));
+    assert!(
+        crate::repository::user::read_user(&context.state.database, &target)
             .expect("read")
             .is_none()
+    );
+}
+
+#[tokio::test]
+async fn member_cannot_soft_delete_self_via_admin_endpoint() {
+    let context = TestCtx::new().await.expect("test context");
+    let (member, token) = session_for(&context, "alice@example.com");
+
+    let (status, body) = context
+        .delete(&format!("/users/{member}?mode=soft"), Some(&token))
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
+}
+
+#[tokio::test]
+async fn member_cannot_delete_another_user() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = session_for(&context, "alice@example.com");
+    let (target, _) = session_for(&context, "bob@example.com");
+
+    let (status, body) = context
+        .delete(&format!("/users/{target}?mode=hard"), Some(&token))
+        .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "body: {body}");
+    assert!(
+        crate::repository::user::read_user(&context.state.database, &target)
+            .expect("read")
+            .is_some(),
+        "target must survive the forbidden attempt"
     );
 }
 
