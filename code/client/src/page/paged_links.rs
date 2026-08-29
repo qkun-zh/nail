@@ -153,6 +153,7 @@ fn PagedControls(
             <input
                 type="number"
                 min="1"
+                max=move || pages.get().max(1)
                 class="w-16 rounded-lg border border-line-strong bg-card px-2 py-2 text-center text-sm text-ink outline-none focus:border-ink"
                 prop:value=page_input
                 on:input=on_input
