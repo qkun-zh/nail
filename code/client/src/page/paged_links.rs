@@ -73,19 +73,19 @@ where
                 {move || match results.get() {
                     Some(Ok(list)) => {
                         let body = if list.items.is_empty() {
-                            view! { <p class="rounded-xl border border-line bg-card px-5 py-6 text-center text-muted">{empty_message}</p> }
+                            view! { <p class="py-6 text-center text-muted">{empty_message}</p> }
                                 .into_any()
                         } else {
                             let filler = usize::try_from(per_page.get().max(1))
                                 .unwrap_or(usize::MAX)
                                 .saturating_sub(list.items.len());
-                            view! { <ul class="divide-y divide-line overflow-hidden rounded-xl border border-line-strong bg-card shadow-sm">
+                            view! { <ul class="divide-y divide-line">
                                 {list.items.iter().map(|item| {
                                     let inner = render(item);
-                                    view! { <li class="px-5 py-3">{inner}</li> }
+                                    view! { <li class="py-3">{inner}</li> }
                                 }).collect_view()}
                                 {(0..filler).map(|_| {
-                                    view! { <li class="px-5 py-3" aria-hidden="true">{"\u{00a0}"}</li> }
+                                    view! { <li class="py-3" aria-hidden="true">{"\u{00a0}"}</li> }
                                 }).collect_view()}
                             </ul> }
                                 .into_any()
@@ -93,7 +93,7 @@ where
                         view! { {body} <PagedControls current=current pages=pages has_prev=has_prev has_next=has_next on_go=on_go /> }
                             .into_any()
                     }
-                    Some(Err(message)) => view! { <p class="rounded-xl border border-line bg-card px-5 py-6 text-center text-muted">{message.to_string()}</p> }
+                    Some(Err(message)) => view! { <p class="py-6 text-center text-muted">{message.to_string()}</p> }
                         .into_any(),
                     None => view! { <p class="text-muted">"Loading..."</p> }.into_any(),
                 }}
