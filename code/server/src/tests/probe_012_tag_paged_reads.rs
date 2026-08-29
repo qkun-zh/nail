@@ -6,7 +6,7 @@ use cache::UserId;
 
 use super::context::TestCtx;
 
-async fn session_for(context: &TestCtx, email: &str) -> (String, String) {
+fn session_for(context: &TestCtx, email: &str) -> (String, String) {
     let user_id = crate::repository::user::create_user(
         &context.state.database,
         &common::hash::hash(email.as_bytes()).expect("hash must succeed"),
@@ -38,7 +38,7 @@ async fn seed_tags(context: &TestCtx, token: &str, count: usize) {
 #[tokio::test]
 async fn tag_reads_page_by_explicit_page_and_limit() {
     let ctx = TestCtx::new().await.expect("ctx");
-    let (_, token) = session_for(&ctx, "user-zero@example.com").await;
+    let (_, token) = session_for(&ctx, "user-zero@example.com");
     seed_tags(&ctx, &token, 25).await;
 
     let (status, body) = ctx.get("/tags?page=1&limit=8", Some(&token)).await;
