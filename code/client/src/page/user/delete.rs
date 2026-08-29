@@ -4,7 +4,8 @@ use leptos_router::NavigateOptions;
 use leptos_router::hooks::{use_navigate, use_params_map};
 
 use crate::page::confirm::use_confirm_action;
-use crate::page::delete_mode::{ALL_MODES, DeleteModePicker};
+use crate::page::delete_mode::DeleteModePicker;
+use crate::page::delete_mode::SOFT_TRANSFER_HARD;
 use crate::page::fetch::require_id;
 use crate::page::notify::{notify_success, use_notifications};
 use crate::page::panel::{PanelForm, PanelFrame, PanelInner, PanelPage, PanelSubmit, PanelTitle};
@@ -36,7 +37,7 @@ pub fn DeleteUser() -> impl IntoView {
                 <PanelInner>
                     <PanelTitle>"USER DELETE"</PanelTitle>
                     <div class="flex w-full justify-center">
-                        <DeleteModePicker mode=mode name="delete_mode" allowed=&ALL_MODES/>
+                        <DeleteModePicker mode=mode name="mode" allowed=&SOFT_TRANSFER_HARD/>
                     </div>
                     <PanelForm center=true>
                         <PanelSubmit
