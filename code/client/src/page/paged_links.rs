@@ -73,12 +73,9 @@ where
                 {move || match results.get() {
                     Some(Ok(list)) => {
                         let header = view! {
-                            <div class="mb-5 flex items-baseline justify-between gap-4">
-                                <h1 class="text-2xl font-semibold tracking-tight text-ink">
-                                    {format!("{} {}", list.total, label)}
-                                </h1>
-                                <span class="text-sm text-muted">{move || format!("page {} of {}", current.get(), pages.get())}</span>
-                            </div>
+                            <h1 class="mb-5 text-2xl font-semibold tracking-tight text-ink">
+                                {format!("{} {}", list.total, label)}
+                            </h1>
                         };
                         let body = if list.items.is_empty() {
                             view! { <p class="rounded-xl border border-line bg-card px-5 py-6 text-center text-muted">{empty_message}</p> }
@@ -146,26 +143,36 @@ fn PagedControls(
     let on_change = move |_event: web_sys::Event| {
         commit_input(page_input, current, pages, on_go);
     };
-    let on_input = move |event: web_sys::Event| page_input.set(event_target_value(&event));
+    let on_input = move |event: web_sys::Event| {
+        let value: String = event_target_value(&event)
+            .chars()
+            .filter(char::is_ascii_digit)
+            .take(4)
+            .collect();
+        page_input.set(value);
+    };
 
     view! {
-        <form class="pagination" on:submit=on_submit>
+        <form class="mt-6 flex items-center justify-center gap-2" on:submit=on_submit>
             <button
                 type="button"
+                class="panel-submit"
                 on:click=move |_| on_go.run(current.get().saturating_sub(1).max(1))
                 disabled=move || !has_prev.get()
             >"prev"</button>
             <input
-                type="number"
-                min="1"
-                max=move || pages.get().max(1)
+                type="text"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                class="w-20 rounded-md border border-line-strong bg-card px-2 py-2 text-center text-ink outline-none focus:border-ink focus:bg-bg-soft"
                 prop:value=page_input
                 on:input=on_input
                 on:change=on_change
             />
-            <span class="total">{move || format!("/ {}", pages.get())}</span>
+            <span class="text-muted">{move || format!("/ {}", pages.get())}</span>
             <button
                 type="button"
+                class="panel-submit"
                 on:click=move |_| on_go.run((current.get() + 1).min(pages.get().max(1)))
                 disabled=move || !has_next.get()
             >"next"</button>
