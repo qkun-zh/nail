@@ -3,6 +3,9 @@ use leptos_router::NavigateOptions;
 use leptos_router::hooks::use_navigate;
 
 use crate::page::notify::{notify_error, use_notifications};
+use crate::page::panel::{
+    PanelField, PanelForm, PanelFrame, PanelInner, PanelInput, PanelPage, PanelSubmit, PanelTitle,
+};
 use crate::request::tag;
 
 #[component]
@@ -33,20 +36,22 @@ pub fn CreateTag() -> impl IntoView {
     };
 
     view! {
-        <h1>"Create Tag"</h1>
-        <form on:submit=on_submit>
-            <label>
-                "Name"
-                <input
-                    type="text"
-                    prop:value=name
-                    on:input=move |ev| name.set(event_target_value(&ev))
-                    disabled=submitting
-                />
-            </label>
-            <button type="submit" disabled=submitting>
-                {move || if submitting.get() { "Creating..." } else { "Create" }}
-            </button>
-        </form>
+        <PanelPage>
+            <PanelFrame>
+                <PanelInner>
+                    <PanelTitle>"New Tag"</PanelTitle>
+                    <PanelForm>
+                        <form class="contents" on:submit=on_submit>
+                            <PanelField>
+                                <PanelInput value=name on_input=move |v| name.set(v) placeholder="name" />
+                            </PanelField>
+                            <PanelSubmit disabled=submitting>
+                                {move || if submitting.get() { "Creating..." } else { "Create" }}
+                            </PanelSubmit>
+                        </form>
+                    </PanelForm>
+                </PanelInner>
+            </PanelFrame>
+        </PanelPage>
     }
 }
