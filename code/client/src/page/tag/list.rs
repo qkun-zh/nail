@@ -29,10 +29,7 @@ pub fn TagList() -> impl IntoView {
                 let count = tag.article_count;
                 view! {
                     <div class="flex items-baseline justify-between gap-4">
-                        <A
-                            href=href
-                            attr:class="text-ink decoration-ink/50 underline-offset-4 hover:decoration-ink"
-                        >{name}</A>
+                        <A href=href>{name}</A>
                         <span class="text-sm text-muted">{format!("{count} articles")}</span>
                     </div>
                 }

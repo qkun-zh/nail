@@ -143,10 +143,9 @@ fn PagedControls(
     let on_input = move |event: web_sys::Event| page_input.set(event_target_value(&event));
 
     view! {
-        <form class="mt-6 flex items-center justify-center gap-2" on:submit=on_submit>
+        <form class="pagination" on:submit=on_submit>
             <button
                 type="button"
-                class="rounded-lg border border-line-strong bg-card px-4 py-2 text-sm text-ink transition hover:border-ink disabled:cursor-not-allowed disabled:opacity-40"
                 on:click=move |_| on_go.run(current.get().saturating_sub(1).max(1))
                 disabled=move || !has_prev.get()
             >"prev"</button>
@@ -154,15 +153,13 @@ fn PagedControls(
                 type="number"
                 min="1"
                 max=move || pages.get().max(1)
-                class="w-16 rounded-lg border border-line-strong bg-card px-2 py-2 text-center text-sm text-ink outline-none focus:border-ink"
                 prop:value=page_input
                 on:input=on_input
                 on:change=on_change
             />
-            <span class="text-sm text-muted">{move || format!("/ {}", pages.get())}</span>
+            <span class="total">{move || format!("/ {}", pages.get())}</span>
             <button
                 type="button"
-                class="rounded-lg border border-line-strong bg-card px-4 py-2 text-sm text-ink transition hover:border-ink disabled:cursor-not-allowed disabled:opacity-40"
                 on:click=move |_| on_go.run((current.get() + 1).min(pages.get().max(1)))
                 disabled=move || !has_next.get()
             >"next"</button>
