@@ -31,6 +31,7 @@ use crate::page::tag::detail::TagDetail;
 use crate::page::tag::list::TagList;
 use crate::page::tag::update::UpdateTag;
 use crate::page::user::article::UserArticle;
+use crate::page::user::delete::DeleteUser;
 use crate::page::user::deregister::Deregister;
 use crate::page::user::email::EmailIndex;
 use crate::page::user::email::update::EmailUpdate;
@@ -67,6 +68,7 @@ pub fn AppRouter() -> impl IntoView {
                     <Route path=path!("/article") view=UserArticle/>
                     <Route path=path!("/logout") view=Logout/>
                     <Route path=path!("/deregister") view=Deregister/>
+                    <Route path=path!("/delete") view=DeleteUser/>
                     <Route path=path!("/undelete") view=UndeleteSoftUser/>
                 </ParentRoute>
                 <Route path=path!("/article/create") view=CreateArticle/>

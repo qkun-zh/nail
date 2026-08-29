@@ -2,8 +2,6 @@ use common::request::DeleteMode;
 use leptos::prelude::*;
 
 pub const ALL_MODES: [DeleteMode; 3] = [DeleteMode::Transfer, DeleteMode::Soft, DeleteMode::Hard];
-pub const SOFT_TRANSFER_HARD: [DeleteMode; 3] =
-    [DeleteMode::Soft, DeleteMode::Transfer, DeleteMode::Hard];
 pub const SOFT_AND_HARD: [DeleteMode; 2] = [DeleteMode::Soft, DeleteMode::Hard];
 
 pub fn mode_to_str(mode: DeleteMode) -> &'static str {

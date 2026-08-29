@@ -1,4 +1,5 @@
 pub mod article;
+pub mod delete;
 pub mod deregister;
 pub mod email;
 pub mod hub;

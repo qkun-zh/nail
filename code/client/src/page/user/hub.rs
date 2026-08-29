@@ -18,6 +18,7 @@ pub fn UserHub() -> impl IntoView {
             <div><A href={format!("/user/{uid}/article")}>article</A></div>
             <div><A href={format!("/user/{uid}/logout")}>logout</A></div>
             <div><A href={format!("/user/{uid}/deregister")}>deregister</A></div>
+            <div><A href={format!("/user/{uid}/delete")}>delete</A></div>
             <div><A href={format!("/user/{uid}/undelete")}>undelete</A></div>
         }
         .into_any(),

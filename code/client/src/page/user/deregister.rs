@@ -1,10 +1,7 @@
 use leptos::prelude::*;
 use leptos_router::hooks::use_query_map;
 
-use common::request::DeleteMode;
-
 use crate::page::confirm::use_confirm_action;
-use crate::page::delete_mode::{DeleteModePicker, SOFT_TRANSFER_HARD};
 use crate::page::draft::mirror_text_param;
 use crate::page::fetch::LoadError;
 use crate::page::notify::{notify_success, use_notifications};
@@ -19,7 +16,6 @@ pub fn Deregister() -> impl IntoView {
     let query = use_query_map();
     let email = RwSignal::new(query.get_untracked().get("email").unwrap_or_default());
     let token = RwSignal::new(query.get_untracked().get("token").unwrap_or_default());
-    let mode = RwSignal::new(DeleteMode::Transfer);
 
     mirror_text_param("email", move || email.get());
     mirror_text_param("token", move || token.get());
@@ -42,7 +38,6 @@ pub fn Deregister() -> impl IntoView {
     let confirm = use_confirm_action(move || {
         let user_id = authenticated_user_id();
         let token_value = token.get_untracked().trim().to_string();
-        let delete_mode = mode.get_untracked();
         let notifications = confirm_notifications.clone();
         async move {
             let Some(user_id) = user_id else {
@@ -51,7 +46,7 @@ pub fn Deregister() -> impl IntoView {
             if token_value.is_empty() {
                 return Err(LoadError::from("paste the confirmation token"));
             }
-            crate::request::user::deregister_self(&user_id, token_value, delete_mode).await?;
+            crate::request::user::deregister_self(&user_id, token_value).await?;
             crate::request::session::clear_session_token();
             mark_session_invalid();
             notify_success(&notifications, "account deregistered");
@@ -77,9 +72,6 @@ pub fn Deregister() -> impl IntoView {
                             </PanelSubmit>
                         </form>
                     </PanelForm>
-                    <div class="flex w-full justify-center">
-                        <DeleteModePicker mode=mode name="mode" allowed=&SOFT_TRANSFER_HARD/>
-                    </div>
                     <PanelForm next=true>
                         <form class="contents" on:submit=move |event| {
                             event.prevent_default();

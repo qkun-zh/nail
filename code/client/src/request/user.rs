@@ -3,7 +3,7 @@ use common::response::EmptyView;
 use common::response::ListPage;
 use common::response::email::{EmailSubjectView, EmailSubjectsView};
 use common::response::session::SessionTokenView;
-use common::response::user::{UserListItem, UserNameView, UserView};
+use common::response::user::{UserIdView, UserListItem, UserNameView, UserView};
 
 use crate::request::error::RequestResult;
 use crate::request::pow::prove_pow;
@@ -90,17 +90,17 @@ fn delete_user_token_request(email: String) -> CreateTokenRequest {
     }
 }
 
-pub async fn deregister_self(
-    user_id: &str,
-    delete_token: String,
-    mode: DeleteMode,
-) -> RequestResult<EmptyView> {
+pub async fn deregister_self(user_id: &str, delete_token: String) -> RequestResult<EmptyView> {
     let pow = prove_pow().await?;
     let user_id = validate_id(user_id, "user_id")?;
-    let path = url::build_path_with_query(
-        &["users", &user_id],
-        &[("mode", mode.as_str()), ("token", &delete_token)],
-    );
+    let path = url::build_path_with_query(&["users", &user_id], &[("token", &delete_token)]);
+    http::delete_json(&path, true, Some(&pow)).await
+}
+
+pub async fn delete_user(user_id: &str, mode: DeleteMode) -> RequestResult<UserIdView> {
+    let pow = prove_pow().await?;
+    let user_id = validate_id(user_id, "user_id")?;
+    let path = url::build_path_with_query(&["users", &user_id], &[("mode", mode.as_str())]);
     http::delete_json(&path, true, Some(&pow)).await
 }
 
