@@ -20,6 +20,7 @@ pub async fn read_config(State(state): State<AppState>) -> impl IntoResponse {
             download_token_ttl_seconds: state.config.cache.download_ttl_seconds,
             search_page_size: state.config.server.search_page_size,
             max_search_pages: state.config.server.max_search_pages,
+            tag_page_size: state.config.server.tag_page_size,
         },
         "ok",
     )

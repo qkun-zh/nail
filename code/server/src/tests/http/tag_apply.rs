@@ -139,3 +139,42 @@ async fn apply_tag_to_a_missing_tag_returns_404() {
     assert_eq!(status, StatusCode::NOT_FOUND, "body: {body}");
     assert_eq!(body["message"].as_str(), Some("tag not found"));
 }
+
+#[tokio::test]
+async fn read_tags_defaults_to_the_tag_page_size_without_query_params() {
+    let context = TestCtx::new().await.expect("test context");
+    let (_, token) = admin_session(&context);
+    seed_many_tags(&context, &token, 25).await;
+
+    let page_size = context.state.config.server.tag_page_size;
+    assert!(page_size > 0, "tag_page_size must be configured");
+
+    let (status, body) = context.get("/tags", Some(&token)).await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    let data = &body["data"];
+    assert_eq!(data["total"].as_u64(), Some(25));
+    assert_eq!(data["has_next"].as_bool(), Some(page_size < 25));
+    assert_eq!(
+        data["items"].as_array().expect("items").len() as u64,
+        page_size.min(25)
+    );
+
+    let (_, body) = context.get("/tags?page=999", Some(&token)).await;
+    let far = &body["data"];
+    assert_eq!(far["total"].as_u64(), Some(25));
+    assert_eq!(far["has_next"].as_bool(), Some(false));
+    assert_eq!(far["items"].as_array().expect("items").len(), 0);
+}
+
+async fn seed_many_tags(context: &TestCtx, token: &str, count: usize) {
+    for index in 0..count {
+        let (status, body) = context
+            .post(
+                "/tags",
+                json!({ "name": format!("filler-{index:02}") }),
+                Some(token),
+            )
+            .await;
+        assert_eq!(status, StatusCode::CREATED, "body: {body}");
+    }
+}

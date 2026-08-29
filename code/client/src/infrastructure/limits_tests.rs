@@ -13,6 +13,7 @@ fn limits() -> RuntimeLimits {
         download_token_ttl_seconds: 60,
         search_page_size: 8,
         max_search_pages: 1024,
+        tag_page_size: 8,
     }
 }
 
@@ -31,6 +32,7 @@ fn zero_numeric_limits_fall_back_to_defaults() {
     let merged = apply_fallbacks(&server);
     assert_eq!(merged.search_page_size, 8);
     assert_eq!(merged.max_pdf_size_bytes, 33_554_432);
+    assert_eq!(merged.tag_page_size, 8);
 }
 
 #[test]
@@ -46,6 +48,7 @@ fn fully_populated_server_values_are_kept() {
         download_token_ttl_seconds: 30,
         search_page_size: 20,
         max_search_pages: 500,
+        tag_page_size: 16,
     };
     assert_eq!(apply_fallbacks(&server), server);
 }
@@ -63,6 +66,7 @@ fn every_zero_numeric_field_falls_back_individually() {
         download_token_ttl_seconds: 0,
         search_page_size: 0,
         max_search_pages: 0,
+        tag_page_size: 0,
     };
     let merged = apply_fallbacks(&server);
     assert_eq!(merged.max_tags_per_article, 8);
@@ -75,4 +79,5 @@ fn every_zero_numeric_field_falls_back_individually() {
     assert_eq!(merged.download_token_ttl_seconds, 60);
     assert_eq!(merged.search_page_size, 8);
     assert_eq!(merged.max_search_pages, 1024);
+    assert_eq!(merged.tag_page_size, 8);
 }

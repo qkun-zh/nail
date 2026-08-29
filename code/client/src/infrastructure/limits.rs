@@ -13,6 +13,7 @@ pub fn compile_time_defaults() -> RuntimeLimits {
         download_token_ttl_seconds: 60,
         search_page_size: 8,
         max_search_pages: 1024,
+        tag_page_size: 8,
     }
 }
 
@@ -44,6 +45,7 @@ pub fn apply_fallbacks(server: &RuntimeLimits) -> RuntimeLimits {
         ),
         search_page_size: nonzero_or(server.search_page_size, defaults.search_page_size),
         max_search_pages: nonzero_or(server.max_search_pages, defaults.max_search_pages),
+        tag_page_size: nonzero_or(server.tag_page_size, defaults.tag_page_size),
     }
 }
 

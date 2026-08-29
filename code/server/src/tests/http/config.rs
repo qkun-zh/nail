@@ -20,6 +20,7 @@ async fn read_config_over_http_serves_the_runtime_limits_without_a_session() {
     assert_eq!(data["download_token_ttl_seconds"].as_u64(), Some(60));
     assert_eq!(data["search_page_size"].as_u64(), Some(8));
     assert_eq!(data["max_search_pages"].as_u64(), Some(1024));
+    assert_eq!(data["tag_page_size"].as_u64(), Some(8));
 }
 
 #[test]

@@ -49,6 +49,7 @@ pub struct RuntimeLimits {
     pub download_token_ttl_seconds: u64,
     pub search_page_size: u64,
     pub max_search_pages: u64,
+    pub tag_page_size: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

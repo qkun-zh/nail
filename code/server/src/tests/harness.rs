@@ -144,3 +144,6 @@ pub mod probe_008_logic_wrappers;
 
 #[path = "probe_011_e2e_auth_instrument.rs"]
 pub mod probe_011_e2e_auth_instrument;
+
+#[path = "probe_012_tag_paged_reads.rs"]
+pub mod probe_012_tag_paged_reads;

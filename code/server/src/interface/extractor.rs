@@ -67,9 +67,9 @@ where
 }
 
 #[derive(Deserialize)]
-struct PagedQueryParams {
-    page: Option<u64>,
-    limit: Option<u64>,
+pub struct PagedQueryParams {
+    pub page: Option<u64>,
+    pub limit: Option<u64>,
 }
 
 pub struct AppPaged(pub (u64, u64));

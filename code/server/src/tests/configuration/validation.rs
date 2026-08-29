@@ -67,6 +67,7 @@ fn server_config_rejects_text_field_bytes_exceeding_pdf_size() {
 fn server_config_rejects_zero_pagination_limits() {
     assert_invalid_server(|server| server.search_page_size = 0);
     assert_invalid_server(|server| server.max_search_pages = 0);
+    assert_invalid_server(|server| server.tag_page_size = 0);
 }
 
 #[test]
@@ -155,6 +156,7 @@ max_text_field_bytes = 1048576
 max_search_query_chars = 512
 search_page_size = 8
 max_search_pages = 1024
+tag_page_size = 8
 
 [logging]
 dir = "log/back"

@@ -316,6 +316,7 @@ pub fn test_config() -> AppConfig {
             max_search_query_chars: 512,
             search_page_size: 8,
             max_search_pages: 1024,
+            tag_page_size: 8,
         },
         logging: LoggingConfig {
             dir: "log/back".to_string(),

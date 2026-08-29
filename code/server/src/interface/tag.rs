@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use crate::infrastructure::state::AppState;
 use crate::interface::envelope::{ApiError, json_response};
-use crate::interface::extractor::{AppJson, AppPaged, AppPath, AppQuery};
+use crate::interface::extractor::{AppJson, AppPath, AppQuery, PagedQueryParams};
 use crate::interface::principal::Principal;
 
 pub async fn create_tag(
@@ -27,8 +27,13 @@ pub async fn create_tag(
 pub async fn read_tags(
     State(state): State<AppState>,
     principal: Principal,
-    AppPaged((page, limit)): AppPaged,
+    AppQuery(query): AppQuery<PagedQueryParams>,
 ) -> Result<impl IntoResponse, ApiError> {
+    let (page, limit) = crate::logic::pagination::clamp_page(
+        query.page,
+        query.limit,
+        state.config.server.tag_page_size,
+    );
     let data = crate::logic::tag::read_tags(&state, &principal.user_id, page, limit)
         .map_err(ApiError::from_logic)?;
     Ok(json_response(StatusCode::OK, data, "ok"))

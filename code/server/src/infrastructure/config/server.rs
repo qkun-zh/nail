@@ -19,6 +19,7 @@ pub struct ServerConfig {
     pub max_search_query_chars: u64,
     pub search_page_size: u64,
     pub max_search_pages: u64,
+    pub tag_page_size: u64,
 }
 
 impl ServerConfig {
@@ -69,6 +70,7 @@ impl ServerConfig {
             ("max_search_query_chars", self.max_search_query_chars),
             ("search_page_size", self.search_page_size),
             ("max_search_pages", self.max_search_pages),
+            ("tag_page_size", self.tag_page_size),
         ] {
             if value == 0 {
                 bail!("config: {name} must be > 0");

@@ -35,3 +35,9 @@ pub fn clamp_page_limit(
     .clamp(1, MAX_PAGE);
     Ok((page, limit))
 }
+
+pub fn clamp_page(page: Option<u64>, limit: Option<u64>, default_limit: u64) -> (u64, u64) {
+    let limit = limit.unwrap_or(default_limit).clamp(1, MAX_PAGE_SIZE);
+    let page = page.unwrap_or(1).max(1);
+    (page, limit)
+}
