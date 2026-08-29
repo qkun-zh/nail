@@ -1,4 +1,4 @@
-// Authorization action vocabulary (Cedar schema): 40 actions and the entity
+// Authorization action vocabulary (Cedar schema): 39 actions and the entity
 // type declarations. This is the single handwritten source of the action names;
 // the permission nodes are seeded from these names. Static, requires restart.
 //
@@ -41,7 +41,6 @@ action "Comment::Undelete::Soft"      appliesTo { principal: [User], resource: [
 action "User::Create"               appliesTo { principal: [User], resource: [Virtual] };
 action "User::Read"                 appliesTo { principal: [User], resource: [User, Virtual] };
 action "User::Update"               appliesTo { principal: [User], resource: [User] };
-action "User::Deregister"           appliesTo { principal: [User], resource: [User] };
 action "User::Delete::Hard"         appliesTo { principal: [User], resource: [User] };
 action "User::Delete::Transfer"     appliesTo { principal: [User], resource: [User] };
 action "User::Delete::Soft"         appliesTo { principal: [User], resource: [User] };
