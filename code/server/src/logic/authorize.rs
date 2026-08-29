@@ -1,3 +1,4 @@
+use authorizer::RequestContext;
 use database::NodeKind;
 
 use crate::infrastructure::authorizer::AuthorizationError;
@@ -163,6 +164,22 @@ pub fn authorize_entity(
     entity: EntityRef<'_>,
 ) -> Result<(), LogicError> {
     authorize(state, actor_id, action, &entity.resource())
+}
+
+/// Authorization honouring a [`RequestContext`]. Only callers that vouch for
+/// the request metadata (the email-confirmed deregistration flow) pass a
+/// non-default context.
+pub fn authorize_entity_ctx(
+    state: &AppState,
+    actor_id: &str,
+    action: &str,
+    entity: EntityRef<'_>,
+    context: RequestContext,
+) -> Result<(), LogicError> {
+    state
+        .authorizer
+        .authorize_ctx(actor_id, action, &entity.resource(), context)
+        .map_err(LogicError::from)
 }
 
 pub fn authorize_entity_or(

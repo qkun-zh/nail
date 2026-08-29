@@ -6,8 +6,8 @@ use database::NodeKind;
 
 use crate::infrastructure::state::AppState;
 use crate::logic::authorize::{
-    EntityRef, authorize_anonymous, authorize_entity, authorize_entity_or, authorize_global,
-    require_entity_readable,
+    EntityRef, authorize_anonymous, authorize_entity, authorize_entity_ctx, authorize_entity_or,
+    authorize_global, require_entity_readable,
 };
 use crate::logic::error::LogicError;
 use crate::logic::pagination::paginate;
@@ -187,31 +187,25 @@ pub async fn delete_user(
     target_id: &str,
     query: UserDeleteQuery,
 ) -> Result<UserDeleteView, LogicError> {
-    match query.mode {
-        Some(DeleteMode::Transfer) => {
-            let token = query
-                .token
-                .ok_or_else(|| LogicError::bad_request("token is required"))?;
-            handle_delete_user_transfer(state, actor_id, &token).await?;
-            Ok(UserDeleteView::Empty(EmptyView {}))
-        }
-        Some(DeleteMode::Soft) => {
-            let token = query
-                .token
-                .ok_or_else(|| LogicError::bad_request("token is required"))?;
-            handle_delete_user_soft(state, actor_id, &token).await?;
-            Ok(UserDeleteView::Empty(EmptyView {}))
-        }
-        Some(DeleteMode::Hard) => {
-            handle_delete_user_hard(state, actor_id, target_id).await?;
-            Ok(UserDeleteView::UserId(UserIdView {
-                user_id: target_id.to_string(),
-            }))
-        }
-        None => Err(LogicError::bad_request(
-            "missing or unsupported delete mode (expected \"transfer\", \"soft\" or \"hard\")",
-        )),
+    if let Some(raw_token) = query.token {
+        // Deregistration: email-confirmed self-service, always soft, any mode
+        // value is ignored.
+        handle_delete_user_deregister(state, actor_id, &raw_token).await?;
+        return Ok(UserDeleteView::Empty(EmptyView {}));
     }
+    let mode = query.mode.ok_or_else(|| {
+        LogicError::bad_request(
+            "missing or unsupported delete mode (expected \"transfer\", \"soft\" or \"hard\")",
+        )
+    })?;
+    match mode {
+        DeleteMode::Transfer | DeleteMode::Soft | DeleteMode::Hard => {
+            handle_admin_delete_user(state, actor_id, target_id, mode).await?;
+        }
+    }
+    Ok(UserDeleteView::UserId(UserIdView {
+        user_id: target_id.to_string(),
+    }))
 }
 
 fn handle_admin_update_name(
@@ -242,11 +236,18 @@ struct DeleteUserGrant {
 
 fn read_delete_user_grant(
     state: &AppState,
-    permission: &str,
     actor_id: &str,
     raw_token: &str,
 ) -> Result<Option<DeleteUserGrant>, LogicError> {
-    authorize_entity(state, actor_id, permission, EntityRef::User(actor_id))?;
+    authorize_entity_ctx(
+        state,
+        actor_id,
+        PERMISSION_USER_DELETE_SOFT,
+        EntityRef::User(actor_id),
+        authorizer::RequestContext {
+            delete_token_confirmed: true,
+        },
+    )?;
     let token_hash = hash_token(raw_token, LogicError::bad_request("invalid delete token"))?;
 
     let Some(entry) = state.cache.user_deletion.read(&token_hash) else {
@@ -268,54 +269,111 @@ fn read_delete_user_grant(
     }))
 }
 
-fn clear_user_caches(cache: &cache::Cache, actor_id: &str, grant: &DeleteUserGrant) {
-    let _ = cache.user_deletion.delete(&grant.token_hash);
-    let _ = cache.session.delete_by_reverse_key(actor_id);
-    let _ = cache.email_update.delete(actor_id);
-    let _ = cache.user_deletion.delete_by_reverse_key(actor_id);
+fn clear_user_caches(
+    cache: &cache::Cache,
+    user_id: &str,
+    email_address_hash: &str,
+    token_hash: Option<&str>,
+) {
+    if let Some(token_hash) = token_hash {
+        let _ = cache.user_deletion.delete(token_hash);
+    }
+    let _ = cache.session.delete_by_reverse_key(user_id);
+    let _ = cache.email_update.delete(user_id);
+    let _ = cache.user_deletion.delete_by_reverse_key(user_id);
     let _ = cache
         .user_creation
-        .delete_by_reverse_key(&grant.email_address_hash);
+        .delete_by_reverse_key(email_address_hash);
 }
 
-async fn handle_delete_user_transfer(
+fn read_target_email_hash(state: &AppState, target_id: &str) -> Result<String, LogicError> {
+    let entry = read_user_node(&state.database, target_id)?
+        .ok_or_else(|| LogicError::not_found("user not found"))?;
+    Ok(entry.email_address_hash)
+}
+
+async fn handle_delete_user_deregister(
     state: &AppState,
     actor_id: &str,
     raw_token: &str,
 ) -> Result<(), LogicError> {
-    let Some(grant) =
-        read_delete_user_grant(state, PERMISSION_USER_DELETE_TRANSFER, actor_id, raw_token)?
-    else {
-        return Ok(());
-    };
-
-    let outcome = crate::repository::transfer::transfer_account_assets(&state.database, actor_id)?;
-    clear_user_caches(&state.cache, actor_id, &grant);
-
-    for article_id in &outcome.transferred_article_ids {
-        sync_article_best_effort(state, article_id).await;
-    }
-    tracing::info!(user_id = %actor_id, "user deleted, assets transferred");
-    Ok(())
-}
-
-async fn handle_delete_user_soft(
-    state: &AppState,
-    actor_id: &str,
-    raw_token: &str,
-) -> Result<(), LogicError> {
-    let Some(grant) =
-        read_delete_user_grant(state, PERMISSION_USER_DELETE_SOFT, actor_id, raw_token)?
-    else {
+    let Some(grant) = read_delete_user_grant(state, actor_id, raw_token)? else {
         return Ok(());
     };
 
     crate::repository::delete::soft_delete_user(&state.database, actor_id)
         .map_err(|error| LogicError::internal(format!("failed to soft-delete user: {error}")))?;
-    clear_user_caches(&state.cache, actor_id, &grant);
+    clear_user_caches(
+        &state.cache,
+        actor_id,
+        &grant.email_address_hash,
+        Some(&grant.token_hash),
+    );
 
     sync_all_best_effort(state).await;
-    tracing::info!(user_id = %actor_id, "user soft-deleted");
+    tracing::info!(user_id = %actor_id, "user deregistered (soft-deleted)");
+    Ok(())
+}
+
+async fn handle_admin_delete_user(
+    state: &AppState,
+    actor_id: &str,
+    target_id: &str,
+    mode: DeleteMode,
+) -> Result<(), LogicError> {
+    match mode {
+        DeleteMode::Soft => {
+            crate::logic::delete::soft_delete_guard(
+                state,
+                actor_id,
+                EntityRef::User(target_id),
+                PERMISSION_USER_DELETE_SOFT,
+                NodeKind::User,
+                target_id,
+            )?;
+        }
+        DeleteMode::Transfer => {
+            authorize_entity_or(
+                state,
+                actor_id,
+                PERMISSION_USER_DELETE_TRANSFER,
+                EntityRef::User(target_id),
+            )?;
+        }
+        DeleteMode::Hard => {
+            authorize_entity_or(
+                state,
+                actor_id,
+                PERMISSION_USER_DELETE_HARD,
+                EntityRef::User(target_id),
+            )?;
+        }
+    }
+    let email_address_hash = read_target_email_hash(state, target_id)?;
+
+    match mode {
+        DeleteMode::Soft => {
+            crate::repository::delete::soft_delete_user(&state.database, target_id).map_err(
+                |error| LogicError::internal(format!("failed to soft-delete user: {error}")),
+            )?;
+            sync_all_best_effort(state).await;
+        }
+        DeleteMode::Transfer => {
+            let outcome =
+                crate::repository::transfer::transfer_account_assets(&state.database, target_id)?;
+            for article_id in &outcome.transferred_article_ids {
+                sync_article_best_effort(state, article_id).await;
+            }
+        }
+        DeleteMode::Hard => {
+            let outcome = crate::repository::delete::delete_user(&state.database, target_id)
+                .map_err(|error| LogicError::internal(format!("failed to delete user: {error}")))?;
+            crate::logic::version::remove_orphaned_pdfs(state, &outcome.removed_pdf_hashes).await;
+            sync_all_best_effort(state).await;
+        }
+    }
+    clear_user_caches(&state.cache, target_id, &email_address_hash, None);
+    tracing::info!(user_id = %target_id, mode = %mode.as_str(), "user deleted by administrator");
     Ok(())
 }
 
@@ -332,24 +390,6 @@ pub async fn undelete_soft_user(
     )?;
     crate::repository::delete::undelete_soft_user(&state.database, target_id)
         .map_err(|error| LogicError::internal(format!("failed to undelete user: {error}")))?;
-    sync_all_best_effort(state).await;
-    Ok(())
-}
-
-async fn handle_delete_user_hard(
-    state: &AppState,
-    actor_id: &str,
-    target_id: &str,
-) -> Result<(), LogicError> {
-    authorize_entity(
-        state,
-        actor_id,
-        PERMISSION_USER_DELETE_HARD,
-        EntityRef::User(target_id),
-    )?;
-    let outcome = crate::repository::delete::delete_user(&state.database, target_id)
-        .map_err(|error| LogicError::internal(format!("failed to delete user: {error}")))?;
-    crate::logic::version::remove_orphaned_pdfs(state, &outcome.removed_pdf_hashes).await;
     sync_all_best_effort(state).await;
     Ok(())
 }

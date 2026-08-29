@@ -1,4 +1,6 @@
-use authorizer::{Authorizer as InnerAuthorizer, Principal, Resource as AuthResource};
+use authorizer::{
+    Authorizer as InnerAuthorizer, Principal, RequestContext, Resource as AuthResource,
+};
 use database::Database;
 
 #[derive(Clone)]
@@ -52,10 +54,21 @@ impl Authorizer {
         action: &str,
         resource: &crate::repository::authorization::Resource,
     ) -> Result<(), AuthorizationError> {
+        self.authorize_ctx(user_id, action, resource, RequestContext::default())
+    }
+
+    /// Variant threading application-vouched request metadata into Cedar.
+    pub fn authorize_ctx(
+        &self,
+        user_id: &str,
+        action: &str,
+        resource: &crate::repository::authorization::Resource,
+        context: RequestContext,
+    ) -> Result<(), AuthorizationError> {
         let principal = build_principal(&self.graph, user_id)?;
         let auth_resource = build_resource(&self.graph, resource)?;
         self.inner
-            .authorize(&principal, action, &auth_resource)
+            .authorize_ctx(&principal, action, &auth_resource, &context)
             .map_err(AuthorizationError::from)
     }
 }
